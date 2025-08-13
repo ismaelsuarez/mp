@@ -1,6 +1,6 @@
 {
   "name": "mp-reports",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "commonjs",
   "main": "dist/src/main.js",
@@ -18,7 +18,8 @@
   },
   "build": {
     "appId": "com.todo.mp",
-    "productName": "MP Reports",
+    "productName": "Todo-computacion MP",
+    "artifactName": "Todo-computacion MP ver.${version}.${ext}",
     "asar": true,
     "files": [
       "src/**/*",
@@ -33,7 +34,16 @@
     "win": {
       "target": [
         "nsis"
-      ]
+      ],
+      "publisherName": "TODO-Computacion",
+      "requestedExecutionLevel": "requireAdministrator",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "perMachine": true,
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": [

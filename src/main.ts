@@ -43,8 +43,8 @@ function createMainWindow() {
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
 	const cfg: any = store.get('config') || {};
 	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
-	if (defaultView === 'caja' && !cfg.MP_ACCESS_TOKEN) defaultView = 'config'; // fallback si no hay credenciales
-	const initialFile = defaultView === 'caja' ? 'caja.html' : 'config.html';
+	// Siempre preferir iniciar en "caja" (sin forzar ir a configuracion por falta de token)
+	const initialFile = (defaultView ?? 'caja') === 'caja' ? 'caja.html' : 'config.html';
 
 	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
 	try {
@@ -58,6 +58,8 @@ function createMainWindow() {
 			mainWindow.setSize(1000, 700);
 			mainWindow.setMenuBarVisibility(true);
 			mainWindow.setAutoHideMenuBar(false);
+			// Centrar la ventana cuando se abre Configuración
+			try { mainWindow.center(); } catch {}
 		}
 	} catch {}
 
@@ -207,6 +209,8 @@ app.whenReady().then(() => {
 					mainWindow.setSize(1000, 700);
 					mainWindow.setMenuBarVisibility(true);
 					mainWindow.setAutoHideMenuBar(false);
+					// Centrar la ventana al abrir Configuración
+					try { mainWindow.center(); } catch {}
 				}
 			} catch {}
 			await mainWindow.loadFile(target);

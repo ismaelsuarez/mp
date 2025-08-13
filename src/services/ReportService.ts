@@ -10,9 +10,17 @@ function ensureDir(dir: string) {
 }
 
 export function getOutDir() {
-	const base = path.join(app.getPath('documents'), 'MP-Reportes');
-	ensureDir(base);
-	return base;
+    // Carpeta requerida por el cliente: C:\2_mp\reportes
+    const preferred = path.join('C:\\', '2_mp', 'reportes');
+    try {
+        ensureDir(preferred);
+        return preferred;
+    } catch {
+        // Fallback a Documentos si no hay permisos
+        const base = path.join(app.getPath('documents'), 'MP-Reportes');
+        ensureDir(base);
+        return base;
+    }
 }
 
 function mapDetailedRow(p: any) {
