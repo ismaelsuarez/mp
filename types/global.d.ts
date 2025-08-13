@@ -14,6 +14,9 @@ declare global {
 			listHistory(): Promise<any>;
 			openView?(view: 'config' | 'caja'): Promise<any>;
 			setWindowSize?(width: number, height: number): Promise<any>;
+			autoStart?(): Promise<any>;
+			autoStop?(): Promise<any>;
+			autoStatus?(): Promise<any>;
 		};
 	}
 }

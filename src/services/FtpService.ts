@@ -20,19 +20,29 @@ function getConfig() {
 	return (store.get('config') as any) || {};
 }
 
+function normalizeDir(dir: string | undefined): string | undefined {
+    if (!dir) return undefined;
+    // Usar separador POSIX para rutas remotas FTP
+    let d = String(dir).replace(/\\/g, '/');
+    // Quitar dobles barras y trailing slash
+    d = d.replace(/\/+$/, '');
+    return d;
+}
+
 export async function testFtp() {
 	const cfg = getConfig();
 	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) throw new Error('Config FTP incompleta');
 	const client = new Client();
 	try {
-		await client.access({
+        await client.access({
 			host: String(cfg.FTP_IP),
 			port: 21,
 			user: String(cfg.FTP_USER),
 			password: String(cfg.FTP_PASS),
 			secure: false,
 		});
-		if (cfg.FTP_DIR) await client.ensureDir(String(cfg.FTP_DIR));
+        const dir = normalizeDir(cfg.FTP_DIR);
+        if (dir) await client.ensureDir(dir);
 		return true;
 	} finally {
 		client.close();
@@ -55,18 +65,20 @@ export async function sendTodayDbf() {
 	}
 	if (!fs.existsSync(localPath)) throw new Error(`No existe archivo DBF local: ${localPath}`);
 
-	const client = new Client();
+    const client = new Client();
 	try {
-		await client.access({
+        await client.access({
 			host: String(cfg.FTP_IP),
 			port: 21,
 			user: String(cfg.FTP_USER),
 			password: String(cfg.FTP_PASS),
 			secure: false,
 		});
-		if (cfg.FTP_DIR) await client.ensureDir(String(cfg.FTP_DIR));
-		await client.uploadFrom(localPath, path.basename(fileName));
-		return { remoteDir: cfg.FTP_DIR || '/', remoteFile: path.basename(fileName) };
+        const dir = normalizeDir(cfg.FTP_DIR);
+        if (dir) await client.ensureDir(dir);
+        const remoteName = path.basename(fileName);
+        await client.uploadFrom(localPath, remoteName);
+        return { remoteDir: dir || '/', remoteFile: remoteName };
 	} finally {
 		client.close();
 	}
@@ -76,18 +88,20 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	const cfg = getConfig();
 	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) throw new Error('Config FTP incompleta');
 	if (!fs.existsSync(localPath)) throw new Error(`No existe archivo DBF local: ${localPath}`);
-	const client = new Client();
+    const client = new Client();
 	try {
-		await client.access({
+        await client.access({
 			host: String(cfg.FTP_IP),
 			port: 21,
 			user: String(cfg.FTP_USER),
 			password: String(cfg.FTP_PASS),
 			secure: false,
 		});
-		if (cfg.FTP_DIR) await client.ensureDir(String(cfg.FTP_DIR));
-		await client.uploadFrom(localPath, remoteFileName.toLowerCase());
-		return { remoteDir: cfg.FTP_DIR || '/', remoteFile: remoteFileName.toLowerCase() };
+        const dir = normalizeDir(cfg.FTP_DIR);
+        if (dir) await client.ensureDir(dir);
+        const remoteName = remoteFileName.toLowerCase();
+        await client.uploadFrom(localPath, remoteName);
+        return { remoteDir: dir || '/', remoteFile: remoteName };
 	} finally {
 		client.close();
 	}
