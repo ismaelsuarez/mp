@@ -19,11 +19,15 @@ async function refreshAutoIndicator() {
 }
 
 function appendLog(line: string) {
-	const box = document.getElementById('cajaLogs');
-	if (!box) return;
-	const at = new Date().toISOString().slice(11,19);
-	box.textContent = `${box.textContent ? box.textContent + '\n' : ''}[${at}] ${line}`;
-	box.scrollTop = (box as any).scrollHeight;
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    if (!box) return;
+    const at = new Date().toISOString().slice(11,19);
+    const current = (box.textContent || '').split('\n').filter(Boolean);
+    const maxLines = 3;
+    current.push(`[${at}] ${line}`);
+    const trimmed = current.slice(-maxLines);
+    box.textContent = trimmed.join('\n');
+    box.scrollTop = box.scrollHeight;
 }
 
 function renderLast8(rows: Array<{ id: any; status: any; amount: any }>) {
@@ -57,6 +61,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		// Render quick last 8 from returned rows
 		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount })));
 	});
+
+	// Controles de tamaño removidos (mantener función por si se reintroducen)
 
 	// Ir a Configuración
 	document.getElementById('btnGoConfig')?.addEventListener('click', async () => {

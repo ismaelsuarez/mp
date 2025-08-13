@@ -11,6 +11,7 @@ declare global {
 			openOutDir(): Promise<any>;
 			listHistory(): Promise<any>;
 			openView?(view: 'config' | 'caja'): Promise<any>;
+			setWindowSize?(width: number, height: number): Promise<any>;
 		};
 	}
 }

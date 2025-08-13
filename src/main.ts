@@ -139,11 +139,37 @@ app.whenReady().then(() => {
 		if (mainWindow) {
 			const target = path.join(app.getAppPath(), 'public', file);
 			console.log('[main] loading file:', target);
+			// Ajustar tamaño según vista
+			try {
+				if (view === 'caja') {
+					mainWindow.setMinimumSize(400, 300);
+					mainWindow.setSize(400, 300);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+				} else {
+					mainWindow.setMinimumSize(800, 600);
+					mainWindow.setSize(1000, 700);
+					mainWindow.setMenuBarVisibility(true);
+					mainWindow.setAutoHideMenuBar(false);
+				}
+			} catch {}
 			await mainWindow.loadFile(target);
 			console.log('[main] loadFile done');
 			return { ok: true };
 		}
 		console.warn('[main] open-view: no mainWindow');
+		return { ok: false };
+	});
+
+	// Cambiar tamaño de ventana actual
+	ipcMain.handle('set-window-size', async (_evt, payload: { width?: number; height?: number }) => {
+		if (!mainWindow) return { ok: false };
+		const w = Number(payload?.width || 0);
+		const h = Number(payload?.height || 0);
+		if (w > 0 && h > 0) {
+			mainWindow.setSize(w, h);
+			return { ok: true };
+		}
 		return { ok: false };
 	});
 

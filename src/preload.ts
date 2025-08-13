@@ -33,5 +33,8 @@ contextBridge.exposeInMainWorld('api', {
 		const res = await ipcRenderer.invoke('open-view', view);
 		console.log('[preload] openView result', res);
 		return res;
+	},
+	async setWindowSize(width: number, height: number) {
+		return await ipcRenderer.invoke('set-window-size', { width, height });
 	}
 });
