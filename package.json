@@ -1,5 +1,5 @@
 {
-  "name": "mp-reports",
+  "name": "tc-mp",
   "version": "1.0.1",
   "private": true,
   "type": "commonjs",
@@ -17,9 +17,9 @@
     "mp:account:process:dist": "npm run build:ts && node dist/mp-sdk/account-money-process.js"
   },
   "build": {
-    "appId": "com.todo.mp",
-    "productName": "Todo-computacion MP",
-    "artifactName": "Todo-computacion MP ver.${version}.${ext}",
+    "appId": "com.todo.tc-mp",
+    "productName": "Tc-Mp",
+    "artifactName": "Tc-Mp ver.${version}.${ext}",
     "asar": true,
     "files": [
       "src/**/*",
@@ -43,9 +43,7 @@
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
       "perMachine": true,
-      "include": "build/installer.nsh",
-      "artifactName": "Todo-computacion MP ver.${version}.${ext}",
-      "installerSidebar": null
+      "include": "build/installer.nsh"
     },
     "linux": {
       "target": [
