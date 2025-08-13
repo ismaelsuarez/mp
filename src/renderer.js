@@ -147,6 +147,45 @@ window.addEventListener('DOMContentLoaded', () => {
 		showToast(`Tema: ${next}`);
 	});
 
+	// Toast en notificaciones automáticas
+	if (window.api.onAutoNotice) {
+		window.api.onAutoNotice((payload) => {
+			if (payload?.error) {
+				showToast(`Auto-reporte error: ${payload.error}`);
+			} else {
+				showToast(`Auto-reporte generado (${payload?.count ?? 0})`);
+				// Agregar al historial en UI
+				addHistoryItem({ tag: new Date().toISOString().slice(0,10), files: [] });
+			}
+		});
+	}
+
+	// Historial simple
+	const historyList = document.getElementById('historyList');
+	function renderHistory(items) {
+		if (!historyList) return;
+		historyList.innerHTML = items.map(({ tag, files }) => {
+			return `<li><strong>${tag}</strong> – ${files.join(', ')}</li>`;
+		}).join('');
+	}
+	function addHistoryItem(item) {
+		const curr = Array.from(historyList?.querySelectorAll('li') || []).map(li => li.textContent) || [];
+		// Solicitar al backend la lista real para evitar desincronización
+		refreshHistory();
+	}
+	async function refreshHistory() {
+		const res = await window.api.listHistory();
+		if (res?.ok) renderHistory(res.items || []);
+	}
+	
+	document.getElementById('btnRefreshHistory')?.addEventListener('click', refreshHistory);
+	document.getElementById('btnOpenOutDir')?.addEventListener('click', async () => {
+		await window.api.openOutDir();
+	});
+
+	// Cargar historial al abrir la pestaña
+	refreshHistory();
+
 	// Resultados
 	const tbody = document.querySelector('#resultsTable tbody');
 	let allRows = [];

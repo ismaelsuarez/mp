@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
+	},
+	async openOutDir() {
+		return await ipcRenderer.invoke('open-out-dir');
+	},
+	async listHistory() {
+		return await ipcRenderer.invoke('list-history');
 	}
 });
 

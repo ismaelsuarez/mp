@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -101,6 +101,34 @@ app.whenReady().then(() => {
 		].filter(f => fs.existsSync(f.path));
 		const sent = await sendReportEmail(`MP Reporte ${today}`, `Adjunto reporte de ${today}`, files);
 		return { sent, files: files.map(f => f.filename) };
+	});
+
+	// Abrir carpeta de salida
+	ipcMain.handle('open-out-dir', async () => {
+		const dir = getOutDir();
+		await shell.openPath(dir);
+		return { ok: true, dir };
+	});
+
+	// Listar historial simple por fecha (tags)
+	ipcMain.handle('list-history', async () => {
+		const dir = getOutDir();
+		try {
+			const entries = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+			const map = new Map();
+			for (const name of entries) {
+				const m = name.match(/^(balance|transactions|transactions-full|transactions-detailed)-([0-9]{4}-[0-9]{2}-[0-9]{2})\.(json|csv|xlsx|dbf)$/);
+				if (!m) continue;
+				const tag = m[2];
+				const arr = map.get(tag) || [];
+				arr.push(name);
+				map.set(tag, arr);
+			}
+			const items = Array.from(map.entries()).sort((a,b)=>a[0]<b[0]?1:-1).map(([tag, files]) => ({ tag, files }));
+			return { ok: true, dir, items };
+		} catch (e) {
+			return { ok: false, error: String(e?.message || e) };
+		}
 	});
 
 	createMainWindow();
