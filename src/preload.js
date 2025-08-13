@@ -1,18 +1,11 @@
-const { contextBridge } = require('electron');
-const Store = require('electron-store');
-
-const store = new Store({ name: 'settings' });
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-	save(key, value) {
-		store.set(key, value);
-		return true;
+	async getConfig() {
+		return await ipcRenderer.invoke('get-config');
 	},
-	read(key) {
-		return store.get(key);
-	},
-	readAll() {
-		return store.store;
+	async saveConfig(cfg) {
+		return await ipcRenderer.invoke('save-config', cfg);
 	}
 });
 

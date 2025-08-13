@@ -1,22 +1,87 @@
 window.addEventListener('DOMContentLoaded', () => {
-	const saveBtn = document.getElementById('saveBtn');
-	const keyInput = document.getElementById('key');
-	const valueInput = document.getElementById('value');
-	const output = document.getElementById('output');
+	const tabs = Array.from(document.querySelectorAll('.tab'));
+	const panes = Array.from(document.querySelectorAll('.tab-pane'));
+	for (const t of tabs) {
+		t.addEventListener('click', () => {
+			for (const x of tabs) x.classList.toggle('active', x === t);
+			for (const p of panes) p.classList.toggle('active', p.id === `tab-${t.dataset.tab}`);
+		});
+	}
 
-	const render = () => {
-		const all = window.api.readAll();
-		output.textContent = JSON.stringify(all, null, 2);
-	};
+	const ids = [
+		'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO',
+		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS'
+	];
+	const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
+	const preview = document.getElementById('preview');
 
-	saveBtn.addEventListener('click', () => {
-		const key = keyInput.value || 'test.key';
-		const value = valueInput.value || 'hola-mp';
-		window.api.save(key, value);
-		render();
+	function buildConfigFromForm() {
+		return {
+			MP_ACCESS_TOKEN: el.MP_ACCESS_TOKEN.value || undefined,
+			MP_USER_ID: el.MP_USER_ID.value || undefined,
+			MP_TZ: el.MP_TZ.value || undefined,
+			MP_WINDOW_START: el.MP_WINDOW_START.value || undefined,
+			MP_WINDOW_END: el.MP_WINDOW_END.value || undefined,
+			MP_DATE_FROM: el.MP_DATE_FROM.value || undefined,
+			MP_DATE_TO: el.MP_DATE_TO.value || undefined,
+			MP_NO_DATE_FILTER: el.MP_NO_DATE_FILTER.checked || false,
+			MP_RANGE: el.MP_RANGE.value || undefined,
+			MP_STATUS: el.MP_STATUS.value || undefined,
+			MP_LIMIT: el.MP_LIMIT.value ? Number(el.MP_LIMIT.value) : undefined,
+			MP_MAX_PAGES: el.MP_MAX_PAGES.value ? Number(el.MP_MAX_PAGES.value) : undefined,
+			EMAIL_REPORT: el.EMAIL_REPORT.value || undefined,
+			SMTP_HOST: el.SMTP_HOST.value || undefined,
+			SMTP_PORT: el.SMTP_PORT.value ? Number(el.SMTP_PORT.value) : undefined,
+			SMTP_USER: el.SMTP_USER.value || undefined,
+			SMTP_PASS: el.SMTP_PASS.value || undefined
+		};
+	}
+
+	function setFormFromConfig(cfg) {
+		if (!cfg) return;
+		el.MP_ACCESS_TOKEN.value = cfg.MP_ACCESS_TOKEN || '';
+		el.MP_USER_ID.value = cfg.MP_USER_ID || '';
+		el.MP_TZ.value = cfg.MP_TZ || '';
+		el.MP_WINDOW_START.value = cfg.MP_WINDOW_START || '';
+		el.MP_WINDOW_END.value = cfg.MP_WINDOW_END || '';
+		el.MP_DATE_FROM.value = cfg.MP_DATE_FROM || '';
+		el.MP_DATE_TO.value = cfg.MP_DATE_TO || '';
+		el.MP_NO_DATE_FILTER.checked = !!cfg.MP_NO_DATE_FILTER;
+		el.MP_RANGE.value = cfg.MP_RANGE || '';
+		el.MP_STATUS.value = cfg.MP_STATUS || '';
+		el.MP_LIMIT.value = cfg.MP_LIMIT || '';
+		el.MP_MAX_PAGES.value = cfg.MP_MAX_PAGES || '';
+		el.EMAIL_REPORT.value = cfg.EMAIL_REPORT || '';
+		el.SMTP_HOST.value = cfg.SMTP_HOST || '';
+		el.SMTP_PORT.value = cfg.SMTP_PORT || '';
+		el.SMTP_USER.value = cfg.SMTP_USER || '';
+		el.SMTP_PASS.value = cfg.SMTP_PASS || '';
+	}
+
+	function renderPreview(cfg) {
+		const safe = { ...cfg };
+		if (safe.MP_ACCESS_TOKEN) safe.MP_ACCESS_TOKEN = '********';
+		if (safe.SMTP_PASS) safe.SMTP_PASS = '********';
+		preview.textContent = JSON.stringify(safe, null, 2);
+	}
+
+	document.getElementById('btnLoad').addEventListener('click', async () => {
+		const cfg = await window.api.getConfig();
+		setFormFromConfig(cfg);
+		renderPreview(cfg);
 	});
 
-	render();
+	document.getElementById('btnSave').addEventListener('click', async () => {
+		const cfg = buildConfigFromForm();
+		await window.api.saveConfig(cfg);
+		renderPreview(cfg);
+	});
+
+	// Autocarga inicial
+	window.api.getConfig().then((cfg) => {
+		setFormFromConfig(cfg);
+		renderPreview(cfg || {});
+	});
 });
 
 
