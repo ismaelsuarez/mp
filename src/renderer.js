@@ -16,6 +16,38 @@ window.addEventListener('DOMContentLoaded', () => {
 	const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview');
 
+	// UI enhancements (Tailwind classes without changing HTML structure)
+	function enhanceUI() {
+		// Buttons
+		for (const b of document.querySelectorAll('button')) {
+			b.classList.add('px-3','py-2','rounded-md','text-sm','font-medium','border','border-slate-600','hover:bg-slate-800','focus:outline-none','focus:ring-2','focus:ring-blue-500');
+		}
+		const primary = ['btnGenerate','btnGenerateRange'];
+		for (const id of primary) document.getElementById(id)?.classList.add('bg-blue-600','text-white','hover:bg-blue-500','border-transparent');
+		document.getElementById('btnSave')?.classList.add('bg-emerald-600','text-white','hover:bg-emerald-500','border-transparent');
+		document.getElementById('btnSendEmail')?.classList.add('bg-emerald-600','text-white','hover:bg-emerald-500','border-transparent');
+
+		// Inputs and selects
+		for (const i of document.querySelectorAll('input, select')) {
+			i.classList.add('bg-slate-800','border','border-slate-600','rounded-md','px-3','py-2','text-sm','text-slate-100','placeholder-slate-400','focus:outline-none','focus:ring-2','focus:ring-blue-500');
+		}
+
+		// Rows container responsive
+		for (const r of document.querySelectorAll('.row')) {
+			r.classList.add('flex','flex-wrap','items-center','gap-2');
+		}
+
+		// Table styling
+		const table = document.getElementById('resultsTable');
+		if (table) {
+			table.classList.add('table-auto','w-full','divide-y','divide-slate-700');
+			const thead = table.querySelector('thead');
+			if (thead) thead.classList.add('bg-slate-800');
+			for (const th of table.querySelectorAll('th')) th.classList.add('px-2','py-2','text-left');
+			for (const td of table.querySelectorAll('td')) td.classList.add('px-2','py-2');
+		}
+	}
+
 	// Toast helper
 	function showToast(message) {
 		const toast = document.getElementById('toast');
@@ -117,6 +149,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
 		if (cfg && cfg.THEME) applyTheme(cfg.THEME);
+		enhanceUI();
 	});
 
 	// Probar conexión
@@ -201,13 +234,30 @@ window.addEventListener('DOMContentLoaded', () => {
 			return okStatus && okQ;
 		});
 	}
+
+	function renderStatusBadge(status) {
+		const st = String(status || '').toLowerCase();
+		let cls = 'px-2 py-0.5 rounded text-xs border ';
+		if (st === 'approved') cls += 'bg-emerald-700/30 text-emerald-300 border-emerald-600';
+		else if (st === 'refunded' || st === 'cancelled' || st === 'charged_back') cls += 'bg-rose-700/30 text-rose-300 border-rose-600';
+		else if (st === 'in_process' || st === 'pending') cls += 'bg-amber-700/30 text-amber-300 border-amber-600';
+		else cls += 'bg-slate-700/30 text-slate-300 border-slate-600';
+		return `<span class="${cls}">${status ?? ''}</span>`;
+	}
 	function renderRows() {
 		const filtered = applyFilters();
 		const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 		if (page > totalPages) page = totalPages;
 		const start = (page - 1) * pageSize;
 		const rows = filtered.slice(start, start + pageSize).map((r) => {
-			return `<tr><td>${r.id ?? ''}</td><td>${r.status ?? ''}</td><td>${r.amount ?? ''}</td><td>${r.date ?? ''}</td><td>${r.method ?? ''}</td></tr>`;
+			const amt = (r.amount ?? '') !== '' ? Number(r.amount).toFixed(2) : '';
+			return `<tr>
+				<td>${r.id ?? ''}</td>
+				<td>${renderStatusBadge(r.status)}</td>
+				<td>${amt}</td>
+				<td>${r.date ?? ''}</td>
+				<td>${r.method ?? ''}</td>
+			</tr>`;
 		}).join('');
 		tbody.innerHTML = rows;
 		const info = document.getElementById('pageInfo');
