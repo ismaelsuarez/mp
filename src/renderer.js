@@ -88,6 +88,54 @@ window.addEventListener('DOMContentLoaded', () => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
 	});
+
+	// Resultados
+	const tbody = document.querySelector('#resultsTable tbody');
+	function renderRows(payments) {
+		const rows = payments.map((p) => {
+			const id = p?.id ?? '';
+			const status = p?.status ?? '';
+			const amount = p?.transaction_amount ?? '';
+			const date = p?.date_created ?? '';
+			const method = p?.payment_method_id ?? '';
+			return `<tr><td>${id}</td><td>${status}</td><td>${amount}</td><td>${date}</td><td>${method}</td></tr>`;
+		}).join('');
+		tbody.innerHTML = rows;
+	}
+
+	document.getElementById('btnGenerateRange').addEventListener('click', async () => {
+		// Guardar temporalmente filtros en config y disparar generación (reutiliza servicio)
+		const cfg = buildConfigFromForm();
+		cfg.MP_DATE_FROM = document.getElementById('filter_from').value || cfg.MP_DATE_FROM;
+		cfg.MP_DATE_TO = document.getElementById('filter_to').value || cfg.MP_DATE_TO;
+		await window.api.saveConfig(cfg);
+		const res = await window.api.generateReport();
+		alert(`Generado. Transacciones: ${res.count}. Carpeta: ${res.outDir}`);
+		// No tenemos los payments crudos por IPC; para la tabla, pedir export directory
+		// y leer no es posible desde renderer sin exponer FS. Mostrar mensaje.
+	});
+
+	document.getElementById('btnExportCSV').addEventListener('click', async () => {
+		const { outDir } = await window.api.exportReport();
+		alert(`CSV en: ${outDir}`);
+	});
+	document.getElementById('btnExportXLSX').addEventListener('click', async () => {
+		const { outDir } = await window.api.exportReport();
+		alert(`XLSX en: ${outDir}`);
+	});
+	document.getElementById('btnExportDBF').addEventListener('click', async () => {
+		const { outDir } = await window.api.exportReport();
+		alert(`DBF en: ${outDir}`);
+	});
+	document.getElementById('btnExportJSON').addEventListener('click', async () => {
+		const { outDir } = await window.api.exportReport();
+		alert(`JSON en: ${outDir}`);
+	});
+	
+	document.getElementById('btnSendEmail').addEventListener('click', async () => {
+		const { sent, files } = await window.api.sendReportEmail();
+		alert(sent ? `Email enviado: ${files.join(', ')}` : 'No se pudo enviar email (revisar SMTP/EMAIL_REPORT)');
+	});
 });
 
 

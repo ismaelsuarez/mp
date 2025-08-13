@@ -4,7 +4,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const Store = require('electron-store');
 const { searchPaymentsWithConfig } = require('./services/MercadoPagoService');
-const { generateFiles } = require('./services/ReportService');
+const { generateFiles, getOutDir } = require('./services/ReportService');
+const { sendReportEmail } = require('./services/EmailService');
 
 let mainWindow = null;
 
@@ -67,6 +68,26 @@ app.whenReady().then(() => {
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments, tag, range);
 		return { count: payments.length, outDir: result.outDir, files: result.files };
+	});
+
+	// Export on-demand without re-fetch (assumes files already generated or uses latest payments)
+	ipcMain.handle('export-report', async () => {
+		const outDir = getOutDir();
+		return { outDir };
+	});
+
+	ipcMain.handle('send-report-email', async () => {
+		const today = new Date().toISOString().slice(0, 10);
+		const outDir = getOutDir();
+		const files = [
+			{ filename: `balance-${today}.json`, path: `${outDir}/balance-${today}.json` },
+			{ filename: `transactions-${today}.csv`, path: `${outDir}/transactions-${today}.csv` },
+			{ filename: `transactions-full-${today}.csv`, path: `${outDir}/transactions-full-${today}.csv` },
+			{ filename: `transactions-full-${today}.xlsx`, path: `${outDir}/transactions-full-${today}.xlsx` },
+			{ filename: `transactions-detailed-${today}.dbf`, path: `${outDir}/transactions-detailed-${today}.dbf` }
+		].filter(f => fs.existsSync(f.path));
+		const sent = await sendReportEmail(`MP Reporte ${today}`, `Adjunto reporte de ${today}`, files);
+		return { sent, files: files.map(f => f.filename) };
 	});
 
 	createMainWindow();

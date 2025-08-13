@@ -9,6 +9,12 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async generateReport() {
 		return await ipcRenderer.invoke('generate-report');
+	},
+	async exportReport() {
+		return await ipcRenderer.invoke('export-report');
+	},
+	async sendReportEmail() {
+		return await ipcRenderer.invoke('send-report-email');
 	}
 });
 
