@@ -49,15 +49,19 @@ function createMainWindow() {
 	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
 	try {
 		if (defaultView === 'caja') {
-			mainWindow.setMinimumSize(400, 300);
-			mainWindow.setSize(400, 300);
+			// Tamaño compacto como la captura
+			mainWindow.setMinimumSize(420, 320);
+			mainWindow.setSize(420, 320);
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
+			try { mainWindow.center(); } catch {}
 		} else {
-			mainWindow.setMinimumSize(800, 600);
-			mainWindow.setSize(1000, 700);
-			mainWindow.setMenuBarVisibility(true);
-			mainWindow.setAutoHideMenuBar(false);
+			// Modo Configuración: tamaño amplio como en la captura
+			mainWindow.setMinimumSize(900, 600);
+			mainWindow.setSize(1200, 768);
+			// Ocultar menú también en Configuración
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
 			// Centrar la ventana cuando se abre Configuración
 			try { mainWindow.center(); } catch {}
 		}
@@ -200,15 +204,17 @@ app.whenReady().then(() => {
 			// Ajustar tamaño según vista
 			try {
 				if (view === 'caja') {
-					mainWindow.setMinimumSize(400, 300);
-					mainWindow.setSize(400, 300);
+					mainWindow.setMinimumSize(420, 320);
+					mainWindow.setSize(420, 320);
 					mainWindow.setMenuBarVisibility(false);
 					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
 				} else {
-					mainWindow.setMinimumSize(800, 600);
-					mainWindow.setSize(1000, 700);
-					mainWindow.setMenuBarVisibility(true);
-					mainWindow.setAutoHideMenuBar(false);
+					mainWindow.setMinimumSize(900, 600);
+					mainWindow.setSize(1200, 768);
+					// Ocultar menú en Configuración
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
 					// Centrar la ventana al abrir Configuración
 					try { mainWindow.center(); } catch {}
 				}
