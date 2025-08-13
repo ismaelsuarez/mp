@@ -16,6 +16,29 @@ window.addEventListener('DOMContentLoaded', () => {
 	const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview');
 
+	// Toast helper
+	function showToast(message) {
+		const toast = document.getElementById('toast');
+		if (!toast) return;
+		toast.textContent = message;
+		toast.classList.remove('hidden');
+		setTimeout(() => toast.classList.add('hidden'), 3000);
+	}
+
+	// Theme helper (persist in config)
+	async function applyTheme(theme) {
+		const body = document.body;
+		if (theme === 'light') {
+			body.classList.remove('bg-slate-900', 'text-slate-200');
+			body.classList.add('bg-slate-50', 'text-slate-900');
+		} else {
+			body.classList.remove('bg-slate-50', 'text-slate-900');
+			body.classList.add('bg-slate-900', 'text-slate-200');
+		}
+		const cfg = await window.api.getConfig();
+		await window.api.saveConfig({ ...cfg, THEME: theme });
+	}
+
 	function buildConfigFromForm() {
 		return {
 			MP_ACCESS_TOKEN: el.MP_ACCESS_TOKEN.value || undefined,
@@ -74,38 +97,82 @@ window.addEventListener('DOMContentLoaded', () => {
 		const cfg = await window.api.getConfig();
 		setFormFromConfig(cfg);
 		renderPreview(cfg);
+		showToast('Configuración cargada');
 	});
 
 	document.getElementById('btnSave').addEventListener('click', async () => {
 		const cfg = buildConfigFromForm();
 		await window.api.saveConfig(cfg);
 		renderPreview(cfg);
+		showToast('Configuración guardada');
 	});
 
 	document.getElementById('btnGenerate').addEventListener('click', async () => {
 		const res = await window.api.generateReport();
-		const msg = `Generado OK. Transacciones: ${res.count}. Carpeta: ${res.outDir}`;
-		alert(msg);
+		showToast(`Reporte generado (${res.count})`);
 	});
 
 	// Autocarga inicial
 	window.api.getConfig().then((cfg) => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
+		if (cfg && cfg.THEME) applyTheme(cfg.THEME);
+	});
+
+	// Probar conexión
+	document.getElementById('btnTest')?.addEventListener('click', async () => {
+		const testStatus = document.getElementById('testStatus');
+		testStatus.textContent = 'Probando...';
+		const res = await window.api.testConnection();
+		if (res.ok) {
+			testStatus.textContent = 'OK';
+			testStatus.style.color = '#10b981';
+		} else {
+			testStatus.textContent = `Error: ${res.error || 'ver credenciales'}`;
+			testStatus.style.color = '#ef4444';
+		}
+	});
+
+	// Theme toggles
+	document.getElementById('toggleTheme')?.addEventListener('click', async () => {
+		const cfg = await window.api.getConfig();
+		const next = cfg.THEME === 'light' ? 'dark' : 'light';
+		applyTheme(next);
+		showToast(`Tema: ${next}`);
+	});
+	document.getElementById('toggleThemeMobile')?.addEventListener('click', async () => {
+		const cfg = await window.api.getConfig();
+		const next = cfg.THEME === 'light' ? 'dark' : 'light';
+		applyTheme(next);
+		showToast(`Tema: ${next}`);
 	});
 
 	// Resultados
 	const tbody = document.querySelector('#resultsTable tbody');
-	function renderRows(payments) {
-		const rows = payments.map((p) => {
-			const id = p?.id ?? '';
-			const status = p?.status ?? '';
-			const amount = p?.transaction_amount ?? '';
-			const date = p?.date_created ?? '';
-			const method = p?.payment_method_id ?? '';
-			return `<tr><td>${id}</td><td>${status}</td><td>${amount}</td><td>${date}</td><td>${method}</td></tr>`;
+	let allRows = [];
+	let page = 1;
+	const pageSize = 20;
+	function applyFilters() {
+		const q = (document.getElementById('quick_search')?.value || '').toLowerCase();
+		const status = document.getElementById('filter_status')?.value || '';
+		return allRows.filter(r => {
+			const okStatus = !status || String(r.status) === status;
+			const blob = `${r.id} ${r.status} ${r.amount} ${r.date} ${r.method}`.toLowerCase();
+			const okQ = !q || blob.includes(q);
+			return okStatus && okQ;
+		});
+	}
+	function renderRows() {
+		const filtered = applyFilters();
+		const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+		if (page > totalPages) page = totalPages;
+		const start = (page - 1) * pageSize;
+		const rows = filtered.slice(start, start + pageSize).map((r) => {
+			return `<tr><td>${r.id ?? ''}</td><td>${r.status ?? ''}</td><td>${r.amount ?? ''}</td><td>${r.date ?? ''}</td><td>${r.method ?? ''}</td></tr>`;
 		}).join('');
 		tbody.innerHTML = rows;
+		const info = document.getElementById('pageInfo');
+		if (info) info.textContent = `Página ${page} / ${totalPages} (${filtered.length})`;
 	}
 
 	document.getElementById('btnGenerateRange').addEventListener('click', async () => {
@@ -115,31 +182,37 @@ window.addEventListener('DOMContentLoaded', () => {
 		cfg.MP_DATE_TO = document.getElementById('filter_to').value || cfg.MP_DATE_TO;
 		await window.api.saveConfig(cfg);
 		const res = await window.api.generateReport();
-		alert(`Generado. Transacciones: ${res.count}. Carpeta: ${res.outDir}`);
-		// No tenemos los payments crudos por IPC; para la tabla, pedir export directory
-		// y leer no es posible desde renderer sin exponer FS. Mostrar mensaje.
+		allRows = res.rows || [];
+		page = 1;
+		renderRows();
+		showToast(`Reporte generado (${res.count})`);
 	});
+
+	document.getElementById('quick_search')?.addEventListener('input', () => { page = 1; renderRows(); });
+	document.getElementById('filter_status')?.addEventListener('change', () => { page = 1; renderRows(); });
+	document.getElementById('prevPage')?.addEventListener('click', () => { if (page > 1) { page -= 1; renderRows(); } });
+	document.getElementById('nextPage')?.addEventListener('click', () => { page += 1; renderRows(); });
 
 	document.getElementById('btnExportCSV').addEventListener('click', async () => {
 		const { outDir } = await window.api.exportReport();
-		alert(`CSV en: ${outDir}`);
+		showToast(`CSV listo en ${outDir}`);
 	});
 	document.getElementById('btnExportXLSX').addEventListener('click', async () => {
 		const { outDir } = await window.api.exportReport();
-		alert(`XLSX en: ${outDir}`);
+		showToast(`XLSX listo en ${outDir}`);
 	});
 	document.getElementById('btnExportDBF').addEventListener('click', async () => {
 		const { outDir } = await window.api.exportReport();
-		alert(`DBF en: ${outDir}`);
+		showToast(`DBF listo en ${outDir}`);
 	});
 	document.getElementById('btnExportJSON').addEventListener('click', async () => {
 		const { outDir } = await window.api.exportReport();
-		alert(`JSON en: ${outDir}`);
+		showToast(`JSON listo en ${outDir}`);
 	});
 	
 	document.getElementById('btnSendEmail').addEventListener('click', async () => {
-		const { sent, files } = await window.api.sendReportEmail();
-		alert(sent ? `Email enviado: ${files.join(', ')}` : 'No se pudo enviar email (revisar SMTP/EMAIL_REPORT)');
+		const { sent } = await window.api.sendReportEmail();
+		showToast(sent ? 'Email enviado' : 'No se pudo enviar email');
 	});
 });
 

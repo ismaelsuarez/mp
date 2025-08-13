@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const Store = require('electron-store');
-const { searchPaymentsWithConfig } = require('./services/MercadoPagoService');
+const { searchPaymentsWithConfig, testConnection } = require('./services/MercadoPagoService');
 const { generateFiles, getOutDir } = require('./services/ReportService');
 const { sendReportEmail } = require('./services/EmailService');
 const cron = require('node-cron');
@@ -63,12 +63,24 @@ app.whenReady().then(() => {
 		return false;
 	});
 
+	ipcMain.handle('test-connection', async () => {
+		return await testConnection();
+	});
+
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments, tag, range);
-		return { count: payments.length, outDir: result.outDir, files: result.files };
+		// Reducir payload para UI
+		const uiRows = payments.slice(0, 1000).map((p) => ({
+			id: p?.id,
+			status: p?.status,
+			amount: p?.transaction_amount,
+			date: p?.date_created,
+			method: p?.payment_method_id
+		}));
+		return { count: payments.length, outDir: result.outDir, files: result.files, rows: uiRows };
 	});
 
 	// Export on-demand without re-fetch (assumes files already generated or uses latest payments)

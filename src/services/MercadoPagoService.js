@@ -102,4 +102,22 @@ module.exports = {
 	searchPaymentsWithConfig
 };
 
+// Test de credenciales: intenta un search con limit=1
+async function testConnection() {
+	const store = getConfigStore();
+	const cfg = store.get('config') || {};
+	if (!cfg.MP_ACCESS_TOKEN) return { ok: false, error: 'Falta MP_ACCESS_TOKEN' };
+	try {
+		const client = buildClient(cfg.MP_ACCESS_TOKEN);
+		const payment = new Payment(client);
+		const resp = await payment.search({ options: { limit: 1 } });
+		const ok = Array.isArray(resp?.results);
+		return { ok };
+	} catch (e) {
+		return { ok: false, error: e?.response?.data || e?.message || String(e) };
+	}
+}
+
+module.exports.testConnection = testConnection;
+
 

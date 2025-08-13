@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	onAutoNotice(callback) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
+	},
+	async testConnection() {
+		return await ipcRenderer.invoke('test-connection');
 	}
 });
 
