@@ -10,6 +10,7 @@ declare global {
 			testConnection(): Promise<any>;
 			openOutDir(): Promise<any>;
 			listHistory(): Promise<any>;
+			openView?(view: 'config' | 'caja'): Promise<any>;
 		};
 	}
 }

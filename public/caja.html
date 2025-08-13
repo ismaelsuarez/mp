@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>MP – Modo Caja</title>
+	<link rel="stylesheet" href="style.css" />
+	<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="text-slate-200">
+	<nav class="bg-slate-800 border-b border-slate-700">
+		<div class="container flex items-center gap-2 py-3">
+			<button class="tab px-4 py-2 rounded-md border border-slate-600 bg-slate-700 hover:bg-slate-600" data-tab="home">Inicio</button>
+			<button class="tab px-4 py-2 rounded-md border border-slate-600 bg-slate-800 hover:bg-slate-700" data-tab="table">Tabla</button>
+			<button id="btnGoConfig" class="ml-auto px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-500">Configuración</button>
+		</div>
+	</nav>
+
+	<main class="container mt-4">
+		<section id="pane-home" class="tab-pane" style="display:block;">
+			<div class="flex items-center gap-3 mb-3">
+				<button id="btnCajaGenerate" class="px-6 py-3 text-lg rounded-md bg-green-600 text-white hover:bg-green-500">Generar reporte</button>
+			</div>
+			<div id="cajaLogs" class="bg-black/80 border border-slate-700 rounded-md p-3 h-64 overflow-auto font-mono text-sm"></div>
+		</section>
+
+		<section id="pane-table" class="tab-pane" style="display:none;">
+			<div class="overflow-x-auto border border-slate-700 rounded-md">
+				<table class="min-w-full">
+					<thead class="bg-slate-800">
+						<tr>
+							<th class="px-3 py-2 text-left">ID</th>
+							<th class="px-3 py-2 text-left">Estado</th>
+							<th class="px-3 py-2 text-left">Monto</th>
+						</tr>
+					</thead>
+					<tbody id="cajaTableBody"></tbody>
+				</table>
+			</div>
+		</section>
+	</main>
+
+	<footer class="fixed bottom-4 left-4">
+		<span id="autoIndicatorCaja" class="px-3 py-1 rounded text-sm border"></span>
+	</footer>
+
+	<script src="../dist/src/caja.js"></script>
+</body>
+</html>

@@ -40,7 +40,7 @@ function createMainWindow() {
 	});
 
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
-	const htmlPath = path.join(app.getAppPath(), 'public', 'index.html');
+	const htmlPath = path.join(app.getAppPath(), 'public', 'config.html');
 	mainWindow.loadFile(htmlPath);
 
 	mainWindow.on('closed', () => {
@@ -130,6 +130,21 @@ app.whenReady().then(() => {
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
+	});
+
+	// Abrir vistas (config/caja)
+	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja') => {
+		const file = view === 'caja' ? 'caja.html' : 'config.html';
+		console.log('[main] open-view →', view, '->', file);
+		if (mainWindow) {
+			const target = path.join(app.getAppPath(), 'public', file);
+			console.log('[main] loading file:', target);
+			await mainWindow.loadFile(target);
+			console.log('[main] loadFile done');
+			return { ok: true };
+		}
+		console.warn('[main] open-view: no mainWindow');
+		return { ok: false };
 	});
 
 	createMainWindow();

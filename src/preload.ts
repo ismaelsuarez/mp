@@ -27,5 +27,11 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async listHistory() {
 		return await ipcRenderer.invoke('list-history');
+	},
+	async openView(view: 'config' | 'caja') {
+		console.log('[preload] openView invoked with', view);
+		const res = await ipcRenderer.invoke('open-view', view);
+		console.log('[preload] openView result', res);
+		return res;
 	}
 });
