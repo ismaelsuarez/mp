@@ -40,7 +40,27 @@ function createMainWindow() {
 	});
 
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
-	const htmlPath = path.join(app.getAppPath(), 'public', 'config.html');
+	const cfg: any = store.get('config') || {};
+	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
+	if (defaultView === 'caja' && !cfg.MP_ACCESS_TOKEN) defaultView = 'config'; // fallback si no hay credenciales
+	const initialFile = defaultView === 'caja' ? 'caja.html' : 'config.html';
+
+	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
+	try {
+		if (defaultView === 'caja') {
+			mainWindow.setMinimumSize(400, 300);
+			mainWindow.setSize(400, 300);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+		} else {
+			mainWindow.setMinimumSize(800, 600);
+			mainWindow.setSize(1000, 700);
+			mainWindow.setMenuBarVisibility(true);
+			mainWindow.setAutoHideMenuBar(false);
+		}
+	} catch {}
+
+	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
 	mainWindow.loadFile(htmlPath);
 
 	mainWindow.on('closed', () => {

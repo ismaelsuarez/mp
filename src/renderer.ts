@@ -93,7 +93,8 @@ window.addEventListener('DOMContentLoaded', () => {
 			SMTP_USER: (el.SMTP_USER as HTMLInputElement).value || undefined,
 			SMTP_PASS: (el.SMTP_PASS as HTMLInputElement).value || undefined,
 			AUTO_TIMES: (el.AUTO_TIMES as HTMLInputElement).value || undefined,
-			AUTO_ENABLED: (el.AUTO_ENABLED as HTMLInputElement).checked || false
+			AUTO_ENABLED: (el.AUTO_ENABLED as HTMLInputElement).checked || false,
+			DEFAULT_VIEW: 'caja'
 		};
 	}
 
