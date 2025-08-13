@@ -86,12 +86,14 @@
 						Automatización
 					</summary>
 					<div class="p-3 space-y-2">
-						<label>Horarios automáticos (HH:MM, separados por coma)
-							<input id="AUTO_TIMES" placeholder="12:00,14:00,16:00,18:05" />
+						<label>Intervalo (segundos)
+							<input id="AUTO_INTERVAL_SECONDS" type="number" placeholder="3600" />
 						</label>
-						<label class="checkbox">
-							<input id="AUTO_ENABLED" type="checkbox" /> Activar ejecución automática
-						</label>
+						<div class="row">
+							<button type="button" id="btnAutoStart">Activar</button>
+							<button type="button" id="btnAutoStop">Desactivar</button>
+							<span id="autoStatus"></span>
+						</div>
 					</div>
 				</details>
 

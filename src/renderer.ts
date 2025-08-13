@@ -21,7 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO',
 		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
-		'AUTO_TIMES','AUTO_ENABLED'
+		'AUTO_INTERVAL_SECONDS'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -100,8 +100,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			FTP_PASS: (el.FTP_PASS as HTMLInputElement)?.value || undefined,
 			FTP_DIR: (el.FTP_DIR as HTMLInputElement)?.value || undefined,
 			FTP_FILE: (el.FTP_FILE as HTMLInputElement)?.value || undefined,
-			AUTO_TIMES: (el.AUTO_TIMES as HTMLInputElement).value || undefined,
-			AUTO_ENABLED: (el.AUTO_ENABLED as HTMLInputElement).checked || false,
+			AUTO_INTERVAL_SECONDS: (el.AUTO_INTERVAL_SECONDS as HTMLInputElement)?.value ? Number((el.AUTO_INTERVAL_SECONDS as HTMLInputElement).value) : undefined,
 			DEFAULT_VIEW: 'caja'
 		};
 	}
@@ -132,8 +131,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.FTP_PASS as HTMLInputElement).value = cfg.FTP_PASS || '';
 		(el.FTP_DIR as HTMLInputElement).value = cfg.FTP_DIR || '';
 		(el.FTP_FILE as HTMLInputElement).value = cfg.FTP_FILE || '';
-		(el.AUTO_TIMES as HTMLInputElement).value = cfg.AUTO_TIMES || '';
-		(el.AUTO_ENABLED as HTMLInputElement).checked = !!cfg.AUTO_ENABLED;
+		(el.AUTO_INTERVAL_SECONDS as HTMLInputElement).value = cfg.AUTO_INTERVAL_SECONDS || '';
 	}
 
 	function renderPreview(cfg: any) {
@@ -403,4 +401,24 @@ window.addEventListener('DOMContentLoaded', () => {
 		const { sent } = await window.api.sendReportEmail();
 		showToast(sent ? 'Email enviado' : 'No se pudo enviar email');
 	});
+
+	document.getElementById('btnAutoStart')?.addEventListener('click', async () => {
+		const cfg = buildConfigFromForm();
+		await window.api.saveConfig(cfg);
+		const res = await (window.api as any).autoStart?.();
+		const status = document.getElementById('autoStatus') as HTMLElement | null;
+		if (status) status.textContent = res?.ok ? 'Automatización: ON' : `Error: ${res?.error || ''}`;
+	});
+
+	document.getElementById('btnAutoStop')?.addEventListener('click', async () => {
+		const res = await (window.api as any).autoStop?.();
+		const status = document.getElementById('autoStatus') as HTMLElement | null;
+		if (status) status.textContent = res?.ok ? 'Automatización: OFF' : `Error: ${res?.error || ''}`;
+	});
+
+	// Mostrar estado al cargar
+	(window.api as any).autoStatus?.().then((s: any) => {
+		const status = document.getElementById('autoStatus') as HTMLElement | null;
+		if (status) status.textContent = s?.active ? 'Automatización: ON' : 'Automatización: OFF';
+	}).catch(()=>{});
 });

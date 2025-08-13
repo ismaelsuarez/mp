@@ -22,6 +22,15 @@ contextBridge.exposeInMainWorld('api', {
 	async sendDbfViaFtp() {
 		return await ipcRenderer.invoke('send-dbf-ftp');
 	},
+	async autoStart() {
+		return await ipcRenderer.invoke('auto-start');
+	},
+	async autoStop() {
+		return await ipcRenderer.invoke('auto-stop');
+	},
+	async autoStatus() {
+		return await ipcRenderer.invoke('auto-status');
+	},
 	onAutoNotice(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
 	},

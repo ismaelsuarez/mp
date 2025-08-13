@@ -94,6 +94,7 @@ app.whenReady().then(() => {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments as any[], tag, range);
+		if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
 		// Auto-enviar mp.dbf vía FTP si está configurado
 		try {
 			const mpPath = (result as any)?.files?.mpDbfPath;
@@ -102,8 +103,9 @@ app.whenReady().then(() => {
 			}
 		} catch (e) {
 			console.warn('[main] auto FTP send failed:', e);
+			if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
 		}
-		// Reducir payload para UI
+		// Reducir payload para UI y notificar a Caja
 		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
 			id: p?.id,
 			status: p?.status,
@@ -111,6 +113,10 @@ app.whenReady().then(() => {
 			date: p?.date_created,
 			method: p?.payment_method_id
 		}));
+		if (mainWindow) {
+			const rowsShort = uiRows.slice(0, 8);
+			mainWindow.webContents.send('auto-report-notice', { manual: true, count: (payments as any[]).length, rows: rowsShort });
+		}
 		return { count: (payments as any[]).length, outDir: result.outDir, files: result.files, rows: uiRows };
 	});
 
@@ -226,34 +232,67 @@ app.whenReady().then(() => {
 	createMainWindow();
 
 	// Programación automática
-	function scheduleJobs() {
+	let autoTimer: NodeJS.Timeout | null = null;
+	let autoActive = false;
+	function stopAutoTimer() {
+		if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+		autoActive = false;
+	}
+	async function startAutoTimer() {
+		stopAutoTimer();
 		const cfg: any = store.get('config') || {};
-		if (!cfg.AUTO_ENABLED) return;
-		const times = String(cfg.AUTO_TIMES || '').split(',').map((s: string) => s.trim()).filter(Boolean);
-		for (const t of times) {
-			const m = /^([0-2]?\d):([0-5]\d)$/.exec(t);
-			if (!m) continue;
-			const hh = Number(m[1]);
-			const mm = Number(m[2]);
-			const expr = `${mm} ${hh} * * *`;
-			cron.schedule(expr, async () => {
+		const intervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return false;
+			autoTimer = setInterval(async () => {
+			try {
+				const { payments, range } = await searchPaymentsWithConfig();
+				const tag = new Date().toISOString().slice(0, 10);
+				const result = await generateFiles(payments as any[], tag, range);
+				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
 				try {
-					const { payments, range } = await searchPaymentsWithConfig();
-					const tag = new Date().toISOString().slice(0, 10);
-					await generateFiles(payments as any[], tag, range);
-					if (mainWindow) {
-						mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: (payments as any[]).length });
+					const mpPath = (result as any)?.files?.mpDbfPath;
+					if (mpPath && fs.existsSync(mpPath)) {
+						const { sendDbf } = await import('./services/FtpService');
+						await sendDbf(mpPath, 'mp.dbf');
 					}
-				} catch (e: any) {
-					if (mainWindow) {
-						mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
-					}
+				} catch (e) {
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
 				}
-			});
-		}
+				if (mainWindow) {
+					const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
+						id: p?.id,
+						status: p?.status,
+						amount: p?.transaction_amount,
+						date: p?.date_created,
+						method: p?.payment_method_id
+					}));
+					mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: (payments as any[]).length, rows: uiRows.slice(0,8) });
+				}
+			} catch (e: any) {
+				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
+			}
+		}, Math.max(1000, intervalSec * 1000));
+		autoActive = true;
+		return true;
 	}
 
-	scheduleJobs();
+	ipcMain.handle('auto-start', async () => {
+		const ok = await startAutoTimer();
+		return { ok };
+	});
+	ipcMain.handle('auto-stop', async () => {
+		stopAutoTimer();
+		return { ok: true };
+	});
+	ipcMain.handle('auto-status', async () => {
+		return { active: autoActive };
+	});
+
+	// Opcional: arrancar si estaba configurado
+	const cfg0: any = store.get('config') || {};
+	if (Number(cfg0.AUTO_INTERVAL_SECONDS || 0) > 0) {
+		startAutoTimer().catch(()=>{});
+	}
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
