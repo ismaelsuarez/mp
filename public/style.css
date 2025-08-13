@@ -17,6 +17,15 @@ h1{margin:0 0 12px 0}
 label{display:flex;flex-direction:column;gap:6px}
 .checkbox{grid-column:1/-1}
 .row{display:flex;gap:8px;margin:12px 0}
+/* Barra de filtros destacada */
+.filters{border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:12px;margin:8px 0 12px}
+.summary{display:inline-block;border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:8px 12px}
+
+/* Botones destacados de Resultados */
+#btnGenerateRange{background:#2563eb;color:#fff;border:none}
+#btnGenerateRange:hover{background:#1d4ed8}
+#btnResetFilters{background:transparent;color:var(--text);border:1px solid var(--border)}
+#btnResetFilters:hover{background:rgba(255,255,255,0.05)}
 pre{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px;overflow:auto}
 table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{border:1px solid var(--border);padding:8px;text-align:left}

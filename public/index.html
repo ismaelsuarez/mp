@@ -76,7 +76,9 @@
         </section>
 
         <section id="tab-results" class="tab-pane">
-            <div class="row">
+			<div class="filters">
+				<div class="row"><strong>Filtros</strong></div>
+				<div class="row">
                 <input id="filter_from" placeholder="Desde (YYYY-MM-DD)" />
                 <input id="filter_to" placeholder="Hasta (YYYY-MM-DD)" />
                 <select id="filter_status">
@@ -88,9 +90,10 @@
                 <input id="quick_search" placeholder="Buscar por texto..." />
                 <button id="btnGenerateRange">Generar (rango)</button>
                 <button id="btnResetFilters" title="Restablecer filtros">Reset</button>
-            </div>
+				</div>
+			</div>
             <div class="row">
-                <div>
+                <div class="summary">
                     <strong>Ingresos:</strong> <span id="summaryIncomes">0.00</span>
                     <strong class="ml-4">Devoluciones:</strong> <span id="summaryRefunds">0.00</span>
                     <strong class="ml-4">Neto:</strong> <span id="summaryTotal">0.00</span>
