@@ -40,6 +40,9 @@ contextBridge.exposeInMainWorld('api', {
 	async openOutDir() {
 		return await ipcRenderer.invoke('open-out-dir');
 	},
+  async openTodayLog() {
+    return await ipcRenderer.invoke('open-today-log');
+  },
 	async listHistory() {
 		return await ipcRenderer.invoke('list-history');
 	},

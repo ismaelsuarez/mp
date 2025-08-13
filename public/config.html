@@ -12,7 +12,10 @@
     <div class="container">
         <div class="flex items-center justify-between mb-2">
             <h1>TODO-COMPUTACION</h1>
-            <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
+            <div class="flex items-center gap-2">
+                <button id="btnOpenLogs" class="px-3 py-1.5 rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Abrir log de hoy</button>
+                <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
+            </div>
         </div>
         <div class="tabs">
             <button class="tab active" data-tab="config">Configuración</button>
@@ -205,6 +208,11 @@
         // Fallback directo por si IPC no está disponible en dev
         console.warn('[UI] Fallback: navegando directo a caja.html');
         window.location.href = 'caja.html';
+    });
+    document.getElementById('btnOpenLogs')?.addEventListener('click', async () => {
+        if (window.api && typeof window.api.openTodayLog === 'function') {
+            await window.api.openTodayLog();
+        }
     });
     </script>
     <script src="../dist/src/renderer.js"></script>

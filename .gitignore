@@ -7,7 +7,7 @@ node_modules
 copiawhaf:Zone.Identifier
 reparar.dbf
 
-dist/
+#dist/
 
 # Archivos de sesión de WhatsApp
 #data/sessions/bot.qr.png

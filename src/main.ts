@@ -8,6 +8,7 @@ import { searchPaymentsWithConfig, testConnection } from './services/MercadoPago
 import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
+import { appendLogLine, getTodayLogPath, ensureLogsDir } from './services/LogService';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -79,6 +80,7 @@ function createMainWindow() {
 app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
+	ensureLogsDir();
 	// IPC seguro para configuración
 	ipcMain.handle('get-config', () => {
 		return store.get('config') || {};
@@ -97,9 +99,11 @@ app.whenReady().then(() => {
 
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
+		appendLogLine('generate-report invoked');
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments as any[], tag, range);
+		appendLogLine('files-generated', { files: (result as any)?.files, count: (payments as any[])?.length });
 		if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
 		// Auto-enviar mp.dbf vía FTP si está configurado
 		try {
@@ -171,6 +175,17 @@ app.whenReady().then(() => {
 		const dir = getOutDir();
 		await shell.openPath(dir);
 		return { ok: true, dir };
+	});
+
+	// Abrir log del día
+	ipcMain.handle('open-today-log', async () => {
+		const p = getTodayLogPath();
+		try {
+			await shell.openPath(p);
+			return { ok: true, path: p };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e), path: p };
+		}
 	});
 
 	// Listar historial simple por fecha (tags)
