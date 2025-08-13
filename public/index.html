@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>MP Electron Base</title>
+	<link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+</head>
+<body class="text-slate-200">
+    <div class="container">
+        <h1>TODO-COMPUTACION</h1>
+        <div class="tabs">
+            <button class="tab active" data-tab="config">Configuración</button>
+            <button class="tab" data-tab="results">Resultados</button>
+            <button class="tab" data-tab="history">Historial</button>
+            <button class="tab" data-tab="about">Acerca de</button>
+        </div>
+
+        <section id="tab-config" class="tab-pane active">
+            <form id="configForm" class="form-grid">
+                <h2>Mercado Pago</h2>
+                <label>MP_ACCESS_TOKEN <input id="MP_ACCESS_TOKEN" type="password" /></label>
+                <label>MP_USER_ID <input id="MP_USER_ID" /></label>
+                <div class="row">
+                    <button type="button" id="btnTest">Probar conexión</button>
+                    <span id="testStatus"></span>
+                </div>
+                <label>MP_TZ <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
+                <label>MP_WINDOW_START <input id="MP_WINDOW_START" placeholder="00:00" /></label>
+                <label>MP_WINDOW_END <input id="MP_WINDOW_END" placeholder="23:59" /></label>
+                <label>MP_DATE_FROM <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
+                <label>MP_DATE_TO <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
+                <label class="checkbox">
+                    <input id="MP_NO_DATE_FILTER" type="checkbox" /> MP_NO_DATE_FILTER
+                </label>
+                <label>MP_RANGE <input id="MP_RANGE" placeholder="date_last_updated" /></label>
+                <label>MP_STATUS <input id="MP_STATUS" placeholder="approved,refunded" /></label>
+                <label>MP_LIMIT <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
+                <label>MP_MAX_PAGES <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
+
+                <h2>Email / SMTP</h2>
+                <label>EMAIL_REPORT <input id="EMAIL_REPORT" placeholder="correo@dominio.com" /></label>
+                <label>SMTP_HOST <input id="SMTP_HOST" placeholder="smtp.gmail.com" /></label>
+                <label>SMTP_PORT <input id="SMTP_PORT" type="number" placeholder="587" /></label>
+                <label>SMTP_USER <input id="SMTP_USER" /></label>
+                <label>SMTP_PASS <input id="SMTP_PASS" type="password" /></label>
+
+                <div class="row">
+                    <button type="button" id="btnLoad">Cargar configuración</button>
+                    <button type="button" id="btnSave">Guardar configuración</button>
+                    <button type="button" id="btnGenerate">Generar reporte</button>
+                </div>
+
+                <h2>Automatización</h2>
+                <label>Horarios automáticos (HH:MM, separados por coma)
+                    <input id="AUTO_TIMES" placeholder="12:00,14:00,16:00,18:05" />
+                </label>
+                <label class="checkbox">
+                    <input id="AUTO_ENABLED" type="checkbox" /> Activar ejecución automática
+                </label>
+            </form>
+            <h3>Vista previa (no sensible)</h3>
+            <pre id="preview"></pre>
+        </section>
+
+        <section id="tab-about" class="tab-pane">
+			<p><strong>Información de contacto por fallas</strong></p>
+			<p>Servicio técnico – Todo-Computación</p>
+			<ul>
+				<li>Teléfono: 0261 4201555 int. 2</li>
+				<li>WhatsApp: 26154669355</li>
+				<li>Email: <a href="mailto:pc@tcmza.com.ar">pc@tcmza.com.ar</a></li>
+			</ul>
+        </section>
+
+        <section id="tab-results" class="tab-pane">
+            <div class="row">
+                <input id="filter_from" placeholder="YYYY-MM-DD" />
+                <input id="filter_to" placeholder="YYYY-MM-DD" />
+                <select id="filter_status">
+                    <option value="">Todos</option>
+                    <option value="approved">approved</option>
+                    <option value="refunded">refunded</option>
+                    <option value="cancelled">cancelled</option>
+                </select>
+                <input id="quick_search" placeholder="Buscar..." />
+                <button id="btnGenerateRange">Generar (rango)</button>
+                <button id="btnResetFilters" title="Restablecer filtros">Reset</button>
+            </div>
+            <div class="row">
+                <div>
+                    <strong>Ingresos:</strong> <span id="summaryIncomes">0.00</span>
+                    <strong class="ml-4">Devoluciones:</strong> <span id="summaryRefunds">0.00</span>
+                    <strong class="ml-4">Neto:</strong> <span id="summaryTotal">0.00</span>
+                </div>
+                <div class="ml-auto">
+                    <label for="pageSize">Filas por página</label>
+                    <select id="pageSize">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <button id="btnExportCSV" title="Exportar CSV (curado)">CSV</button>
+                <button id="btnExportXLSX" title="Exportar Excel (full)">XLSX</button>
+                <button id="btnExportDBF" title="Exportar DBF (detalle)">DBF</button>
+                <button id="btnExportJSON" title="Exportar resumen JSON">JSON</button>
+                <button id="btnSendEmail" title="Enviar por email los archivos del día">Enviar por email</button>
+            </div>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>ID pago</th>
+                        <th>Estado</th>
+                        <th>Monto</th>
+                        <th>Fecha</th>
+                        <th>Método de pago</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="row">
+                <button id="prevPage">Prev</button>
+                <span id="pageInfo"></span>
+                <button id="nextPage">Next</button>
+            </div>
+        </section>
+
+        <section id="tab-history" class="tab-pane">
+            <div class="row">
+                <button id="btnRefreshHistory">Actualizar historial</button>
+                <button id="btnOpenOutDir">Abrir carpeta de reportes</button>
+            </div>
+            <ul id="historyList"></ul>
+        </section>
+    </div>
+    <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-2 rounded bg-slate-800 border border-slate-700"></div>
+    <script src="../src/renderer.js"></script>
+</body>
+</html>
+
+

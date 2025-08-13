@@ -2,8 +2,8 @@
 .env
 *.log
 node_modules
-public/*
-!public/.gitkeep
+#public/*
+#!public/.gitkeep
 copiawhaf:Zone.Identifier
 reparar.dbf
 
