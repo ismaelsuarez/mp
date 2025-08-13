@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async saveConfig(cfg) {
 		return await ipcRenderer.invoke('save-config', cfg);
+	},
+	async generateReport() {
+		return await ipcRenderer.invoke('generate-report');
 	}
 });
 

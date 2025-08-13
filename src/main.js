@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const Store = require('electron-store');
+const { searchPaymentsWithConfig } = require('./services/MercadoPagoService');
+const { generateFiles } = require('./services/ReportService');
 
 let mainWindow = null;
 
@@ -57,6 +59,14 @@ app.whenReady().then(() => {
 			return true;
 		}
 		return false;
+	});
+
+	// Generar reporte bajo demanda
+	ipcMain.handle('generate-report', async () => {
+		const { payments, range } = await searchPaymentsWithConfig();
+		const tag = new Date().toISOString().slice(0, 10);
+		const result = await generateFiles(payments, tag, range);
+		return { count: payments.length, outDir: result.outDir, files: result.files };
 	});
 
 	createMainWindow();

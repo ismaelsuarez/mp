@@ -77,6 +77,12 @@ window.addEventListener('DOMContentLoaded', () => {
 		renderPreview(cfg);
 	});
 
+	document.getElementById('btnGenerate').addEventListener('click', async () => {
+		const res = await window.api.generateReport();
+		const msg = `Generado OK. Transacciones: ${res.count}. Carpeta: ${res.outDir}`;
+		alert(msg);
+	});
+
 	// Autocarga inicial
 	window.api.getConfig().then((cfg) => {
 		setFormFromConfig(cfg);
