@@ -1,0 +1,355 @@
+{
+  "range": {
+    "begin_date": "2025-08-01T03:00:00Z",
+    "end_date": "2025-08-13T02:59:59Z"
+  },
+  "balance_api": null,
+  "totals_from_payments": {
+    "incomes": 587114.05,
+    "refunds": 0,
+    "note": "Para conciliación exacta (retiros, contracargos, fees), usar Reportes de Finanzas."
+  },
+  "transactions": [
+    {
+      "id": "122052840472",
+      "amount": 1000,
+      "netAmount": 1000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T18:54:11.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "122037388720",
+      "amount": 5000,
+      "netAmount": 5000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T17:01:20.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "122004255512",
+      "amount": 3400,
+      "netAmount": 3400,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T12:04:48.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "122003341840",
+      "amount": 16000,
+      "netAmount": 16000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T11:56:52.000-04:00",
+      "payment_method_id": "cvu",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "121477740153",
+      "amount": 3400,
+      "netAmount": 3366.68,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T11:44:28.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121459445635",
+      "amount": 1200,
+      "netAmount": 1200,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-12T09:12:58.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121914673196",
+      "amount": 30000,
+      "netAmount": 30000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-11T17:47:19.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121389915003",
+      "amount": 36000,
+      "netAmount": 36000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-11T17:39:32.000-04:00",
+      "payment_method_id": "cvu",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "121361041625",
+      "amount": 117997.5,
+      "netAmount": 117997.5,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-11T13:41:52.000-04:00",
+      "payment_method_id": "visa",
+      "payment_type_id": "credit_card",
+      "external_reference": "2000008815387847"
+    },
+    {
+      "id": "121358626339",
+      "amount": 400,
+      "netAmount": 400,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-11T13:18:25.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121879532544",
+      "amount": 4000,
+      "netAmount": 4000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-11T12:57:13.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121098211331",
+      "amount": 5000,
+      "netAmount": 5000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-09T08:27:15.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121532513396",
+      "amount": 60000,
+      "netAmount": 60000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-08T13:46:23.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121010772501",
+      "amount": 40000,
+      "netAmount": 40000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-08T13:45:26.000-04:00",
+      "payment_method_id": "cvu",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "120916823301",
+      "amount": 30000,
+      "netAmount": 30000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T19:35:47.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120916710661",
+      "amount": 40000,
+      "netAmount": 40000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T19:33:39.000-04:00",
+      "payment_method_id": "cvu",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "121436094190",
+      "amount": 69806,
+      "netAmount": 69806,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T19:15:50.000-04:00",
+      "payment_method_id": "debin_transfer",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "120856458095",
+      "amount": 7600,
+      "netAmount": 7600,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T11:46:56.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121377938868",
+      "amount": 16685,
+      "netAmount": 16685,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T11:44:07.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120856154157",
+      "amount": 5000,
+      "netAmount": 5000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-07T11:42:49.000-04:00",
+      "payment_method_id": "cvu",
+      "payment_type_id": "bank_transfer",
+      "external_reference": null
+    },
+    {
+      "id": "121245956102",
+      "amount": 3900,
+      "netAmount": 3900,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-06T13:04:02.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121032240072",
+      "amount": 6000,
+      "netAmount": 6000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-04T19:58:01.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "121016322102",
+      "amount": 45000,
+      "netAmount": 43663.5,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-04T17:47:13.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120451267853",
+      "amount": 950,
+      "netAmount": 950,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-04T11:20:02.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120906257040",
+      "amount": 10000,
+      "netAmount": 10000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-03T19:44:40.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120803676886",
+      "amount": 4200,
+      "netAmount": 4200,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-02T18:17:51.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120799600530",
+      "amount": 6000,
+      "netAmount": 6000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-02T17:45:56.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120282435051",
+      "amount": 2500,
+      "netAmount": 2500,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-02T17:45:12.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120640575376",
+      "amount": 500,
+      "netAmount": 500,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-01T12:14:33.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120122533997",
+      "amount": 4000,
+      "netAmount": 4000,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-08-01T12:04:08.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    },
+    {
+      "id": "120098568836",
+      "amount": 12945.37,
+      "netAmount": 12945.37,
+      "status": "approved",
+      "type": "income",
+      "date": "2025-07-27T20:18:24.000-04:00",
+      "payment_method_id": "account_money",
+      "payment_type_id": "account_money",
+      "external_reference": null
+    }
+  ]
+}

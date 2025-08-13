@@ -1,0 +1,20 @@
+{
+  "name": "mp-reports",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "mp:payments:report": "node mp-sdk/report.js",
+    "mp:account:process": "node mp-sdk/account-money-process.js"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "dayjs": "^1.11.13",
+    "dotenv": "^17.2.0",
+    "exceljs": "^4.4.0",
+    "mercadopago": "^2.8.0",
+    "nodemailer": "^7.0.5",
+    "papaparse": "^5.5.3",
+    "dbffile": "^1.12.0"
+  }
+}
