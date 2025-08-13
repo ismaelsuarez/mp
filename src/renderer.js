@@ -1,10 +1,19 @@
 window.addEventListener('DOMContentLoaded', () => {
 	const tabs = Array.from(document.querySelectorAll('.tab'));
 	const panes = Array.from(document.querySelectorAll('.tab-pane'));
+
+	function activateTabByName(name) {
+		for (const x of tabs) x.classList.toggle('active', x.dataset.tab === name);
+		for (const p of panes) p.classList.toggle('active', p.id === `tab-${name}`);
+	}
+
 	for (const t of tabs) {
-		t.addEventListener('click', () => {
-			for (const x of tabs) x.classList.toggle('active', x === t);
-			for (const p of panes) p.classList.toggle('active', p.id === `tab-${t.dataset.tab}`);
+		t.addEventListener('click', async () => {
+			activateTabByName(t.dataset.tab);
+			try {
+				const cfg = await window.api.getConfig();
+				await window.api.saveConfig({ ...(cfg || {}), LAST_ACTIVE_TAB: t.dataset.tab });
+			} catch {}
 		});
 	}
 
@@ -141,6 +150,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	document.getElementById('btnGenerate').addEventListener('click', async () => {
 		const res = await window.api.generateReport();
+		allRows = res.rows || [];
+		page = 1;
+		renderRows();
+		// Ir a Reportes para visualizar
+		if (typeof activateTabByName === 'function') activateTabByName('results');
 		showToast(`Reporte generado (${res.count})`);
 	});
 
@@ -150,6 +164,27 @@ window.addEventListener('DOMContentLoaded', () => {
 		renderPreview(cfg || {});
 		if (cfg && cfg.THEME) applyTheme(cfg.THEME);
 		enhanceUI();
+		// Restaurar tab activo
+		if (cfg && cfg.LAST_ACTIVE_TAB) activateTabByName(cfg.LAST_ACTIVE_TAB);
+		// Preferencia de filas por página
+		const sel = document.getElementById('pageSize');
+		if (cfg && cfg.PAGE_SIZE) {
+			const n = Number(cfg.PAGE_SIZE);
+			if (Number.isFinite(n) && n > 0) {
+				pageSize = n;
+				if (sel) sel.value = String(n);
+			}
+		}
+		// Restaurar filtros de Reportes
+		const fStatus = document.getElementById('filter_status');
+		const fQuery = document.getElementById('quick_search');
+		const fFrom = document.getElementById('filter_from');
+		const fTo = document.getElementById('filter_to');
+		if (cfg && fStatus) fStatus.value = cfg.LAST_FILTER_STATUS || '';
+		if (cfg && fQuery) fQuery.value = cfg.LAST_FILTER_QUERY || '';
+		if (cfg && fFrom) fFrom.value = cfg.LAST_FILTER_FROM || '';
+		if (cfg && fTo) fTo.value = cfg.LAST_FILTER_TO || '';
+		renderRows();
 	});
 
 	// Probar conexión
@@ -223,7 +258,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	const tbody = document.querySelector('#resultsTable tbody');
 	let allRows = [];
 	let page = 1;
-	const pageSize = 20;
+	let pageSize = 20;
 	function applyFilters() {
 		const q = (document.getElementById('quick_search')?.value || '').toLowerCase();
 		const status = document.getElementById('filter_status')?.value || '';
@@ -262,6 +297,17 @@ window.addEventListener('DOMContentLoaded', () => {
 		tbody.innerHTML = rows;
 		const info = document.getElementById('pageInfo');
 		if (info) info.textContent = `Página ${page} / ${totalPages} (${filtered.length})`;
+
+		// Resumen
+		const sums = filtered.reduce((acc, r) => {
+			const v = Number(r.amount || 0) || 0;
+			const st = String(r.status || '').toLowerCase();
+			if (st === 'refunded' || st === 'cancelled' || st === 'charged_back') acc.refunds += Math.abs(v); else acc.incomes += v;
+			return acc;
+		}, { incomes: 0, refunds: 0 });
+		document.getElementById('summaryIncomes').textContent = sums.incomes.toFixed(2);
+		document.getElementById('summaryRefunds').textContent = sums.refunds.toFixed(2);
+		document.getElementById('summaryTotal').textContent = (sums.incomes - sums.refunds).toFixed(2);
 	}
 
 	document.getElementById('btnGenerateRange').addEventListener('click', async () => {
@@ -274,13 +320,56 @@ window.addEventListener('DOMContentLoaded', () => {
 		allRows = res.rows || [];
 		page = 1;
 		renderRows();
+		if (typeof activateTabByName === 'function') activateTabByName('results');
 		showToast(`Reporte generado (${res.count})`);
 	});
 
-	document.getElementById('quick_search')?.addEventListener('input', () => { page = 1; renderRows(); });
-	document.getElementById('filter_status')?.addEventListener('change', () => { page = 1; renderRows(); });
+	const elQuick = document.getElementById('quick_search');
+	const elStatus = document.getElementById('filter_status');
+	elQuick?.addEventListener('input', () => { 
+		page = 1; renderRows(); 
+		window.api.getConfig().then((cfg) => { window.api.saveConfig({ ...(cfg||{}), LAST_FILTER_QUERY: elQuick.value }); });
+	});
+	elStatus?.addEventListener('change', () => { 
+		page = 1; renderRows(); 
+		window.api.getConfig().then((cfg) => { window.api.saveConfig({ ...(cfg||{}), LAST_FILTER_STATUS: elStatus.value }); });
+	});
 	document.getElementById('prevPage')?.addEventListener('click', () => { if (page > 1) { page -= 1; renderRows(); } });
 	document.getElementById('nextPage')?.addEventListener('click', () => { page += 1; renderRows(); });
+	const pageSizeSelect = document.getElementById('pageSize');
+	pageSizeSelect?.addEventListener('change', () => {
+		const val = Number(pageSizeSelect.value || 20);
+		pageSize = Number.isFinite(val) && val > 0 ? val : 20;
+		page = 1;
+		renderRows();
+		// Guardar preferencia
+		window.api.getConfig().then((cfg) => {
+			window.api.saveConfig({ ...(cfg || {}), PAGE_SIZE: pageSize });
+		});
+	});
+
+	// Persistir rango al editar inputs de fecha
+	const elFrom = document.getElementById('filter_from');
+	const elTo = document.getElementById('filter_to');
+	elFrom?.addEventListener('change', () => {
+		window.api.getConfig().then((cfg)=>{ window.api.saveConfig({ ...(cfg||{}), LAST_FILTER_FROM: elFrom.value }); });
+	});
+	elTo?.addEventListener('change', () => {
+		window.api.getConfig().then((cfg)=>{ window.api.saveConfig({ ...(cfg||{}), LAST_FILTER_TO: elTo.value }); });
+	});
+
+	// Reset filtros
+	document.getElementById('btnResetFilters')?.addEventListener('click', async () => {
+		const cfg = await window.api.getConfig();
+		await window.api.saveConfig({ ...(cfg||{}), LAST_FILTER_STATUS: '', LAST_FILTER_QUERY: '', LAST_FILTER_FROM: '', LAST_FILTER_TO: '' });
+		if (elStatus) elStatus.value = '';
+		if (elQuick) elQuick.value = '';
+		if (elFrom) elFrom.value = '';
+		if (elTo) elTo.value = '';
+		page = 1;
+		renderRows();
+		showToast('Filtros restablecidos');
+	});
 
 	document.getElementById('btnExportCSV').addEventListener('click', async () => {
 		const { outDir } = await window.api.exportReport();

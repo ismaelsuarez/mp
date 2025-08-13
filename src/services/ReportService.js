@@ -110,7 +110,10 @@ async function generateFiles(payments, tag, rangeInfo) {
 	const worksheet = workbook.addWorksheet('Transactions');
 	worksheet.addRow(headers);
 	for (const row of normalizedRows) worksheet.addRow(headers.map((h) => row[h]));
-	worksheet.addTable({ name: 'TransactionsTable', ref: 'A1', headerRow: true, columns: headers.map((h) => ({ name: h })), rows: normalizedRows.map((r) => headers.map((h) => r[h])) });
+    // Evitar error de ExcelJS cuando no hay filas/columnas válidas
+    if (headers.length > 0 && normalizedRows.length > 0) {
+        worksheet.addTable({ name: 'TransactionsTable', ref: 'A1', headerRow: true, columns: headers.map((h) => ({ name: h })), rows: normalizedRows.map((r) => headers.map((h) => r[h])) });
+    }
 	await workbook.xlsx.writeFile(xlsxPath);
 
 	// DBF
