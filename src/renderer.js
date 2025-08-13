@@ -10,7 +10,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	const ids = [
 		'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO',
-		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS'
+		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
+		'AUTO_TIMES','AUTO_ENABLED'
 	];
 	const el = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview');
@@ -33,7 +34,9 @@ window.addEventListener('DOMContentLoaded', () => {
 			SMTP_HOST: el.SMTP_HOST.value || undefined,
 			SMTP_PORT: el.SMTP_PORT.value ? Number(el.SMTP_PORT.value) : undefined,
 			SMTP_USER: el.SMTP_USER.value || undefined,
-			SMTP_PASS: el.SMTP_PASS.value || undefined
+			SMTP_PASS: el.SMTP_PASS.value || undefined,
+			AUTO_TIMES: el.AUTO_TIMES.value || undefined,
+			AUTO_ENABLED: el.AUTO_ENABLED.checked || false
 		};
 	}
 
@@ -56,6 +59,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		el.SMTP_PORT.value = cfg.SMTP_PORT || '';
 		el.SMTP_USER.value = cfg.SMTP_USER || '';
 		el.SMTP_PASS.value = cfg.SMTP_PASS || '';
+		el.AUTO_TIMES.value = cfg.AUTO_TIMES || '';
+		el.AUTO_ENABLED.checked = !!cfg.AUTO_ENABLED;
 	}
 
 	function renderPreview(cfg) {

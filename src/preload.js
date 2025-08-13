@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async sendReportEmail() {
 		return await ipcRenderer.invoke('send-report-email');
+	},
+	onAutoNotice(callback) {
+		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
 	}
 });
 

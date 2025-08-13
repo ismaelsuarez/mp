@@ -6,6 +6,7 @@ const Store = require('electron-store');
 const { searchPaymentsWithConfig } = require('./services/MercadoPagoService');
 const { generateFiles, getOutDir } = require('./services/ReportService');
 const { sendReportEmail } = require('./services/EmailService');
+const cron = require('node-cron');
 
 let mainWindow = null;
 
@@ -91,6 +92,37 @@ app.whenReady().then(() => {
 	});
 
 	createMainWindow();
+
+	// Programación automática
+	function scheduleJobs() {
+		const cfg = store.get('config') || {};
+		if (!cfg.AUTO_ENABLED) return;
+		const times = String(cfg.AUTO_TIMES || '').split(',').map(s => s.trim()).filter(Boolean);
+		for (const t of times) {
+			const m = /^([0-2]?\d):([0-5]\d)$/.exec(t);
+			if (!m) continue;
+			const hh = Number(m[1]);
+			const mm = Number(m[2]);
+			// min hour * * *
+			const expr = `${mm} ${hh} * * *`;
+			cron.schedule(expr, async () => {
+				try {
+					const { payments, range } = await searchPaymentsWithConfig();
+					const tag = new Date().toISOString().slice(0, 10);
+					await generateFiles(payments, tag, range);
+					if (mainWindow) {
+						mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: payments.length });
+					}
+				} catch (e) {
+					if (mainWindow) {
+						mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
+					}
+				}
+			});
+		}
+	}
+
+	scheduleJobs();
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
