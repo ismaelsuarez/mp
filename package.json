@@ -43,7 +43,9 @@
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
       "perMachine": true,
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "artifactName": "Todo-computacion MP ver.${version}.${ext}",
+      "installerSidebar": null
     },
     "linux": {
       "target": [

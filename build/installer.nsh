@@ -1,3 +1,13 @@
 !macro preInit
-  StrCpy $InstDir "C:\\2_mp"
+  ; Establecer carpeta de instalación fija
+  StrCpy $INSTDIR "C:\\2_mp"
+!macroend
+
+!macro customInstall
+  ; Crear subcarpetas requeridas
+  CreateDirectory "$INSTDIR\logs"
+  CreateDirectory "$INSTDIR\reportes"
+  ; Conceder permisos de modificación a Usuarios (para escribir logs/reportes)
+  ; Requiere admin; icacls está presente en Windows
+  nsExec::ExecToStack 'cmd /c icacls "$INSTDIR" /grant Users:(OI)(CI)M /T /C'
 !macroend
