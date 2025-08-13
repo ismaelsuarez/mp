@@ -1,4 +1,4 @@
-### Proyecto MP – Reportes de Pagos Mercado Pago (Node.js)
+### Proyecto MP – Reportes de Pagos Mercado Pago (TypeScript + Electron)
 
 Este proyecto genera reportes operativos de ventas (Pagos) usando el SDK oficial de Mercado Pago, y envía por email los archivos resultantes (CSV, CSV full, XLSX y DBF) junto con un resumen JSON. Sirve como base estable para futuras ampliaciones (reportes de liquidaciones/finanzas y snapshots de saldo).
 
@@ -21,11 +21,12 @@ Este proyecto genera reportes operativos de ventas (Pagos) usando el SDK oficial
 
 ### Estructura del proyecto
 
-- `mp-sdk/report.js`: script principal de reportes (pagos → archivos + email)
-- `mp-sdk/services/MercadoPagoService.js`: servicio SDK (búsqueda paginada, normalización)
-- `mp-sdk/account-money-process.js`: normalizador del CSV “Dinero en cuenta” del panel (opcional)
-- `out/`: carpeta de salida creada en tiempo de ejecución
-- `.env`: variables de entorno (ver sección)
+- App de escritorio (Electron, TS): `src/main.ts`, `src/preload.ts`, `src/renderer.ts`, `src/services/*`
+- CLI (TS): `mp-sdk/report.ts` (reportes) y `mp-sdk/account-money-process.ts` (normalizador)
+- Servicio SDK CLI: `mp-sdk/services/MercadoPagoService.ts`
+- `dist/`: salida compilada de TypeScript
+- `out/`: carpeta de salida de la CLI creada en tiempo de ejecución
+- `.env`: variables de entorno (para CLI)
 - `package.json`: scripts y dependencias del proyecto
 
 ---
@@ -47,25 +48,63 @@ npm install
 
 2) Configurar `.env` (ver ejemplo y descripción más abajo)
 
-3) Ejecutar reporte del día (00:00–23:59 en la TZ configurada)
+3) App de escritorio (Electron, compila TS y abre la GUI)
 ```bash
-npm run mp:payments:report
+npm start
 ```
 
-4) Ejecutar con rango de fechas (días completos)
+4) CLI – Ejecutar reporte del día (00:00–23:59 en la TZ configurada)
 ```bash
-MP_DATE_FROM=YYYY-MM-DD MP_DATE_TO=YYYY-MM-DD npm run mp:payments:report
+npm run mp:payments:report:dist
 ```
 
-5) Traer todo sin fechas (diagnóstico)
+5) CLI – Ejecutar con rango de fechas (días completos)
 ```bash
-MP_NO_DATE_FILTER=true npm run mp:payments:report
+MP_DATE_FROM=YYYY-MM-DD MP_DATE_TO=YYYY-MM-DD npm run mp:payments:report:dist
 ```
 
-6) Procesar CSV “Dinero en cuenta” (opcional)
+6) CLI – Traer todo sin fechas (diagnóstico)
 ```bash
-MP_ACCOUNT_CSV_PATH=/ruta/reporte_panel.csv npm run mp:account:process
+MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 ```
+
+7) CLI – Procesar CSV “Dinero en cuenta” (opcional)
+```bash
+MP_ACCOUNT_CSV_PATH=/ruta/reporte_panel.csv npm run mp:account:process:dist
+```
+
+---
+
+### Construir instalador para Windows (.exe)
+
+Requisitos recomendados:
+- Ejecutar el build en Windows (PowerShell/Terminal) con Node.js 18+ instalado.
+- Opcional: firma de código (si usas certificados, ver variables `CSC_*`).
+
+Pasos (Windows):
+```powershell
+# 1) Ir a la carpeta del proyecto (puedes usar la ruta WSL compartida: \\wsl$\Ubuntu\home\ismael\mp)
+cd C:\ruta\a\mp
+
+# 2) Instalar dependencias y compilar TypeScript
+npm ci
+npm run build:ts
+
+# 3) Generar instalador .exe con electron-builder
+npx electron-builder -w
+# Alternativa: npm run build (en Windows generará el instalador para Windows)
+```
+
+Salida:
+- El instalador quedará en `dist/` con un nombre similar a `MP Reports Setup x.y.z.exe`.
+
+Notas de firma (opcional):
+- Si tienes certificado, configura variables de entorno antes de construir:
+  - `CSC_LINK` (ruta/URL al .pfx/.pem) y `CSC_KEY_PASSWORD`.
+- Si no firmas, el .exe será no firmado (Windows puede mostrar advertencia de editor desconocido).
+
+WSL2:
+- Se recomienda correr el build en el host Windows. Desde WSL puedes abrir la carpeta en Windows vía `\\wsl$` o copiar el proyecto a NTFS.
 
 ---
 
@@ -136,6 +175,8 @@ Importante: `payments/search` cubre ventas/devoluciones. Retiros, transferencias
 - `transactions-detailed-YYYY-MM-DD.dbf`: esquema dBase con nombres ≤ 10 caracteres
 - `balance-YYYY-MM-DD.json`: resumen rápido con totales aproximados a partir de pagos
 
+Nota: en la app de escritorio (GUI), los archivos se generan en la carpeta `Documentos/MP-Reportes` del usuario.
+
 Retención de archivos: conservar según política interna (p. ej. 30–90 días).
 
 ---
@@ -145,10 +186,10 @@ Retención de archivos: conservar según política interna (p. ej. 30–90 días
 Ejemplo de programación (parciales a las 12/14/16 y cierre a las 18:05, en TZ CABA):
 ```cron
 TZ=America/Argentina/Buenos_Aires
-0 12 * * * cd /home/ismael/mp && npm run mp:payments:report
-0 14 * * * cd /home/ismael/mp && npm run mp:payments:report
-0 16 * * * cd /home/ismael/mp && npm run mp:payments:report
-5 18 * * *  cd /home/ismael/mp && npm run mp:payments:report
+0 12 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
+0 14 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
+0 16 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
+5 18 * * *  cd /home/ismael/mp && npm run mp:payments:report:dist
 ```
 
 ---
@@ -160,6 +201,8 @@ TZ=America/Argentina/Buenos_Aires
 - Resultados vacíos: confirmar TZ y rango; probar `MP_NO_DATE_FILTER=true` como diagnóstico.
 - Faltan operaciones: usar `MP_RANGE=date_last_updated` para capturar aprobaciones/actualizaciones del día.
 - Archivos muy grandes: ajustar `MP_LIMIT` y `MP_MAX_PAGES`.
+
+- Electron en WSL: instalar librerías del sistema (`libnss3`, `libgtk-3-0`, `libxss1`, `libasound2t64`, etc.) y `xdg-utils`. En Windows 11 con WSLg suele funcionar directo; de lo contrario, configurar un servidor X y `DISPLAY`.
 
 ---
 

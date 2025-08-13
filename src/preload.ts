@@ -1,10 +1,10 @@
-const { contextBridge, ipcRenderer } = require('electron');
+import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('api', {
 	async getConfig() {
 		return await ipcRenderer.invoke('get-config');
 	},
-	async saveConfig(cfg) {
+	async saveConfig(cfg: any) {
 		return await ipcRenderer.invoke('save-config', cfg);
 	},
 	async generateReport() {
@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('api', {
 	async sendReportEmail() {
 		return await ipcRenderer.invoke('send-report-email');
 	},
-	onAutoNotice(callback) {
+	onAutoNotice(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
 	},
 	async testConnection() {
@@ -29,5 +29,3 @@ contextBridge.exposeInMainWorld('api', {
 		return await ipcRenderer.invoke('list-history');
 	}
 });
-
-

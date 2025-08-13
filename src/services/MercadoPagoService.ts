@@ -1,13 +1,16 @@
-const { app } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const { MercadoPagoConfig, Payment } = require('mercadopago');
-const dayjs = require('dayjs');
-const utc = require('dayjs/plugin/utc');
-dayjs.extend(utc);
-const Store = require('electron-store');
+import { app } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import { MercadoPagoConfig, Payment } from 'mercadopago';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+import Store from 'electron-store';
 
-function getEncryptionKey() {
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+function getEncryptionKey(): string | undefined {
 	try {
 		const keyPath = path.join(app.getPath('userData'), 'config.key');
 		if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath, 'utf8');
@@ -18,34 +21,33 @@ function getEncryptionKey() {
 }
 
 function getConfigStore() {
-	return new Store({ name: 'settings', encryptionKey: getEncryptionKey() });
+	return new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
 }
 
-function buildClient(accessToken) {
+function buildClient(accessToken: string) {
 	return new MercadoPagoConfig({ accessToken, options: { timeout: 30000 } });
 }
 
-function toIsoUtcRangeFromLocal(dateFrom, dateTo, tz) {
-	// dateFrom/dateTo are YYYY-MM-DD in local TZ
-	const start = dayjs.tz ? dayjs.tz(dateFrom, tz).startOf('day') : dayjs(dateFrom).utc().startOf('day');
-	const end = dayjs.tz ? dayjs.tz(dateTo || dateFrom, tz).endOf('day') : dayjs(dateTo || dateFrom).utc().endOf('day');
+function toIsoUtcRangeFromLocal(dateFrom: string, dateTo: string | undefined, tz: string) {
+	const start = dayjs.tz(dateFrom, tz).startOf('day');
+	const end = dayjs.tz(dateTo || dateFrom, tz).endOf('day');
 	return {
 		begin_date: start.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]'),
 		end_date: end.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]')
 	};
 }
 
-async function searchPaymentsWithConfig() {
+export async function searchPaymentsWithConfig() {
 	const store = getConfigStore();
-	const cfg = store.get('config') || {};
+	const cfg: any = store.get('config') || {};
 	if (!cfg.MP_ACCESS_TOKEN) throw new Error('Falta MP_ACCESS_TOKEN en configuración');
 
-	const client = buildClient(cfg.MP_ACCESS_TOKEN);
+	const client = buildClient(String(cfg.MP_ACCESS_TOKEN));
 	const payment = new Payment(client);
 
 	const noDate = !!cfg.MP_NO_DATE_FILTER;
-	let begin_date;
-	let end_date;
+	let begin_date: string | undefined;
+	let end_date: string | undefined;
 	if (!noDate) {
 		if (cfg.MP_DATE_FROM || cfg.MP_DATE_TO) {
 			const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
@@ -53,7 +55,6 @@ async function searchPaymentsWithConfig() {
 			begin_date = range.begin_date;
 			end_date = range.end_date;
 		} else {
-			// Día actual completo por defecto (00:00–23:59 local)
 			const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
 			const range = toIsoUtcRangeFromLocal(dayjs().format('YYYY-MM-DD'), undefined, tz);
 			begin_date = range.begin_date;
@@ -68,10 +69,10 @@ async function searchPaymentsWithConfig() {
 	const pageLimit = Number(cfg.MP_LIMIT || 50);
 	const pageMax = Number(cfg.MP_MAX_PAGES || 100);
 
-	const all = [];
+	const all: any[] = [];
 	let offset = 0;
 	for (let page = 0; page < pageMax; page += 1) {
-		const options = {
+		const options: Record<string, any> = {
 			sort: selectedSort,
 			criteria: selectedCriteria,
 			limit: pageLimit,
@@ -85,7 +86,7 @@ async function searchPaymentsWithConfig() {
 		if (statusFilter) options.status = statusFilter;
 
 		const resp = await payment.search({ options });
-		const results = Array.isArray(resp?.results) ? resp.results : [];
+		const results = Array.isArray((resp as any)?.results) ? (resp as any).results : [];
 		all.push(...results);
 		if (results.length < pageLimit) break;
 		offset += pageLimit;
@@ -98,26 +99,17 @@ async function searchPaymentsWithConfig() {
 	};
 }
 
-module.exports = {
-	searchPaymentsWithConfig
-};
-
-// Test de credenciales: intenta un search con limit=1
-async function testConnection() {
+export async function testConnection() {
 	const store = getConfigStore();
-	const cfg = store.get('config') || {};
+	const cfg: any = store.get('config') || {};
 	if (!cfg.MP_ACCESS_TOKEN) return { ok: false, error: 'Falta MP_ACCESS_TOKEN' };
 	try {
-		const client = buildClient(cfg.MP_ACCESS_TOKEN);
+		const client = buildClient(String(cfg.MP_ACCESS_TOKEN));
 		const payment = new Payment(client);
 		const resp = await payment.search({ options: { limit: 1 } });
-		const ok = Array.isArray(resp?.results);
+		const ok = Array.isArray((resp as any)?.results);
 		return { ok };
-	} catch (e) {
-		return { ok: false, error: e?.response?.data || e?.message || String(e) };
+	} catch (e: any) {
+		return { ok: false, error: (e?.response?.data as any) || e?.message || String(e) };
 	}
 }
-
-module.exports.testConnection = testConnection;
-
-

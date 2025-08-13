@@ -1,16 +1,16 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
-const Store = require('electron-store');
-const { searchPaymentsWithConfig, testConnection } = require('./services/MercadoPagoService');
-const { generateFiles, getOutDir } = require('./services/ReportService');
-const { sendReportEmail } = require('./services/EmailService');
-const cron = require('node-cron');
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+import Store from 'electron-store';
+import cron from 'node-cron';
+import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
+import { generateFiles, getOutDir } from './services/ReportService';
+import { sendReportEmail } from './services/EmailService';
 
-let mainWindow = null;
+let mainWindow: BrowserWindow | null = null;
 
-function getEncryptionKey() {
+function getEncryptionKey(): string | undefined {
 	const dir = app.getPath('userData');
 	const keyPath = path.join(dir, 'config.key');
 	try {
@@ -21,12 +21,11 @@ function getEncryptionKey() {
 		fs.writeFileSync(keyPath, key, { mode: 0o600 });
 		return key;
 	} catch (e) {
-		// Fallback sin encriptación si falla filesystem
 		return undefined;
 	}
 }
 
-const store = new Store({ name: 'settings', encryptionKey: getEncryptionKey() });
+const store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
 
 function createMainWindow() {
 	mainWindow = new BrowserWindow({
@@ -40,7 +39,9 @@ function createMainWindow() {
 		}
 	});
 
-	mainWindow.loadFile(path.join(__dirname, '..', 'public', 'index.html'));
+	// En build, __dirname apunta a dist/src; public queda al lado de dist
+	const htmlPath = path.join(app.getAppPath(), 'public', 'index.html');
+	mainWindow.loadFile(htmlPath);
 
 	mainWindow.on('closed', () => {
 		mainWindow = null;
@@ -55,7 +56,7 @@ app.whenReady().then(() => {
 	ipcMain.handle('get-config', () => {
 		return store.get('config') || {};
 	});
-	ipcMain.handle('save-config', (event, cfg) => {
+	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
 			store.set('config', cfg);
 			return true;
@@ -71,16 +72,16 @@ app.whenReady().then(() => {
 	ipcMain.handle('generate-report', async () => {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
-		const result = await generateFiles(payments, tag, range);
+		const result = await generateFiles(payments as any[], tag, range);
 		// Reducir payload para UI
-		const uiRows = payments.slice(0, 1000).map((p) => ({
+		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
 			id: p?.id,
 			status: p?.status,
 			amount: p?.transaction_amount,
 			date: p?.date_created,
 			method: p?.payment_method_id
 		}));
-		return { count: payments.length, outDir: result.outDir, files: result.files, rows: uiRows };
+		return { count: (payments as any[]).length, outDir: result.outDir, files: result.files, rows: uiRows };
 	});
 
 	// Export on-demand without re-fetch (assumes files already generated or uses latest payments)
@@ -98,9 +99,9 @@ app.whenReady().then(() => {
 			{ filename: `transactions-full-${today}.csv`, path: `${outDir}/transactions-full-${today}.csv` },
 			{ filename: `transactions-full-${today}.xlsx`, path: `${outDir}/transactions-full-${today}.xlsx` },
 			{ filename: `transactions-detailed-${today}.dbf`, path: `${outDir}/transactions-detailed-${today}.dbf` }
-		].filter(f => fs.existsSync(f.path));
-		const sent = await sendReportEmail(`MP Reporte ${today}`, `Adjunto reporte de ${today}`, files);
-		return { sent, files: files.map(f => f.filename) };
+		].filter(f => fs.existsSync((f as any).path));
+		const sent = await sendReportEmail(`MP Reporte ${today}`, `Adjunto reporte de ${today}`, files as any);
+		return { sent, files: (files as any).map((f: any) => (f as any).filename) };
 	});
 
 	// Abrir carpeta de salida
@@ -115,7 +116,7 @@ app.whenReady().then(() => {
 		const dir = getOutDir();
 		try {
 			const entries = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
-			const map = new Map();
+			const map = new Map<string, string[]>();
 			for (const name of entries) {
 				const m = name.match(/^(balance|transactions|transactions-full|transactions-detailed)-([0-9]{4}-[0-9]{2}-[0-9]{2})\.(json|csv|xlsx|dbf)$/);
 				if (!m) continue;
@@ -126,7 +127,7 @@ app.whenReady().then(() => {
 			}
 			const items = Array.from(map.entries()).sort((a,b)=>a[0]<b[0]?1:-1).map(([tag, files]) => ({ tag, files }));
 			return { ok: true, dir, items };
-		} catch (e) {
+		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
 	});
@@ -135,25 +136,24 @@ app.whenReady().then(() => {
 
 	// Programación automática
 	function scheduleJobs() {
-		const cfg = store.get('config') || {};
+		const cfg: any = store.get('config') || {};
 		if (!cfg.AUTO_ENABLED) return;
-		const times = String(cfg.AUTO_TIMES || '').split(',').map(s => s.trim()).filter(Boolean);
+		const times = String(cfg.AUTO_TIMES || '').split(',').map((s: string) => s.trim()).filter(Boolean);
 		for (const t of times) {
 			const m = /^([0-2]?\d):([0-5]\d)$/.exec(t);
 			if (!m) continue;
 			const hh = Number(m[1]);
 			const mm = Number(m[2]);
-			// min hour * * *
 			const expr = `${mm} ${hh} * * *`;
 			cron.schedule(expr, async () => {
 				try {
 					const { payments, range } = await searchPaymentsWithConfig();
 					const tag = new Date().toISOString().slice(0, 10);
-					await generateFiles(payments, tag, range);
+					await generateFiles(payments as any[], tag, range);
 					if (mainWindow) {
-						mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: payments.length });
+						mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: (payments as any[]).length });
 					}
-				} catch (e) {
+				} catch (e: any) {
 					if (mainWindow) {
 						mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
 					}
@@ -174,5 +174,3 @@ app.on('window-all-closed', () => {
 		app.quit();
 	}
 });
-
-

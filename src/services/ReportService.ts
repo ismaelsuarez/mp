@@ -1,22 +1,22 @@
-const { app } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const ExcelJS = require('exceljs');
-const { DBFFile } = require('dbffile');
-const Papa = require('papaparse');
+import { app } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import ExcelJS from 'exceljs';
+import { DBFFile } from 'dbffile';
+import Papa from 'papaparse';
 
-function ensureDir(dir) {
+function ensureDir(dir: string) {
 	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-function getOutDir() {
+export function getOutDir() {
 	const base = path.join(app.getPath('documents'), 'MP-Reportes');
 	ensureDir(base);
 	return base;
 }
 
-function mapDetailedRow(p) {
-	const feeTotal = Array.isArray(p?.fee_details) ? p.fee_details.reduce((acc, f) => acc + Number(f?.amount || 0), 0) : 0;
+function mapDetailedRow(p: any) {
+	const feeTotal = Array.isArray(p?.fee_details) ? p.fee_details.reduce((acc: number, f: any) => acc + Number(f?.amount || 0), 0) : 0;
 	const td = p?.transaction_details || {};
 	const payer = p?.payer || {};
 	const idf = payer?.identification || {};
@@ -62,7 +62,7 @@ function mapDetailedRow(p) {
 	};
 }
 
-async function generateFiles(payments, tag, rangeInfo) {
+export async function generateFiles(payments: any[], tag: string, rangeInfo: any) {
 	const outDir = getOutDir();
 	const jsonPath = path.join(outDir, `balance-${tag}.json`);
 	const csvPath = path.join(outDir, `transactions-${tag}.csv`);
@@ -72,7 +72,7 @@ async function generateFiles(payments, tag, rangeInfo) {
 
 	const detailed = payments.map(mapDetailedRow);
 
-	const totals = detailed.reduce((acc, r) => {
+	const totals = detailed.reduce((acc: any, r: any) => {
 		const amt = Number(r.net_received_amount ?? r.transaction_amount ?? 0) || 0;
 		if (String(r.status).toLowerCase() === 'refunded') acc.refunds += Math.abs(amt);
 		else acc.incomes += amt;
@@ -85,35 +85,34 @@ async function generateFiles(payments, tag, rangeInfo) {
 	fs.writeFileSync(csvPath, csv, 'utf8');
 
 	// CSV full (aplanado)
-	const flatten = (obj, prefix = '', acc = {}) => {
+	const flatten = (obj: any, prefix = '', acc: any = {}) => {
 		if (obj === null || obj === undefined) return acc;
 		if (Array.isArray(obj)) { acc[prefix.replace(/\.$/, '')] = JSON.stringify(obj); return acc; }
 		if (typeof obj === 'object') {
 			for (const [k, v] of Object.entries(obj)) {
 				const next = prefix ? `${prefix}.${k}` : k;
-				if (v && typeof v === 'object') flatten(v, next, acc); else acc[next] = v;
+				if (v && typeof v === 'object') (flatten as any)(v, next, acc); else (acc as any)[next] = v as any;
 			}
 			return acc;
 		}
-		acc[prefix.replace(/\.$/, '')] = obj; return acc;
+		(acc as any)[prefix.replace(/\.$/, '')] = obj; return acc;
 	};
 	const flattenedRows = payments.map((p) => flatten(p));
-	const allKeys = new Set();
+	const allKeys = new Set<string>();
 	for (const row of flattenedRows) Object.keys(row).forEach((k) => allKeys.add(k));
 	const headers = Array.from(allKeys);
-	const normalizedRows = flattenedRows.map((r) => Object.fromEntries(headers.map((h) => [h, r[h] ?? ''])));
+	const normalizedRows = flattenedRows.map((r) => Object.fromEntries(headers.map((h) => [h, (r as any)[h] ?? ''])));
 	const csvFull = Papa.unparse({ fields: headers, data: normalizedRows });
 	fs.writeFileSync(csvFullPath, csvFull, 'utf8');
 
 	// XLSX
-	const workbook = new ExcelJS.Workbook();
+	const workbook = new (ExcelJS as any).Workbook();
 	const worksheet = workbook.addWorksheet('Transactions');
 	worksheet.addRow(headers);
-	for (const row of normalizedRows) worksheet.addRow(headers.map((h) => row[h]));
-    // Evitar error de ExcelJS cuando no hay filas/columnas válidas
-    if (headers.length > 0 && normalizedRows.length > 0) {
-        worksheet.addTable({ name: 'TransactionsTable', ref: 'A1', headerRow: true, columns: headers.map((h) => ({ name: h })), rows: normalizedRows.map((r) => headers.map((h) => r[h])) });
-    }
+	for (const row of normalizedRows) worksheet.addRow(headers.map((h) => (row as any)[h]));
+	if (headers.length > 0 && normalizedRows.length > 0) {
+		worksheet.addTable({ name: 'TransactionsTable', ref: 'A1', headerRow: true, columns: headers.map((h) => ({ name: h })), rows: normalizedRows.map((r) => headers.map((h) => (r as any)[h])) });
+	}
 	await workbook.xlsx.writeFile(xlsxPath);
 
 	// DBF
@@ -143,7 +142,7 @@ async function generateFiles(payments, tag, rangeInfo) {
 		{ name: 'LAST4', type: 'C', size: 4 },
 		{ name: 'HOLDER', type: 'C', size: 80 }
 	];
-	const toRecord = (r) => ({
+	const toRecord = (r: any) => ({
 		OP_ID: String(r.operation_id ?? ''),
 		DT_CRT: String(r.date_created ?? ''),
 		DT_APR: String(r.date_approved ?? ''),
@@ -168,7 +167,7 @@ async function generateFiles(payments, tag, rangeInfo) {
 		LAST4: String(r.card_last_four_digits ?? ''),
 		HOLDER: String(r.cardholder_name ?? '')
 	});
-	const dbf = await DBFFile.create(dbfPath, fields);
+	const dbf = await DBFFile.create(dbfPath, fields as any);
 	const batchSize = 1000;
 	for (let i = 0; i < detailed.length; i += batchSize) {
 		await dbf.appendRecords(detailed.slice(i, i + batchSize).map(toRecord));
@@ -176,10 +175,3 @@ async function generateFiles(payments, tag, rangeInfo) {
 
 	return { outDir, files: { jsonPath, csvPath, csvFullPath, xlsxPath, dbfPath }, totals };
 }
-
-module.exports = {
-	getOutDir,
-	generateFiles
-};
-
-

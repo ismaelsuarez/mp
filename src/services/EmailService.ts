@@ -1,10 +1,10 @@
-const { app } = require('electron');
-const fs = require('fs');
-const path = require('path');
-const nodemailer = require('nodemailer');
-const Store = require('electron-store');
+import { app } from 'electron';
+import fs from 'fs';
+import path from 'path';
+import nodemailer from 'nodemailer';
+import Store from 'electron-store';
 
-function getEncryptionKey() {
+function getEncryptionKey(): string | undefined {
 	try {
 		const keyPath = path.join(app.getPath('userData'), 'config.key');
 		if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath, 'utf8');
@@ -13,11 +13,11 @@ function getEncryptionKey() {
 }
 
 function getConfig() {
-	const store = new Store({ name: 'settings', encryptionKey: getEncryptionKey() });
-	return store.get('config') || {};
+	const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+	return (store.get('config') as any) || {};
 }
 
-async function sendReportEmail(subject, text, attachments) {
+export async function sendReportEmail(subject: string, text: string, attachments: Array<{ filename: string; path: string }>) {
 	const cfg = getConfig();
 	const to = cfg.EMAIL_REPORT || cfg.ADMIN_ERROR_EMAIL;
 	if (!to || !cfg.SMTP_USER || !cfg.SMTP_PASS) return false;
@@ -31,7 +31,3 @@ async function sendReportEmail(subject, text, attachments) {
 	await transporter.sendMail({ from: cfg.SMTP_USER, to, subject, text, attachments });
 	return true;
 }
-
-module.exports = { sendReportEmail };
-
-
