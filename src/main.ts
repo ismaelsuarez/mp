@@ -6,6 +6,7 @@ import Store from 'electron-store';
 import cron from 'node-cron';
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { generateFiles, getOutDir } from './services/ReportService';
+import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 
 let mainWindow: BrowserWindow | null = null;
@@ -40,7 +41,27 @@ function createMainWindow() {
 	});
 
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
-	const htmlPath = path.join(app.getAppPath(), 'public', 'index.html');
+	const cfg: any = store.get('config') || {};
+	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
+	if (defaultView === 'caja' && !cfg.MP_ACCESS_TOKEN) defaultView = 'config'; // fallback si no hay credenciales
+	const initialFile = defaultView === 'caja' ? 'caja.html' : 'config.html';
+
+	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
+	try {
+		if (defaultView === 'caja') {
+			mainWindow.setMinimumSize(400, 300);
+			mainWindow.setSize(400, 300);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+		} else {
+			mainWindow.setMinimumSize(800, 600);
+			mainWindow.setSize(1000, 700);
+			mainWindow.setMenuBarVisibility(true);
+			mainWindow.setAutoHideMenuBar(false);
+		}
+	} catch {}
+
+	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
 	mainWindow.loadFile(htmlPath);
 
 	mainWindow.on('closed', () => {
@@ -73,6 +94,15 @@ app.whenReady().then(() => {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments as any[], tag, range);
+		// Auto-enviar mp.dbf vía FTP si está configurado
+		try {
+			const mpPath = (result as any)?.files?.mpDbfPath;
+			if (mpPath && fs.existsSync(mpPath)) {
+				await sendDbf(mpPath, 'mp.dbf');
+			}
+		} catch (e) {
+			console.warn('[main] auto FTP send failed:', e);
+		}
 		// Reducir payload para UI
 		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
 			id: p?.id,
@@ -104,6 +134,26 @@ app.whenReady().then(() => {
 		return { sent, files: (files as any).map((f: any) => (f as any).filename) };
 	});
 
+	// FTP: probar conexión
+	ipcMain.handle('test-ftp', async () => {
+		try {
+			const ok = await testFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP: enviar DBF del día
+	ipcMain.handle('send-dbf-ftp', async () => {
+		try {
+			const res = await sendTodayDbf();
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// Abrir carpeta de salida
 	ipcMain.handle('open-out-dir', async () => {
 		const dir = getOutDir();
@@ -130,6 +180,47 @@ app.whenReady().then(() => {
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
+	});
+
+	// Abrir vistas (config/caja)
+	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja') => {
+		const file = view === 'caja' ? 'caja.html' : 'config.html';
+		console.log('[main] open-view →', view, '->', file);
+		if (mainWindow) {
+			const target = path.join(app.getAppPath(), 'public', file);
+			console.log('[main] loading file:', target);
+			// Ajustar tamaño según vista
+			try {
+				if (view === 'caja') {
+					mainWindow.setMinimumSize(400, 300);
+					mainWindow.setSize(400, 300);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+				} else {
+					mainWindow.setMinimumSize(800, 600);
+					mainWindow.setSize(1000, 700);
+					mainWindow.setMenuBarVisibility(true);
+					mainWindow.setAutoHideMenuBar(false);
+				}
+			} catch {}
+			await mainWindow.loadFile(target);
+			console.log('[main] loadFile done');
+			return { ok: true };
+		}
+		console.warn('[main] open-view: no mainWindow');
+		return { ok: false };
+	});
+
+	// Cambiar tamaño de ventana actual
+	ipcMain.handle('set-window-size', async (_evt, payload: { width?: number; height?: number }) => {
+		if (!mainWindow) return { ok: false };
+		const w = Number(payload?.width || 0);
+		const h = Number(payload?.height || 0);
+		if (w > 0 && h > 0) {
+			mainWindow.setSize(w, h);
+			return { ok: true };
+		}
+		return { ok: false };
 	});
 
 	createMainWindow();

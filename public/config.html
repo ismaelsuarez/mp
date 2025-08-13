@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>MP – Configuración</title>
+	<link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+</head>
+<body class="text-slate-200">
+    <div class="container">
+        <div class="flex items-center justify-between mb-2">
+            <h1>TODO-COMPUTACION</h1>
+            <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
+        </div>
+        <div class="tabs">
+            <button class="tab active" data-tab="config">Configuración</button>
+            <button class="tab" data-tab="results">Resultados</button>
+            <button class="tab" data-tab="history">Historial</button>
+            <button class="tab" data-tab="about">Acerca de</button>
+        </div>
+
+        <section id="tab-config" class="tab-pane active">
+			<form id="configForm" class="form-grid">
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						Mercado Pago
+					</summary>
+					<div class="p-3 space-y-2">
+						<label>Access Token (Mercado Pago) <input id="MP_ACCESS_TOKEN" type="password" /></label>
+						<label>ID de usuario (opcional) <input id="MP_USER_ID" /></label>
+						<div class="row">
+							<button type="button" id="btnTest">Probar conexión</button>
+							<span id="testStatus"></span>
+						</div>
+						<label>Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
+						<label>Hora de inicio <input id="MP_WINDOW_START" placeholder="00:00" /></label>
+						<label>Hora de finalización <input id="MP_WINDOW_END" placeholder="23:59" /></label>
+						<label>Desde (fecha) <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
+						<label>Hasta (fecha) <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
+						<label class="checkbox">
+							<input id="MP_NO_DATE_FILTER" type="checkbox" /> Sin filtro de fechas
+						</label>
+						<label>Campo de fecha <input id="MP_RANGE" placeholder="date_last_updated" /></label>
+						<label>Estado (opcional) <input id="MP_STATUS" placeholder="approved,refunded" /></label>
+						<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
+						<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						Email / SMTP
+					</summary>
+					<div class="p-3 space-y-2">
+						<label>Email para reportes <input id="EMAIL_REPORT" placeholder="correo@dominio.com" /></label>
+						<label>Servidor SMTP <input id="SMTP_HOST" placeholder="smtp.gmail.com" /></label>
+						<label>Puerto SMTP <input id="SMTP_PORT" type="number" placeholder="587" /></label>
+						<label>Usuario SMTP <input id="SMTP_USER" /></label>
+						<label>Contraseña SMTP <input id="SMTP_PASS" type="password" /></label>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						FTP
+					</summary>
+					<div class="p-3 space-y-2">
+						<label>IP o Host <input id="FTP_IP" placeholder="192.168.0.10" /></label>
+						<label>Puerto <input id="FTP_PORT" type="number" placeholder="21" /></label>
+						<label class="checkbox"><input id="FTP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+						<label>Usuario <input id="FTP_USER" placeholder="usuario" /></label>
+						<label>Contraseña <input id="FTP_PASS" type="password" placeholder="********" /></label>
+						<label>Carpeta remota <input id="FTP_DIR" placeholder="/reportes" /></label>
+						<label>Archivo remoto (DBF) <input id="FTP_FILE" placeholder="transactions-detailed-YYYY-MM-DD.dbf" /></label>
+						<div class="row">
+							<button type="button" id="btnTestFtp">Probar FTP</button>
+							<span id="ftpTestStatus"></span>
+						</div>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						Automatización
+					</summary>
+					<div class="p-3 space-y-2">
+						<label>Horarios automáticos (HH:MM, separados por coma)
+							<input id="AUTO_TIMES" placeholder="12:00,14:00,16:00,18:05" />
+						</label>
+						<label class="checkbox">
+							<input id="AUTO_ENABLED" type="checkbox" /> Activar ejecución automática
+						</label>
+					</div>
+				</details>
+
+				<!-- Acciones principales (debajo de todas las secciones) -->
+				<div class="actions-row mt-4">
+					<button type="button" id="btnLoad">Cargar configuración</button>
+					<button type="button" id="btnSave">Guardar configuración</button>
+					<button type="button" id="btnGenerate">Generar reporte</button>
+					<button type="button" id="btnSendDbfFtp">Enviar DBF por FTP</button>
+				</div>
+			</form>
+            <h3>Vista previa (no sensible)</h3>
+            <pre id="preview"></pre>
+        </section>
+
+        <section id="tab-about" class="tab-pane">
+			<p><strong>Información de contacto por fallas</strong></p>
+			<p>Servicio técnico – Todo-Computación</p>
+			<ul>
+				<li>Teléfono: 0261 4201555 int. 2</li>
+				<li>WhatsApp: 26154669355</li>
+				<li>Email: <a href="mailto:pc@tcmza.com.ar">pc@tcmza.com.ar</a></li>
+			</ul>
+        </section>
+
+        <section id="tab-results" class="tab-pane">
+			<div class="filters">
+				<div class="row"><strong>Filtros</strong></div>
+				<div class="row">
+                <input id="filter_from" placeholder="Desde (YYYY-MM-DD)" />
+                <input id="filter_to" placeholder="Hasta (YYYY-MM-DD)" />
+                <select id="filter_status">
+                    <option value="">Todos</option>
+                    <option value="approved">approved</option>
+                    <option value="refunded">refunded</option>
+                    <option value="cancelled">cancelled</option>
+                </select>
+                <input id="quick_search" placeholder="Buscar por texto..." />
+                <button id="btnGenerateRange">Generar (rango)</button>
+                <button id="btnResetFilters" title="Restablecer filtros">Reset</button>
+				</div>
+			</div>
+            <div class="row">
+                <div class="summary">
+                    <strong>Ingresos:</strong> <span id="summaryIncomes">0.00</span>
+                    <strong class="ml-4">Devoluciones:</strong> <span id="summaryRefunds">0.00</span>
+                    <strong class="ml-4">Neto:</strong> <span id="summaryTotal">0.00</span>
+                </div>
+                <div class="ml-auto">
+                    <label for="pageSize">Filas por página</label>
+                    <select id="pageSize">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <button id="btnExportCSV" title="Exportar CSV (curado)">CSV</button>
+                <button id="btnExportXLSX" title="Exportar Excel (full)">XLSX</button>
+                <button id="btnExportDBF" title="Exportar DBF (detalle)">DBF</button>
+                <button id="btnExportJSON" title="Exportar resumen JSON">JSON</button>
+                <button id="btnSendEmail" title="Enviar por email los archivos del día">Enviar por email</button>
+            </div>
+            <table id="resultsTable">
+                <thead>
+                    <tr>
+                        <th>ID pago</th>
+                        <th>Estado</th>
+                        <th>Monto</th>
+                        <th>Fecha</th>
+                        <th>Método de pago</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="row">
+                <button id="prevPage">Prev</button>
+                <span id="pageInfo"></span>
+                <button id="nextPage">Next</button>
+            </div>
+        </section>
+
+        <section id="tab-history" class="tab-pane">
+            <div class="row">
+                <button id="btnRefreshHistory">Actualizar historial</button>
+                <button id="btnOpenOutDir">Abrir carpeta de reportes</button>
+            </div>
+            <ul id="historyList"></ul>
+        </section>
+    </div>
+    <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-2 rounded bg-slate-800 border border-slate-700"></div>
+    <script>
+    document.getElementById('btnOpenCaja')?.addEventListener('click', async () => {
+        console.log('[UI] Modo Caja: click capturado');
+        try {
+            const toast = document.getElementById('toast');
+            if (toast) { toast.textContent = 'Abriendo Modo Caja...'; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'), 1500); }
+        } catch {}
+        try {
+            if (window.api && typeof window.api.openView === 'function') {
+                console.log('[UI] Llamando window.api.openView("caja")');
+                await window.api.openView('caja');
+                console.log('[UI] openView resuelto');
+                return;
+            }
+        } catch {}
+        // Fallback directo por si IPC no está disponible en dev
+        console.warn('[UI] Fallback: navegando directo a caja.html');
+        window.location.href = 'caja.html';
+    });
+    </script>
+    <script src="../dist/src/renderer.js"></script>
+</body>
+</html>

@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('api', {
 	async sendReportEmail() {
 		return await ipcRenderer.invoke('send-report-email');
 	},
+	async testFtpConnection() {
+		return await ipcRenderer.invoke('test-ftp');
+	},
+	async sendDbfViaFtp() {
+		return await ipcRenderer.invoke('send-dbf-ftp');
+	},
 	onAutoNotice(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
 	},
@@ -27,5 +33,14 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async listHistory() {
 		return await ipcRenderer.invoke('list-history');
+	},
+	async openView(view: 'config' | 'caja') {
+		console.log('[preload] openView invoked with', view);
+		const res = await ipcRenderer.invoke('open-view', view);
+		console.log('[preload] openView result', res);
+		return res;
+	},
+	async setWindowSize(width: number, height: number) {
+		return await ipcRenderer.invoke('set-window-size', { width, height });
 	}
 });

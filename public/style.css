@@ -17,6 +17,8 @@ h1{margin:0 0 12px 0}
 label{display:flex;flex-direction:column;gap:6px}
 .checkbox{grid-column:1/-1}
 .row{display:flex;gap:8px;margin:12px 0}
+.actions-row{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}
+.actions-row button{flex:1 1 220px}
 /* Barra de filtros destacada */
 .filters{border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:12px;margin:8px 0 12px}
 .summary{display:inline-block;border:1px solid var(--border);background:var(--panel);border-radius:8px;padding:8px 12px}
@@ -35,6 +37,8 @@ th{background:var(--panel)}
 	.form-grid{grid-template-columns:1fr}
 	.container{padding:12px}
 	.tabs{flex-wrap:wrap}
+	.actions-row{gap:8px}
+	.actions-row button{flex:1 1 100%}
 }
 
 
