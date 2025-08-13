@@ -20,32 +20,32 @@
 
         <section id="tab-config" class="tab-pane active">
             <form id="configForm" class="form-grid">
-                <h2>Mercado Pago</h2>
-                <label>MP_ACCESS_TOKEN <input id="MP_ACCESS_TOKEN" type="password" /></label>
-                <label>MP_USER_ID <input id="MP_USER_ID" /></label>
+				<h2>Mercado Pago</h2>
+				<label>Access Token (Mercado Pago) <input id="MP_ACCESS_TOKEN" type="password" /></label>
+				<label>ID de usuario (opcional) <input id="MP_USER_ID" /></label>
                 <div class="row">
                     <button type="button" id="btnTest">Probar conexión</button>
                     <span id="testStatus"></span>
                 </div>
-                <label>MP_TZ <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
-                <label>MP_WINDOW_START <input id="MP_WINDOW_START" placeholder="00:00" /></label>
-                <label>MP_WINDOW_END <input id="MP_WINDOW_END" placeholder="23:59" /></label>
-                <label>MP_DATE_FROM <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
-                <label>MP_DATE_TO <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
-                <label class="checkbox">
-                    <input id="MP_NO_DATE_FILTER" type="checkbox" /> MP_NO_DATE_FILTER
-                </label>
-                <label>MP_RANGE <input id="MP_RANGE" placeholder="date_last_updated" /></label>
-                <label>MP_STATUS <input id="MP_STATUS" placeholder="approved,refunded" /></label>
-                <label>MP_LIMIT <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
-                <label>MP_MAX_PAGES <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
+				<label>Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
+				<label>Hora de inicio <input id="MP_WINDOW_START" placeholder="00:00" /></label>
+				<label>Hora de finalización <input id="MP_WINDOW_END" placeholder="23:59" /></label>
+				<label>Desde (fecha) <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
+				<label>Hasta (fecha) <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
+				<label class="checkbox">
+					<input id="MP_NO_DATE_FILTER" type="checkbox" /> Sin filtro de fechas
+				</label>
+				<label>Campo de fecha <input id="MP_RANGE" placeholder="date_last_updated" /></label>
+				<label>Estado (opcional) <input id="MP_STATUS" placeholder="approved,refunded" /></label>
+				<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
+				<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
 
-                <h2>Email / SMTP</h2>
-                <label>EMAIL_REPORT <input id="EMAIL_REPORT" placeholder="correo@dominio.com" /></label>
-                <label>SMTP_HOST <input id="SMTP_HOST" placeholder="smtp.gmail.com" /></label>
-                <label>SMTP_PORT <input id="SMTP_PORT" type="number" placeholder="587" /></label>
-                <label>SMTP_USER <input id="SMTP_USER" /></label>
-                <label>SMTP_PASS <input id="SMTP_PASS" type="password" /></label>
+				<h2>Email / SMTP</h2>
+				<label>Email para reportes <input id="EMAIL_REPORT" placeholder="correo@dominio.com" /></label>
+				<label>Servidor SMTP <input id="SMTP_HOST" placeholder="smtp.gmail.com" /></label>
+				<label>Puerto SMTP <input id="SMTP_PORT" type="number" placeholder="587" /></label>
+				<label>Usuario SMTP <input id="SMTP_USER" /></label>
+				<label>Contraseña SMTP <input id="SMTP_PASS" type="password" /></label>
 
                 <div class="row">
                     <button type="button" id="btnLoad">Cargar configuración</button>
