@@ -20,6 +20,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	const ids = [
 		'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO',
 		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
+		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
 		'AUTO_TIMES','AUTO_ENABLED'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
@@ -92,6 +93,13 @@ window.addEventListener('DOMContentLoaded', () => {
 			SMTP_PORT: (el.SMTP_PORT as HTMLInputElement).value ? Number((el.SMTP_PORT as HTMLInputElement).value) : undefined,
 			SMTP_USER: (el.SMTP_USER as HTMLInputElement).value || undefined,
 			SMTP_PASS: (el.SMTP_PASS as HTMLInputElement).value || undefined,
+			FTP_IP: (el.FTP_IP as HTMLInputElement)?.value || undefined,
+			FTP_PORT: (el.FTP_PORT as HTMLInputElement)?.value ? Number((el.FTP_PORT as HTMLInputElement).value) : undefined,
+			FTP_SECURE: (el.FTP_SECURE as HTMLInputElement)?.checked || false,
+			FTP_USER: (el.FTP_USER as HTMLInputElement)?.value || undefined,
+			FTP_PASS: (el.FTP_PASS as HTMLInputElement)?.value || undefined,
+			FTP_DIR: (el.FTP_DIR as HTMLInputElement)?.value || undefined,
+			FTP_FILE: (el.FTP_FILE as HTMLInputElement)?.value || undefined,
 			AUTO_TIMES: (el.AUTO_TIMES as HTMLInputElement).value || undefined,
 			AUTO_ENABLED: (el.AUTO_ENABLED as HTMLInputElement).checked || false,
 			DEFAULT_VIEW: 'caja'
@@ -117,6 +125,13 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.SMTP_PORT as HTMLInputElement).value = cfg.SMTP_PORT || '';
 		(el.SMTP_USER as HTMLInputElement).value = cfg.SMTP_USER || '';
 		(el.SMTP_PASS as HTMLInputElement).value = cfg.SMTP_PASS || '';
+		(el.FTP_IP as HTMLInputElement).value = cfg.FTP_IP || '';
+		(el.FTP_PORT as HTMLInputElement).value = cfg.FTP_PORT || '';
+		(el.FTP_SECURE as HTMLInputElement).checked = !!cfg.FTP_SECURE;
+		(el.FTP_USER as HTMLInputElement).value = cfg.FTP_USER || '';
+		(el.FTP_PASS as HTMLInputElement).value = cfg.FTP_PASS || '';
+		(el.FTP_DIR as HTMLInputElement).value = cfg.FTP_DIR || '';
+		(el.FTP_FILE as HTMLInputElement).value = cfg.FTP_FILE || '';
 		(el.AUTO_TIMES as HTMLInputElement).value = cfg.AUTO_TIMES || '';
 		(el.AUTO_ENABLED as HTMLInputElement).checked = !!cfg.AUTO_ENABLED;
 	}
@@ -149,6 +164,27 @@ window.addEventListener('DOMContentLoaded', () => {
 		renderRows();
 		if (typeof activateTabByName === 'function') activateTabByName('results');
 		showToast(`Reporte generado (${res.count})`);
+	});
+
+	document.getElementById('btnTestFtp')?.addEventListener('click', async () => {
+		const status = document.getElementById('ftpTestStatus') as HTMLElement | null;
+		if (status) status.textContent = 'Probando FTP...';
+		try {
+			const res = await (window.api as any).testFtpConnection?.();
+			if (res?.ok) { if (status) status.textContent = 'FTP OK'; (status as any).style.color = '#10b981'; }
+			else { if (status) { status.textContent = `Error: ${res?.error || 'ver configuración'}`; (status as any).style.color = '#ef4444'; } }
+		} catch (e: any) {
+			if (status) { status.textContent = `Error: ${e?.message || e}`; (status as any).style.color = '#ef4444'; }
+		}
+	});
+
+	document.getElementById('btnSendDbfFtp')?.addEventListener('click', async () => {
+		try {
+			const res = await (window.api as any).sendDbfViaFtp?.();
+			showToast(res?.ok ? 'DBF enviado por FTP' : `Error FTP: ${res?.error || ''}`);
+		} catch (e: any) {
+			showToast(`Error FTP: ${e?.message || e}`);
+		}
 	});
 
 	window.api.getConfig().then((cfg) => {

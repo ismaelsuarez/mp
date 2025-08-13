@@ -6,6 +6,7 @@ import Store from 'electron-store';
 import cron from 'node-cron';
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { generateFiles, getOutDir } from './services/ReportService';
+import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 
 let mainWindow: BrowserWindow | null = null;
@@ -93,6 +94,15 @@ app.whenReady().then(() => {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
 		const result = await generateFiles(payments as any[], tag, range);
+		// Auto-enviar mp.dbf vía FTP si está configurado
+		try {
+			const mpPath = (result as any)?.files?.mpDbfPath;
+			if (mpPath && fs.existsSync(mpPath)) {
+				await sendDbf(mpPath, 'mp.dbf');
+			}
+		} catch (e) {
+			console.warn('[main] auto FTP send failed:', e);
+		}
 		// Reducir payload para UI
 		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
 			id: p?.id,
@@ -122,6 +132,26 @@ app.whenReady().then(() => {
 		].filter(f => fs.existsSync((f as any).path));
 		const sent = await sendReportEmail(`MP Reporte ${today}`, `Adjunto reporte de ${today}`, files as any);
 		return { sent, files: (files as any).map((f: any) => (f as any).filename) };
+	});
+
+	// FTP: probar conexión
+	ipcMain.handle('test-ftp', async () => {
+		try {
+			const ok = await testFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP: enviar DBF del día
+	ipcMain.handle('send-dbf-ftp', async () => {
+		try {
+			const res = await sendTodayDbf();
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
 	});
 
 	// Abrir carpeta de salida

@@ -16,6 +16,12 @@ contextBridge.exposeInMainWorld('api', {
 	async sendReportEmail() {
 		return await ipcRenderer.invoke('send-report-email');
 	},
+	async testFtpConnection() {
+		return await ipcRenderer.invoke('test-ftp');
+	},
+	async sendDbfViaFtp() {
+		return await ipcRenderer.invoke('send-dbf-ftp');
+	},
 	onAutoNotice(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
 	},

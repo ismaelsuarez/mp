@@ -6,6 +6,8 @@ declare global {
 			generateReport(): Promise<any>;
 			exportReport(): Promise<any>;
 			sendReportEmail(): Promise<any>;
+			testFtpConnection(): Promise<any>;
+			sendDbfViaFtp(): Promise<any>;
 			onAutoNotice?(callback: (payload: any) => void): void;
 			testConnection(): Promise<any>;
 			openOutDir(): Promise<any>;

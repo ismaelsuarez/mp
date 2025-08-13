@@ -69,6 +69,7 @@ export async function generateFiles(payments: any[], tag: string, rangeInfo: any
 	const csvFullPath = path.join(outDir, `transactions-full-${tag}.csv`);
 	const xlsxPath = path.join(outDir, `transactions-full-${tag}.xlsx`);
 	const dbfPath = path.join(outDir, `transactions-detailed-${tag}.dbf`);
+	const mpDbfPath = path.join(outDir, 'mp.dbf');
 
 	const detailed = payments.map(mapDetailedRow);
 
@@ -173,5 +174,8 @@ export async function generateFiles(payments: any[], tag: string, rangeInfo: any
 		await dbf.appendRecords(detailed.slice(i, i + batchSize).map(toRecord));
 	}
 
-	return { outDir, files: { jsonPath, csvPath, csvFullPath, xlsxPath, dbfPath }, totals };
+	// Crear copia con nombre fijo mp.dbf (sobrescribe si existe)
+	try { fs.copyFileSync(dbfPath, mpDbfPath); } catch {}
+
+	return { outDir, files: { jsonPath, csvPath, csvFullPath, xlsxPath, dbfPath, mpDbfPath }, totals };
 }
