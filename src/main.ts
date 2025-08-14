@@ -283,9 +283,8 @@ app.whenReady().then(() => {
 		countdownTimer = setInterval(() => {
 			remainingSeconds--;
 			if (remainingSeconds <= 0) {
-				remainingSeconds = 0;
-				clearInterval(countdownTimer!);
-				countdownTimer = null;
+				// Reiniciar el countdown con los segundos configurados
+				remainingSeconds = seconds;
 			}
 			// Notificar a la UI el tiempo restante
 			if (mainWindow) {
@@ -330,6 +329,15 @@ app.whenReady().then(() => {
 						method: p?.payment_method_id
 					}));
 					mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: (payments as any[]).length, rows: uiRows.slice(0,8) });
+				}
+				
+				// Reiniciar el countdown después de la ejecución
+				remainingSeconds = intervalSec;
+				if (mainWindow) {
+					mainWindow.webContents.send('auto-timer-update', { 
+						remaining: remainingSeconds,
+						configured: intervalSec
+					});
 				}
 			} catch (e: any) {
 				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
