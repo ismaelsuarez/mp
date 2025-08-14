@@ -6,7 +6,7 @@
   "main": "dist/src/main.js",
   "scripts": {
     "start": "npm run build:ts && electron .",
-    "build": "electron-builder -wl",
+    "build": "electron-builder -w",
     "build:ts": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write .",
