@@ -21,7 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
         'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO','MP_DAYS_BACK',
         'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
-		'AUTO_INTERVAL_SECONDS'
+		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -102,6 +102,13 @@ window.addEventListener('DOMContentLoaded', () => {
 			FTP_DIR: (el.FTP_DIR as HTMLInputElement)?.value || undefined,
 			FTP_FILE: (el.FTP_FILE as HTMLInputElement)?.value || undefined,
 			AUTO_INTERVAL_SECONDS: (el.AUTO_INTERVAL_SECONDS as HTMLInputElement)?.value ? Number((el.AUTO_INTERVAL_SECONDS as HTMLInputElement).value) : undefined,
+			AUTO_DAYS_MONDAY: (el.AUTO_DAYS_MONDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_TUESDAY: (el.AUTO_DAYS_TUESDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_WEDNESDAY: (el.AUTO_DAYS_WEDNESDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_THURSDAY: (el.AUTO_DAYS_THURSDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_FRIDAY: (el.AUTO_DAYS_FRIDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_SATURDAY: (el.AUTO_DAYS_SATURDAY as HTMLInputElement)?.checked || false,
+			AUTO_DAYS_SUNDAY: (el.AUTO_DAYS_SUNDAY as HTMLInputElement)?.checked || false,
 			DEFAULT_VIEW: 'caja'
 		};
 	}
@@ -134,6 +141,13 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.FTP_DIR as HTMLInputElement).value = cfg.FTP_DIR || '';
 		(el.FTP_FILE as HTMLInputElement).value = cfg.FTP_FILE || '';
 		(el.AUTO_INTERVAL_SECONDS as HTMLInputElement).value = cfg.AUTO_INTERVAL_SECONDS || '';
+		(el.AUTO_DAYS_MONDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_MONDAY !== false; // Por defecto true
+		(el.AUTO_DAYS_TUESDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_TUESDAY !== false;
+		(el.AUTO_DAYS_WEDNESDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_WEDNESDAY !== false;
+		(el.AUTO_DAYS_THURSDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_THURSDAY !== false;
+		(el.AUTO_DAYS_FRIDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_FRIDAY !== false;
+		(el.AUTO_DAYS_SATURDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_SATURDAY !== false;
+		(el.AUTO_DAYS_SUNDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_SUNDAY !== false;
 	}
 
 	function renderPreview(cfg: any) {

@@ -12,12 +12,15 @@ function selectPane(name: 'home' | 'table') {
     if (timer) timer.style.display = name === 'home' ? 'block' : 'none';
 }
 
-function setAutoIndicator(active: boolean, paused: boolean = false) {
+function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {
 	const el = document.getElementById('autoIndicatorCaja') as HTMLButtonElement | null;
 	if (!el) return;
 	
 	let text, className;
-	if (paused) {
+	if (dayDisabled) {
+		text = 'Desact.(día)';
+		className = 'px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity bg-slate-700/30 text-slate-300 border-slate-600';
+	} else if (paused) {
 		text = 'auto:Off';
 		className = 'px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity bg-rose-700/30 text-rose-300 border-rose-600';
 	} else if (active) {
@@ -50,7 +53,24 @@ function updateTimer(remaining: number, configured: number) {
 async function refreshAutoIndicator() {
     try {
         const s = await (window.api as any).autoStatus?.();
-        setAutoIndicator(!!(s as any)?.active, !!(s as any)?.paused);
+        const isActive = !!(s as any)?.active;
+        const isPaused = !!(s as any)?.paused;
+        
+        // Verificar si el día actual está habilitado
+        const cfg = await window.api.getConfig();
+        const today = new Date().getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+        const dayConfigs = [
+            cfg.AUTO_DAYS_SUNDAY,    // 0 = Domingo
+            cfg.AUTO_DAYS_MONDAY,    // 1 = Lunes
+            cfg.AUTO_DAYS_TUESDAY,   // 2 = Martes
+            cfg.AUTO_DAYS_WEDNESDAY, // 3 = Miércoles
+            cfg.AUTO_DAYS_THURSDAY,  // 4 = Jueves
+            cfg.AUTO_DAYS_FRIDAY,    // 5 = Viernes
+            cfg.AUTO_DAYS_SATURDAY   // 6 = Sábado
+        ];
+        const dayDisabled = dayConfigs[today] === false;
+        
+        setAutoIndicator(isActive, isPaused, dayDisabled);
     } catch {
         const cfg = await window.api.getConfig();
         setAutoIndicator(!!(cfg as any)?.AUTO_ENABLED);
@@ -222,6 +242,12 @@ window.addEventListener('DOMContentLoaded', () => {
 				renderLast8(rows.map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
 			}
 		}
+		
+		// Si es un mensaje de día deshabilitado, actualizar el indicador
+		if ((payload as any)?.dayDisabled) {
+			refreshAutoIndicator();
+		}
+		
 		refreshAutoIndicator();
 		refreshTimer();
 	});

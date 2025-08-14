@@ -264,6 +264,25 @@ app.whenReady().then(() => {
 	let remainingSeconds = 0;
 	let countdownTimer: NodeJS.Timeout | null = null;
 
+	function isDayEnabled(): boolean {
+		const cfg: any = store.get('config') || {};
+		const today = new Date().getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+		
+		// Mapear el día actual a la configuración
+		const dayConfigs = [
+			cfg.AUTO_DAYS_SUNDAY,    // 0 = Domingo
+			cfg.AUTO_DAYS_MONDAY,    // 1 = Lunes
+			cfg.AUTO_DAYS_TUESDAY,   // 2 = Martes
+			cfg.AUTO_DAYS_WEDNESDAY, // 3 = Miércoles
+			cfg.AUTO_DAYS_THURSDAY,  // 4 = Jueves
+			cfg.AUTO_DAYS_FRIDAY,    // 5 = Viernes
+			cfg.AUTO_DAYS_SATURDAY   // 6 = Sábado
+		];
+		
+		// Si no hay configuración específica, por defecto está habilitado
+		return dayConfigs[today] !== false;
+	}
+
 	function stopAutoTimer() {
 		if (autoTimer) { 
 			clearInterval(autoTimer); 
@@ -306,6 +325,17 @@ app.whenReady().then(() => {
 		const startSeconds = autoPaused && remainingSeconds > 0 ? remainingSeconds : intervalSec;
 		
 		autoTimer = setInterval(async () => {
+			// Verificar si el día actual está habilitado
+			if (!isDayEnabled()) {
+				if (mainWindow) {
+					mainWindow.webContents.send('auto-report-notice', { 
+						info: 'Automático inactivo (día no habilitado)',
+						dayDisabled: true
+					});
+				}
+				return; // Saltar la ejecución
+			}
+			
 			try {
 				const { payments, range } = await searchPaymentsWithConfig();
 				const tag = new Date().toISOString().slice(0, 10);

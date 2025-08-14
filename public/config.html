@@ -96,6 +96,41 @@
 						<label>Intervalo (segundos)
 							<input id="AUTO_INTERVAL_SECONDS" type="number" placeholder="3600" />
 						</label>
+						
+						<div class="mb-3">
+							<label class="block text-sm font-medium mb-2">Días habilitados para ejecución automática:</label>
+							<div class="grid grid-cols-2 gap-2">
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_MONDAY" type="checkbox" checked />
+									<span class="text-sm">Lunes</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_TUESDAY" type="checkbox" checked />
+									<span class="text-sm">Martes</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_WEDNESDAY" type="checkbox" checked />
+									<span class="text-sm">Miércoles</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_THURSDAY" type="checkbox" checked />
+									<span class="text-sm">Jueves</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_FRIDAY" type="checkbox" checked />
+									<span class="text-sm">Viernes</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_SATURDAY" type="checkbox" checked />
+									<span class="text-sm">Sábado</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input id="AUTO_DAYS_SUNDAY" type="checkbox" checked />
+									<span class="text-sm">Domingo</span>
+								</label>
+							</div>
+						</div>
+						
 						<div class="row">
 							<button type="button" id="btnAutoStart">Activar</button>
 							<button type="button" id="btnAutoStop">Desactivar</button>
