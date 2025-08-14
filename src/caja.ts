@@ -42,8 +42,8 @@ function appendLog(line: string) {
 function renderLast8(rows: Array<{ id: any; status: any; amount: any; date?: any }>) {
 	const tbody = document.getElementById('cajaTableBody');
 	if (!tbody) return;
-    // Mostrar solo 6 resultados recientes para dejar espacio a la UI
-    const arr = rows.slice(0,6);
+    // Mostrar solo 5 resultados recientes para mejor visualización
+    const arr = rows.slice(0,5);
 	tbody.innerHTML = arr.map((r) => {
 		const amt = (r.amount ?? '') !== '' ? Number(r.amount).toFixed(2) : '';
 		
@@ -67,9 +67,31 @@ function renderLast8(rows: Array<{ id: any; status: any; amount: any; date?: any
 			}
 		}
 		
+		// Procesar estado con colores y traducción
+		let estadoTexto = r.status ?? '';
+		let estadoClase = '';
+		
+		switch (r.status?.toLowerCase()) {
+			case 'approved':
+				estadoTexto = 'Aprobado';
+				estadoClase = 'text-green-400 font-semibold';
+				break;
+			case 'cancelled':
+				estadoTexto = 'Cancelado';
+				estadoClase = 'text-red-400 font-semibold';
+				break;
+			case 'refunded':
+				estadoTexto = 'Reintegrada';
+				estadoClase = 'text-yellow-400 font-semibold';
+				break;
+			default:
+				// Para otros estados, mantener el texto original
+				estadoClase = 'text-slate-300';
+		}
+		
 		return `<tr>
 			<td>${r.id ?? ''}</td>
-			<td>${r.status ?? ''}</td>
+			<td class="${estadoClase}">${estadoTexto}</td>
 			<td>${amt}</td>
 			<td>${fechaHora}</td>
 		</tr>`;
