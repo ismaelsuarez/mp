@@ -45,12 +45,16 @@
 						<label class="checkbox">
 							<input id="MP_NO_DATE_FILTER" type="checkbox" /> Sin filtro de fechas
 						</label>
+						<label>Días hacia atrás (por defecto)
+							<input id="MP_DAYS_BACK" type="number" min="1" step="1" placeholder="7" />
+						</label>
 						<label>Campo de fecha <input id="MP_RANGE" placeholder="date_last_updated" /></label>
 						<label>Estado (opcional) <input id="MP_STATUS" placeholder="approved,refunded" /></label>
 						<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
 						<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
 					</div>
 				</details>
+
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">

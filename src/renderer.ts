@@ -18,8 +18,8 @@ window.addEventListener('DOMContentLoaded', () => {
 	}
 
 	const ids = [
-		'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO',
-		'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
+        'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO','MP_DAYS_BACK',
+        'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
 		'AUTO_INTERVAL_SECONDS'
 	];
@@ -83,7 +83,8 @@ window.addEventListener('DOMContentLoaded', () => {
 			MP_WINDOW_END: (el.MP_WINDOW_END as HTMLInputElement).value || undefined,
 			MP_DATE_FROM: (el.MP_DATE_FROM as HTMLInputElement).value || undefined,
 			MP_DATE_TO: (el.MP_DATE_TO as HTMLInputElement).value || undefined,
-			MP_NO_DATE_FILTER: (el.MP_NO_DATE_FILTER as HTMLInputElement).checked || false,
+            MP_NO_DATE_FILTER: (el.MP_NO_DATE_FILTER as HTMLInputElement).checked || false,
+            MP_DAYS_BACK: (el.MP_DAYS_BACK as HTMLInputElement)?.value ? Number((el.MP_DAYS_BACK as HTMLInputElement).value) : undefined,
 			MP_RANGE: (el.MP_RANGE as HTMLInputElement).value || undefined,
 			MP_STATUS: (el.MP_STATUS as HTMLInputElement).value || undefined,
 			MP_LIMIT: (el.MP_LIMIT as HTMLInputElement).value ? Number((el.MP_LIMIT as HTMLInputElement).value) : undefined,
@@ -114,7 +115,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.MP_WINDOW_END as HTMLInputElement).value = cfg.MP_WINDOW_END || '';
 		(el.MP_DATE_FROM as HTMLInputElement).value = cfg.MP_DATE_FROM || '';
 		(el.MP_DATE_TO as HTMLInputElement).value = cfg.MP_DATE_TO || '';
-		(el.MP_NO_DATE_FILTER as HTMLInputElement).checked = !!cfg.MP_NO_DATE_FILTER;
+        (el.MP_NO_DATE_FILTER as HTMLInputElement).checked = !!cfg.MP_NO_DATE_FILTER;
+        (el.MP_DAYS_BACK as HTMLInputElement).value = cfg.MP_DAYS_BACK || '';
 		(el.MP_RANGE as HTMLInputElement).value = cfg.MP_RANGE || '';
 		(el.MP_STATUS as HTMLInputElement).value = cfg.MP_STATUS || '';
 		(el.MP_LIMIT as HTMLInputElement).value = cfg.MP_LIMIT || '';

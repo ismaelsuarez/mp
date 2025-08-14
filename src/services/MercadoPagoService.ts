@@ -56,10 +56,12 @@ export async function searchPaymentsWithConfig() {
             begin_date = range.begin_date;
             end_date = range.end_date;
         } else {
-            // Por defecto: últimos 7 días incluyendo hoy (en TZ local)
+            // Por defecto: últimos N días incluyendo hoy (en TZ local)
             const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
+            const daysBack = Number(cfg.MP_DAYS_BACK || 7);
+            const span = Number.isFinite(daysBack) && daysBack > 0 ? daysBack : 7;
             const todayLocal = dayjs().tz ? dayjs().tz(tz) : dayjs();
-            const fromLocal = todayLocal.subtract(6, 'day').startOf('day');
+            const fromLocal = todayLocal.subtract(span - 1, 'day').startOf('day');
             const toLocal = todayLocal.endOf('day');
             begin_date = fromLocal.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]');
             end_date = toLocal.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]');

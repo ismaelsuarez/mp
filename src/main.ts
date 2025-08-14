@@ -8,7 +8,7 @@ import { searchPaymentsWithConfig, testConnection } from './services/MercadoPago
 import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
-import { appendLogLine, getTodayLogPath, ensureLogsDir } from './services/LogService';
+import { appendLogLine, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -80,7 +80,8 @@ function createMainWindow() {
 app.disableHardwareAcceleration();
 
 app.whenReady().then(() => {
-	ensureLogsDir();
+    ensureLogsDir();
+    ensureTodayLogExists();
 	// IPC seguro para configuración
 	ipcMain.handle('get-config', () => {
 		return store.get('config') || {};

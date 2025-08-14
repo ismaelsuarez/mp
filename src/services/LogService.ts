@@ -23,6 +23,16 @@ export function appendLogLine(message: string, meta?: unknown): void {
     } catch {}
 }
 
+export function ensureTodayLogExists(): void {
+    try {
+        ensureLogsDir();
+        const p = getTodayLogPath();
+        if (!fs.existsSync(p)) {
+            fs.writeFileSync(p, `# MP app log ${new Date().toISOString()}\n`, 'utf8');
+        }
+    } catch {}
+}
+
 function safeJson(v: unknown): string {
     try {
         // No loguear secretos comunes
