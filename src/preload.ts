@@ -31,8 +31,20 @@ contextBridge.exposeInMainWorld('api', {
 	async autoStatus() {
 		return await ipcRenderer.invoke('auto-status');
 	},
+	async pauseAuto() {
+		return await ipcRenderer.invoke('auto-pause');
+	},
+	async resumeAuto() {
+		return await ipcRenderer.invoke('auto-resume');
+	},
+	async getAutoTimer() {
+		return await ipcRenderer.invoke('auto-get-timer');
+	},
 	onAutoNotice(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-report-notice', (_e, payload) => callback(payload));
+	},
+	onAutoTimerUpdate(callback: (payload: any) => void) {
+		ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
 	},
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');

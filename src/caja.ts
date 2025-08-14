@@ -3,27 +3,100 @@ function selectPane(name: 'home' | 'table') {
     const table = document.getElementById('pane-table') as HTMLElement | null;
     const badge = document.getElementById('todayBadge') as HTMLElement | null;
     const auto = document.getElementById('autoIndicatorCaja') as HTMLElement | null;
+    const timer = document.getElementById('autoTimer') as HTMLElement | null;
     if (!home || !table) return;
     home.style.display = name === 'home' ? 'block' : 'none';
     table.style.display = name === 'table' ? 'block' : 'none';
     if (badge) badge.style.display = name === 'home' ? 'inline-block' : 'none';
     if (auto) auto.style.display = name === 'home' ? 'inline-block' : 'none';
+    if (timer) timer.style.display = name === 'home' ? 'block' : 'none';
 }
 
-function setAutoIndicator(active: boolean) {
-	const el = document.getElementById('autoIndicatorCaja');
+function setAutoIndicator(active: boolean, paused: boolean = false) {
+	const el = document.getElementById('autoIndicatorCaja') as HTMLButtonElement | null;
 	if (!el) return;
-	el.textContent = active ? 'Modo automático: ON' : 'Modo automático: OFF';
-	el.className = 'px-3 py-1 rounded text-sm border ' + (active ? 'bg-emerald-700/30 text-emerald-300 border-emerald-600' : 'bg-rose-700/30 text-rose-300 border-rose-600');
+	
+	let text, className;
+	if (paused) {
+		text = 'auto:Off';
+		className = 'px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity bg-rose-700/30 text-rose-300 border-rose-600';
+	} else if (active) {
+		text = 'auto:On';
+		className = 'px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity bg-emerald-700/30 text-emerald-300 border-emerald-600';
+	} else {
+		text = 'auto:Desactivado';
+		className = 'px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity bg-slate-700/30 text-slate-300 border-slate-600';
+	}
+	
+	el.textContent = text;
+	el.className = className;
+}
+
+function updateTimer(remaining: number, configured: number) {
+	const el = document.getElementById('autoTimer') as HTMLElement | null;
+	if (!el) return;
+	
+	if (remaining <= 0) {
+		el.textContent = '⏱ --:--';
+		return;
+	}
+	
+	const minutes = Math.floor(remaining / 60);
+	const seconds = remaining % 60;
+	const timeStr = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+	el.textContent = `⏱ ${timeStr}`;
 }
 
 async function refreshAutoIndicator() {
     try {
         const s = await (window.api as any).autoStatus?.();
-        setAutoIndicator(!!(s as any)?.active);
+        setAutoIndicator(!!(s as any)?.active, !!(s as any)?.paused);
     } catch {
         const cfg = await window.api.getConfig();
         setAutoIndicator(!!(cfg as any)?.AUTO_ENABLED);
+    }
+}
+
+async function refreshTimer() {
+    try {
+        const timer = await (window.api as any).getAutoTimer?.();
+        if (timer) {
+            updateTimer(timer.remaining || 0, timer.configured || 0);
+        }
+    } catch (error) {
+        console.warn('Error refreshing timer:', error);
+    }
+}
+
+async function handleAutoButtonClick() {
+    try {
+        const status = await (window.api as any).autoStatus?.();
+        const isActive = !!(status as any)?.active;
+        const isPaused = !!(status as any)?.paused;
+        
+        if (isActive && !isPaused) {
+            // Si está activo, pausarlo
+            await (window.api as any).pauseAuto?.();
+            appendLog('Modo automático pausado');
+        } else if (isPaused) {
+            // Si está pausado, reanudarlo
+            const result = await (window.api as any).resumeAuto?.();
+            if (result?.ok) {
+                appendLog('Modo automático reanudado');
+            } else {
+                appendLog(`Error al reanudar: ${result?.error || 'Error desconocido'}`);
+            }
+        } else {
+            // Si está inactivo, mostrar mensaje
+            appendLog('Modo automático no configurado. Configure en Administración.');
+        }
+        
+        // Actualizar indicadores
+        await refreshAutoIndicator();
+        await refreshTimer();
+    } catch (error) {
+        console.error('Error handling auto button click:', error);
+        appendLog('Error al cambiar estado automático');
     }
 }
 
@@ -128,7 +201,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		appendLog('Enviando mp.dbf por FTP (si está configurado)...');
 	});
 
-	// Controles de tamaño removidos (mantener función por si se reintroducen)
+	// Botón automático
+	document.getElementById('autoIndicatorCaja')?.addEventListener('click', handleAutoButtonClick);
 
 	// Ir a Configuración
 	document.getElementById('btnGoConfig')?.addEventListener('click', async () => {
@@ -149,8 +223,17 @@ window.addEventListener('DOMContentLoaded', () => {
 			}
 		}
 		refreshAutoIndicator();
+		refreshTimer();
+	});
+
+	// Actualizaciones del timer
+	window.api.onAutoTimerUpdate?.((payload) => {
+		if (payload) {
+			updateTimer(payload.remaining || 0, payload.configured || 0);
+		}
 	});
 
 	refreshAutoIndicator();
+	refreshTimer();
     renderTodayBadge();
 });

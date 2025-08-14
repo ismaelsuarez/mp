@@ -260,16 +260,53 @@ app.whenReady().then(() => {
 	// Programación automática
 	let autoTimer: NodeJS.Timeout | null = null;
 	let autoActive = false;
+	let autoPaused = false;
+	let remainingSeconds = 0;
+	let countdownTimer: NodeJS.Timeout | null = null;
+
 	function stopAutoTimer() {
-		if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+		if (autoTimer) { 
+			clearInterval(autoTimer); 
+			autoTimer = null; 
+		}
+		if (countdownTimer) {
+			clearInterval(countdownTimer);
+			countdownTimer = null;
+		}
 		autoActive = false;
 	}
+
+	function startCountdown(seconds: number) {
+		remainingSeconds = seconds;
+		if (countdownTimer) clearInterval(countdownTimer);
+		
+		countdownTimer = setInterval(() => {
+			remainingSeconds--;
+			if (remainingSeconds <= 0) {
+				remainingSeconds = 0;
+				clearInterval(countdownTimer!);
+				countdownTimer = null;
+			}
+			// Notificar a la UI el tiempo restante
+			if (mainWindow) {
+				mainWindow.webContents.send('auto-timer-update', { 
+					remaining: remainingSeconds,
+					configured: seconds
+				});
+			}
+		}, 1000);
+	}
+
 	async function startAutoTimer() {
 		stopAutoTimer();
 		const cfg: any = store.get('config') || {};
 		const intervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
 		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return false;
-			autoTimer = setInterval(async () => {
+
+		// Si estaba pausado, usar el tiempo restante, sino usar el intervalo completo
+		const startSeconds = autoPaused && remainingSeconds > 0 ? remainingSeconds : intervalSec;
+		
+		autoTimer = setInterval(async () => {
 			try {
 				const { payments, range } = await searchPaymentsWithConfig();
 				const tag = new Date().toISOString().slice(0, 10);
@@ -298,7 +335,11 @@ app.whenReady().then(() => {
 				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
 			}
 		}, Math.max(1000, intervalSec * 1000));
+
+		// Iniciar countdown
+		startCountdown(intervalSec);
 		autoActive = true;
+		autoPaused = false;
 		return true;
 	}
 
@@ -306,18 +347,74 @@ app.whenReady().then(() => {
 		const ok = await startAutoTimer();
 		return { ok };
 	});
+
 	ipcMain.handle('auto-stop', async () => {
 		stopAutoTimer();
+		autoActive = false;
+		autoPaused = false;
+		remainingSeconds = 0;
 		return { ok: true };
 	});
+
 	ipcMain.handle('auto-status', async () => {
-		return { active: autoActive };
+		return { active: autoActive, paused: autoPaused };
+	});
+
+	// Nuevos handlers para pausar/reanudar
+	ipcMain.handle('auto-pause', async () => {
+		if (autoTimer) {
+			clearInterval(autoTimer);
+			autoTimer = null;
+		}
+		if (countdownTimer) {
+			clearInterval(countdownTimer);
+			countdownTimer = null;
+		}
+		autoActive = false;
+		autoPaused = true;
+		// Guardar estado de pausa
+		store.set('autoPaused', true);
+		store.set('remainingSeconds', remainingSeconds);
+		return { ok: true, remaining: remainingSeconds };
+	});
+
+	ipcMain.handle('auto-resume', async () => {
+		const cfg: any = store.get('config') || {};
+		const intervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return { ok: false, error: 'No hay intervalo configurado' };
+
+		// Si no hay tiempo restante, usar el intervalo completo
+		if (remainingSeconds <= 0) {
+			remainingSeconds = intervalSec;
+		}
+
+		await startAutoTimer();
+		store.set('autoPaused', false);
+		return { ok: true, remaining: remainingSeconds };
+	});
+
+	ipcMain.handle('auto-get-timer', async () => {
+		const cfg: any = store.get('config') || {};
+		const configuredSeconds = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		return { 
+			configured: configuredSeconds,
+			remaining: remainingSeconds,
+			active: autoActive,
+			paused: autoPaused
+		};
 	});
 
 	// Opcional: arrancar si estaba configurado
 	const cfg0: any = store.get('config') || {};
 	if (Number(cfg0.AUTO_INTERVAL_SECONDS || 0) > 0) {
-		startAutoTimer().catch(()=>{});
+		// Restaurar estado de pausa si existía
+		const wasPaused = store.get('autoPaused') as boolean;
+		if (wasPaused) {
+			autoPaused = true;
+			remainingSeconds = Number(store.get('remainingSeconds') || 0);
+		} else {
+			startAutoTimer().catch(()=>{});
+		}
 	}
 
 	app.on('activate', () => {

@@ -49,7 +49,14 @@
 	</main>
 
     <footer class="fixed bottom-4 left-4">
-		<span id="autoIndicatorCaja" class="px-3 py-1 rounded text-sm border"></span>
+		<div class="flex items-center gap-2">
+			<button id="autoIndicatorCaja" class="px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity">
+				auto:Desactivado
+			</button>
+			<div id="autoTimer" class="px-2 py-1 rounded text-xs border bg-slate-800/80 font-mono">
+				⏱ --:--
+			</div>
+		</div>
 	</footer>
 
 	<div class="fixed bottom-4 right-4">
