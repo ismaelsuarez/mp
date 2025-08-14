@@ -1,9 +1,13 @@
 function selectPane(name: 'home' | 'table') {
-	const home = document.getElementById('pane-home') as HTMLElement | null;
-	const table = document.getElementById('pane-table') as HTMLElement | null;
-	if (!home || !table) return;
-	home.style.display = name === 'home' ? 'block' : 'none';
-	table.style.display = name === 'table' ? 'block' : 'none';
+    const home = document.getElementById('pane-home') as HTMLElement | null;
+    const table = document.getElementById('pane-table') as HTMLElement | null;
+    const badge = document.getElementById('todayBadge') as HTMLElement | null;
+    const auto = document.getElementById('autoIndicatorCaja') as HTMLElement | null;
+    if (!home || !table) return;
+    home.style.display = name === 'home' ? 'block' : 'none';
+    table.style.display = name === 'table' ? 'block' : 'none';
+    if (badge) badge.style.display = name === 'home' ? 'inline-block' : 'none';
+    if (auto) auto.style.display = name === 'home' ? 'inline-block' : 'none';
 }
 
 function setAutoIndicator(active: boolean) {
@@ -38,7 +42,8 @@ function appendLog(line: string) {
 function renderLast8(rows: Array<{ id: any; status: any; amount: any }>) {
 	const tbody = document.getElementById('cajaTableBody');
 	if (!tbody) return;
-	const arr = rows.slice(0,8);
+    // Mostrar solo 6 resultados recientes para dejar espacio a la UI
+    const arr = rows.slice(0,6);
 	tbody.innerHTML = arr.map((r) => {
 		const amt = (r.amount ?? '') !== '' ? Number(r.amount).toFixed(2) : '';
 		return `<tr>
@@ -47,6 +52,16 @@ function renderLast8(rows: Array<{ id: any; status: any; amount: any }>) {
 			<td class="px-3 py-2">${amt}</td>
 		</tr>`;
 	}).join('');
+}
+
+function renderTodayBadge() {
+    const el = document.getElementById('todayBadge');
+    if (!el) return;
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const dd = String(now.getDate()).padStart(2,'0');
+    el.textContent = `Hoy: ${yyyy}-${mm}-${dd}`;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -93,4 +108,5 @@ window.addEventListener('DOMContentLoaded', () => {
 	});
 
 	refreshAutoIndicator();
+    renderTodayBadge();
 });

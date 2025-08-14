@@ -48,19 +48,23 @@ export async function searchPaymentsWithConfig() {
 	const noDate = !!cfg.MP_NO_DATE_FILTER;
 	let begin_date: string | undefined;
 	let end_date: string | undefined;
-	if (!noDate) {
-		if (cfg.MP_DATE_FROM || cfg.MP_DATE_TO) {
-			const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
-			const range = toIsoUtcRangeFromLocal(cfg.MP_DATE_FROM || dayjs().format('YYYY-MM-DD'), cfg.MP_DATE_TO, tz);
-			begin_date = range.begin_date;
-			end_date = range.end_date;
-		} else {
-			const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
-			const range = toIsoUtcRangeFromLocal(dayjs().format('YYYY-MM-DD'), undefined, tz);
-			begin_date = range.begin_date;
-			end_date = range.end_date;
-		}
-	}
+    if (!noDate) {
+        if (cfg.MP_DATE_FROM || cfg.MP_DATE_TO) {
+            // Si el usuario define fechas manuales, se respetan
+            const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
+            const range = toIsoUtcRangeFromLocal(cfg.MP_DATE_FROM || dayjs().format('YYYY-MM-DD'), cfg.MP_DATE_TO, tz);
+            begin_date = range.begin_date;
+            end_date = range.end_date;
+        } else {
+            // Por defecto: últimos 7 días incluyendo hoy (en TZ local)
+            const tz = cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
+            const todayLocal = dayjs().tz ? dayjs().tz(tz) : dayjs();
+            const fromLocal = todayLocal.subtract(6, 'day').startOf('day');
+            const toLocal = todayLocal.endOf('day');
+            begin_date = fromLocal.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]');
+            end_date = toLocal.utc().format('YYYY-MM-DD[T]HH:mm:ss[Z]');
+        }
+    }
 
 	const selectedRange = cfg.MP_RANGE || 'date_last_updated';
 	const selectedSort = cfg.MP_SORT || 'date_created';
