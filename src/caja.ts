@@ -39,17 +39,39 @@ function appendLog(line: string) {
     box.scrollTop = box.scrollHeight;
 }
 
-function renderLast8(rows: Array<{ id: any; status: any; amount: any }>) {
+function renderLast8(rows: Array<{ id: any; status: any; amount: any; date?: any }>) {
 	const tbody = document.getElementById('cajaTableBody');
 	if (!tbody) return;
     // Mostrar solo 6 resultados recientes para dejar espacio a la UI
     const arr = rows.slice(0,6);
 	tbody.innerHTML = arr.map((r) => {
 		const amt = (r.amount ?? '') !== '' ? Number(r.amount).toFixed(2) : '';
+		
+		// Formatear fecha y hora
+		let fechaHora = '';
+		if (r.date) {
+			try {
+				const fecha = new Date(r.date);
+				if (!isNaN(fecha.getTime())) {
+					// Formato: DD/MM/YYYY HH:MM
+					const dia = String(fecha.getDate()).padStart(2, '0');
+					const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+					const año = fecha.getFullYear();
+					const hora = String(fecha.getHours()).padStart(2, '0');
+					const minuto = String(fecha.getMinutes()).padStart(2, '0');
+					fechaHora = `${dia}/${mes}/${año} ${hora}:${minuto}`;
+				}
+			} catch (e) {
+				// Si hay error al parsear la fecha, mostrar el valor original
+				fechaHora = String(r.date);
+			}
+		}
+		
 		return `<tr>
-			<td class="px-3 py-2">${r.id ?? ''}</td>
-			<td class="px-3 py-2">${r.status ?? ''}</td>
-			<td class="px-3 py-2">${amt}</td>
+			<td>${r.id ?? ''}</td>
+			<td>${r.status ?? ''}</td>
+			<td>${amt}</td>
+			<td>${fechaHora}</td>
 		</tr>`;
 	}).join('');
 }
@@ -80,7 +102,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		const res = await window.api.generateReport();
 		appendLog(`Reporte generado: ${res.count} pagos`);
 		// Render quick last 8 from returned rows
-		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount })));
+		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
 		appendLog('Enviando mp.dbf por FTP (si está configurado)...');
 	});
 
@@ -101,7 +123,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			appendLog(`Auto-reporte generado (${(payload as any)?.count ?? 0})`);
 			const rows = (payload as any)?.rows;
 			if (Array.isArray(rows)) {
-				renderLast8(rows.map((r: any) => ({ id: r.id, status: r.status, amount: r.amount })));
+				renderLast8(rows.map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
 			}
 		}
 		refreshAutoIndicator();
