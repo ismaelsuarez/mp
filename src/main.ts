@@ -142,7 +142,12 @@ app.whenReady().then(() => {
 			try {
 				const mpPath = (result as any)?.files?.mpDbfPath;
 				if (mpPath && fs.existsSync(mpPath)) {
-					await sendDbf(mpPath, 'mp.dbf');
+					const ftpResult = await sendDbf(mpPath, 'mp.dbf');
+					if (ftpResult.skipped) {
+						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: ${ftpResult.reason}` });
+					} else {
+						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: mp.dbf enviado exitosamente` });
+					}
 				}
 			} catch (e) {
 				console.warn('[main] auto FTP send failed:', e);
@@ -215,6 +220,17 @@ app.whenReady().then(() => {
 		try {
 			const res = await sendTodayDbf();
 			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP: limpiar hash para forzar próximo envío
+	ipcMain.handle('clear-ftp-hash', async () => {
+		try {
+			const { clearLastSentHash } = await import('./services/FtpService');
+			clearLastSentHash();
+			return { ok: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -426,7 +442,12 @@ app.whenReady().then(() => {
 					const mpPath = (result as any)?.files?.mpDbfPath;
 					if (mpPath && fs.existsSync(mpPath)) {
 						const { sendDbf } = await import('./services/FtpService');
-						await sendDbf(mpPath, 'mp.dbf');
+						const ftpResult = await sendDbf(mpPath, 'mp.dbf');
+						if (ftpResult.skipped) {
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: ${ftpResult.reason}` });
+						} else {
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: mp.dbf enviado exitosamente` });
+						}
 					}
 				} catch (e) {
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });

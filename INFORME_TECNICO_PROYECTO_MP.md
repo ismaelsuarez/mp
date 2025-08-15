@@ -137,7 +137,23 @@ SMTP_PORT=587
 - **Bucle Continuo:** Reinicio automático al llegar a cero
 - **Persistencia:** Estado mantenido al reiniciar la aplicación
 
-#### 1.2 Selector de Días de la Semana
+#### 1.2 Manejo de Coordenadas de Ventana (Modo Caja)
+**Propósito:** Recordar la posición donde el usuario dejó la ventana del modo caja
+
+**Características:**
+- **Persistencia de Posición:** Guarda coordenadas X,Y cuando se mueve la ventana
+- **Restauración Automática:** Al abrir modo caja, vuelve a la posición guardada
+- **Validación de Pantalla:** Asegura que la ventana esté visible en los límites de la pantalla
+- **Solo Modo Caja:** No afecta el comportamiento del modo configuración
+
+**Funcionalidades:**
+- **Event Listener:** `mainWindow.on('moved')` captura cada movimiento
+- **Almacenamiento:** Posición guardada en `electron-store` con clave `cajaWindowPosition`
+- **Restauración:** Al iniciar y al cambiar a modo caja desde configuración
+- **Fallback:** Si no hay posición guardada, centra automáticamente
+- **Validación:** Ajusta posición si la pantalla cambió de resolución
+
+#### 1.3 Selector de Días de la Semana
 **Ubicación:** Modo Administrador - Sección Automatización
 
 **Características:**
@@ -151,9 +167,27 @@ SMTP_PORT=587
 - **Feedback Visual:** Mensaje informativo en logs y botón
 - **Control Granular:** Permite configurar exactamente qué días ejecutar
 
-### 2. SISTEMA DE SEGURIDAD COMPLETO
+### 2. SISTEMA DE MENSAJES DE ERROR AMIGABLES
 
-#### 2.1 Autenticación de Administrador
+#### 2.1 Captura de Errores de Mercado Pago
+**Propósito:** Mostrar mensajes claros y útiles en lugar de errores técnicos
+
+**Características:**
+- **Error Específico:** Captura errores relacionados con `MP_ACCESS_TOKEN`
+- **Mensaje Amigable:** Reemplaza errores técnicos con instrucciones claras
+- **Aplicación Universal:** Funciona tanto en reportes manuales como automáticos
+- **Logging:** Registra errores para auditoría
+
+**Funcionalidades:**
+- **Detección:** Identifica errores que contienen "MP_ACCESS_TOKEN"
+- **Mensaje:** `"❌ Error: Comprobar la cuenta de Mercado Pago. Ve a Configuración → Mercado Pago y verifica el Access Token."`
+- **UI:** Muestra el mensaje en la consola del modo caja
+- **Logs:** Registra el error en el sistema de logs
+- **Consistencia:** Mismo comportamiento en manual y automático
+
+### 3. SISTEMA DE SEGURIDAD COMPLETO
+
+#### 3.1 Autenticación de Administrador
 **Ubicación:** Gateway obligatorio para acceso a configuración
 
 **Características:**
@@ -169,7 +203,7 @@ SMTP_PORT=587
 - **Bloqueo Temporal:** 5 minutos tras múltiples intentos fallidos
 - **Auditoría:** Logs de todos los eventos de autenticación
 
-#### 2.2 Recuperación de Acceso
+#### 3.2 Recuperación de Acceso
 **Métodos de Recuperación:**
 - **Frase Secreta:** Reset directo con frase configurada durante setup
 - **Email OTP:** Código de 6 dígitos enviado por email (si SMTP configurado)
@@ -182,7 +216,7 @@ SMTP_PORT=587
 4. Establece nueva contraseña
 5. Retorna al formulario de login
 
-#### 2.3 Gestión de Credenciales
+#### 3.3 Gestión de Credenciales
 **Características:**
 - **Recordar Usuario:** Checkbox para persistir solo el nombre de usuario
 - **localStorage:** Almacenamiento local del navegador (no servidor)
@@ -195,7 +229,7 @@ SMTP_PORT=587
 - **UX Mejorada:** No requiere escribir usuario cada vez
 - **Control Total:** Fácil limpieza con botón "Limpiar"
 
-#### 2.4 Script de Limpieza de Credenciales
+#### 3.4 Script de Limpieza de Credenciales
 **Propósito:** Preparación para entrega al cliente
 
 **Funcionalidades:**
@@ -211,9 +245,9 @@ SMTP_PORT=587
 - `%APPDATA%\com.todo.tc-mp\`
 - Archivos `.env` y `config.json` locales
 
-### 3. ARQUITECTURA DE AUTOMATIZACIÓN
+### 4. ARQUITECTURA DE AUTOMATIZACIÓN
 
-#### 3.1 Variables de Estado (Main Process)
+#### 4.1 Variables de Estado (Main Process)
 ```typescript
 let autoTimer: NodeJS.Timeout | null = null;
 let autoActive = false;
@@ -222,7 +256,7 @@ let remainingSeconds = 0;
 let countdownTimer: NodeJS.Timeout | null = null;
 ```
 
-#### 3.2 Función de Verificación de Días
+#### 4.2 Función de Verificación de Días
 ```typescript
 function isDayEnabled(): boolean {
     const cfg: any = store.get('config') || {};
@@ -242,7 +276,7 @@ function isDayEnabled(): boolean {
 }
 ```
 
-#### 3.3 Contador Regresivo en Bucle
+#### 4.3 Contador Regresivo en Bucle
 ```typescript
 function startCountdown(seconds: number) {
     remainingSeconds = seconds;
@@ -265,9 +299,9 @@ function startCountdown(seconds: number) {
 }
 ```
 
-### 4. COMUNICACIÓN IPC MEJORADA
+### 5. COMUNICACIÓN IPC MEJORADA
 
-#### 4.1 Nuevos Handlers IPC
+#### 5.1 Nuevos Handlers IPC
 ```typescript
 // Pausar/Reanudar automatización
 ipcMain.handle('auto-pause', async () => { /* lógica */ });
@@ -280,7 +314,7 @@ ipcMain.handle('auto-get-timer', async () => { /* lógica */ });
 mainWindow.webContents.send('auto-timer-update', { remaining, configured });
 ```
 
-#### 4.2 Bridge Preload Actualizado
+#### 5.2 Bridge Preload Actualizado
 ```typescript
 contextBridge.exposeInMainWorld('api', {
     // ... funciones existentes ...
@@ -306,9 +340,9 @@ contextBridge.exposeInMainWorld('auth', {
 });
 ```
 
-### 5. ARQUITECTURA DE SEGURIDAD
+### 6. ARQUITECTURA DE SEGURIDAD
 
-#### 5.1 Servicios de Autenticación
+#### 6.1 Servicios de Autenticación
 ```typescript
 // AuthService.ts - Gestión de credenciales
 export const AuthService = {
@@ -328,7 +362,7 @@ export const OtpService = {
 };
 ```
 
-#### 5.2 Políticas de Seguridad
+#### 6.2 Políticas de Seguridad
 ```typescript
 const POLICY = {
     minLength: 8,
@@ -340,7 +374,7 @@ const POLICY = {
 };
 ```
 
-#### 5.3 Flujo de Autenticación
+#### 6.3 Flujo de Autenticación
 ```mermaid
 graph TD
     A[Acceso a Configuración] --> B{¿Admin inicializado?}

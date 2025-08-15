@@ -4,6 +4,7 @@ import path from 'path';
 import Store from 'electron-store';
 import dayjs from 'dayjs';
 import { Client } from 'basic-ftp';
+import crypto from 'crypto';
 
 function getEncryptionKey(): string | undefined {
 	try {
@@ -27,6 +28,53 @@ function normalizeDir(dir: string | undefined): string | undefined {
     // Quitar dobles barras y trailing slash
     d = d.replace(/\/+$/, '');
     return d;
+}
+
+// Función para calcular hash MD5 de un archivo
+function calculateFileHash(filePath: string): string {
+    const fileBuffer = fs.readFileSync(filePath);
+    const hashSum = crypto.createHash('md5');
+    hashSum.update(fileBuffer);
+    return hashSum.digest('hex');
+}
+
+// Función para obtener el hash del último archivo enviado
+function getLastSentHash(): string | null {
+    const store = new Store<{ config?: any; lastMpDbfHash?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    return (store.get('lastMpDbfHash') as string) || null;
+}
+
+// Función para guardar el hash del archivo enviado
+function saveLastSentHash(hash: string): void {
+    const store = new Store<{ config?: any; lastMpDbfHash?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    store.set('lastMpDbfHash', hash);
+}
+
+// Función para limpiar el hash guardado (forzar envío en próximo intento)
+export function clearLastSentHash(): void {
+    const store = new Store<{ config?: any; lastMpDbfHash?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    store.delete('lastMpDbfHash');
+    console.log('[FtpService] Hash del último archivo enviado limpiado');
+}
+
+// Función para verificar si el archivo ha cambiado
+function hasFileChanged(filePath: string): boolean {
+    try {
+        const currentHash = calculateFileHash(filePath);
+        const lastHash = getLastSentHash();
+        
+        // Si no hay hash anterior, considerar que ha cambiado (primer envío)
+        if (!lastHash) {
+            return true;
+        }
+        
+        // Comparar hashes
+        return currentHash !== lastHash;
+    } catch (error) {
+        // Si hay error al calcular hash, considerar que ha cambiado para seguridad
+        console.warn('[FtpService] Error calculating file hash:', error);
+        return true;
+    }
 }
 
 export async function testFtp() {
@@ -88,6 +136,21 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	const cfg = getConfig();
 	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) throw new Error('Config FTP incompleta');
 	if (!fs.existsSync(localPath)) throw new Error(`No existe archivo DBF local: ${localPath}`);
+	
+	// Verificar si el archivo ha cambiado antes de enviar
+	const fileChanged = hasFileChanged(localPath);
+	if (!fileChanged) {
+		console.log('[FtpService] Archivo mp.dbf no ha cambiado, omitiendo envío FTP');
+		return { 
+			remoteDir: normalizeDir(cfg.FTP_DIR) || '/', 
+			remoteFile: remoteFileName.toLowerCase(),
+			skipped: true,
+			reason: 'Archivo sin cambios'
+		};
+	}
+	
+	console.log('[FtpService] Archivo mp.dbf ha cambiado, enviando por FTP...');
+	
     const client = new Client();
 	try {
         await client.access({
@@ -101,7 +164,17 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
         if (dir) await client.ensureDir(dir);
         const remoteName = remoteFileName.toLowerCase();
         await client.uploadFrom(localPath, remoteName);
-        return { remoteDir: dir || '/', remoteFile: remoteName };
+        
+        // Guardar el hash del archivo enviado
+        const currentHash = calculateFileHash(localPath);
+        saveLastSentHash(currentHash);
+        
+        return { 
+			remoteDir: dir || '/', 
+			remoteFile: remoteName,
+			skipped: false,
+			hash: currentHash
+		};
 	} finally {
 		client.close();
 	}

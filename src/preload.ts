@@ -22,6 +22,9 @@ contextBridge.exposeInMainWorld('api', {
 	async sendDbfViaFtp() {
 		return await ipcRenderer.invoke('send-dbf-ftp');
 	},
+	async clearFtpHash() {
+		return await ipcRenderer.invoke('clear-ftp-hash');
+	},
 	async autoStart() {
 		return await ipcRenderer.invoke('auto-start');
 	},

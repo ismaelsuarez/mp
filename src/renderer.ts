@@ -201,6 +201,15 @@ window.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	document.getElementById('btnClearFtpHash')?.addEventListener('click', async () => {
+		try {
+			const res = await (window.api as any).clearFtpHash?.();
+			showToast(res?.ok ? 'Hash FTP limpiado' : `Error: ${res?.error || ''}`);
+		} catch (e: any) {
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+
 	window.api.getConfig().then((cfg) => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
