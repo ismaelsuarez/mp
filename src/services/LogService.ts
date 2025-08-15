@@ -4,6 +4,21 @@ import path from 'path';
 const LOG_ROOT = path.join('C:\\', '2_mp', 'logs');
 const LOG_RETENTION_DAYS = 7; // Mantener logs por 7 días
 
+// Utilidades de tiempo local
+function pad2(n: number): string { return String(n).padStart(2, '0'); }
+function getLocalDateStamp(): string {
+	const d = new Date();
+	return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+}
+function getLocalTimeStamp(): string {
+	const d = new Date();
+	return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+function getLocalIsoSeconds(): string {
+	const d = new Date();
+	return `${getLocalDateStamp()}T${getLocalTimeStamp()}`;
+}
+
 // Categorías de log para mejor organización
 export enum LogCategory {
 	INFO = 'INFO',
@@ -37,7 +52,7 @@ export function ensureLogsDir(): void {
 }
 
 export function getTodayLogPath(): string {
-	const date = new Date().toISOString().slice(0, 10);
+	const date = getLocalDateStamp();
 	return path.join(LOG_ROOT, `mp-app-${date}.log`);
 }
 
@@ -45,9 +60,7 @@ export function getTodayLogPath(): string {
 export function appendLogLine(category: LogCategory, message: string, meta?: unknown): void {
 	try {
 		ensureLogsDir();
-		const timestamp = new Date().toISOString();
-		const time = timestamp.slice(11, 19); // HH:MM:SS
-		const date = timestamp.slice(0, 10); // YYYY-MM-DD
+		const time = getLocalTimeStamp(); // HH:MM:SS local
 		
 		// Formato mejorado: [HH:MM:SS] [CATEGORÍA] Mensaje {meta}
 		let line = `[${time}] [${category.padEnd(8)}] ${message}`;
@@ -67,7 +80,7 @@ export function appendLogLine(category: LogCategory, message: string, meta?: unk
 		// También escribir al log de errores críticos si es necesario
 		if (category === LogCategory.CRITICAL || category === LogCategory.ERROR) {
 			const errorLogPath = path.join(LOG_ROOT, 'errors.log');
-			const errorLine = `[${timestamp}] [${category}] ${message}\n`;
+			const errorLine = `[${getLocalIsoSeconds()}] [${category}] ${message}\n`;
 			fs.appendFileSync(errorLogPath, errorLine, 'utf8');
 		}
 		
@@ -114,7 +127,7 @@ export function ensureTodayLogExists(): void {
 		const p = getTodayLogPath();
 		if (!fs.existsSync(p)) {
 			const header = `# ========================================
-# MP Application Log - ${new Date().toISOString()}
+# MP Application Log - ${getLocalIsoSeconds()}
 # ========================================
 # Formato: [HH:MM:SS] [CATEGORÍA] Mensaje | Meta
 # Categorías: INFO, SUCCESS, WARNING, ERROR, CRITICAL, AUTH, FTP, MP, SYSTEM

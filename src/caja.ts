@@ -123,7 +123,12 @@ async function handleAutoButtonClick() {
 function appendLog(line: string) {
     const box = document.getElementById('cajaLogs') as HTMLElement | null;
     if (!box) return;
-    const at = new Date().toISOString().slice(11,19);
+    // Hora local de la PC (no UTC) en formato HH:MM:SS
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const ss = String(now.getSeconds()).padStart(2,'0');
+    const at = `${hh}:${mm}:${ss}`;
     const current = (box.textContent || '').split('\n').filter(Boolean);
     const maxLines = 3;
     current.push(`[${at}] ${line}`);
