@@ -24,8 +24,8 @@
   },
   "build": {
     "appId": "com.ismael.miapp",
-    "productName": "Mi App",
-    "artifactName": "Mi-App-${version}.${ext}",
+    "productName": "Tc-Mp",
+    "artifactName": "Tc-Mp-${version}.${ext}",
     "asar": false,
     "compression": "store",
     "files": [
