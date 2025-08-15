@@ -132,34 +132,52 @@ app.whenReady().then(() => {
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
 		appendLogLine('generate-report invoked');
-		const { payments, range } = await searchPaymentsWithConfig();
-		const tag = new Date().toISOString().slice(0, 10);
-		const result = await generateFiles(payments as any[], tag, range);
-		appendLogLine('files-generated', { files: (result as any)?.files, count: (payments as any[])?.length });
-		if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
-		// Auto-enviar mp.dbf vía FTP si está configurado
 		try {
-			const mpPath = (result as any)?.files?.mpDbfPath;
-			if (mpPath && fs.existsSync(mpPath)) {
-				await sendDbf(mpPath, 'mp.dbf');
+			const { payments, range } = await searchPaymentsWithConfig();
+			const tag = new Date().toISOString().slice(0, 10);
+			const result = await generateFiles(payments as any[], tag, range);
+			appendLogLine('files-generated', { files: (result as any)?.files, count: (payments as any[])?.length });
+			if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
+			// Auto-enviar mp.dbf vía FTP si está configurado
+			try {
+				const mpPath = (result as any)?.files?.mpDbfPath;
+				if (mpPath && fs.existsSync(mpPath)) {
+					await sendDbf(mpPath, 'mp.dbf');
+				}
+			} catch (e) {
+				console.warn('[main] auto FTP send failed:', e);
+				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
 			}
-		} catch (e) {
-			console.warn('[main] auto FTP send failed:', e);
-			if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
+			// Reducir payload para UI y notificar a Caja
+			const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
+				id: p?.id,
+				status: p?.status,
+				amount: p?.transaction_amount,
+				date: p?.date_created,
+				method: p?.payment_method_id
+			}));
+			if (mainWindow) {
+				const rowsShort = uiRows.slice(0, 8);
+				mainWindow.webContents.send('auto-report-notice', { manual: true, count: (payments as any[]).length, rows: rowsShort });
+			}
+			return { count: (payments as any[]).length, outDir: result.outDir, files: result.files, rows: uiRows };
+		} catch (error: any) {
+			// Capturar error específico de MP_ACCESS_TOKEN y mostrar mensaje amigable
+			if (error.message && error.message.includes('MP_ACCESS_TOKEN')) {
+				const userMessage = '❌ Error: Comprobar la cuenta de Mercado Pago. Ve a Configuración → Mercado Pago y verifica el Access Token.';
+				if (mainWindow) {
+					mainWindow.webContents.send('auto-report-notice', { error: userMessage });
+				}
+				appendLogLine('ERROR', userMessage);
+				throw new Error(userMessage);
+			} else {
+				// Para otros errores, mantener el comportamiento original
+				if (mainWindow) {
+					mainWindow.webContents.send('auto-report-notice', { error: String(error?.message || error) });
+				}
+				throw error;
+			}
 		}
-		// Reducir payload para UI y notificar a Caja
-		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
-			id: p?.id,
-			status: p?.status,
-			amount: p?.transaction_amount,
-			date: p?.date_created,
-			method: p?.payment_method_id
-		}));
-		if (mainWindow) {
-			const rowsShort = uiRows.slice(0, 8);
-			mainWindow.webContents.send('auto-report-notice', { manual: true, count: (payments as any[]).length, rows: rowsShort });
-		}
-		return { count: (payments as any[]).length, outDir: result.outDir, files: result.files, rows: uiRows };
 	});
 
 	// Export on-demand without re-fetch (assumes files already generated or uses latest payments)
@@ -433,7 +451,17 @@ app.whenReady().then(() => {
 					});
 				}
 			} catch (e: any) {
-				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
+				// Capturar error específico de MP_ACCESS_TOKEN y mostrar mensaje amigable
+				if (e.message && e.message.includes('MP_ACCESS_TOKEN')) {
+					const userMessage = '❌ Error: Comprobar la cuenta de Mercado Pago. Ve a Configuración → Mercado Pago y verifica el Access Token.';
+					if (mainWindow) {
+						mainWindow.webContents.send('auto-report-notice', { error: userMessage });
+					}
+					appendLogLine('ERROR', userMessage);
+				} else {
+					// Para otros errores, mantener el comportamiento original
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
+				}
 			}
 		}, Math.max(1000, intervalSec * 1000));
 
