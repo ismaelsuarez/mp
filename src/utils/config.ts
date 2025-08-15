@@ -5,11 +5,8 @@ function decodeHex(parts: string[]): Buffer {
 	return Buffer.from(parts.join(''), 'hex');
 }
 
-// Clave maestra HMAC (32 bytes)
-export const HMAC_MASTER_KEY: Buffer = decodeHex([
-	'00112233','44556677','8899aabb','ccddeeff',
-	'00112233','44556677','8899aabb','ccddeeff'
-]);
+// Clave maestra HMAC (texto) – debe coincidir con el generador externo (lic-gen)
+export const HMAC_MASTER_SECRET: string = 'F@cundoJo@quinCecili@';
 
 // Clave de cifrado AES-256 (32 bytes)
 export const LICENSE_ENCRYPTION_KEY: Buffer = decodeHex([
