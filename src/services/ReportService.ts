@@ -4,13 +4,17 @@ import path from 'path';
 import ExcelJS from 'exceljs';
 import { DBFFile } from 'dbffile';
 import Papa from 'papaparse';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+import Store from 'electron-store';
 
 function ensureDir(dir: string) {
 	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 export function getOutDir() {
-    // Carpeta requerida por el cliente: C:\2_mp\reportes
+    // Carpeta requerida por el cliente: C:\\2_mp\\reportes
     const preferred = path.join('C:\\', '2_mp', 'reportes');
     try {
         ensureDir(preferred);
@@ -20,6 +24,55 @@ export function getOutDir() {
         const base = path.join(app.getPath('documents'), 'MP-Reportes');
         ensureDir(base);
         return base;
+    }
+}
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+function getEncryptionKey(): string | undefined {
+	try {
+		const keyPath = path.join(app.getPath('userData'), 'config.key');
+		if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath, 'utf8');
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function getConfiguredTz(): string {
+	try {
+		const store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+		const cfg: any = store.get('config') || {};
+		return cfg.MP_TZ || 'America/Argentina/Buenos_Aires';
+	} catch {
+		return 'America/Argentina/Buenos_Aires';
+	}
+}
+
+function toLocalTimeString(isoLike: any): string {
+	if (!isoLike) return '';
+	const tz = getConfiguredTz();
+	try {
+		return dayjs(isoLike).tz(tz).format('YYYY-MM-DD HH:mm:ss');
+	} catch {
+		return String(isoLike);
+	}
+}
+
+function formatLocalDateTime(isoLike: any): string {
+    if (!isoLike) return '';
+    try {
+        const d = new Date(isoLike);
+        if (isNaN(d.getTime())) return String(isoLike);
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+    } catch {
+        return String(isoLike);
     }
 }
 
@@ -37,6 +90,7 @@ function mapDetailedRow(p: any) {
 		status_detail: p?.status_detail,
 		currency_id: p?.currency_id,
 		description: p?.description,
+		// Mantener timestamps originales de MP (sin conversión)
 		date_created: p?.date_created,
 		date_approved: p?.date_approved,
 		date_last_updated: p?.date_last_updated,
@@ -128,8 +182,8 @@ export async function generateFiles(payments: any[], tag: string, rangeInfo: any
 	try { if (fs.existsSync(dbfPath)) fs.unlinkSync(dbfPath); } catch {}
 	const fields = [
 		{ name: 'OP_ID', type: 'C', size: 20 },
-		{ name: 'DT_CRT', type: 'C', size: 25 },
-		{ name: 'DT_APR', type: 'C', size: 25 },
+		{ name: 'DT_CRT', type: 'C', size: 32 },
+		{ name: 'DT_APR', type: 'C', size: 32 },
 		{ name: 'STATUS', type: 'C', size: 20 },
 		{ name: 'ST_DET', type: 'C', size: 40 },
 		{ name: 'CURR', type: 'C', size: 5 },

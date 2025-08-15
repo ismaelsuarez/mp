@@ -423,6 +423,22 @@ window.addEventListener('DOMContentLoaded', () => {
 		else cls += 'bg-slate-700/30 text-slate-300 border-slate-600';
 		return `<span class="${cls}">${status ?? ''}</span>`;
 	}
+
+	function formatLocalDateTime(isoLike: any): string {
+		if (!isoLike) return '';
+		try {
+			const d = new Date(isoLike);
+			if (isNaN(d.getTime())) return String(isoLike);
+			const dd = String(d.getDate()).padStart(2, '0');
+			const mm = String(d.getMonth() + 1).padStart(2, '0');
+			const yyyy = d.getFullYear();
+			const hh = String(d.getHours()).padStart(2, '0');
+			const mi = String(d.getMinutes()).padStart(2, '0');
+			return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+		} catch {
+			return String(isoLike);
+		}
+	}
 	function renderRows() {
 		const filtered = applyFilters();
 		const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -430,11 +446,12 @@ window.addEventListener('DOMContentLoaded', () => {
 		const start = (page - 1) * pageSize;
 		const rows = filtered.slice(start, start + pageSize).map((r) => {
 			const amt = (r.amount ?? '') !== '' ? Number(r.amount).toFixed(2) : '';
+			const when = formatLocalDateTime((r as any).date);
 			return `<tr>
 				<td>${r.id ?? ''}</td>
 				<td>${renderStatusBadge(r.status)}</td>
 				<td>${amt}</td>
-				<td>${r.date ?? ''}</td>
+				<td>${when}</td>
 				<td>${r.method ?? ''}</td>
 			</tr>`;
 		}).join('');
