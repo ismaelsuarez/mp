@@ -9,7 +9,7 @@
   "type": "commonjs",
   "main": "dist/src/main.js",
   "scripts": {
-    "start": "npm run build:ts && electron .",
+    "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
     "build": "npm run build:ts && electron-builder -w",
     "build:windows": "node scripts/build-windows.js",
     "build:ts": "tsc -p tsconfig.json",

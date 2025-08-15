@@ -50,6 +50,9 @@ function createMainWindow() {
 	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
 	const initialFile = (defaultView ?? 'caja') === 'caja' ? 'caja.html' : 'config.html';
 
+	// Bypass de licencia en desarrollo si SKIP_LICENSE=true o flag --skip-license
+	const devBypass = (!app.isPackaged) && (String(process.env.SKIP_LICENSE).toLowerCase() === 'true' || process.argv.includes('--skip-license'));
+
 	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
 	try {
 		if (defaultView === 'caja') {
@@ -88,12 +91,25 @@ function createMainWindow() {
 		}
 	} catch {}
 
-	// Gate de licencia: si no existe/vale, mostrar licencia.html
-	try {
-		const licOk = licenciaExisteYValida();
-		if (!licOk) {
+	// Gate de licencia: si no existe/vale y no estamos en bypass, mostrar licencia.html
+	if (!devBypass) {
+		try {
+			const licOk = licenciaExisteYValida();
+			if (!licOk) {
+				const licPath = path.join(app.getAppPath(), 'public', 'licencia.html');
+				// Asegurar tamaño cómodo para el formulario de licencia
+				try {
+					mainWindow.setMinimumSize(700, 760);
+					mainWindow.setSize(800, 820);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
+				} catch {}
+				mainWindow.loadFile(licPath);
+				return;
+			}
+		} catch {
 			const licPath = path.join(app.getAppPath(), 'public', 'licencia.html');
-			// Asegurar tamaño cómodo para el formulario de licencia
 			try {
 				mainWindow.setMinimumSize(700, 760);
 				mainWindow.setSize(800, 820);
@@ -102,21 +118,13 @@ function createMainWindow() {
 				try { mainWindow.center(); } catch {}
 			} catch {}
 			mainWindow.loadFile(licPath);
-		} else {
-			const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
-			mainWindow.loadFile(htmlPath);
+			return;
 		}
-	} catch {
-		const licPath = path.join(app.getAppPath(), 'public', 'licencia.html');
-		try {
-			mainWindow.setMinimumSize(700, 760);
-			mainWindow.setSize(800, 820);
-			mainWindow.setMenuBarVisibility(false);
-			mainWindow.setAutoHideMenuBar(true);
-			try { mainWindow.center(); } catch {}
-		} catch {}
-		mainWindow.loadFile(licPath);
 	}
+
+	// Si bypass o licencia válida, cargar vista inicial
+	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
+	mainWindow.loadFile(htmlPath);
 
 	// Guardar posición de la ventana cuando se mueve (solo para modo caja)
 	mainWindow.on('moved', () => {
