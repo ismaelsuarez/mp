@@ -437,4 +437,108 @@ window.addEventListener('DOMContentLoaded', () => {
 		const status = document.getElementById('autoStatus') as HTMLElement | null;
 		if (status) status.textContent = s?.active ? 'Automatización: ON' : 'Automatización: OFF';
 	}).catch(()=>{});
+
+	// ===== FUNCIONALIDAD DE CAMBIO DE CONTRASEÑA =====
+	
+	// Función para validar contraseña
+	function validatePassword(password: string): { valid: boolean; message: string } {
+		if (password.length < 8) {
+			return { valid: false, message: 'Mínimo 8 caracteres' };
+		}
+		if (!/\d/.test(password)) {
+			return { valid: false, message: 'Debe contener un número' };
+		}
+		if (!/[A-Z]/.test(password)) {
+			return { valid: false, message: 'Debe contener una mayúscula' };
+		}
+		return { valid: true, message: 'Contraseña válida' };
+	}
+
+	// Función para mostrar errores de forma amigable
+	function showAuthError(message: string) {
+		const errorMessages: { [key: string]: string } = {
+			'weak_password': 'La contraseña debe tener al menos 8 caracteres, una mayúscula y un número',
+			'invalid_current': 'Contraseña actual incorrecta',
+			'invalid_secret': 'Frase secreta incorrecta',
+			'invalid_otp': 'Código OTP inválido o expirado',
+			'not_initialized': 'Sistema no inicializado',
+			'no_email': 'Email no configurado para envío de códigos',
+			'locked': 'Cuenta bloqueada temporalmente por múltiples intentos fallidos'
+		};
+		
+		return errorMessages[message] || message;
+	}
+
+	// Configurar validación de contraseña en tiempo real
+	const newPasswordInput = document.getElementById('new-password') as HTMLInputElement;
+	if (newPasswordInput) {
+		newPasswordInput.addEventListener('input', () => {
+			const validation = validatePassword(newPasswordInput.value);
+			newPasswordInput.style.borderColor = validation.valid ? '#10b981' : '#ef4444';
+		});
+	}
+
+	// Handler para cambio de contraseña
+	document.getElementById('btnChangePassword')?.addEventListener('click', async () => {
+		const currentPassword = (document.getElementById('current-password') as HTMLInputElement)?.value || '';
+		const newPassword = (document.getElementById('new-password') as HTMLInputElement)?.value || '';
+		const confirmPassword = (document.getElementById('confirm-password') as HTMLInputElement)?.value || '';
+		const newUsername = (document.getElementById('new-username') as HTMLInputElement)?.value || '';
+		const newSecretPhrase = (document.getElementById('new-secret-phrase') as HTMLInputElement)?.value || '';
+		
+		const statusElement = document.getElementById('passwordChangeStatus') as HTMLElement;
+		
+		try {
+			// Validaciones
+			if (!currentPassword) {
+				statusElement.textContent = 'Error: Debe ingresar su contraseña actual';
+				statusElement.className = 'text-red-400 text-sm';
+				return;
+			}
+			
+			if (!newPassword) {
+				statusElement.textContent = 'Error: Debe ingresar una nueva contraseña';
+				statusElement.className = 'text-red-400 text-sm';
+				return;
+			}
+			
+			if (newPassword !== confirmPassword) {
+				statusElement.textContent = 'Error: Las contraseñas no coinciden';
+				statusElement.className = 'text-red-400 text-sm';
+				return;
+			}
+			
+			const validation = validatePassword(newPassword);
+			if (!validation.valid) {
+				statusElement.textContent = `Error: ${validation.message}`;
+				statusElement.className = 'text-red-400 text-sm';
+				return;
+			}
+			
+			// Cambiar contraseña
+			await (window as any).auth.change({
+				current: currentPassword,
+				newPw: newPassword,
+				newUser: newUsername || undefined,
+				newSecret: newSecretPhrase || undefined
+			});
+			
+			// Limpiar formulario
+			(document.getElementById('current-password') as HTMLInputElement).value = '';
+			(document.getElementById('new-password') as HTMLInputElement).value = '';
+			(document.getElementById('confirm-password') as HTMLInputElement).value = '';
+			(document.getElementById('new-username') as HTMLInputElement).value = '';
+			(document.getElementById('new-secret-phrase') as HTMLInputElement).value = '';
+			
+			statusElement.textContent = 'Contraseña cambiada exitosamente';
+			statusElement.className = 'text-green-400 text-sm';
+			
+			showToast('Contraseña actualizada correctamente');
+			
+		} catch (error: any) {
+			const errorMessage = showAuthError(error.message);
+			statusElement.textContent = `Error: ${errorMessage}`;
+			statusElement.className = 'text-red-400 text-sm';
+		}
+	});
 });

@@ -1,0 +1,689 @@
+1) Arquitectura y buenas prácticas
+
+Qué vamos a proteger: la ventana de Configuración.
+Dónde: antes de abrir config.html, mostramos un gate de login.
+Cómo guardamos credenciales:
+
+No almacenar contraseñas en texto plano.
+
+Usar Argon2id para el hash (argon2 npm).
+
+Guardar en electron-store solo: username, passwordHash, secretPhraseHash, políticas y estado (intentos fallidos, lockout…).
+
+El Access Token de MP sigue como está (encriptado con electron-store); esto es independiente.
+
+Recuperación:
+
+Opción A – Frase secreta (obligatoria al crear la contraseña):
+
+Guardar hash de la frase (Argon2id).
+
+Si coincide, se permite resetear contraseña y (opcional) usuario.
+
+Opción B – Email (si está configurado el SMTP):
+
+Enviar código OTP (6 dígitos, vence en 10 min).
+
+Validar y permitir el reset.
+
+Endurecimiento:
+
+Política: min 8–10 caracteres, 1 mayúscula, 1 número.
+
+Rate-limit/lockout: p.ej. bloqueo 5 min tras 5 intentos fallidos.
+
+Throttling de verificación (100–250 ms) para evitar ataques de tiempo.
+
+IPC sólo desde renderer confiable (origin check).
+
+Auditoría: loggear intentos y resets (sin datos sensibles).
+
+
+
+Actúa como dev senior de Electron + TypeScript. Agrega autenticación de “Modo Administrador” sin romper la lógica actual.
+
+Contexto:
+- App Electron TS con dos vistas: caja.html (operativa) y config.html (administración).
+- electron-store ya está integrado.
+- Tailwind en UI.
+- SMTP opcional ya existe para reportes.
+
+Objetivo:
+1) Gate de login al abrir config.html:
+   - Si no hay credenciales iniciales -> flujo de “Setup Admin” (crear usuario/contraseña + definir FRase Secreta).
+   - Si ya hay credenciales -> pedir usuario + contraseña.
+
+2) Recuperación:
+   - Opción A: “Tengo frase secreta” -> si coincide (hash Argon2id), permitir reset de contraseña y (opcional) usuario.
+   - Opción B: “Enviar código por email” -> si hay SMTP configurado, generar OTP 6 dígitos (vence en 10 minutos), enviar y validar.
+
+3) Seguridad:
+   - Hash Argon2id para password y secret phrase (paquetes `argon2`).
+   - Política: minLength=8, debe tener número y mayúscula.
+   - Rate-limit: max 5 intentos/15 min; si supera, lockout 5 min.
+   - Throttle de verificación 150ms.
+   - No guardar contraseñas en claro ni en memoria más de lo necesario.
+   - Logs sin datos sensibles.
+
+4) IPC (main.ts):
+   - `auth:is-initialized` -> bool
+   - `auth:setup({username, password, secretPhrase})`
+   - `auth:login({username, password})` -> success / lockout data
+   - `auth:logout()`
+   - `auth:request-otp()` -> si SMTP, enviar; devolver masked email y ttl
+   - `auth:reset-by-otp({otp, newPassword, newUsername?})`
+   - `auth:reset-by-secret({secretPhrase, newPassword, newUsername?})`
+   - `auth:get-policy()` -> {minLength, requiresNumber, requiresUpper, maxAttempts, lockoutMinutes}
+   - Persistir en electron-store:
+     auth: {
+       username: string,
+       passwordHash: string,
+       secretPhraseHash: string,
+       failedCount: number,
+       lockedUntil?: number
+     }
+
+5) Preload (exponer en `window.auth`):
+   - Métodos arriba. Validar origin; no exponer electron-store directo.
+
+6) UI:
+   - Crear `public/auth.html` (dark, Tailwind):
+     - Vista “Login” con link “¿Olvidaste tu contraseña?”.
+     - Vista “Setup Admin” (si no inicializado).
+     - Vista “Recuperar”: tabs “Frase secreta” y “Email”.
+   - En `main.ts`, al elegir Configuración desde caja.html -> abrir `auth.html`.
+     - Si login OK, entonces abrir `config.html` y cerrar `auth.html`.
+   - En `config.html`, agregar sección “Seguridad” para cambiar contraseña/usuario (pide password actual + nueva + confirmar y opcionalmente actualizar frase secreta).
+
+7) Aceptación:
+   - Primer arranque: pide Setup Admin, luego permite entrar.
+   - Login con usuario/contraseña. Lockout tras 5 fallos/15 min.
+   - Recuperación por frase secreta y por email (si SMTP).
+   - Cambiar usuario/contraseña desde “Seguridad” solicitando password actual.
+   - No se altera lógica de Mercado Pago ni automatización.
+
+Entrega:
+- Nuevos archivos: `src/services/AuthService.ts`, `public/auth.html`, `src/auth.ts` (renderer), updates en `src/main.ts`, `src/preload.ts`.
+- Código TS comentado, sin romper build ni flujos existentes.
+
+
+Snippets clave (listos para pegar)
+
+AuthService.ts (núcleo)
+
+
+Snippets clave (listos para pegar)
+
+AuthService.ts (núcleo)
+
+// src/services/AuthService.ts
+import Store from 'electron-store';
+import argon2 from 'argon2';
+
+type AuthState = {
+  username?: string;
+  passwordHash?: string;
+  secretPhraseHash?: string;
+  failedCount?: number;
+  lockedUntil?: number;
+};
+
+const store = new Store<{ auth: AuthState }>();
+
+const POLICY = {
+  minLength: 8,
+  requiresNumber: true,
+  requiresUpper: true,
+  maxAttempts: 5,
+  lockoutMinutes: 5,
+  throttleMs: 150
+};
+
+function passwordValid(pw: string) {
+  if (pw.length < POLICY.minLength) return false;
+  if (POLICY.requiresNumber && !/\d/.test(pw)) return false;
+  if (POLICY.requiresUpper && !/[A-Z]/.test(pw)) return false;
+  return true;
+}
+
+export const AuthService = {
+  isInitialized(): boolean {
+    const a = store.get('auth') || {};
+    return Boolean(a.username && a.passwordHash && a.secretPhraseHash);
+  },
+
+  policy() { return POLICY; },
+
+  async setup(username: string, password: string, secretPhrase: string) {
+    if (!passwordValid(password)) throw new Error('weak_password');
+    const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
+    const secretPhraseHash = await argon2.hash(secretPhrase, { type: argon2.argon2id });
+    store.set('auth', { username, passwordHash, secretPhraseHash, failedCount: 0, lockedUntil: 0 });
+  },
+
+  async login(username: string, password: string) {
+    await new Promise(r => setTimeout(r, POLICY.throttleMs));
+    const a = store.get('auth') || {};
+    const now = Date.now();
+    if (a.lockedUntil && now < a.lockedUntil) {
+      return { ok: false, reason: 'locked', unlockAt: a.lockedUntil };
+    }
+    if (!a.username || !a.passwordHash) return { ok: false, reason: 'not_initialized' };
+    const userOk = username === a.username;
+    const passOk = userOk ? await argon2.verify(a.passwordHash!, password) : false;
+
+    if (!userOk || !passOk) {
+      const failed = (a.failedCount ?? 0) + 1;
+      const lock = failed >= POLICY.maxAttempts ? now + POLICY.lockoutMinutes * 60_000 : 0;
+      store.set('auth', { ...a, failedCount: lock ? 0 : failed, lockedUntil: lock || 0 });
+      return { ok: false, reason: lock ? 'locked' : 'invalid' };
+    }
+    store.set('auth', { ...a, failedCount: 0, lockedUntil: 0 });
+    return { ok: true };
+  },
+
+  async changePassword(currentPw: string, newPw: string, newUsername?: string, newSecretPhrase?: string) {
+    const a = store.get('auth') || {};
+    if (!a.passwordHash) throw new Error('not_initialized');
+    const ok = await argon2.verify(a.passwordHash, currentPw);
+    if (!ok) throw new Error('invalid_current');
+    if (!passwordValid(newPw)) throw new Error('weak_password');
+
+    const passwordHash = await argon2.hash(newPw, { type: argon2.argon2id });
+    const secretPhraseHash = newSecretPhrase
+      ? await argon2.hash(newSecretPhrase, { type: argon2.argon2id })
+      : a.secretPhraseHash;
+
+    store.set('auth', {
+      ...a,
+      username: newUsername || a.username,
+      passwordHash,
+      secretPhraseHash
+    });
+  },
+
+  async resetBySecret(secretPhrase: string, newPw: string, newUsername?: string) {
+    const a = store.get('auth') || {};
+    if (!a.secretPhraseHash) throw new Error('not_initialized');
+    const ok = await argon2.verify(a.secretPhraseHash, secretPhrase);
+    if (!ok) throw new Error('invalid_secret');
+    if (!passwordValid(newPw)) throw new Error('weak_password');
+    const passwordHash = await argon2.hash(newPw, { type: argon2.argon2id });
+    store.set('auth', { ...a, username: newUsername || a.username, passwordHash });
+  }
+};
+
+
+OTP simple (si hay SMTP)
+
+// src/services/OtpService.ts
+import Store from 'electron-store';
+import crypto from 'crypto';
+import { EmailService } from './EmailService'; // ya lo tenés
+
+const store = new Store<{ otp?: { code: string, expiresAt: number, masked: string } }>();
+
+export const OtpService = {
+  createAndSend(toEmail: string) {
+    const code = ('' + Math.floor(100000 + Math.random()*900000)).slice(-6);
+    const expiresAt = Date.now() + 10 * 60_000; // 10 min
+    const masked = toEmail.replace(/(.{2}).+(@.+)/, '$1***$2');
+    store.set('otp', { code, expiresAt, masked });
+    EmailService.send({
+      to: toEmail,
+      subject: 'Código de recuperación',
+      text: `Tu código es ${code}. Vence en 10 minutos.`
+    });
+    return { masked, ttl: 600 };
+  },
+  validate(code: string) {
+    const otp = store.get('otp');
+    const ok = otp && otp.code === code && Date.now() < otp.expiresAt;
+    if (ok) store.delete('otp');
+    return Boolean(ok);
+  }
+};
+
+IPC en main.ts (resumen)
+
+// src/main.ts (fragmentos)
+import { ipcMain } from 'electron';
+import { AuthService } from './services/AuthService';
+import { OtpService } from './services/OtpService';
+
+ipcMain.handle('auth:is-initialized', () => AuthService.isInitialized());
+ipcMain.handle('auth:get-policy', () => AuthService.policy());
+ipcMain.handle('auth:setup', (_e, p) => AuthService.setup(p.username, p.password, p.secretPhrase));
+ipcMain.handle('auth:login', (_e, p) => AuthService.login(p.username, p.password));
+ipcMain.handle('auth:change', (_e, p) => AuthService.changePassword(p.current, p.newPw, p.newUser, p.newSecret));
+ipcMain.handle('auth:reset-by-secret', (_e, p) => AuthService.resetBySecret(p.secretPhrase, p.newPw, p.newUser));
+ipcMain.handle('auth:request-otp', () => {
+  // obtener email desde config SMTP (si tenés EMAIL_REPORT u otro)
+  const email = /* leer de store */;
+  if (!email) throw new Error('no_email');
+  return OtpService.createAndSend(email);
+});
+ipcMain.handle('auth:reset-by-otp', (_e, p) => {
+  if (!OtpService.validate(p.otp)) throw new Error('invalid_otp');
+  return AuthService.changePassword(p.current ?? '', p.newPw, p.newUser); // current puede omitirse en reset
+});
+
+
+Preload
+
+// src/preload.ts (fragmento)
+import { contextBridge, ipcRenderer } from 'electron';
+contextBridge.exposeInMainWorld('auth', {
+  isInitialized: () => ipcRenderer.invoke('auth:is-initialized'),
+  getPolicy:     () => ipcRenderer.invoke('auth:get-policy'),
+  setup:         (p:any) => ipcRenderer.invoke('auth:setup', p),
+  login:         (p:any) => ipcRenderer.invoke('auth:login', p),
+  change:        (p:any) => ipcRenderer.invoke('auth:change', p),
+  requestOtp:    () => ipcRenderer.invoke('auth:request-otp'),
+  resetByOtp:    (p:any) => ipcRenderer.invoke('auth:reset-by-otp', p),
+  resetBySecret: (p:any) => ipcRenderer.invoke('auth:reset-by-secret', p),
+});
+
+
+
+Flow de ventanas
+
+Desde Modo Caja → “Configuración”: abrir auth.html.
+
+En auth.html:
+
+Si auth.isInitialized() == false → mostrar Setup.
+
+Si true → mostrar Login.
+
+Si login OK → cerrar auth.html y abrir config.html.
+
+
+hecklist de pruebas
+
+ Primer arranque sin credenciales → aparece Setup Admin.
+
+ Crear usuario/contraseña/frasesecreta → login OK.
+
+ Política de password se aplica y bloquea débiles.
+
+ 5 intentos fallidos → lockout 5 min.
+
+ “¿Olvidaste tu contraseña?” →
+
+ Frase secreta válida permite resetear.
+
+ OTP por email (si SMTP) válido permite resetear.
+
+ Cambiar usuario/contraseña desde “Seguridad” (pide password actual).
+
+ Logs registran intentos (sin datos sensibles).
+
+ No se puede abrir config.html sin pasar por auth.html.
+
+ Automatización, reportes y resto de funciones siguen OK.
+
+
+
+-------------
+auth.html listo para tu proyecto con 3 vistas integradas:
+
+Login
+
+Setup Admin (primer arranque)
+
+Recuperación (Frase secreta y Email OTP)
+
+Incluye diseño Tailwind en modo oscuro, botones claros y placeholders para que enganches tu lógica ya expuesta en window.auth.
+
+
+public/auth.html
+
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-gray-900">
+<head>
+  <meta charset="UTF-8">
+  <title>Acceso Administrador</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-full flex items-center justify-center text-white">
+
+<div id="app" class="w-full max-w-md p-6 bg-gray-800 rounded-xl shadow-lg space-y-4">
+
+  <!-- HEADER -->
+  <div class="text-center">
+    <h1 id="form-title" class="text-2xl font-bold">Modo Administrador</h1>
+    <p id="form-subtitle" class="text-gray-400 text-sm">Ingrese sus credenciales</p>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <form id="login-form" class="space-y-4">
+    <input type="text" id="login-user" placeholder="Usuario"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring focus:border-blue-400">
+    <input type="password" id="login-pass" placeholder="Contraseña"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring focus:border-blue-400">
+    <button type="submit" class="w-full py-2 bg-blue-600 rounded hover:bg-blue-700 font-semibold">Ingresar</button>
+    <div class="text-sm text-center">
+      <a href="#" id="forgot-link" class="text-blue-400 hover:underline">¿Olvidaste tu contraseña?</a>
+    </div>
+  </form>
+
+  <!-- SETUP FORM -->
+  <form id="setup-form" class="space-y-4 hidden">
+    <input type="text" id="setup-user" placeholder="Nuevo usuario"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <input type="password" id="setup-pass" placeholder="Nueva contraseña"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <input type="text" id="setup-secret" placeholder="Frase secreta (recuperación)"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <button type="submit" class="w-full py-2 bg-green-600 rounded hover:bg-green-700 font-semibold">Crear Admin</button>
+  </form>
+
+  <!-- RECOVERY FORM -->
+  <div id="recovery-form" class="hidden space-y-4">
+    <div class="flex space-x-2 justify-center mb-4">
+      <button id="tab-secret" class="px-3 py-1 bg-blue-600 rounded">Frase Secreta</button>
+      <button id="tab-email" class="px-3 py-1 bg-gray-700 rounded">Email OTP</button>
+    </div>
+
+    <!-- SECRET -->
+    <div id="rec-secret" class="space-y-3">
+      <input type="text" id="rec-secret-input" placeholder="Frase secreta"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <input type="password" id="rec-secret-newpass" placeholder="Nueva contraseña"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <button id="btn-secret-reset" class="w-full py-2 bg-green-600 rounded">Resetear</button>
+    </div>
+
+    <!-- EMAIL -->
+    <div id="rec-email" class="hidden space-y-3">
+      <button id="btn-send-otp" class="w-full py-2 bg-blue-600 rounded">Enviar código al email</button>
+      <input type="text" id="rec-email-otp" placeholder="Código recibido"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <input type="password" id="rec-email-newpass" placeholder="Nueva contraseña"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <button id="btn-email-reset" class="w-full py-2 bg-green-600 rounded">Resetear</button>
+    </div>
+
+    <div class="text-sm text-center">
+      <a href="#" id="back-login" class="text-blue-400 hover:underline">Volver al login</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(async () => {
+  const loginForm = document.getElementById('login-form');
+  const setupForm = document.getElementById('setup-form');
+  const recoveryForm = document.getElementById('recovery-form');
+  const title = document.getElementById('form-title');
+  const subtitle = document.getElementById('form-subtitle');
+
+  const isInit = await window.auth.isInitialized();
+  if (!isInit) {
+    loginForm.classList.add('hidden');
+    setupForm.classList.remove('hidden');
+    title.textContent = 'Configurar Administrador';
+    subtitle.textContent = 'Cree el usuario y contraseña';
+  }
+
+  loginForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const u = document.getElementById('login-user').value.trim();
+    const p = document.getElementById('login-pass').value.trim();
+    const res = await window.auth.login({ username: u, password: p });
+    if (res.ok) {
+      window.location.href = 'config.html';
+    } else {
+      alert('Error: ' + res.reason);
+    }
+  });
+
+  setupForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const u = document.getElementById('setup-user').value.trim();
+    const p = document.getElementById('setup-pass').value.trim();
+    const s = document.getElementById('setup-secret').value.trim();
+    try {
+      await window.auth.setup({ username: u, password: p, secretPhrase: s });
+      alert('Administrador creado. Ahora puede iniciar sesión.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  // Recuperación
+  document.getElementById('forgot-link').addEventListener('click', e => {
+    e.preventDefault();
+    loginForm.classList.add('hidden');
+    recoveryForm.classList.remove('hidden');
+    title.textContent = 'Recuperar Acceso';
+    subtitle.textContent = '';
+  });
+
+  document.getElementById('back-login').addEventListener('click', e => {
+    e.preventDefault();
+    recoveryForm.classList.add('hidden');
+    loginForm.classList.remove('hidden');
+    title.textContent = 'Modo Administrador';
+    subtitle.textContent = 'Ingrese sus credenciales';
+  });
+
+  // Tabs
+  document.getElementById('tab-secret').addEventListener('click', () => {
+    document.getElementById('rec-secret').classList.remove('hidden');
+    document.getElementById('rec-email').classList.add('hidden');
+  });
+  document.getElementById('tab-email').addEventListener('click', () => {
+    document.getElementById('rec-secret').classList.add('hidden');
+    document.getElementById('rec-email').classList.remove('hidden');
+  });
+
+  // Reset por frase
+  document.getElementById('btn-secret-reset').addEventListener('click', async () => {
+    const s = document.getElementById('rec-secret-input').value.trim();
+    const np = document.getElementById('rec-secret-newpass').value.trim();
+    try {
+      await window.auth.resetBySecret({ secretPhrase: s, newPw: np });
+      alert('Contraseña cambiada.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  // Email OTP
+  document.getElementById('btn-send-otp').addEventListener('click', async () => {
+    try {
+      const res = await window.auth.requestOtp();
+      alert('Código enviado a: ' + res.masked);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  document.getElementById('btn-email-reset').addEventListener('click', async () => {
+    const otp = document.getElementById('rec-email-otp').value.trim();
+    const np = document.getElementById('rec-email-newpass').value.trim();
+    try {
+      await window.auth.resetByOtp({ otp, newPw: np });
+      alert('Contraseña cambiada.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
+
+
+
+Cómo integrarlo
+
+Guardar como public/auth.html
+
+Asegurarte que en main.ts, cuando el usuario pulse “Configuración” desde Modo Caja, abra primero esta página (auth.html) y no directamente config.html.
+
+Si login OK → abrir config.html.
+
+Este HTML ya llama a:
+
+window.auth.isInitialized()
+
+window.auth.login(...)
+
+window.auth.setup(...)
+
+window.auth.resetBySecret(...)
+
+window.auth.requestOtp()
+
+window.auth.resetByOtp(...)
+
+
+Te voy a dejar el flujo listo para que el auth.html que te preparé funcione sin romper nada y enganche con tu sistema actual en Electron + Node.js.
+
+preload.ts
+
+Vamos a exponer las funciones window.auth que el HTML usa.
+
+
+// preload.ts
+import { contextBridge, ipcRenderer } from 'electron';
+
+contextBridge.exposeInMainWorld('auth', {
+  isInitialized: () => ipcRenderer.invoke('auth:isInitialized'),
+  login: (creds: { username: string; password: string }) => ipcRenderer.invoke('auth:login', creds),
+  setup: (data: { username: string; password: string; secretPhrase: string }) => ipcRenderer.invoke('auth:setup', data),
+  resetBySecret: (data: { secretPhrase: string; newPw: string }) => ipcRenderer.invoke('auth:resetBySecret', data),
+  requestOtp: () => ipcRenderer.invoke('auth:requestOtp'),
+  resetByOtp: (data: { otp: string; newPw: string }) => ipcRenderer.invoke('auth:resetByOtp', data)
+});
+
+
+main.ts
+
+En main.ts vamos a manejar la lógica de autenticación y almacenamiento seguro.
+
+import { app, BrowserWindow, ipcMain } from 'electron';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+
+let mainWindow: BrowserWindow;
+const configFile = path.join(app.getPath('userData'), 'admin-config.json');
+
+// 🔐 Encriptación de contraseñas
+function hashPass(pass: string) {
+  return crypto.createHash('sha256').update(pass).digest('hex');
+}
+
+// 📦 Cargar config
+function loadConfig() {
+  if (!fs.existsSync(configFile)) return null;
+  return JSON.parse(fs.readFileSync(configFile, 'utf8'));
+}
+
+// 💾 Guardar config
+function saveConfig(cfg: any) {
+  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2));
+}
+
+// ✅ Inicialización
+ipcMain.handle('auth:isInitialized', () => {
+  return fs.existsSync(configFile);
+});
+
+// 🔑 Login
+ipcMain.handle('auth:login', (e, { username, password }) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, reason: 'No configurado' };
+  if (cfg.username === username && cfg.password === hashPass(password)) {
+    return { ok: true };
+  }
+  return { ok: false, reason: 'Usuario o contraseña inválidos' };
+});
+
+// 🆕 Setup
+ipcMain.handle('auth:setup', (e, { username, password, secretPhrase }) => {
+  const cfg = { username, password: hashPass(password), secretPhrase, email: null };
+  saveConfig(cfg);
+  return true;
+});
+
+// 🔄 Reset por frase secreta
+ipcMain.handle('auth:resetBySecret', (e, { secretPhrase, newPw }) => {
+  const cfg = loadConfig();
+  if (!cfg) throw new Error('No configurado');
+  if (cfg.secretPhrase !== secretPhrase) throw new Error('Frase secreta incorrecta');
+  cfg.password = hashPass(newPw);
+  saveConfig(cfg);
+  return true;
+});
+
+// 📧 Envío OTP (simulado, aquí puedes conectar SMTP real)
+let otpCode: string | null = null;
+ipcMain.handle('auth:requestOtp', () => {
+  const cfg = loadConfig();
+  if (!cfg || !cfg.email) throw new Error('Email no configurado');
+  otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  console.log(`🔐 OTP enviado a ${cfg.email}: ${otpCode}`); // Aquí integrar con nodemailer
+  return { masked: cfg.email.replace(/(.{2}).+(@.+)/, '$1****$2') };
+});
+
+// 🔄 Reset por OTP
+ipcMain.handle('auth:resetByOtp', (e, { otp, newPw }) => {
+  if (!otpCode || otp !== otpCode) throw new Error('Código incorrecto');
+  const cfg = loadConfig();
+  if (!cfg) throw new Error('No configurado');
+  cfg.password = hashPass(newPw);
+  saveConfig(cfg);
+  otpCode = null;
+  return true;
+});
+
+// 🖥 Crear ventana principal
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  // Siempre iniciar en auth.html
+  mainWindow.loadFile(path.join(__dirname, '../public/auth.html'));
+}
+
+app.whenReady().then(createWindow);
+
+
+
+3️⃣ Flujo de uso
+
+Primer arranque → auth.html detecta que no existe config → muestra formulario de Setup.
+
+Login correcto → redirige a config.html (modo administrador).
+
+Olvidé la contraseña → pestaña de recuperación por frase secreta o email OTP.
+
+Usuario y contraseña → almacenados encriptados con SHA256.
+
+Archivo de config → guardado en userData de Electron (aislado por usuario/SO).
+
+4️⃣ Siguientes mejoras opcionales
+
+Integrar Nodemailer para enviar OTP real por SMTP.
+
+Añadir limitador de intentos para evitar ataques de fuerza bruta.
+
+Cifrar también la frase secreta en el archivo.
+
+Posibilidad de cambiar usuario y correo desde el modo administrador.
+

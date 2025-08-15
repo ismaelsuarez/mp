@@ -139,6 +139,23 @@
 					</div>
 				</details>
 
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						Seguridad
+					</summary>
+					<div class="p-3 space-y-2">
+						<label>Contraseña actual <input id="current-password" type="password" placeholder="Ingrese su contraseña actual" /></label>
+						<label>Nueva contraseña <input id="new-password" type="password" placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número" /></label>
+						<label>Confirmar nueva contraseña <input id="confirm-password" type="password" placeholder="Repita la nueva contraseña" /></label>
+						<label>Nuevo usuario (opcional) <input id="new-username" placeholder="Dejar vacío para mantener el actual" /></label>
+						<label>Nueva frase secreta (opcional) <input id="new-secret-phrase" placeholder="Dejar vacío para mantener la actual" /></label>
+						<div class="row">
+							<button type="button" id="btnChangePassword">Cambiar contraseña</button>
+							<span id="passwordChangeStatus"></span>
+						</div>
+					</div>
+				</details>
+
 				<!-- Acciones principales (debajo de todas las secciones) -->
 				<div class="actions-row mt-4">
 					<button type="button" id="btnLoad">Cargar configuración</button>

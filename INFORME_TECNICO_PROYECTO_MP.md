@@ -116,6 +116,125 @@ SMTP_PORT=587
 
 ---
 
+## NUEVAS FUNCIONALIDADES IMPLEMENTADAS
+
+### 1. SISTEMA DE AUTOMATIZACIÓN AVANZADO
+
+#### 1.1 Botón Dinámico con Contador Regresivo
+**Ubicación:** Modo Caja - Esquina inferior izquierda
+
+**Características:**
+- **Transformación:** De indicador estático a botón clickeable
+- **Estados Visuales:**
+  - 🟢 **Verde:** `"auto:On"` (activo)
+  - 🔴 **Rojo:** `"auto:Off"` (pausado)
+  - ⚫ **Gris:** `"auto:Desactivado"` (inactivo)
+  - ⚫ **Gris:** `"Desact.(día)"` (día no habilitado)
+
+**Funcionalidades:**
+- **Click para Pausar/Reanudar:** Control directo del modo automático
+- **Contador Regresivo:** Formato ⏱ MM:SS con actualización cada segundo
+- **Bucle Continuo:** Reinicio automático al llegar a cero
+- **Persistencia:** Estado mantenido al reiniciar la aplicación
+
+#### 1.2 Selector de Días de la Semana
+**Ubicación:** Modo Administrador - Sección Automatización
+
+**Características:**
+- **7 Checkboxes:** Lunes a Domingo en layout grid 2x4
+- **Estado Inicial:** Todos marcados por defecto
+- **Persistencia:** Guardado junto con configuración de automatización
+
+**Funcionalidades:**
+- **Verificación Automática:** Antes de cada ejecución automática
+- **Salto Inteligente:** Si el día no está habilitado, se salta la ejecución
+- **Feedback Visual:** Mensaje informativo en logs y botón
+- **Control Granular:** Permite configurar exactamente qué días ejecutar
+
+### 2. ARQUITECTURA DE AUTOMATIZACIÓN
+
+#### 2.1 Variables de Estado (Main Process)
+```typescript
+let autoTimer: NodeJS.Timeout | null = null;
+let autoActive = false;
+let autoPaused = false;
+let remainingSeconds = 0;
+let countdownTimer: NodeJS.Timeout | null = null;
+```
+
+#### 2.2 Función de Verificación de Días
+```typescript
+function isDayEnabled(): boolean {
+    const cfg: any = store.get('config') || {};
+    const today = new Date().getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    
+    const dayConfigs = [
+        cfg.AUTO_DAYS_SUNDAY,    // 0 = Domingo
+        cfg.AUTO_DAYS_MONDAY,    // 1 = Lunes
+        cfg.AUTO_DAYS_TUESDAY,   // 2 = Martes
+        cfg.AUTO_DAYS_WEDNESDAY, // 3 = Miércoles
+        cfg.AUTO_DAYS_THURSDAY,  // 4 = Jueves
+        cfg.AUTO_DAYS_FRIDAY,    // 5 = Viernes
+        cfg.AUTO_DAYS_SATURDAY   // 6 = Sábado
+    ];
+    
+    return dayConfigs[today] !== false;
+}
+```
+
+#### 2.3 Contador Regresivo en Bucle
+```typescript
+function startCountdown(seconds: number) {
+    remainingSeconds = seconds;
+    if (countdownTimer) clearInterval(countdownTimer);
+    
+    countdownTimer = setInterval(() => {
+        remainingSeconds--;
+        if (remainingSeconds <= 0) {
+            // Reiniciar el countdown con los segundos configurados
+            remainingSeconds = seconds;
+        }
+        // Notificar a la UI el tiempo restante
+        if (mainWindow) {
+            mainWindow.webContents.send('auto-timer-update', { 
+                remaining: remainingSeconds,
+                configured: seconds
+            });
+        }
+    }, 1000);
+}
+```
+
+### 3. COMUNICACIÓN IPC MEJORADA
+
+#### 3.1 Nuevos Handlers IPC
+```typescript
+// Pausar/Reanudar automatización
+ipcMain.handle('auto-pause', async () => { /* lógica */ });
+ipcMain.handle('auto-resume', async () => { /* lógica */ });
+
+// Obtener información del timer
+ipcMain.handle('auto-get-timer', async () => { /* lógica */ });
+
+// Actualizaciones del timer en tiempo real
+mainWindow.webContents.send('auto-timer-update', { remaining, configured });
+```
+
+#### 3.2 Bridge Preload Actualizado
+```typescript
+contextBridge.exposeInMainWorld('api', {
+    // ... funciones existentes ...
+    async pauseAuto() { return await ipcRenderer.invoke('auto-pause'); },
+    async resumeAuto() { return await ipcRenderer.invoke('auto-resume'); },
+    async getAutoTimer() { return await ipcRenderer.invoke('auto-get-timer'); },
+    onAutoTimerUpdate(callback: (payload: any) => void) {
+        ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
+    },
+});
+```
+
+---
+
 ## FLUJO DE DATOS
 
 ### 1. PROCESO PRINCIPAL
@@ -131,7 +250,21 @@ graph TD
     G --> H[Logs]
 ```
 
-### 2. DETALLE DE CONSULTA
+### 2. FLUJO DE AUTOMATIZACIÓN
+
+```mermaid
+graph TD
+    A[Timer llega a 0] --> B{¿Día habilitado?}
+    B -->|Sí| C[Ejecutar proceso automático]
+    B -->|No| D[Enviar mensaje: día no habilitado]
+    C --> E[Reiniciar countdown]
+    D --> E
+    E --> F[Actualizar UI]
+    F --> G[Esperar próximo intervalo]
+    G --> A
+```
+
+### 3. DETALLE DE CONSULTA
 
 ```typescript
 // 1. Construcción de filtros
@@ -153,7 +286,7 @@ for (let page = 0; page < maxPages; page++) {
 }
 ```
 
-### 3. TRANSFORMACIÓN DE DATOS
+### 4. TRANSFORMACIÓN DE DATOS
 
 ```typescript
 // Normalización de pagos
@@ -225,7 +358,8 @@ const detailed = payments.map(payment => ({
   - Botón de descarga principal
   - Vista de tabla de transacciones
   - Logs en tiempo real
-  - Indicador de modo automático
+  - **Botón dinámico automático** con contador regresivo
+  - **Indicador de día habilitado/deshabilitado**
 
 ### 2. Modo Configuración
 - **Propósito:** Configuración completa del sistema
@@ -235,6 +369,7 @@ const detailed = payments.map(payment => ({
   - Configuración de fechas
   - Configuración de email
   - Configuración FTP
+  - **Selector de días de la semana**
   - Configuración de logs
 
 ### 3. Características de UI
@@ -242,6 +377,7 @@ const detailed = payments.map(payment => ({
 - **Tema:** Dark mode (slate-800)
 - **Responsive:** Adaptable a diferentes tamaños
 - **Accesibilidad:** Navegación por teclado
+- **Espaciado Mejorado:** 80px de margen inferior para separar contenido del footer
 
 ---
 
@@ -314,6 +450,8 @@ npx electron-builder -w
 - Tiempo de ejecución
 - Errores de API
 - Estado de envío de emails
+- **Estado de automatización (activo/pausado)**
+- **Días habilitados para ejecución**
 
 ### 3. Troubleshooting
 ```bash
@@ -325,6 +463,9 @@ tail -f logs/$(date +%Y-%m-%d).log
 
 # Diagnóstico sin filtros
 MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
+
+# Verificar estado de automatización
+# Revisar logs para mensajes de "día no habilitado"
 ```
 
 ---
@@ -340,11 +481,39 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - Verificación de tokens de acceso
 - Validación de formatos de fecha
 - Sanitización de datos de entrada
+- **Validación de días habilitados**
 
 ### 3. Permisos
 - Acceso limitado a directorios específicos
 - Validación de rutas de archivos
 - Control de acceso a APIs externas
+
+---
+
+## ESTRUCTURA DE CONFIGURACIÓN
+
+### 1. Configuración de Automatización
+```json
+{
+  "AUTO_INTERVAL_SECONDS": 3600,
+  "AUTO_DAYS_MONDAY": true,
+  "AUTO_DAYS_TUESDAY": true,
+  "AUTO_DAYS_WEDNESDAY": true,
+  "AUTO_DAYS_THURSDAY": true,
+  "AUTO_DAYS_FRIDAY": true,
+  "AUTO_DAYS_SATURDAY": false,
+  "AUTO_DAYS_SUNDAY": false
+}
+```
+
+### 2. Mapeo de Días
+- **0 (Domingo):** `AUTO_DAYS_SUNDAY`
+- **1 (Lunes):** `AUTO_DAYS_MONDAY`
+- **2 (Martes):** `AUTO_DAYS_TUESDAY`
+- **3 (Miércoles):** `AUTO_DAYS_WEDNESDAY`
+- **4 (Jueves):** `AUTO_DAYS_THURSDAY`
+- **5 (Viernes):** `AUTO_DAYS_FRIDAY`
+- **6 (Sábado):** `AUTO_DAYS_SATURDAY`
 
 ---
 
@@ -356,12 +525,16 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - [ ] Webhooks para notificaciones
 - [ ] Exportación a PDF
 - [ ] Dashboards interactivos
+- [ ] **Configuración de horarios específicos por día**
+- [ ] **Notificaciones push para eventos automáticos**
 
 ### 2. Mejoras Técnicas
 - [ ] Migración a TypeScript strict mode
 - [ ] Implementación de tests unitarios
 - [ ] Optimización de consultas API
 - [ ] Sistema de métricas avanzado
+- [ ] **Optimización del contador regresivo**
+- [ ] **Persistencia mejorada del estado de pausa**
 
 ### 3. Integraciones
 - [ ] APIs de contabilidad
@@ -376,6 +549,7 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - **API Rate Limits:** Máximo 100 páginas por consulta
 - **Zona Horaria:** Requiere configuración explícita
 - **Tamaño de Archivos:** Limitado por memoria disponible
+- **Contador Regresivo:** Sincronización con reloj del sistema
 
 ### 2. Dependencias Críticas
 - `mercadopago`: SDK oficial (v2.8.0)
@@ -394,11 +568,19 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 
 El proyecto MP implementa una solución robusta para la generación automatizada de reportes de Mercado Pago, combinando la flexibilidad de una aplicación de escritorio con la eficiencia de scripts CLI. La arquitectura modular permite fácil mantenimiento y extensión, mientras que las múltiples opciones de configuración se adaptan a diferentes necesidades operativas.
 
+**Nuevas Funcionalidades Clave:**
+- **Sistema de automatización avanzado** con control granular por días de la semana
+- **Botón dinámico con contador regresivo** para control intuitivo del modo automático
+- **Persistencia de estado** que mantiene la configuración entre sesiones
+- **Feedback visual mejorado** con indicadores de estado claros y concisos
+
 **Puntos Clave:**
 - Integración completa con API oficial de Mercado Pago
 - Generación de múltiples formatos de reporte
 - Interfaz dual (GUI + CLI) para diferentes casos de uso
 - Sistema de configuración flexible y seguro
 - Logs detallados para monitoreo y troubleshooting
+- **Control granular de automatización por días de la semana**
+- **Interfaz intuitiva para pausar/reanudar procesos automáticos**
 
-El código está estructurado para facilitar la comprensión y mantenimiento por parte de otros desarrolladores, con documentación inline y separación clara de responsabilidades.
+El código está estructurado para facilitar la comprensión y mantenimiento por parte de otros desarrolladores, con documentación inline y separación clara de responsabilidades. Las nuevas funcionalidades de automatización proporcionan un control total sobre cuándo y cómo se ejecutan los procesos automáticos, mejorando significativamente la experiencia del usuario.

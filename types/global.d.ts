@@ -23,6 +23,17 @@ declare global {
 			openView(view: 'config' | 'caja'): Promise<any>;
 			setWindowSize(width: number, height: number): Promise<any>;
 		};
+		auth: {
+			isInitialized(): Promise<boolean>;
+			getPolicy(): Promise<any>;
+			setup(data: { username: string; password: string; secretPhrase: string }): Promise<void>;
+			login(creds: { username: string; password: string }): Promise<{ ok: boolean; reason?: string; unlockAt?: number }>;
+			change(data: { current: string; newPw: string; newUser?: string; newSecret?: string }): Promise<void>;
+			requestOtp(): Promise<{ masked: string; ttl: number }>;
+			resetByOtp(data: { otp: string; newPw: string }): Promise<void>;
+			resetBySecret(data: { secretPhrase: string; newPw: string; newUser?: string }): Promise<void>;
+			openConfig(): Promise<any>;
+		};
 	}
 }
 

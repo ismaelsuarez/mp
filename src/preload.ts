@@ -68,3 +68,34 @@ contextBridge.exposeInMainWorld('api', {
 		return await ipcRenderer.invoke('set-window-size', { width, height });
 	}
 });
+
+// Exponer funciones de autenticación
+contextBridge.exposeInMainWorld('auth', {
+	async isInitialized() {
+		return await ipcRenderer.invoke('auth:is-initialized');
+	},
+	async getPolicy() {
+		return await ipcRenderer.invoke('auth:get-policy');
+	},
+	async setup(data: { username: string; password: string; secretPhrase: string }) {
+		return await ipcRenderer.invoke('auth:setup', data);
+	},
+	async login(creds: { username: string; password: string }) {
+		return await ipcRenderer.invoke('auth:login', creds);
+	},
+	async change(data: { current: string; newPw: string; newUser?: string; newSecret?: string }) {
+		return await ipcRenderer.invoke('auth:change', data);
+	},
+	async requestOtp() {
+		return await ipcRenderer.invoke('auth:request-otp');
+	},
+	async resetByOtp(data: { otp: string; newPw: string }) {
+		return await ipcRenderer.invoke('auth:reset-by-otp', data);
+	},
+	async resetBySecret(data: { secretPhrase: string; newPw: string; newUser?: string }) {
+		return await ipcRenderer.invoke('auth:reset-by-secret', data);
+	},
+	async openConfig() {
+		return await ipcRenderer.invoke('auth:open-config');
+	}
+});

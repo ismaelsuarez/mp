@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-gray-900">
+<head>
+  <meta charset="UTF-8">
+  <title>Acceso Administrador</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="h-full flex items-center justify-center text-white">
+
+<div id="app" class="w-full max-w-md p-6 bg-gray-800 rounded-xl shadow-lg space-y-4">
+
+  <!-- HEADER -->
+  <div class="text-center">
+    <h1 id="form-title" class="text-2xl font-bold">Modo Administrador</h1>
+    <p id="form-subtitle" class="text-gray-400 text-sm">Ingrese sus credenciales</p>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <form id="login-form" class="space-y-4">
+    <input type="text" id="login-user" placeholder="Usuario"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring focus:border-blue-400">
+    <input type="password" id="login-pass" placeholder="Contraseña"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:ring focus:border-blue-400">
+    <button type="submit" class="w-full py-2 bg-blue-600 rounded hover:bg-blue-700 font-semibold">Ingresar</button>
+    <div class="text-sm text-center">
+      <a href="#" id="forgot-link" class="text-blue-400 hover:underline">¿Olvidaste tu contraseña?</a>
+    </div>
+  </form>
+
+  <!-- SETUP FORM -->
+  <form id="setup-form" class="space-y-4 hidden">
+    <input type="text" id="setup-user" placeholder="Nuevo usuario"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <input type="password" id="setup-pass" placeholder="Nueva contraseña"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <input type="text" id="setup-secret" placeholder="Frase secreta (recuperación)"
+           class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+    <button type="submit" class="w-full py-2 bg-green-600 rounded hover:bg-green-700 font-semibold">Crear Admin</button>
+  </form>
+
+  <!-- RECOVERY FORM -->
+  <div id="recovery-form" class="hidden space-y-4">
+    <div class="flex space-x-2 justify-center mb-4">
+      <button id="tab-secret" class="px-3 py-1 bg-blue-600 rounded">Frase Secreta</button>
+      <button id="tab-email" class="px-3 py-1 bg-gray-700 rounded">Email OTP</button>
+    </div>
+
+    <!-- SECRET -->
+    <div id="rec-secret" class="space-y-3">
+      <input type="text" id="rec-secret-input" placeholder="Frase secreta"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <input type="password" id="rec-secret-newpass" placeholder="Nueva contraseña"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <button id="btn-secret-reset" class="w-full py-2 bg-green-600 rounded">Resetear</button>
+    </div>
+
+    <!-- EMAIL -->
+    <div id="rec-email" class="hidden space-y-3">
+      <button id="btn-send-otp" class="w-full py-2 bg-blue-600 rounded">Enviar código al email</button>
+      <input type="text" id="rec-email-otp" placeholder="Código recibido"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <input type="password" id="rec-email-newpass" placeholder="Nueva contraseña"
+             class="w-full px-3 py-2 rounded bg-gray-700 border border-gray-600">
+      <button id="btn-email-reset" class="w-full py-2 bg-green-600 rounded">Resetear</button>
+    </div>
+
+    <div class="text-sm text-center">
+      <a href="#" id="back-login" class="text-blue-400 hover:underline">Volver al login</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(async () => {
+  const loginForm = document.getElementById('login-form');
+  const setupForm = document.getElementById('setup-form');
+  const recoveryForm = document.getElementById('recovery-form');
+  const title = document.getElementById('form-title');
+  const subtitle = document.getElementById('form-subtitle');
+
+  const isInit = await window.auth.isInitialized();
+  if (!isInit) {
+    loginForm.classList.add('hidden');
+    setupForm.classList.remove('hidden');
+    title.textContent = 'Configurar Administrador';
+    subtitle.textContent = 'Cree el usuario y contraseña';
+  }
+
+  loginForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const u = document.getElementById('login-user').value.trim();
+    const p = document.getElementById('login-pass').value.trim();
+    const res = await window.auth.login({ username: u, password: p });
+    if (res.ok) {
+      await window.auth.openConfig();
+    } else {
+      alert('Error: ' + res.reason);
+    }
+  });
+
+  setupForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const u = document.getElementById('setup-user').value.trim();
+    const p = document.getElementById('setup-pass').value.trim();
+    const s = document.getElementById('setup-secret').value.trim();
+    try {
+      await window.auth.setup({ username: u, password: p, secretPhrase: s });
+      alert('Administrador creado. Ahora puede iniciar sesión.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  // Recuperación
+  document.getElementById('forgot-link').addEventListener('click', e => {
+    e.preventDefault();
+    loginForm.classList.add('hidden');
+    recoveryForm.classList.remove('hidden');
+    title.textContent = 'Recuperar Acceso';
+    subtitle.textContent = '';
+  });
+
+  document.getElementById('back-login').addEventListener('click', e => {
+    e.preventDefault();
+    recoveryForm.classList.add('hidden');
+    loginForm.classList.remove('hidden');
+    title.textContent = 'Modo Administrador';
+    subtitle.textContent = 'Ingrese sus credenciales';
+  });
+
+  // Tabs
+  document.getElementById('tab-secret').addEventListener('click', () => {
+    document.getElementById('rec-secret').classList.remove('hidden');
+    document.getElementById('rec-email').classList.add('hidden');
+  });
+  document.getElementById('tab-email').addEventListener('click', () => {
+    document.getElementById('rec-secret').classList.add('hidden');
+    document.getElementById('rec-email').classList.remove('hidden');
+  });
+
+  // Reset por frase
+  document.getElementById('btn-secret-reset').addEventListener('click', async () => {
+    const s = document.getElementById('rec-secret-input').value.trim();
+    const np = document.getElementById('rec-secret-newpass').value.trim();
+    try {
+      await window.auth.resetBySecret({ secretPhrase: s, newPw: np });
+      alert('Contraseña cambiada.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  // Email OTP
+  document.getElementById('btn-send-otp').addEventListener('click', async () => {
+    try {
+      const res = await window.auth.requestOtp();
+      alert('Código enviado a: ' + res.masked);
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+  document.getElementById('btn-email-reset').addEventListener('click', async () => {
+    const otp = document.getElementById('rec-email-otp').value.trim();
+    const np = document.getElementById('rec-email-newpass').value.trim();
+    try {
+      await window.auth.resetByOtp({ otp, newPw: np });
+      alert('Contraseña cambiada.');
+      window.location.reload();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

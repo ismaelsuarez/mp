@@ -9,6 +9,8 @@ import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { appendLogLine, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
+import { AuthService } from './services/AuthService';
+import { OtpService } from './services/OtpService';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -212,33 +214,48 @@ app.whenReady().then(() => {
 
 	// Abrir vistas (config/caja)
 	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja') => {
-		const file = view === 'caja' ? 'caja.html' : 'config.html';
-		console.log('[main] open-view →', view, '->', file);
-		if (mainWindow) {
-			const target = path.join(app.getAppPath(), 'public', file);
-			console.log('[main] loading file:', target);
-			// Ajustar tamaño según vista
-			try {
-				if (view === 'caja') {
+		console.log('[main] open-view →', view);
+		
+		if (view === 'config') {
+			// Para config, siempre abrir auth.html primero
+			const authFile = 'auth.html';
+			console.log('[main] config requested → loading auth.html');
+			if (mainWindow) {
+				const target = path.join(app.getAppPath(), 'public', authFile);
+				console.log('[main] loading auth file:', target);
+				// Ajustar tamaño para auth
+				try {
+					mainWindow.setMinimumSize(500, 400);
+					mainWindow.setSize(500, 400);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
+				} catch {}
+				await mainWindow.loadFile(target);
+				console.log('[main] auth.html loaded');
+				return { ok: true };
+			}
+		} else {
+			// Para caja, abrir directamente
+			const file = 'caja.html';
+			console.log('[main] caja requested → loading caja.html');
+			if (mainWindow) {
+				const target = path.join(app.getAppPath(), 'public', file);
+				console.log('[main] loading file:', target);
+				// Ajustar tamaño según vista
+				try {
 					mainWindow.setMinimumSize(420, 320);
 					mainWindow.setSize(420, 320);
 					mainWindow.setMenuBarVisibility(false);
 					mainWindow.setAutoHideMenuBar(true);
 					try { mainWindow.center(); } catch {}
-				} else {
-					mainWindow.setMinimumSize(900, 600);
-					mainWindow.setSize(1200, 768);
-					// Ocultar menú en Configuración
-					mainWindow.setMenuBarVisibility(false);
-					mainWindow.setAutoHideMenuBar(true);
-					// Centrar la ventana al abrir Configuración
-					try { mainWindow.center(); } catch {}
-				}
-			} catch {}
-			await mainWindow.loadFile(target);
-			console.log('[main] loadFile done');
-			return { ok: true };
+				} catch {}
+				await mainWindow.loadFile(target);
+				console.log('[main] loadFile done');
+				return { ok: true };
+			}
 		}
+		
 		console.warn('[main] open-view: no mainWindow');
 		return { ok: false };
 	});
@@ -454,6 +471,108 @@ app.whenReady().then(() => {
 			startAutoTimer().catch(()=>{});
 		}
 	}
+
+	// ===== HANDLERS DE AUTENTICACIÓN =====
+	
+	// Verificar si el sistema está inicializado
+	ipcMain.handle('auth:is-initialized', () => {
+		return AuthService.isInitialized();
+	});
+
+	// Obtener política de contraseñas
+	ipcMain.handle('auth:get-policy', () => {
+		return AuthService.policy();
+	});
+
+	// Configurar administrador inicial
+	ipcMain.handle('auth:setup', async (_e, { username, password, secretPhrase }) => {
+		try {
+			await AuthService.setup(username, password, secretPhrase);
+			return { ok: true };
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en setup: ${error.message}`);
+			throw error;
+		}
+	});
+
+	// Login
+	ipcMain.handle('auth:login', async (_e, { username, password }) => {
+		try {
+			const result = await AuthService.login(username, password);
+			return result;
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en login: ${error.message}`);
+			return { ok: false, reason: 'error' };
+		}
+	});
+
+	// Cambiar contraseña
+	ipcMain.handle('auth:change', async (_e, { current, newPw, newUser, newSecret }) => {
+		try {
+			await AuthService.changePassword(current, newPw, newUser, newSecret);
+			return { ok: true };
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en change: ${error.message}`);
+			throw error;
+		}
+	});
+
+	// Reset por frase secreta
+	ipcMain.handle('auth:reset-by-secret', async (_e, { secretPhrase, newPw, newUser }) => {
+		try {
+			await AuthService.resetBySecret(secretPhrase, newPw, newUser);
+			return { ok: true };
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en reset-by-secret: ${error.message}`);
+			throw error;
+		}
+	});
+
+	// Solicitar OTP
+	ipcMain.handle('auth:request-otp', async () => {
+		try {
+			const cfg: any = store.get('config') || {};
+			const email = cfg.EMAIL_REPORT;
+			if (!email) throw new Error('no_email');
+			
+			return OtpService.createAndSend(email);
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en request-otp: ${error.message}`);
+			throw error;
+		}
+	});
+
+	// Reset por OTP
+	ipcMain.handle('auth:reset-by-otp', async (_e, { otp, newPw, newUser }) => {
+		try {
+			if (!OtpService.validate(otp)) throw new Error('invalid_otp');
+			await AuthService.resetByOtp(newPw, newUser);
+			return { ok: true };
+		} catch (error: any) {
+			appendLogLine('AUTH', `Error en reset-by-otp: ${error.message}`);
+			throw error;
+		}
+	});
+
+	// Abrir config.html después del login exitoso
+	ipcMain.handle('auth:open-config', async () => {
+		if (mainWindow) {
+			const target = path.join(app.getAppPath(), 'public', 'config.html');
+			console.log('[main] auth successful → loading config.html');
+			// Ajustar tamaño para config
+			try {
+				mainWindow.setMinimumSize(900, 600);
+				mainWindow.setSize(1200, 768);
+				mainWindow.setMenuBarVisibility(false);
+				mainWindow.setAutoHideMenuBar(true);
+				try { mainWindow.center(); } catch {}
+			} catch {}
+			await mainWindow.loadFile(target);
+			console.log('[main] config.html loaded');
+			return { ok: true };
+		}
+		return { ok: false };
+	});
 
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
