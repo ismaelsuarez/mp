@@ -15,8 +15,8 @@ function computeSerial(nombreCliente: string, palabraSecreta: string): string {
 	const cleanSecret = String(palabraSecreta || '').trim();
 	const data = `${cleanName}:${cleanSecret}`;
 	const mac = crypto.createHmac('sha256', HMAC_MASTER_KEY).update(data).digest('hex').toUpperCase();
-	const short16 = mac.slice(0, 16);
-	return short16.match(/.{1,4}/g)?.join('-') || short16;
+	const first20 = mac.slice(0, 20);
+	return first20.match(/.{1,4}/g)?.join('-') || first20;
 }
 
 export function validarSerial(nombreCliente: string, palabraSecreta: string, serial: string): boolean {

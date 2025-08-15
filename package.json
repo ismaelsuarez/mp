@@ -10,6 +10,7 @@
   "main": "dist/src/main.js",
   "scripts": {
     "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
+    "prebuild": "node scripts/copy-manual.js",
     "build": "npm run build:ts && electron-builder -w",
     "build:windows": "node scripts/build-windows.js",
     "build:ts": "tsc -p tsconfig.json",
