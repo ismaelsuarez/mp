@@ -2,7 +2,7 @@
 import Store from 'electron-store';
 import crypto from 'crypto';
 import { sendReportEmail } from './EmailService';
-import { appendLogLine } from './LogService';
+import { logAuth, logSuccess } from './LogService';
 
 const store = new Store<{ otp?: { code: string, expiresAt: number, masked: string } }>();
 
@@ -20,7 +20,7 @@ export const OtpService = {
       []
     );
     
-    appendLogLine(`AUTH: OTP enviado a: ${masked}`);
+    logAuth('OTP enviado exitosamente', { email: masked });
     return { masked, ttl: 600 };
   },
   
@@ -29,9 +29,9 @@ export const OtpService = {
     const ok = otp && otp.code === code && Date.now() < otp.expiresAt;
     if (ok) {
       store.delete('otp');
-      appendLogLine('AUTH: OTP validado correctamente');
+      logSuccess('OTP validado correctamente');
     } else {
-      appendLogLine('AUTH: OTP inválido o expirado');
+      logAuth('OTP inválido o expirado');
     }
     return Boolean(ok);
   }

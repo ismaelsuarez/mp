@@ -1,7 +1,7 @@
 // src/services/AuthService.ts
 import Store from 'electron-store';
 import argon2 from 'argon2';
-import { appendLogLine } from './LogService';
+import { logAuth, logSuccess, logWarning } from './LogService';
 
 type AuthState = {
   username?: string;
@@ -44,7 +44,7 @@ export const AuthService = {
     store.set('auth', { username, passwordHash, secretPhraseHash, failedCount: 0, lockedUntil: 0 });
     
     // Log de auditoría
-    appendLogLine(`AUTH: Administrador creado: ${username}`);
+    logAuth('Administrador configurado exitosamente', { username });
   },
 
   async login(username: string, password: string) {
@@ -53,7 +53,7 @@ export const AuthService = {
     const now = Date.now();
     
     if (a.lockedUntil && now < a.lockedUntil) {
-      appendLogLine(`AUTH: Intento de login bloqueado - cuenta temporalmente suspendida`);
+      logWarning('Intento de login bloqueado - cuenta temporalmente suspendida');
       return { ok: false, reason: 'locked', unlockAt: a.lockedUntil };
     }
     
@@ -68,13 +68,13 @@ export const AuthService = {
       store.set('auth', { ...a, failedCount: lock ? 0 : failed, lockedUntil: lock || 0 });
       
       // Log de auditoría sin datos sensibles
-      appendLogLine(`AUTH: Login fallido - intento ${failed}/${POLICY.maxAttempts}${lock ? ' - CUENTA BLOQUEADA' : ''}`);
+      logWarning(`Login fallido - intento ${failed}/${POLICY.maxAttempts}${lock ? ' - CUENTA BLOQUEADA' : ''}`);
       
       return { ok: false, reason: lock ? 'locked' : 'invalid' };
     }
     
     store.set('auth', { ...a, failedCount: 0, lockedUntil: 0 });
-    appendLogLine(`AUTH: Login exitoso: ${username}`);
+    logSuccess(`Login exitoso`, { username });
     return { ok: true };
   },
 
@@ -98,7 +98,7 @@ export const AuthService = {
       secretPhraseHash
     });
     
-    appendLogLine(`AUTH: Contraseña cambiada${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
+    logAuth(`Contraseña cambiada exitosamente${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
   },
 
   async resetBySecret(secretPhrase: string, newPw: string, newUsername?: string) {
@@ -112,7 +112,7 @@ export const AuthService = {
     const passwordHash = await argon2.hash(newPw, { type: argon2.argon2id });
     store.set('auth', { ...a, username: newUsername || a.username, passwordHash });
     
-    appendLogLine(`AUTH: Contraseña reseteada por frase secreta${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
+    logAuth(`Contraseña reseteada por frase secreta${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
   },
 
   async resetByOtp(newPw: string, newUsername?: string) {
@@ -123,7 +123,7 @@ export const AuthService = {
     const passwordHash = await argon2.hash(newPw, { type: argon2.argon2id });
     store.set('auth', { ...a, username: newUsername || a.username, passwordHash });
     
-    appendLogLine(`AUTH: Contraseña reseteada por OTP${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
+    logAuth(`Contraseña reseteada por OTP${newUsername ? ` - nuevo usuario: ${newUsername}` : ''}`);
   }
 };
 

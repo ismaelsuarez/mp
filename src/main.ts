@@ -8,7 +8,7 @@ import { searchPaymentsWithConfig, testConnection } from './services/MercadoPago
 import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
-import { appendLogLine, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
+import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
 
@@ -131,12 +131,12 @@ app.whenReady().then(() => {
 
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
-		appendLogLine('generate-report invoked');
+		logInfo('Reporte manual solicitado');
 		try {
 			const { payments, range } = await searchPaymentsWithConfig();
 			const tag = new Date().toISOString().slice(0, 10);
 			const result = await generateFiles(payments as any[], tag, range);
-			appendLogLine('files-generated', { files: (result as any)?.files, count: (payments as any[])?.length });
+			logSuccess('Archivos generados exitosamente', { files: (result as any)?.files, count: (payments as any[])?.length });
 			// Auto-enviar mp.dbf vía FTP si está configurado
 			try {
 				const mpPath = (result as any)?.files?.mpDbfPath;
@@ -172,7 +172,7 @@ app.whenReady().then(() => {
 				if (mainWindow) {
 					mainWindow.webContents.send('auto-report-notice', { error: userMessage });
 				}
-				appendLogLine('ERROR', userMessage);
+				logError('Error de configuración Mercado Pago', { message: userMessage });
 				throw new Error(userMessage);
 			} else {
 				// Para otros errores, mantener el comportamiento original
@@ -476,7 +476,7 @@ app.whenReady().then(() => {
 					if (mainWindow) {
 						mainWindow.webContents.send('auto-report-notice', { error: userMessage });
 					}
-					appendLogLine('ERROR', userMessage);
+					logError('Error de configuración Mercado Pago', { message: userMessage });
 				} else {
 					// Para otros errores, mantener el comportamiento original
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
@@ -583,7 +583,7 @@ app.whenReady().then(() => {
 			await AuthService.setup(username, password, secretPhrase);
 			return { ok: true };
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en setup: ${error.message}`);
+			logAuth('Error en configuración inicial', { error: error.message });
 			throw error;
 		}
 	});
@@ -594,7 +594,7 @@ app.whenReady().then(() => {
 			const result = await AuthService.login(username, password);
 			return result;
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en login: ${error.message}`);
+			logAuth('Error en inicio de sesión', { error: error.message });
 			return { ok: false, reason: 'error' };
 		}
 	});
@@ -605,7 +605,7 @@ app.whenReady().then(() => {
 			await AuthService.changePassword(current, newPw, newUser, newSecret);
 			return { ok: true };
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en change: ${error.message}`);
+			logAuth('Error en cambio de contraseña', { error: error.message });
 			throw error;
 		}
 	});
@@ -616,7 +616,7 @@ app.whenReady().then(() => {
 			await AuthService.resetBySecret(secretPhrase, newPw, newUser);
 			return { ok: true };
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en reset-by-secret: ${error.message}`);
+			logAuth('Error en reset por frase secreta', { error: error.message });
 			throw error;
 		}
 	});
@@ -630,7 +630,7 @@ app.whenReady().then(() => {
 			
 			return OtpService.createAndSend(email);
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en request-otp: ${error.message}`);
+			logAuth('Error en solicitud de OTP', { error: error.message });
 			throw error;
 		}
 	});
@@ -642,7 +642,7 @@ app.whenReady().then(() => {
 			await AuthService.resetByOtp(newPw, newUser);
 			return { ok: true };
 		} catch (error: any) {
-			appendLogLine('AUTH', `Error en reset-by-otp: ${error.message}`);
+			logAuth('Error en reset por OTP', { error: error.message });
 			throw error;
 		}
 	});

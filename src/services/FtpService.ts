@@ -5,6 +5,7 @@ import Store from 'electron-store';
 import dayjs from 'dayjs';
 import { Client } from 'basic-ftp';
 import crypto from 'crypto';
+import { logFtp, logSuccess, logWarning } from './LogService';
 
 function getEncryptionKey(): string | undefined {
 	try {
@@ -54,7 +55,7 @@ function saveLastSentHash(hash: string): void {
 export function clearLastSentHash(): void {
     const store = new Store<{ config?: any; lastMpDbfHash?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
     store.delete('lastMpDbfHash');
-    console.log('[FtpService] Hash del último archivo enviado limpiado');
+    logFtp('Hash del último archivo enviado limpiado');
 }
 
 // Función para verificar si el archivo ha cambiado
@@ -140,7 +141,7 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	// Verificar si el archivo ha cambiado antes de enviar
 	const fileChanged = hasFileChanged(localPath);
 	if (!fileChanged) {
-		console.log('[FtpService] Archivo mp.dbf sin cambios - omitiendo envío FTP');
+		    logFtp('Archivo mp.dbf sin cambios - omitiendo envío FTP');
 		return { 
 			remoteDir: normalizeDir(cfg.FTP_DIR) || '/', 
 			remoteFile: remoteFileName.toLowerCase(),
@@ -149,7 +150,7 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 		};
 	}
 	
-	console.log('[FtpService] Archivo mp.dbf con cambios - enviando por FTP...');
+	logFtp('Archivo mp.dbf con cambios - enviando por FTP...');
 	
     const client = new Client();
 	try {

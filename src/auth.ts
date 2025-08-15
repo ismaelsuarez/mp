@@ -1,5 +1,5 @@
 // src/auth.ts - Renderer process para auth.html
-import { appendLogLine } from './services/LogService';
+import { logSystem } from './services/LogService';
 
 // Tipos para window.auth
 declare global {
@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('form-subtitle')!.textContent = 'Cree el usuario y contraseña';
     }
     
-    appendLogLine('AUTH: Interfaz de autenticación cargada');
+    logSystem('Interfaz de autenticación cargada');
     
   } catch (error) {
     console.error('Error al inicializar auth:', error);
