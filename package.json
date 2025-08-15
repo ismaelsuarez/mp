@@ -10,7 +10,8 @@
   "main": "dist/src/main.js",
   "scripts": {
     "start": "npm run build:ts && electron .",
-    "build": "electron-builder -w",
+    "build": "npm run build:ts && electron-builder -w",
+    "build:windows": "node scripts/build-windows.js",
     "build:ts": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write .",
@@ -25,8 +26,8 @@
     "appId": "com.todo.tc-mp",
     "productName": "Tc-Mp",
     "artifactName": "Tc-Mp ver.${version}.${ext}",
-    "asar": true,
-    "compression": "maximum",
+    "asar": false,
+    "compression": "store",
     "files": [
       "src/**/*",
       "public/**/*",
@@ -39,7 +40,8 @@
     },
     "win": {
       "target": [
-        "nsis"
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
       "publisherName": "TODO-Computacion",
       "requestedExecutionLevel": "asInvoker",
@@ -47,9 +49,9 @@
       "verifyUpdateCodeSignature": false
     },
     "nsis": {
-      "oneClick": true,
-      "allowToChangeInstallationDirectory": false,
-      "perMachine": false,
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
       "include": "build/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true

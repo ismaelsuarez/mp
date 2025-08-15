@@ -1,67 +1,76 @@
-# Tc‑Mp – Guía rápida para generar el instalador (.exe) en Windows
+# Configuración de Build para Windows
 
-## Requisitos
-- Windows 10/11 x64
-- Node.js 18 o superior (recomendado LTS)
-- Git (para clonar)
+## Configuración Actualizada
 
-## 1) Clonar e instalar dependencias
-```bat
-git clone https://github.com/tu-org/tu-repo.git
-cd tu-repo
-npm install --no-fund --no-audit
-```
+El proyecto está configurado para generar dos versiones de la aplicación:
 
-## 2) Compilar TypeScript
-```bat
-npm run build:ts
-```
+### 1. Instalador NSIS (x64)
+- **Ubicación**: `dist/Tc-Mp ver.1.0.1.exe`
+- **Características**:
+  - Instalación para todos los usuarios (`perMachine: true`)
+  - Opción de cambiar directorio de instalación
+  - Instalación no automática (no one-click)
+  - Crea accesos directos en escritorio y menú inicio
 
-## 3) Generar el instalador para Windows
-- Opción A (usa el script del proyecto; solo Windows):
-```bat
+### 2. Ejecutable Portable (x64)
+- **Ubicación**: `dist/Tc-Mp ver.1.0.1.exe` (con sufijo portable)
+- **Características**:
+  - No requiere instalación
+  - Ejecutable independiente
+  - Ideal para uso en USB o carpetas temporales
+
+## Configuración Técnica
+
+### Sin Compresión Agresiva
+- `"compression": "store"` - Sin compresión para evitar falsos positivos en antivirus
+- No se usa UPX ni otros empaquetadores agresivos
+
+### Sin ASAR
+- `"asar": false` - Los archivos no se empaquetan en formato ASAR
+- Evita falsos positivos en software antivirus
+- Facilita la depuración y mantenimiento
+
+### Arquitectura
+- Solo se genera para x64 (64-bit)
+- Compatible con Windows 10/11
+
+## Comandos de Build
+
+```bash
+# Build completo (TypeScript + Electron Builder)
 npm run build
+
+# Solo compilar TypeScript
+npm run build:ts
+
+# Solo generar ejecutables (requiere TypeScript compilado)
+electron-builder -w
 ```
-- Opción B (comando directo con salida en dist2):
-```bat
-npx --yes electron-builder -w --config.directories.output=dist2 --publish never
-```
 
-Salidas esperadas:
-- dist/Tc-Mp ver.X.Y.Z.exe (opción A)
-- dist2/Tc-Mp ver.X.Y.Z.exe (opción B)
+## Ubicación de Archivos Generados
 
-## Notas importantes
-- PowerShell puede bloquear npm.ps1. Preferí CMD. Si usás PowerShell, antes ejecutá:
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-- El instalador requiere admin y se instala en C:\2_mp, creando:
-  - C:\2_mp\logs (logs diarios: mp-app-YYYY-MM-DD.log)
-  - C:\2_mp\reportes (CSV/XLSX/DBF/JSON)
-- La app empaquetada NO usa .env. La configuración se guarda en:
-  - %APPDATA%\Tc-Mp\settings.json
+Los ejecutables se generan en el directorio `dist/` con los siguientes nombres:
 
-## Actualizar versión e identidad (opcional)
-- Editar package.json:
-  - version: versión de la app.
-  - build.productName, build.artifactName, build.appId: metadatos del instalador.
-- Ícono: colocar build/icon.ico (ideal multires, incluye 256×256).
+- **Instalador NSIS**: `Tc-Mp ver.1.0.1.exe`
+- **Portable**: `Tc-Mp ver.1.0.1.exe` (versión portable)
 
-## Problemas comunes
-- PowerShell bloquea npm: usar CMD o la política temporal (ver arriba).
-- Falla por icono en Linux: en Windows, compilar SOLO Windows (-w).
-- "Application entry file … does not exist": falta compilar TS. Ejecutar npm run build:ts y reintentar.
-- "Break signaled" durante NSIS: algún proceso interrumpió el empaquetado (Ctrl+C, antivirus, etc.).
-  - Solución:
-    ```bat
-    rmdir /s /q dist dist2
-    npm run build:ts
-    npx --yes electron-builder -w --config.directories.output=dist2 --publish never
-    ```
-  - Si persiste, desactivar temporalmente el antivirus o ejecutar CMD como administrador.
+## Configuración NSIS
 
-## Post‑instalación
-- Ejecutar el .exe y configurar en la pestaña Configuración.
-- Botón “Abrir log de hoy” abre el log del día en C:\2_mp\logs.
-- Los reportes (por defecto) usan un rango rodante de N días hacia atrás (configurable), incluyendo el día actual.
+- **Instalación para todos los usuarios**: Sí
+- **Permitir cambiar directorio**: Sí
+- **Instalación automática**: No (requiere interacción del usuario)
+- **Accesos directos**: Escritorio y menú inicio
+
+## Dependencias Incluidas
+
+La configuración mantiene todas las dependencias necesarias:
+- Archivos fuente compilados (`dist/**/*`)
+- Recursos públicos (`public/**/*`)
+- SDK de Mercado Pago (`mp-sdk/**/*`)
+- Archivos de configuración (`package.json`)
+
+## Notas de Seguridad
+
+- No se usa compresión agresiva para evitar detecciones falsas
+- Archivos no empaquetados en ASAR para mayor transparencia
+- Configuración compatible con software antivirus empresarial
