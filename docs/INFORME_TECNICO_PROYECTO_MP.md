@@ -3,7 +3,7 @@
 ## RESUMEN EJECUTIVO
 
 **Proyecto:** Sistema de Reportes de Pagos Mercado Pago  
-**Versión:** 1.0.1  
+**Versión:** 1.0.2  
 **Tecnologías:** TypeScript + Electron + Node.js  
 **Propósito:** Generación automatizada de reportes operativos de ventas desde Mercado Pago
 

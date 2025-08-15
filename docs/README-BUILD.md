@@ -12,7 +12,7 @@ Este proyecto está configurado para generar dos versiones de la aplicación con
 ### 📦 Versiones Generadas
 
 #### 1. Instalador NSIS (x64)
-- **Ubicación**: `dist/Tc-Mp ver.1.0.1.exe`
+- **Ubicación**: `dist/Mi-App-1.0.2.exe`
 - **Características**:
   - Instalación para todos los usuarios (`perMachine: true`)
   - Opción de cambiar directorio de instalación
@@ -20,7 +20,7 @@ Este proyecto está configurado para generar dos versiones de la aplicación con
   - Crea accesos directos en escritorio y menú inicio
 
 #### 2. Ejecutable Portable (x64)
-- **Ubicación**: `dist/Tc-Mp ver.1.0.1.exe` (versión portable)
+- **Ubicación**: `dist/Mi-App-1.0.2.exe` (versión portable)
 - **Características**:
   - No requiere instalación
   - Ejecutable independiente
@@ -55,8 +55,8 @@ npm run build
 
 ### Archivos Generados
 - **Directorio**: `dist/`
-- **Instalador**: `Tc-Mp ver.1.0.1.exe`
-- **Portable**: `Tc-Mp ver.1.0.1.exe` (versión portable)
+- **Instalador**: `Mi-App-1.0.2.exe`
+- **Portable**: `Mi-App-1.0.2.exe` (versión portable)
 
 ## ⚙️ Configuración Técnica
 
@@ -64,8 +64,9 @@ npm run build
 ```json
 {
   "build": {
-    "appId": "com.todo.tc-mp",
-    "productName": "Tc-Mp",
+    "appId": "com.ismael.miapp",
+    "productName": "Mi App",
+    "artifactName": "Mi-App-${version}.${ext}",
     "asar": false,
     "compression": "store",
     "win": {
@@ -78,7 +79,8 @@ npm run build
     "nsis": {
       "oneClick": false,
       "perMachine": true,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "license": "build/LICENSE.txt"
     }
   }
 }
@@ -157,7 +159,7 @@ Para actualizar la versión:
    {
      "version": "1.0.2",
      "build": {
-       "artifactName": "Tc-Mp ver.${version}.${ext}"
+       "artifactName": "Mi-App-${version}.${ext}"
      }
    }
    ```
