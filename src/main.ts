@@ -12,7 +12,7 @@ import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getT
 import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
-import { licenciaExisteYValida, generarSerial, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
+import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -748,12 +748,8 @@ app.whenReady().then(() => {
 		return { ok: licenciaExisteYValida() };
 	});
 
-	ipcMain.handle('license:generate', async (_e, { nombreCliente }: { nombreCliente: string }) => {
-		return { serial: generarSerial(nombreCliente || '') };
-	});
-
-	ipcMain.handle('license:validate', async (_e, { nombreCliente, serial }: { nombreCliente: string; serial: string }) => {
-		return { ok: validarSerial(nombreCliente || '', serial || '') };
+	ipcMain.handle('license:validate', async (_e, { nombreCliente, palabraSecreta, serial }: { nombreCliente: string; palabraSecreta: string; serial: string }) => {
+		return { ok: validarSerial(nombreCliente || '', palabraSecreta || '', serial || '') };
 	});
 
 	ipcMain.handle('license:save', async (_e, { nombreCliente, serial, palabraSecreta }: { nombreCliente: string; serial: string; palabraSecreta: string }) => {

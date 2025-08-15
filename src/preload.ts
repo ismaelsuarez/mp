@@ -124,11 +124,8 @@ contextBridge.exposeInMainWorld('license', {
 	async status() {
 		return await ipcRenderer.invoke('license:status');
 	},
-	async generate(nombreCliente: string) {
-		return await ipcRenderer.invoke('license:generate', { nombreCliente });
-	},
-	async validate(nombreCliente: string, serial: string) {
-		return await ipcRenderer.invoke('license:validate', { nombreCliente, serial });
+	async validate(nombreCliente: string, palabraSecreta: string, serial: string) {
+		return await ipcRenderer.invoke('license:validate', { nombreCliente, palabraSecreta, serial });
 	},
 	async save(payload: { nombreCliente: string; serial: string; palabraSecreta: string }) {
 		return await ipcRenderer.invoke('license:save', payload);
