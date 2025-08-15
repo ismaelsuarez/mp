@@ -49,6 +49,15 @@ declare global {
 			resetBySecret(data: { secretPhrase: string; newPw: string; newUser?: string }): Promise<void>;
 			openConfig(): Promise<any>;
 		};
+		license: {
+			status(): Promise<{ ok: boolean }>;
+			generate(nombreCliente: string): Promise<{ serial: string }>;
+			validate(nombreCliente: string, serial: string): Promise<{ ok: boolean }>;
+			save(payload: { nombreCliente: string; serial: string; palabraSecreta: string }): Promise<{ ok: boolean; error?: string }>;
+			load(): Promise<{ ok: boolean; data?: { nombreCliente: string; serial: string; palabraSecreta: string }; error?: string }>;
+			recover(nombreCliente: string, palabraSecreta: string): Promise<{ ok: boolean; serial?: string; error?: string }>;
+			openHome(): Promise<{ ok: boolean; error?: string }>;
+		};
 	}
 }
 

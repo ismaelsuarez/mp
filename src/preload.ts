@@ -118,3 +118,28 @@ contextBridge.exposeInMainWorld('auth', {
 		return await ipcRenderer.invoke('auth:open-config');
 	}
 });
+
+// Exponer funciones de licencia
+contextBridge.exposeInMainWorld('license', {
+	async status() {
+		return await ipcRenderer.invoke('license:status');
+	},
+	async generate(nombreCliente: string) {
+		return await ipcRenderer.invoke('license:generate', { nombreCliente });
+	},
+	async validate(nombreCliente: string, serial: string) {
+		return await ipcRenderer.invoke('license:validate', { nombreCliente, serial });
+	},
+	async save(payload: { nombreCliente: string; serial: string; palabraSecreta: string }) {
+		return await ipcRenderer.invoke('license:save', payload);
+	},
+	async load() {
+		return await ipcRenderer.invoke('license:load');
+	},
+	async recover(nombreCliente: string, palabraSecreta: string) {
+		return await ipcRenderer.invoke('license:recover', { nombreCliente, palabraSecreta });
+	},
+	async openHome() {
+		return await ipcRenderer.invoke('license:open-home');
+	}
+});

@@ -5,7 +5,7 @@
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
   "homepage": "https://tcmza.com.ar",
-  "license": "UNLICENSED",
+  "license": "LICENSE",
   "type": "commonjs",
   "main": "dist/src/main.js",
   "scripts": {
@@ -23,9 +23,9 @@
     "clean:credentials": "node scripts/clean-credentials.js"
   },
   "build": {
-    "appId": "com.todo.tc-mp",
-    "productName": "Tc-Mp",
-    "artifactName": "Tc-Mp ver.${version}.${ext}",
+    "appId": "com.ismael.miapp",
+    "productName": "Mi App",
+    "artifactName": "Mi-App-${version}.${ext}",
     "asar": false,
     "compression": "store",
     "files": [
@@ -40,7 +40,8 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
       ],
       "publisherName": "TODO-Computacion",
       "requestedExecutionLevel": "asInvoker",
@@ -51,6 +52,7 @@
       "oneClick": false,
       "perMachine": true,
       "allowToChangeInstallationDirectory": true,
+      "license": "build/LICENSE.txt",
       "include": "build/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true

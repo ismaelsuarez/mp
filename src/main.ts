@@ -12,6 +12,7 @@ import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getT
 import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
+import { licenciaExisteYValida, generarSerial, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -47,7 +48,6 @@ function createMainWindow() {
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
 	const cfg: any = store.get('config') || {};
 	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
-	// Siempre preferir iniciar en "caja" (sin forzar ir a configuracion por falta de token)
 	const initialFile = (defaultView ?? 'caja') === 'caja' ? 'caja.html' : 'config.html';
 
 	// Ajustar visibilidad de menú y tamaño acorde a la vista inicial
@@ -88,8 +88,35 @@ function createMainWindow() {
 		}
 	} catch {}
 
-	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
-	mainWindow.loadFile(htmlPath);
+	// Gate de licencia: si no existe/vale, mostrar licencia.html
+	try {
+		const licOk = licenciaExisteYValida();
+		if (!licOk) {
+			const licPath = path.join(app.getAppPath(), 'public', 'licencia.html');
+			// Asegurar tamaño cómodo para el formulario de licencia
+			try {
+				mainWindow.setMinimumSize(700, 760);
+				mainWindow.setSize(800, 820);
+				mainWindow.setMenuBarVisibility(false);
+				mainWindow.setAutoHideMenuBar(true);
+				try { mainWindow.center(); } catch {}
+			} catch {}
+			mainWindow.loadFile(licPath);
+		} else {
+			const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
+			mainWindow.loadFile(htmlPath);
+		}
+	} catch {
+		const licPath = path.join(app.getAppPath(), 'public', 'licencia.html');
+		try {
+			mainWindow.setMinimumSize(700, 760);
+			mainWindow.setSize(800, 820);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+			try { mainWindow.center(); } catch {}
+		} catch {}
+		mainWindow.loadFile(licPath);
+	}
 
 	// Guardar posición de la ventana cuando se mueve (solo para modo caja)
 	mainWindow.on('moved', () => {
@@ -712,6 +739,63 @@ app.whenReady().then(() => {
 		} catch (error: any) {
 			logError('Error al resetear notificaciones', { error: error.message });
 			return { ok: false, error: error.message };
+		}
+	});
+
+	// ===== HANDLERS DE LICENCIA =====
+
+	ipcMain.handle('license:status', async () => {
+		return { ok: licenciaExisteYValida() };
+	});
+
+	ipcMain.handle('license:generate', async (_e, { nombreCliente }: { nombreCliente: string }) => {
+		return { serial: generarSerial(nombreCliente || '') };
+	});
+
+	ipcMain.handle('license:validate', async (_e, { nombreCliente, serial }: { nombreCliente: string; serial: string }) => {
+		return { ok: validarSerial(nombreCliente || '', serial || '') };
+	});
+
+	ipcMain.handle('license:save', async (_e, { nombreCliente, serial, palabraSecreta }: { nombreCliente: string; serial: string; palabraSecreta: string }) => {
+		return guardarLicencia(nombreCliente, serial, palabraSecreta);
+	});
+
+	ipcMain.handle('license:load', async () => {
+		return cargarLicencia();
+	});
+
+	ipcMain.handle('license:recover', async (_e, { nombreCliente, palabraSecreta }: { nombreCliente: string; palabraSecreta: string }) => {
+		return recuperarSerial(nombreCliente, palabraSecreta);
+	});
+
+	ipcMain.handle('license:open-home', async () => {
+		if (!mainWindow) return { ok: false };
+		try {
+			const cfg: any = store.get('config') || {};
+			let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
+			const file = (defaultView ?? 'caja') === 'caja' ? 'caja.html' : 'config.html';
+			const target = path.join(app.getAppPath(), 'public', file);
+			if (defaultView === 'caja') {
+				try {
+					mainWindow.setMinimumSize(420, 320);
+					mainWindow.setSize(420, 320);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
+				} catch {}
+			} else {
+				try {
+					mainWindow.setMinimumSize(900, 600);
+					mainWindow.setSize(1200, 768);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
+				} catch {}
+			}
+			await mainWindow.loadFile(target);
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
 		}
 	});
 

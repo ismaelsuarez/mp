@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Validación de Licencia</title>
+	<link rel="stylesheet" href="style.css" />
+	<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-200">
+	<div class="max-w-md mx-auto mt-10 p-6 bg-slate-800 rounded-lg border border-slate-700">
+		<h1 class="text-xl font-semibold mb-4">Registro de licencia</h1>
+		<div class="space-y-3">
+			<label class="block">
+				<span>Nombre del cliente</span>
+				<input id="nombreCliente" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded px-3 py-2" placeholder="Ej: ACME S.A." />
+			</label>
+			<label class="block">
+				<span>Serial</span>
+				<input id="serial" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded px-3 py-2" placeholder="XXXX-XXXX-..." />
+			</label>
+			<label class="block">
+				<span>Palabra secreta (recuperación)</span>
+				<input id="palabraSecreta" type="password" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded px-3 py-2" placeholder="Obligatoria para registrar" />
+			</label>
+			<div class="flex gap-2">
+				<button id="btnGenerar" class="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500">Generar serial</button>
+				<button id="btnRegistrar" class="px-3 py-2 rounded bg-emerald-600 hover:bg-emerald-500">Registrar</button>
+				<button id="btnRecuperar" class="ml-auto px-3 py-2 rounded bg-slate-700 hover:bg-slate-600">¿Olvidaste tu serial?</button>
+			</div>
+			<div id="status" class="text-sm"></div>
+		</div>
+	</div>
+
+	<!-- Modal recuperación -->
+	<div id="modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center">
+		<div class="w-full max-w-md bg-slate-800 border border-slate-700 rounded p-6">
+			<h2 class="text-lg font-semibold mb-3">Recuperar serial</h2>
+			<label class="block mb-2">
+				<span>Nombre del cliente</span>
+				<input id="recNombre" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded px-3 py-2" />
+			</label>
+			<label class="block mb-4">
+				<span>Palabra secreta</span>
+				<input id="recSecreta" type="password" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded px-3 py-2" />
+			</label>
+			<div class="flex gap-2">
+				<button id="btnDoRecuperar" class="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500">Recuperar</button>
+				<button id="btnClose" class="ml-auto px-3 py-2 rounded bg-slate-700 hover:bg-slate-600">Cerrar</button>
+			</div>
+			<div id="recStatus" class="text-sm mt-2"></div>
+		</div>
+	</div>
+
+	<script>
+	const status = document.getElementById('status');
+	const modal = document.getElementById('modal');
+	function show(msg, ok=true) { status.textContent = msg; status.style.color = ok ? '#10b981' : '#ef4444'; }
+
+	document.getElementById('btnGenerar').addEventListener('click', async () => {
+		const nombre = document.getElementById('nombreCliente').value;
+		if (!nombre) { show('Ingrese el nombre del cliente', false); return; }
+		const res = await window.license.generate(nombre);
+		document.getElementById('serial').value = res.serial || '';
+		show('Serial generado');
+	});
+
+	document.getElementById('btnRegistrar').addEventListener('click', async () => {
+		const nombre = document.getElementById('nombreCliente').value;
+		const serial = document.getElementById('serial').value;
+		const secreta = document.getElementById('palabraSecreta').value;
+		if (!nombre || !serial || !secreta) { show('Complete todos los campos', false); return; }
+		const val = await window.license.validate(nombre, serial);
+		if (!val.ok) { show('Serial inválido', false); return; }
+		const saved = await window.license.save({ nombreCliente: nombre, serial, palabraSecreta: secreta });
+		if (saved.ok) {
+			show('Licencia registrada');
+			await window.license.openHome();
+		} else {
+			show('Error al guardar licencia', false);
+		}
+	});
+
+	document.getElementById('btnRecuperar').addEventListener('click', () => { modal.classList.remove('hidden'); modal.classList.add('flex'); });
+	document.getElementById('btnClose').addEventListener('click', () => { modal.classList.add('hidden'); modal.classList.remove('flex'); });
+
+	document.getElementById('btnDoRecuperar').addEventListener('click', async () => {
+		const nombre = document.getElementById('recNombre').value;
+		const secreta = document.getElementById('recSecreta').value;
+		const out = document.getElementById('recStatus');
+		out.textContent = 'Procesando...'; out.style.color = '#cbd5e1';
+		const res = await window.license.recover(nombre, secreta);
+		if (res.ok) { out.textContent = 'Serial: ' + res.serial; out.style.color = '#10b981'; }
+		else { out.textContent = 'Datos no coinciden'; out.style.color = '#ef4444'; }
+	});
+	</script>
+</body>
+</html>
+
+

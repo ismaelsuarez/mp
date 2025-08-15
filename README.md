@@ -95,6 +95,8 @@ npx electron-builder -w
 # Alternativa: npm run build (en Windows generará el instalador para Windows)
 ```
 
+Durante la instalación, el asistente mostrará `build/LICENSE.txt` y será obligatorio aceptarlo para continuar. En la primera ejecución tras instalar, si no existe licencia registrada, se abrirá `public/licencia.html` para registrar nombre, serial y palabra secreta.
+
 Salida:
 - El instalador quedará en `dist/` con un nombre similar a `MP Reports Setup x.y.z.exe`.
 
