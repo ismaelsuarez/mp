@@ -13,7 +13,7 @@ type LicensePayload = {
 function computeSerial(nombreCliente: string, palabraSecreta: string): string {
 	const cleanName = String(nombreCliente || '').trim();
 	const cleanSecret = String(palabraSecreta || '').trim();
-	const data = `${cleanName}:${cleanSecret}`;
+	const data = `${cleanName}::${cleanSecret}`;
 	const mac = crypto.createHmac('sha256', HMAC_MASTER_SECRET).update(data).digest('hex').toUpperCase();
 	const first20 = mac.slice(0, 20);
 	return first20.match(/.{1,4}/g)?.join('-') || first20;
