@@ -18,7 +18,8 @@
     "mp:payments:report": "node mp-sdk/report.js",
     "mp:payments:report:dist": "npm run build:ts && node dist/mp-sdk/report.js",
     "mp:account:process": "node mp-sdk/account-money-process.js",
-    "mp:account:process:dist": "npm run build:ts && node dist/mp-sdk/account-money-process.js"
+    "mp:account:process:dist": "npm run build:ts && node dist/mp-sdk/account-money-process.js",
+    "clean:credentials": "node scripts/clean-credentials.js"
   },
   "build": {
     "appId": "com.todo.tc-mp",
