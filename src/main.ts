@@ -137,16 +137,15 @@ app.whenReady().then(() => {
 			const tag = new Date().toISOString().slice(0, 10);
 			const result = await generateFiles(payments as any[], tag, range);
 			appendLogLine('files-generated', { files: (result as any)?.files, count: (payments as any[])?.length });
-			if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
 			// Auto-enviar mp.dbf vía FTP si está configurado
 			try {
 				const mpPath = (result as any)?.files?.mpDbfPath;
 				if (mpPath && fs.existsSync(mpPath)) {
 					const ftpResult = await sendDbf(mpPath, 'mp.dbf');
 					if (ftpResult.skipped) {
-						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: ${ftpResult.reason}` });
+						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
 					} else {
-						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: mp.dbf enviado exitosamente` });
+						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
 					}
 				}
 			} catch (e) {
@@ -437,16 +436,15 @@ app.whenReady().then(() => {
 				const { payments, range } = await searchPaymentsWithConfig();
 				const tag = new Date().toISOString().slice(0, 10);
 				const result = await generateFiles(payments as any[], tag, range);
-				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: 'Enviando mp.dbf por FTP…' });
 				try {
 					const mpPath = (result as any)?.files?.mpDbfPath;
 					if (mpPath && fs.existsSync(mpPath)) {
 						const { sendDbf } = await import('./services/FtpService');
 						const ftpResult = await sendDbf(mpPath, 'mp.dbf');
 						if (ftpResult.skipped) {
-							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: ${ftpResult.reason}` });
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
 						} else {
-							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: mp.dbf enviado exitosamente` });
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
 						}
 					}
 				} catch (e) {

@@ -140,16 +140,16 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	// Verificar si el archivo ha cambiado antes de enviar
 	const fileChanged = hasFileChanged(localPath);
 	if (!fileChanged) {
-		console.log('[FtpService] Archivo mp.dbf no ha cambiado, omitiendo envío FTP');
+		console.log('[FtpService] Archivo mp.dbf sin cambios - omitiendo envío FTP');
 		return { 
 			remoteDir: normalizeDir(cfg.FTP_DIR) || '/', 
 			remoteFile: remoteFileName.toLowerCase(),
 			skipped: true,
-			reason: 'Archivo sin cambios'
+			reason: 'sin cambios - no se envía'
 		};
 	}
 	
-	console.log('[FtpService] Archivo mp.dbf ha cambiado, enviando por FTP...');
+	console.log('[FtpService] Archivo mp.dbf con cambios - enviando por FTP...');
 	
     const client = new Client();
 	try {

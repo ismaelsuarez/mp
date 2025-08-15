@@ -218,7 +218,6 @@ window.addEventListener('DOMContentLoaded', () => {
 		appendLog(`Reporte generado: ${res.count} pagos`);
 		// Render quick last 8 from returned rows
 		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
-		appendLog('Enviando mp.dbf por FTP (si está configurado)...');
 	});
 
 	// Botón automático
