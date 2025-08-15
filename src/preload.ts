@@ -25,6 +25,22 @@ contextBridge.exposeInMainWorld('api', {
 	async clearFtpHash() {
 		return await ipcRenderer.invoke('clear-ftp-hash');
 	},
+	// Error Notifications
+	async getErrorNotificationConfig() {
+		return await ipcRenderer.invoke('error-notifications:get-config');
+	},
+	async updateErrorNotificationConfig(config: any) {
+		return await ipcRenderer.invoke('error-notifications:update-config', config);
+	},
+	async getErrorNotificationSummary() {
+		return await ipcRenderer.invoke('error-notifications:get-summary');
+	},
+	async clearOldErrors(hours: number = 24) {
+		return await ipcRenderer.invoke('error-notifications:clear-old', hours);
+	},
+	async resetErrorNotifications() {
+		return await ipcRenderer.invoke('error-notifications:reset');
+	},
 	async autoStart() {
 		return await ipcRenderer.invoke('auto-start');
 	},

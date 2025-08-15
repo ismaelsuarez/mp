@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import { Client } from 'basic-ftp';
 import crypto from 'crypto';
 import { logFtp, logSuccess, logWarning } from './LogService';
+import { recordError } from './ErrorNotificationService';
 
 function getEncryptionKey(): string | undefined {
 	try {
@@ -80,7 +81,10 @@ function hasFileChanged(filePath: string): boolean {
 
 export async function testFtp() {
 	const cfg = getConfig();
-	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) throw new Error('Config FTP incompleta');
+	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) {
+		recordError('FTP_CONFIG', 'Configuración FTP incompleta', { config: { hasIp: !!cfg.FTP_IP, hasUser: !!cfg.FTP_USER, hasPass: !!cfg.FTP_PASS } });
+		throw new Error('Config FTP incompleta');
+	}
 	const client = new Client();
 	try {
         await client.access({
@@ -135,8 +139,14 @@ export async function sendTodayDbf() {
 
 export async function sendDbf(localPath: string, remoteFileName: string = 'mp.dbf') {
 	const cfg = getConfig();
-	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) throw new Error('Config FTP incompleta');
-	if (!fs.existsSync(localPath)) throw new Error(`No existe archivo DBF local: ${localPath}`);
+	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) {
+		recordError('FTP_CONFIG', 'Configuración FTP incompleta para envío', { config: { hasIp: !!cfg.FTP_IP, hasUser: !!cfg.FTP_USER, hasPass: !!cfg.FTP_PASS } });
+		throw new Error('Config FTP incompleta');
+	}
+	if (!fs.existsSync(localPath)) {
+		recordError('FTP_FILE', 'Archivo DBF no encontrado', { localPath, remoteFileName });
+		throw new Error(`No existe archivo DBF local: ${localPath}`);
+	}
 	
 	// Verificar si el archivo ha cambiado antes de enviar
 	const fileChanged = hasFileChanged(localPath);

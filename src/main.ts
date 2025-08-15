@@ -9,6 +9,7 @@ import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
+import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
 
@@ -173,6 +174,7 @@ app.whenReady().then(() => {
 					mainWindow.webContents.send('auto-report-notice', { error: userMessage });
 				}
 				logError('Error de configuración Mercado Pago', { message: userMessage });
+				recordError('MP_CONFIG', 'Error de configuración Mercado Pago', { message: userMessage });
 				throw new Error(userMessage);
 			} else {
 				// Para otros errores, mantener el comportamiento original
@@ -477,6 +479,7 @@ app.whenReady().then(() => {
 						mainWindow.webContents.send('auto-report-notice', { error: userMessage });
 					}
 					logError('Error de configuración Mercado Pago', { message: userMessage });
+					recordError('MP_CONFIG', 'Error de configuración Mercado Pago', { message: userMessage });
 				} else {
 					// Para otros errores, mantener el comportamiento original
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(e?.message || e) });
@@ -665,6 +668,51 @@ app.whenReady().then(() => {
 			return { ok: true };
 		}
 		return { ok: false };
+	});
+
+	// ===== HANDLERS DE NOTIFICACIONES DE ERROR =====
+	
+	// Obtener configuración de notificaciones de error
+	ipcMain.handle('error-notifications:get-config', () => {
+		return getErrorNotificationConfig();
+	});
+
+	// Actualizar configuración de notificaciones de error
+	ipcMain.handle('error-notifications:update-config', async (_e, config) => {
+		try {
+			updateErrorNotificationConfig(config);
+			return { ok: true };
+		} catch (error: any) {
+			logError('Error al actualizar configuración de notificaciones', { error: error.message });
+			return { ok: false, error: error.message };
+		}
+	});
+
+	// Obtener resumen de errores
+	ipcMain.handle('error-notifications:get-summary', () => {
+		return getErrorSummary();
+	});
+
+	// Limpiar errores antiguos
+	ipcMain.handle('error-notifications:clear-old', async (_e, hours = 24) => {
+		try {
+			clearOldErrors(hours);
+			return { ok: true };
+		} catch (error: any) {
+			logError('Error al limpiar errores antiguos', { error: error.message });
+			return { ok: false, error: error.message };
+		}
+	});
+
+	// Resetear todas las notificaciones
+	ipcMain.handle('error-notifications:reset', async () => {
+		try {
+			resetErrorNotifications();
+			return { ok: true };
+		} catch (error: any) {
+			logError('Error al resetear notificaciones', { error: error.message });
+			return { ok: false, error: error.message };
+		}
 	});
 
 	app.on('activate', () => {

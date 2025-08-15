@@ -156,6 +156,55 @@
 					</div>
 				</details>
 
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						🚨 Notificaciones de Error
+					</summary>
+					<div class="p-3 space-y-3">
+						<div class="flex items-center space-x-2">
+							<input type="checkbox" id="error-notifications-enabled" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+							<label for="error-notifications-enabled" class="text-sm">Habilitar notificaciones de error por email</label>
+						</div>
+						
+						<div class="grid grid-cols-2 gap-4">
+							<label class="text-sm">
+								Mínimo errores antes de notificar
+								<input id="min-errors-before-notify" type="number" min="1" max="10" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+							</label>
+							<label class="text-sm">
+								Tiempo entre notificaciones (minutos)
+								<input id="min-time-between-notifications" type="number" min="15" max="1440" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+							</label>
+						</div>
+
+						<div class="bg-gray-800 p-3 rounded text-sm">
+							<div class="flex justify-between items-center mb-2">
+								<span class="font-semibold">📊 Estado Actual:</span>
+								<button type="button" id="btnRefreshErrorSummary" class="text-xs text-blue-400 hover:text-blue-300">Actualizar</button>
+							</div>
+							<div id="error-summary" class="space-y-1 text-xs">
+								<div>• Errores totales: <span id="total-errors">-</span></div>
+								<div>• Grupos activos: <span id="active-groups">-</span></div>
+								<div>• Notificaciones enviadas: <span id="notifications-sent">-</span></div>
+							</div>
+						</div>
+
+						<div class="flex space-x-2">
+							<button type="button" id="btnSaveErrorNotifications" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">
+								💾 Guardar Configuración
+							</button>
+							<button type="button" id="btnClearOldErrors" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded">
+								🧹 Limpiar Errores Antiguos
+							</button>
+							<button type="button" id="btnResetErrorNotifications" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">
+								🔄 Resetear Todo
+							</button>
+						</div>
+						
+						<div id="error-notifications-status" class="text-sm"></div>
+					</div>
+				</details>
+
 				<!-- Acciones principales (debajo de todas las secciones) -->
 				<div class="actions-row mt-4">
 					<button type="button" id="btnLoad">Cargar configuración</button>

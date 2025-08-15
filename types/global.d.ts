@@ -22,6 +22,21 @@ declare global {
 			listHistory(): Promise<any>;
 			openView(view: 'config' | 'caja'): Promise<any>;
 			setWindowSize(width: number, height: number): Promise<any>;
+			// Error Notifications
+			getErrorNotificationConfig(): Promise<{
+				enabled: boolean;
+				minErrorsBeforeNotify: number;
+				minTimeBetweenNotifications: number;
+				maxNotificationsPerError: number;
+			}>;
+			updateErrorNotificationConfig(config: any): Promise<{ ok: boolean; error?: string }>;
+			getErrorNotificationSummary(): Promise<{
+				totalErrors: number;
+				activeGroups: number;
+				notificationsSent: number;
+			}>;
+			clearOldErrors(hours?: number): Promise<{ ok: boolean; error?: string }>;
+			resetErrorNotifications(): Promise<{ ok: boolean; error?: string }>;
 		};
 		auth: {
 			isInitialized(): Promise<boolean>;

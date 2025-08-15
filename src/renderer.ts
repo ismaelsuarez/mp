@@ -210,6 +210,111 @@ window.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	// ===== MANEJO DE NOTIFICACIONES DE ERROR =====
+	
+	// Cargar configuración de notificaciones de error
+	async function loadErrorNotificationConfig() {
+		try {
+			const config = await (window.api as any).getErrorNotificationConfig?.();
+			if (config) {
+				(document.getElementById('error-notifications-enabled') as HTMLInputElement).checked = config.enabled;
+				(document.getElementById('min-errors-before-notify') as HTMLInputElement).value = config.minErrorsBeforeNotify.toString();
+				(document.getElementById('min-time-between-notifications') as HTMLInputElement).value = config.minTimeBetweenNotifications.toString();
+			}
+		} catch (e: any) {
+			console.error('Error cargando configuración de notificaciones:', e);
+		}
+	}
+
+	// Actualizar resumen de errores
+	async function updateErrorSummary() {
+		try {
+			const summary = await (window.api as any).getErrorNotificationSummary?.();
+			if (summary) {
+				document.getElementById('total-errors')!.textContent = summary.totalErrors.toString();
+				document.getElementById('active-groups')!.textContent = summary.activeGroups.toString();
+				document.getElementById('notifications-sent')!.textContent = summary.notificationsSent.toString();
+			}
+		} catch (e: any) {
+			console.error('Error actualizando resumen de errores:', e);
+		}
+	}
+
+	// Guardar configuración de notificaciones de error
+	document.getElementById('btnSaveErrorNotifications')?.addEventListener('click', async () => {
+		try {
+			const enabled = (document.getElementById('error-notifications-enabled') as HTMLInputElement).checked;
+			const minErrors = parseInt((document.getElementById('min-errors-before-notify') as HTMLInputElement).value);
+			const minTime = parseInt((document.getElementById('min-time-between-notifications') as HTMLInputElement).value);
+
+			if (isNaN(minErrors) || isNaN(minTime) || minErrors < 1 || minTime < 15) {
+				showToast('Error: Valores inválidos en la configuración');
+				return;
+			}
+
+			const config = {
+				enabled,
+				minErrorsBeforeNotify: minErrors,
+				minTimeBetweenNotifications: minTime,
+				maxNotificationsPerError: 3
+			};
+
+			const res = await (window.api as any).updateErrorNotificationConfig?.(config);
+			if (res?.ok) {
+				showToast('✅ Configuración de notificaciones guardada');
+				updateErrorSummary();
+			} else {
+				showToast(`Error: ${res?.error || 'Error desconocido'}`);
+			}
+		} catch (e: any) {
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+
+	// Actualizar resumen de errores
+	document.getElementById('btnRefreshErrorSummary')?.addEventListener('click', async () => {
+		await updateErrorSummary();
+		showToast('📊 Resumen actualizado');
+	});
+
+	// Limpiar errores antiguos
+	document.getElementById('btnClearOldErrors')?.addEventListener('click', async () => {
+		if (confirm('¿Está seguro de que desea limpiar los errores antiguos (más de 24 horas)?')) {
+			try {
+				const res = await (window.api as any).clearOldErrors?.(24);
+				if (res?.ok) {
+					showToast('🧹 Errores antiguos limpiados');
+					updateErrorSummary();
+				} else {
+					showToast(`Error: ${res?.error || 'Error desconocido'}`);
+				}
+			} catch (e: any) {
+				showToast(`Error: ${e?.message || e}`);
+			}
+		}
+	});
+
+	// Resetear todas las notificaciones
+	document.getElementById('btnResetErrorNotifications')?.addEventListener('click', async () => {
+		if (confirm('¿Está seguro de que desea resetear todas las notificaciones de error? Esta acción no se puede deshacer.')) {
+			try {
+				const res = await (window.api as any).resetErrorNotifications?.();
+				if (res?.ok) {
+					showToast('🔄 Notificaciones reseteadas');
+					updateErrorSummary();
+				} else {
+					showToast(`Error: ${res?.error || 'Error desconocido'}`);
+				}
+			} catch (e: any) {
+				showToast(`Error: ${e?.message || e}`);
+			}
+		}
+	});
+
+	// Cargar configuración al iniciar
+	loadErrorNotificationConfig();
+	updateErrorSummary();
+
 	window.api.getConfig().then((cfg) => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
