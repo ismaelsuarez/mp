@@ -57,7 +57,24 @@ function createMainWindow() {
 			mainWindow.setSize(420, 320);
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
-			try { mainWindow.center(); } catch {}
+			
+			// Restaurar posición guardada para modo caja
+			const savedPosition = store.get('cajaWindowPosition') as { x: number; y: number } | undefined;
+			if (savedPosition && savedPosition.x !== undefined && savedPosition.y !== undefined) {
+				// Verificar que la posición esté dentro de los límites de la pantalla
+				const { screen } = require('electron');
+				const primaryDisplay = screen.getPrimaryDisplay();
+				const { width, height } = primaryDisplay.workAreaSize;
+				
+				// Asegurar que la ventana esté visible en la pantalla
+				const x = Math.max(0, Math.min(savedPosition.x, width - 420));
+				const y = Math.max(0, Math.min(savedPosition.y, height - 320));
+				
+				mainWindow.setPosition(x, y);
+			} else {
+				// Si no hay posición guardada, centrar
+				try { mainWindow.center(); } catch {}
+			}
 		} else {
 			// Modo Configuración: tamaño amplio como en la captura
 			mainWindow.setMinimumSize(900, 600);
@@ -72,6 +89,18 @@ function createMainWindow() {
 
 	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
 	mainWindow.loadFile(htmlPath);
+
+	// Guardar posición de la ventana cuando se mueve (solo para modo caja)
+	mainWindow.on('moved', () => {
+		const cfg: any = store.get('config') || {};
+		const currentView = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
+		
+		// Solo guardar posición si estamos en modo caja
+		if (currentView === 'caja') {
+			const [x, y] = mainWindow.getPosition();
+			store.set('cajaWindowPosition', { x, y });
+		}
+	});
 
 	mainWindow.on('closed', () => {
 		mainWindow = null;
@@ -248,7 +277,24 @@ app.whenReady().then(() => {
 					mainWindow.setSize(420, 320);
 					mainWindow.setMenuBarVisibility(false);
 					mainWindow.setAutoHideMenuBar(true);
-					try { mainWindow.center(); } catch {}
+					
+					// Restaurar posición guardada para modo caja
+					const savedPosition = store.get('cajaWindowPosition') as { x: number; y: number } | undefined;
+					if (savedPosition && savedPosition.x !== undefined && savedPosition.y !== undefined) {
+						// Verificar que la posición esté dentro de los límites de la pantalla
+						const { screen } = require('electron');
+						const primaryDisplay = screen.getPrimaryDisplay();
+						const { width, height } = primaryDisplay.workAreaSize;
+						
+						// Asegurar que la ventana esté visible en la pantalla
+						const x = Math.max(0, Math.min(savedPosition.x, width - 420));
+						const y = Math.max(0, Math.min(savedPosition.y, height - 320));
+						
+						mainWindow.setPosition(x, y);
+					} else {
+						// Si no hay posición guardada, centrar
+						try { mainWindow.center(); } catch {}
+					}
 				} catch {}
 				await mainWindow.loadFile(target);
 				console.log('[main] loadFile done');
