@@ -140,7 +140,21 @@
     try {
       await window.auth.setup({ username: u, password: p, secretPhrase: s });
       alert('Administrador creado. Ahora puede iniciar sesión.');
-      window.location.reload();
+      
+      // En lugar de recargar, cambiar directamente al formulario de login
+      setupForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      title.textContent = 'Modo Administrador';
+      subtitle.textContent = 'Ingrese sus credenciales';
+      
+      // Limpiar el formulario de setup
+      document.getElementById('setup-user').value = '';
+      document.getElementById('setup-pass').value = '';
+      document.getElementById('setup-secret').value = '';
+      
+      // Enfocar el campo de usuario
+      document.getElementById('login-user').focus();
+      
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -180,7 +194,19 @@
     try {
       await window.auth.resetBySecret({ secretPhrase: s, newPw: np });
       alert('Contraseña cambiada.');
-      window.location.reload();
+      
+      // Volver al formulario de login
+      recoveryForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      title.textContent = 'Modo Administrador';
+      subtitle.textContent = 'Ingrese sus credenciales';
+      
+      // Limpiar formularios
+      document.getElementById('rec-secret-input').value = '';
+      document.getElementById('rec-secret-newpass').value = '';
+      document.getElementById('rec-email-otp').value = '';
+      document.getElementById('rec-email-newpass').value = '';
+      
     } catch (err) {
       alert('Error: ' + err.message);
     }
@@ -202,7 +228,19 @@
     try {
       await window.auth.resetByOtp({ otp, newPw: np });
       alert('Contraseña cambiada.');
-      window.location.reload();
+      
+      // Volver al formulario de login
+      recoveryForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      title.textContent = 'Modo Administrador';
+      subtitle.textContent = 'Ingrese sus credenciales';
+      
+      // Limpiar formularios
+      document.getElementById('rec-secret-input').value = '';
+      document.getElementById('rec-secret-newpass').value = '';
+      document.getElementById('rec-email-otp').value = '';
+      document.getElementById('rec-email-newpass').value = '';
+      
     } catch (err) {
       alert('Error: ' + err.message);
     }

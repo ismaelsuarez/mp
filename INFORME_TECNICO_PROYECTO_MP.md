@@ -151,9 +151,69 @@ SMTP_PORT=587
 - **Feedback Visual:** Mensaje informativo en logs y botón
 - **Control Granular:** Permite configurar exactamente qué días ejecutar
 
-### 2. ARQUITECTURA DE AUTOMATIZACIÓN
+### 2. SISTEMA DE SEGURIDAD COMPLETO
 
-#### 2.1 Variables de Estado (Main Process)
+#### 2.1 Autenticación de Administrador
+**Ubicación:** Gateway obligatorio para acceso a configuración
+
+**Características:**
+- **Login Gate:** Interfaz de autenticación antes de acceder a configuración
+- **Setup Inicial:** Formulario para crear primer administrador
+- **Políticas de Seguridad:** Contraseñas fuertes con validación
+- **Rate Limiting:** Bloqueo temporal tras 5 intentos fallidos
+- **Throttling:** 150ms entre intentos para prevenir ataques
+
+**Funcionalidades:**
+- **Validación de Contraseñas:** Mínimo 8 caracteres, 1 mayúscula, 1 número
+- **Hashing Seguro:** Argon2id para contraseñas y frases secretas
+- **Bloqueo Temporal:** 5 minutos tras múltiples intentos fallidos
+- **Auditoría:** Logs de todos los eventos de autenticación
+
+#### 2.2 Recuperación de Acceso
+**Métodos de Recuperación:**
+- **Frase Secreta:** Reset directo con frase configurada durante setup
+- **Email OTP:** Código de 6 dígitos enviado por email (si SMTP configurado)
+- **Validación:** OTP válido por 10 minutos
+
+**Flujo de Recuperación:**
+1. Usuario solicita recuperación
+2. Selecciona método (frase secreta o email)
+3. Valida credenciales de recuperación
+4. Establece nueva contraseña
+5. Retorna al formulario de login
+
+#### 2.3 Gestión de Credenciales
+**Características:**
+- **Recordar Usuario:** Checkbox para persistir solo el nombre de usuario
+- **localStorage:** Almacenamiento local del navegador (no servidor)
+- **Seguridad:** Nunca almacena contraseñas
+- **Limpieza:** Botón para eliminar usuario recordado
+
+**Funcionalidades:**
+- **Carga Automática:** Usuario recordado se carga al abrir la aplicación
+- **Persistencia:** Mantiene el usuario hasta limpieza manual
+- **UX Mejorada:** No requiere escribir usuario cada vez
+- **Control Total:** Fácil limpieza con botón "Limpiar"
+
+#### 2.4 Script de Limpieza de Credenciales
+**Propósito:** Preparación para entrega al cliente
+
+**Funcionalidades:**
+- **Limpieza Completa:** Elimina todas las credenciales de desarrollo
+- **Múltiples Ubicaciones:** Busca en todas las rutas de electron-store
+- **Comando npm:** `npm run clean:credentials`
+- **Verificación:** Confirma eliminación de archivos de configuración
+
+**Ubicaciones Limpiadas:**
+- `%APPDATA%\MP Reports\`
+- `%APPDATA%\electron-store-nodejs\`
+- `%APPDATA%\tc-mp\`
+- `%APPDATA%\com.todo.tc-mp\`
+- Archivos `.env` y `config.json` locales
+
+### 3. ARQUITECTURA DE AUTOMATIZACIÓN
+
+#### 3.1 Variables de Estado (Main Process)
 ```typescript
 let autoTimer: NodeJS.Timeout | null = null;
 let autoActive = false;
@@ -162,7 +222,7 @@ let remainingSeconds = 0;
 let countdownTimer: NodeJS.Timeout | null = null;
 ```
 
-#### 2.2 Función de Verificación de Días
+#### 3.2 Función de Verificación de Días
 ```typescript
 function isDayEnabled(): boolean {
     const cfg: any = store.get('config') || {};
@@ -182,7 +242,7 @@ function isDayEnabled(): boolean {
 }
 ```
 
-#### 2.3 Contador Regresivo en Bucle
+#### 3.3 Contador Regresivo en Bucle
 ```typescript
 function startCountdown(seconds: number) {
     remainingSeconds = seconds;
@@ -205,9 +265,9 @@ function startCountdown(seconds: number) {
 }
 ```
 
-### 3. COMUNICACIÓN IPC MEJORADA
+### 4. COMUNICACIÓN IPC MEJORADA
 
-#### 3.1 Nuevos Handlers IPC
+#### 4.1 Nuevos Handlers IPC
 ```typescript
 // Pausar/Reanudar automatización
 ipcMain.handle('auto-pause', async () => { /* lógica */ });
@@ -220,7 +280,7 @@ ipcMain.handle('auto-get-timer', async () => { /* lógica */ });
 mainWindow.webContents.send('auto-timer-update', { remaining, configured });
 ```
 
-#### 3.2 Bridge Preload Actualizado
+#### 4.2 Bridge Preload Actualizado
 ```typescript
 contextBridge.exposeInMainWorld('api', {
     // ... funciones existentes ...
@@ -231,6 +291,69 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
     },
 });
+
+// Nuevo bridge para autenticación
+contextBridge.exposeInMainWorld('auth', {
+    isInitialized: () => ipcRenderer.invoke('auth:is-initialized'),
+    getPolicy: () => ipcRenderer.invoke('auth:get-policy'),
+    setup: (p:any) => ipcRenderer.invoke('auth:setup', p),
+    login: (p:any) => ipcRenderer.invoke('auth:login', p),
+    change: (p:any) => ipcRenderer.invoke('auth:change', p),
+    requestOtp: () => ipcRenderer.invoke('auth:request-otp'),
+    resetByOtp: (p:any) => ipcRenderer.invoke('auth:reset-by-otp', p),
+    resetBySecret: (p:any) => ipcRenderer.invoke('auth:reset-by-secret', p),
+    openConfig: () => ipcRenderer.invoke('auth:open-config')
+});
+```
+
+### 5. ARQUITECTURA DE SEGURIDAD
+
+#### 5.1 Servicios de Autenticación
+```typescript
+// AuthService.ts - Gestión de credenciales
+export const AuthService = {
+    isInitialized(): boolean,
+    policy(): PasswordPolicy,
+    async setup(username: string, password: string, secretPhrase: string),
+    async login(username: string, password: string): Promise<LoginResult>,
+    async changePassword(currentPw: string, newPw: string, newUsername?: string),
+    async resetBySecret(secretPhrase: string, newPw: string, newUsername?: string),
+    async resetByOtp(newPw: string, newUsername?: string)
+};
+
+// OtpService.ts - Gestión de códigos OTP
+export const OtpService = {
+    async createAndSend(toEmail: string): Promise<OtpResult>,
+    validate(code: string): boolean
+};
+```
+
+#### 5.2 Políticas de Seguridad
+```typescript
+const POLICY = {
+    minLength: 8,
+    requiresNumber: true,
+    requiresUpper: true,
+    maxAttempts: 5,
+    lockoutMinutes: 5,
+    throttleMs: 150
+};
+```
+
+#### 5.3 Flujo de Autenticación
+```mermaid
+graph TD
+    A[Acceso a Configuración] --> B{¿Admin inicializado?}
+    B -->|No| C[Mostrar Setup Form]
+    B -->|Sí| D[Mostrar Login Form]
+    C --> E[Crear Admin]
+    D --> F[Validar Credenciales]
+    F -->|Exitoso| G[Abrir Configuración]
+    F -->|Fallido| H[Incrementar Intentos]
+    H --> I{¿Máximo intentos?}
+    I -->|Sí| J[Bloquear 5 minutos]
+    I -->|No| D
+    J --> D
 ```
 
 ---
@@ -347,6 +470,21 @@ const detailed = payments.map(payment => ({
 - Formato estructurado
 - Rotación automática
 
+### 6. AuthService
+**Responsabilidad:** Autenticación de administrador
+- Gestión de credenciales con hashing Argon2id
+- Validación de políticas de contraseñas
+- Rate limiting y bloqueo temporal
+- Auditoría de eventos de autenticación
+- Recuperación por frase secreta y OTP
+
+### 7. OtpService
+**Responsabilidad:** Gestión de códigos OTP
+- Generación de códigos de 6 dígitos
+- Envío por email usando EmailService
+- Validación con expiración (10 minutos)
+- Almacenamiento temporal seguro
+
 ---
 
 ## INTERFACES DE USUARIO
@@ -371,8 +509,20 @@ const detailed = payments.map(payment => ({
   - Configuración FTP
   - **Selector de días de la semana**
   - Configuración de logs
+  - **Sección de Seguridad** (cambio de contraseña)
 
-### 3. Características de UI
+### 3. Interfaz de Autenticación (auth.html)
+- **Propósito:** Gateway de seguridad para acceso a configuración
+- **Tamaño:** 400x500px (compacto)
+- **Funcionalidades:**
+  - **Formulario de Login** con checkbox "Recordar usuario"
+  - **Formulario de Setup** para crear primer administrador
+  - **Formulario de Recuperación** con tabs (frase secreta/email OTP)
+  - **Transiciones suaves** entre formularios
+  - **Validación en tiempo real** de contraseñas
+  - **Botón "Limpiar"** para eliminar usuario recordado
+
+### 4. Características de UI
 - **Framework:** Tailwind CSS
 - **Tema:** Dark mode (slate-800)
 - **Responsive:** Adaptable a diferentes tamaños
@@ -402,7 +552,8 @@ npm run build:ts
   "start": "npm run build:ts && electron .",
   "build": "electron-builder -w",
   "build:ts": "tsc -p tsconfig.json",
-  "mp:payments:report:dist": "npm run build:ts && node dist/mp-sdk/report.js"
+  "mp:payments:report:dist": "npm run build:ts && node dist/mp-sdk/report.js",
+  "clean:credentials": "node scripts/clean-credentials.js"
 }
 ```
 
@@ -477,16 +628,37 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - **Clave:** Generada automáticamente en `config.key`
 - **Ubicación:** `app.getPath('userData')`
 
-### 2. Validaciones
+### 2. Autenticación de Administrador
+- **Hashing:** Argon2id para contraseñas y frases secretas
+- **Políticas:** Mínimo 8 caracteres, 1 mayúscula, 1 número
+- **Rate Limiting:** 5 intentos fallidos = bloqueo 5 minutos
+- **Throttling:** 150ms entre intentos para prevenir ataques
+- **Auditoría:** Logs de todos los eventos de autenticación
+
+### 3. Recuperación de Acceso
+- **Frase Secreta:** Reset directo con frase configurada
+- **Email OTP:** Código de 6 dígitos válido por 10 minutos
+- **Validación:** Verificación de credenciales antes de reset
+- **Seguridad:** No almacenamiento de contraseñas en texto plano
+
+### 4. Gestión de Sesiones
+- **Recordar Usuario:** Solo nombre de usuario en localStorage
+- **Sin Contraseñas:** Nunca se almacenan contraseñas localmente
+- **Limpieza:** Botón para eliminar usuario recordado
+- **Persistencia:** Mantenido hasta limpieza manual
+
+### 5. Validaciones
 - Verificación de tokens de acceso
 - Validación de formatos de fecha
 - Sanitización de datos de entrada
 - **Validación de días habilitados**
+- **Validación de políticas de contraseñas**
 
-### 3. Permisos
+### 6. Permisos
 - Acceso limitado a directorios específicos
 - Validación de rutas de archivos
 - Control de acceso a APIs externas
+- **Gateway obligatorio** para acceso a configuración
 
 ---
 
@@ -527,6 +699,9 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - [ ] Dashboards interactivos
 - [ ] **Configuración de horarios específicos por día**
 - [ ] **Notificaciones push para eventos automáticos**
+- [ ] **Autenticación biométrica** (huella dactilar)
+- [ ] **Sesiones múltiples** para diferentes usuarios
+- [ ] **Auditoría avanzada** con exportación de logs
 
 ### 2. Mejoras Técnicas
 - [ ] Migración a TypeScript strict mode
@@ -535,6 +710,9 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 - [ ] Sistema de métricas avanzado
 - [ ] **Optimización del contador regresivo**
 - [ ] **Persistencia mejorada del estado de pausa**
+- [ ] **Encriptación mejorada** con claves derivadas
+- [ ] **Validación de integridad** de archivos de configuración
+- [ ] **Backup automático** de configuraciones críticas
 
 ### 3. Integraciones
 - [ ] APIs de contabilidad
@@ -573,6 +751,10 @@ El proyecto MP implementa una solución robusta para la generación automatizada
 - **Botón dinámico con contador regresivo** para control intuitivo del modo automático
 - **Persistencia de estado** que mantiene la configuración entre sesiones
 - **Feedback visual mejorado** con indicadores de estado claros y concisos
+- **Sistema de seguridad completo** con autenticación de administrador
+- **Recuperación de acceso** mediante frase secreta y OTP por email
+- **Gestión de credenciales** con opción de recordar usuario
+- **Script de limpieza** para preparación de entrega al cliente
 
 **Puntos Clave:**
 - Integración completa con API oficial de Mercado Pago
@@ -582,5 +764,8 @@ El proyecto MP implementa una solución robusta para la generación automatizada
 - Logs detallados para monitoreo y troubleshooting
 - **Control granular de automatización por días de la semana**
 - **Interfaz intuitiva para pausar/reanudar procesos automáticos**
+- **Seguridad robusta** con hashing Argon2id y políticas de contraseñas
+- **UX mejorada** con transiciones suaves y validación en tiempo real
+- **Preparación para producción** con herramientas de limpieza de credenciales
 
-El código está estructurado para facilitar la comprensión y mantenimiento por parte de otros desarrolladores, con documentación inline y separación clara de responsabilidades. Las nuevas funcionalidades de automatización proporcionan un control total sobre cuándo y cómo se ejecutan los procesos automáticos, mejorando significativamente la experiencia del usuario.
+El código está estructurado para facilitar la comprensión y mantenimiento por parte de otros desarrolladores, con documentación inline y separación clara de responsabilidades. Las nuevas funcionalidades de automatización proporcionan un control total sobre cuándo y cómo se ejecutan los procesos automáticos, mientras que el sistema de seguridad garantiza la protección de datos sensibles y el control de acceso adecuado. La experiencia del usuario se ve significativamente mejorada con transiciones suaves, validación en tiempo real y opciones de personalización que facilitan el uso diario del sistema.
