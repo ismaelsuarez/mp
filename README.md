@@ -110,6 +110,43 @@ WSL2:
 
 ---
 
+### Auto-actualizaciones (electron-updater) y Releases privadas en GitHub
+
+La app integra auto-actualización con `electron-updater` y publica artefactos en GitHub Releases (repo privado):
+
+- Requisitos:
+  - Variable `GH_TOKEN` con permisos de `repo` en el entorno (usar `.env` en desarrollo).
+  - En `package.json > build.publish` se configuró el proveedor `github` apuntando a tu repo privado.
+
+- Flujo de publicación:
+  1) Aumenta la versión semántica en `package.json` (por ejemplo, `1.0.3`).
+  2) Ejecuta el comando de release:
+     ```bash
+     npm run release
+     ```
+     Esto compila, construye con `electron-builder` para Windows y publica la release en GitHub (`--publish always`).
+
+- Experiencia del usuario final:
+  - Al iniciar, la app busca actualizaciones.
+  - Si hay una nueva versión, muestra un diálogo: "Nueva versión disponible, ¿desea actualizar ahora?" con opciones "Actualizar" y "Más tarde".
+  - Si elige "Actualizar", descarga; al finalizar, pide "Reiniciar y actualizar" para instalar.
+
+- Ubicación de artefactos locales:
+  - Los instaladores y archivos generados localmente quedan en `dist/`.
+
+- Validación de publicación:
+  - Verifica que en la sección Releases del repo privado aparezca la nueva versión con los artefactos (`.exe`, `latest.yml`/`app-update.yml`/`blockmap`).
+  - En clientes, iniciar la app debería ofrecer la actualización.
+
+- Seguridad:
+  - Nunca hardcodear tokens. `GH_TOKEN` se lee desde variables de entorno vía `dotenv`.
+  - Para generar el token: GitHub → Settings → Developer settings → Personal access tokens → Generate new token (classic) con scope `repo`. Guarda su valor en `.env` como `GH_TOKEN=...` (no lo compartas ni lo subas al repo).
+
+- Entrega al cliente:
+  - Entrega solo el primer instalador completo (`dist/*.exe`). Luego, cada vez que ejecutes `npm run release` con una nueva versión, los clientes verán el aviso de actualización y podrán actualizar.
+
+---
+
 ### Variables de entorno (.env)
 
 ```env
@@ -142,6 +179,9 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=tu_email@gmail.com
 SMTP_PASS=tu_password
+
+# ── Publicación/auto-update (GitHub Releases privado)
+GH_TOKEN=ghp_xxx_tu_token
 ```
 
 Notas:

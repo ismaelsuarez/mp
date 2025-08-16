@@ -1,9 +1,12 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import Store from 'electron-store';
 import cron from 'node-cron';
+import { autoUpdater } from 'electron-updater';
+import dotenv from 'dotenv';
+dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
@@ -31,7 +34,22 @@ function getEncryptionKey(): string | undefined {
 	}
 }
 
-const store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+let store: Store<{ config?: Record<string, unknown> }>;
+try {
+    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+} catch (e: any) {
+    try {
+        const dir = app.getPath('userData');
+        const storePath = path.join(dir, 'settings.json');
+        const backupPath = path.join(dir, `settings.bak-${Date.now()}.json`);
+        if (fs.existsSync(storePath)) {
+            fs.renameSync(storePath, backupPath);
+            try { logWarning('Config corrupta detectada, creando backup y reestableciendo', { storePath, backupPath }); } catch {}
+        }
+    } catch {}
+    // Reintentar creación del store
+    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+}
 
 function createMainWindow() {
 	mainWindow = new BrowserWindow({
@@ -149,6 +167,62 @@ app.disableHardwareAcceleration();
 app.whenReady().then(() => {
     ensureLogsDir();
     ensureTodayLogExists();
+
+    // ===== AUTO-UPDATE (electron-updater) =====
+    try {
+        const ghToken = process.env.GH_TOKEN || '';
+        if (ghToken) {
+            (autoUpdater as any).requestHeaders = { Authorization: `token ${ghToken}` };
+        }
+        autoUpdater.autoDownload = false;
+
+        autoUpdater.on('error', (error) => {
+            try { logError('AutoUpdate error', { message: String((error as any)?.message || error) }); } catch {}
+        });
+
+        autoUpdater.on('update-available', async () => {
+            try {
+                const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+                    type: 'info',
+                    buttons: ['Actualizar', 'Más tarde'],
+                    defaultId: 0,
+                    cancelId: 1,
+                    title: 'Actualización disponible',
+                    message: 'Nueva versión disponible, ¿desea actualizar ahora?'
+                });
+                if (result.response === 0) {
+                    await autoUpdater.downloadUpdate();
+                }
+            } catch (e) {
+                try { logError('AutoUpdate prompt failed', { message: String((e as any)?.message || e) }); } catch {}
+            }
+        });
+
+        autoUpdater.on('update-downloaded', async () => {
+            try {
+                const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+                    type: 'info',
+                    buttons: ['Reiniciar y actualizar', 'Más tarde'],
+                    defaultId: 0,
+                    cancelId: 1,
+                    title: 'Actualización lista',
+                    message: 'La actualización se descargó. ¿Reiniciar para instalar ahora?'
+                });
+                if (result.response === 0) {
+                    setImmediate(() => autoUpdater.quitAndInstall());
+                }
+            } catch (e) {
+                try { logError('AutoUpdate restart prompt failed', { message: String((e as any)?.message || e) }); } catch {}
+            }
+        });
+
+        // Buscar actualizaciones al inicio
+        autoUpdater.checkForUpdates().catch((e) => {
+            try { logWarning('AutoUpdate check failed', { message: String((e as any)?.message || e) }); } catch {}
+        });
+    } catch (e) {
+        try { logWarning('AutoUpdate setup failed', { message: String((e as any)?.message || e) }); } catch {}
+    }
 	// IPC seguro para configuración
 	ipcMain.handle('get-config', () => {
 		return store.get('config') || {};

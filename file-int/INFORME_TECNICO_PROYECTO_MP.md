@@ -3,7 +3,7 @@
 ## RESUMEN EJECUTIVO
 
 **Proyecto:** Sistema de Reportes de Pagos Mercado Pago  
-**Versión:** 1.0.2  
+**Versión:** 1.0.3  
 **Tecnologías:** TypeScript + Electron + Node.js  
 **Propósito:** Generación automatizada de reportes operativos de ventas desde Mercado Pago
 
@@ -107,6 +107,9 @@ MP_MAX_PAGES=100
 EMAIL_REPORT=contabilidad@empresa.com
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
+
+# Publicación/auto-update (GitHub Releases privado)
+GH_TOKEN=ghp_xxx
 ```
 
 #### 3.2 Configuración GUI
@@ -117,6 +120,25 @@ SMTP_PORT=587
 ---
 
 ## NUEVAS FUNCIONALIDADES IMPLEMENTADAS
+
+### 0. Sistema de Auto-Actualización y Releases Privadas (Nuevo)
+
+**Resumen:** Se integró `electron-updater` para que la app busque actualizaciones al iniciar. Si hay una nueva versión publicada en GitHub Releases privado, muestra un diálogo con opciones "Actualizar" y "Más tarde". Tras descargar, ofrece "Reiniciar y actualizar" para instalar.
+
+**Detalles técnicos:**
+- Publicación automática con `electron-builder` y `--publish always` usando `npm run release`.
+- Configuración en `package.json > build.publish` (provider `github`, repo privado, owner/repo configurables).
+- Seguridad: el token `GH_TOKEN` se lee desde `.env` vía `dotenv` (no se hardcodea).
+- Artefactos: instalador `.exe` y archivos de actualización generados en `dist/` y publicados en Releases.
+
+**Flujo esperado:**
+1) Desarrollador incrementa `version` en `package.json` (semántico, ej. 1.0.3).
+2) Ejecuta `npm run release`.
+3) Se genera el instalador y se publica la release privada en GitHub.
+4) Al abrir, el cliente ve aviso de actualización y puede aplicar el update.
+
+**Impacto en operación:**
+- Entregar solo el primer instalador; las siguientes versiones llegan por auto-update.
 
 ### 1. SISTEMA DE AUTOMATIZACIÓN AVANZADO
 
@@ -583,8 +605,9 @@ npm run build:ts
 ### 3. Scripts Disponibles
 ```json
 {
-  "start": "npm run build:ts && electron .",
-  "build": "electron-builder -w",
+  "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
+  "build": "npm run build:ts && electron-builder -w",
+  "release": "npm run build:ts && electron-builder -w --publish always",
   "build:ts": "tsc -p tsconfig.json",
   "mp:payments:report:dist": "npm run build:ts && node dist/mp-sdk/report.js",
   "clean:credentials": "node scripts/clean-credentials.js"
@@ -601,25 +624,25 @@ npm run build:ts
 
 ## DESPLIEGUE Y DISTRIBUCIÓN
 
-### 1. Construcción para Windows
+### 1. Construcción y Release para Windows
 ```bash
 # En Windows
 npm ci
 npm run build:ts
-npx electron-builder -w
+npm run release  # publica en GitHub Releases privado (requiere GH_TOKEN)
 ```
 
 ### 2. Archivos de Salida
-- **Instalador:** `dist/Tc-Mp ver.1.0.1.exe`
+- **Instalador:** `dist/Tc-Mp-<version>.exe`
 - **Configuración:** NSIS (instalador automático)
 - **Iconos:** build/icon.ico
 - **Firma:** Opcional (variables CSC_*)
 
 ### 3. Configuración de Instalador
-- **OneClick:** true (instalación automática)
+- **OneClick:** false (asistente con licencia y opciones)
 - **Desktop Shortcut:** true
 - **Start Menu:** true
-- **PerMachine:** false (usuario actual)
+- **PerMachine:** true (todos los usuarios)
 
 ---
 
@@ -766,6 +789,8 @@ MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
 ### 2. Dependencias Críticas
 - `mercadopago`: SDK oficial (v2.8.0)
 - `electron-store`: Persistencia encriptada
+- `electron-updater`: Auto-actualización de la app
+- `dotenv`: Carga segura de variables de entorno (`GH_TOKEN`)
 - `dayjs`: Manejo de fechas y zonas horarias
 - `exceljs`: Generación de archivos Excel
 

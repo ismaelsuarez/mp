@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -12,6 +12,7 @@
     "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
     "prebuild": "node scripts/copy-manual.js",
     "build": "npm run build:ts && electron-builder -w",
+    "release": "npm run build:ts && electron-builder -w --publish always",
     "build:windows": "node scripts/build-windows.js",
     "build:ts": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -29,6 +30,14 @@
     "artifactName": "Tc-Mp-${version}.${ext}",
     "asar": false,
     "compression": "store",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ISMAEL_USUARIO_GITHUB",
+        "repo": "NOMBRE_REPO_PRIVADO",
+        "private": true
+      }
+    ],
     "files": [
       "src/**/*",
       "public/**/*",
@@ -72,6 +81,7 @@
     "dayjs": "^1.11.13",
     "dbffile": "^1.12.0",
     "dotenv": "^17.2.0",
+    "electron-updater": "^6.4.7",
     "electron-store": "^8.1.0",
     "exceljs": "^4.4.0",
     "mercadopago": "^2.8.0",
