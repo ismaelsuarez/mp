@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -35,7 +35,8 @@
         "provider": "github",
         "owner": "ismaelsuarez",
         "repo": "mp",
-        "private": true
+        "private": true,
+        "releaseType": "release"
       }
     ],
     "files": [
