@@ -180,15 +180,15 @@ app.whenReady().then(() => {
             try { logError('AutoUpdate error', { message: String((error as any)?.message || error) }); } catch {}
         });
 
-        autoUpdater.on('update-available', async () => {
+        autoUpdater.on('update-available', async (info) => {
             try {
                 const result = await dialog.showMessageBox(mainWindow ?? undefined, {
                     type: 'info',
-                    buttons: ['Actualizar', 'Más tarde'],
+                    buttons: ['Actualizar ahora', 'Más tarde'],
                     defaultId: 0,
                     cancelId: 1,
                     title: 'Actualización disponible',
-                    message: 'Nueva versión disponible, ¿desea actualizar ahora?'
+                    message: `Se encontró una nueva versión (${info?.version || ''}). ¿Desea instalarla ahora?`
                 });
                 if (result.response === 0) {
                     await autoUpdater.downloadUpdate();
@@ -202,11 +202,11 @@ app.whenReady().then(() => {
             try {
                 const result = await dialog.showMessageBox(mainWindow ?? undefined, {
                     type: 'info',
-                    buttons: ['Reiniciar y actualizar', 'Más tarde'],
+                    buttons: ['Reiniciar y actualizar', 'Después'],
                     defaultId: 0,
                     cancelId: 1,
                     title: 'Actualización lista',
-                    message: 'La actualización se descargó. ¿Reiniciar para instalar ahora?'
+                    message: 'La actualización está lista. ¿Desea reiniciar la aplicación para instalarla?'
                 });
                 if (result.response === 0) {
                     setImmediate(() => autoUpdater.quitAndInstall());
