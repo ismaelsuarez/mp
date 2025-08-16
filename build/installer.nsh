@@ -1,10 +1,11 @@
 !macro preInit
-  ; Establecer carpeta de instalación fija
-  StrCpy $INSTDIR "C:\\2_mp"
+  ; No forzar ruta fija. Se respetará la carpeta elegida por el usuario
+  ; (electron-builder + NSIS usarán el directorio seleccionado en el asistente)
 !macroend
 
 !macro customInstall
-  ; Crear subcarpetas requeridas
+  ; Crear subcarpetas requeridas dentro de la carpeta elegida por el usuario
+  ; Estructura final: <carpeta elegida>\logs, \reportes y los archivos del programa
   CreateDirectory "$INSTDIR\logs"
   CreateDirectory "$INSTDIR\reportes"
   ; Conceder permisos de modificación a Usuarios (para escribir logs/reportes)
