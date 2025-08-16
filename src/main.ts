@@ -482,21 +482,59 @@ app.whenReady().then(() => {
 
 	function isDayEnabled(): boolean {
 		const cfg: any = store.get('config') || {};
-		const today = new Date().getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
-		
-		// Mapear el día actual a la configuración
-		const dayConfigs = [
-			cfg.AUTO_DAYS_SUNDAY,    // 0 = Domingo
-			cfg.AUTO_DAYS_MONDAY,    // 1 = Lunes
-			cfg.AUTO_DAYS_TUESDAY,   // 2 = Martes
-			cfg.AUTO_DAYS_WEDNESDAY, // 3 = Miércoles
-			cfg.AUTO_DAYS_THURSDAY,  // 4 = Jueves
-			cfg.AUTO_DAYS_FRIDAY,    // 5 = Viernes
-			cfg.AUTO_DAYS_SATURDAY   // 6 = Sábado
+		const now = new Date();
+		const day = now.getDay(); // 0=Dom, 1=Lun, ... 6=Sáb
+		const enabledByDay = [
+			cfg.AUTO_DAYS_SUNDAY,
+			cfg.AUTO_DAYS_MONDAY,
+			cfg.AUTO_DAYS_TUESDAY,
+			cfg.AUTO_DAYS_WEDNESDAY,
+			cfg.AUTO_DAYS_THURSDAY,
+			cfg.AUTO_DAYS_FRIDAY,
+			cfg.AUTO_DAYS_SATURDAY
 		];
+		if (enabledByDay[day] === false) return false;
 		
-		// Si no hay configuración específica, por defecto está habilitado
-		return dayConfigs[today] !== false;
+		// Validar rango horario opcional por día: HH:mm → minutos desde 00:00
+		function toMinutes(hhmm?: string): number | null {
+			if (!hhmm || typeof hhmm !== 'string') return null;
+			const m = hhmm.match(/^([0-1]?\d|2[0-3]):([0-5]\d)$/);
+			if (!m) return null;
+			return parseInt(m[1],10)*60 + parseInt(m[2],10);
+		}
+		const mapFrom: any = [
+			cfg.AUTO_FROM_SUNDAY,
+			cfg.AUTO_FROM_MONDAY,
+			cfg.AUTO_FROM_TUESDAY,
+			cfg.AUTO_FROM_WEDNESDAY,
+			cfg.AUTO_FROM_THURSDAY,
+			cfg.AUTO_FROM_FRIDAY,
+			cfg.AUTO_FROM_SATURDAY
+		];
+		const mapTo: any = [
+			cfg.AUTO_TO_SUNDAY,
+			cfg.AUTO_TO_MONDAY,
+			cfg.AUTO_TO_TUESDAY,
+			cfg.AUTO_TO_WEDNESDAY,
+			cfg.AUTO_TO_THURSDAY,
+			cfg.AUTO_TO_FRIDAY,
+			cfg.AUTO_TO_SATURDAY
+		];
+		const fromMin = toMinutes(mapFrom[day]);
+		const toMin = toMinutes(mapTo[day]);
+		if (fromMin === null && toMin === null) return true; // sin restricción horaria
+		const nowMin = now.getHours()*60 + now.getMinutes();
+		if (fromMin !== null && toMin !== null) {
+			if (toMin >= fromMin) {
+				return nowMin >= fromMin && nowMin <= toMin;
+			} else {
+				// Rango nocturno (cruza medianoche): activo si (>= from) o (<= to)
+				return nowMin >= fromMin || nowMin <= toMin;
+			}
+		}
+		if (fromMin !== null && toMin === null) return nowMin >= fromMin;
+		if (fromMin === null && toMin !== null) return nowMin <= toMin;
+		return true;
 	}
 
 	function stopAutoTimer() {

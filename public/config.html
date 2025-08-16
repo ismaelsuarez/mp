@@ -131,6 +131,21 @@
 							</div>
 						</div>
 						
+						<!-- Rangos horarios por día (opcional) -->
+						<div class="mb-3">
+							<label class="block text-sm font-medium mb-2">Rangos horarios por día (opcional)</label>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Lunes</span><input id="AUTO_FROM_MONDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_MONDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Martes</span><input id="AUTO_FROM_TUESDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_TUESDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Miércoles</span><input id="AUTO_FROM_WEDNESDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_WEDNESDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Jueves</span><input id="AUTO_FROM_THURSDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_THURSDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Viernes</span><input id="AUTO_FROM_FRIDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_FRIDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Sábado</span><input id="AUTO_FROM_SATURDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_SATURDAY" type="time" class="w-28" /></div>
+								<div class="flex items-center gap-2"><span class="w-24 text-sm">Domingo</span><input id="AUTO_FROM_SUNDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_SUNDAY" type="time" class="w-28" /></div>
+							</div>
+							<p class="text-xs text-slate-400 mt-1">Si el rango está vacío, se considera todo el día. Si el fin es menor que el inicio, se interpreta como rango nocturno (p. ej. 22:00 a 02:00).</p>
+						</div>
+						
 						<div class="row">
 							<button type="button" id="btnAutoStart">Activar</button>
 							<button type="button" id="btnAutoStop">Desactivar</button>

@@ -21,7 +21,8 @@ window.addEventListener('DOMContentLoaded', () => {
         'MP_ACCESS_TOKEN','MP_USER_ID','MP_TZ','MP_WINDOW_START','MP_WINDOW_END','MP_DATE_FROM','MP_DATE_TO','MP_DAYS_BACK',
         'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
-		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY'
+		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY',
+		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -109,6 +110,20 @@ window.addEventListener('DOMContentLoaded', () => {
 			AUTO_DAYS_FRIDAY: (el.AUTO_DAYS_FRIDAY as HTMLInputElement)?.checked || false,
 			AUTO_DAYS_SATURDAY: (el.AUTO_DAYS_SATURDAY as HTMLInputElement)?.checked || false,
 			AUTO_DAYS_SUNDAY: (el.AUTO_DAYS_SUNDAY as HTMLInputElement)?.checked || false,
+			AUTO_FROM_MONDAY: (el.AUTO_FROM_MONDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_MONDAY: (el.AUTO_TO_MONDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_TUESDAY: (el.AUTO_FROM_TUESDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_TUESDAY: (el.AUTO_TO_TUESDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_WEDNESDAY: (el.AUTO_FROM_WEDNESDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_WEDNESDAY: (el.AUTO_TO_WEDNESDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_THURSDAY: (el.AUTO_FROM_THURSDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_THURSDAY: (el.AUTO_TO_THURSDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_FRIDAY: (el.AUTO_FROM_FRIDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_FRIDAY: (el.AUTO_TO_FRIDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_SATURDAY: (el.AUTO_FROM_SATURDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_SATURDAY: (el.AUTO_TO_SATURDAY as HTMLInputElement)?.value || undefined,
+			AUTO_FROM_SUNDAY: (el.AUTO_FROM_SUNDAY as HTMLInputElement)?.value || undefined,
+			AUTO_TO_SUNDAY: (el.AUTO_TO_SUNDAY as HTMLInputElement)?.value || undefined,
 			DEFAULT_VIEW: 'caja'
 		};
 	}
@@ -122,8 +137,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.MP_WINDOW_END as HTMLInputElement).value = cfg.MP_WINDOW_END || '';
 		(el.MP_DATE_FROM as HTMLInputElement).value = cfg.MP_DATE_FROM || '';
 		(el.MP_DATE_TO as HTMLInputElement).value = cfg.MP_DATE_TO || '';
-        (el.MP_NO_DATE_FILTER as HTMLInputElement).checked = !!cfg.MP_NO_DATE_FILTER;
-        (el.MP_DAYS_BACK as HTMLInputElement).value = cfg.MP_DAYS_BACK || '';
+            (el.MP_NO_DATE_FILTER as HTMLInputElement).checked = !!cfg.MP_NO_DATE_FILTER;
+            (el.MP_DAYS_BACK as HTMLInputElement).value = cfg.MP_DAYS_BACK || '';
 		(el.MP_RANGE as HTMLInputElement).value = cfg.MP_RANGE || '';
 		(el.MP_STATUS as HTMLInputElement).value = cfg.MP_STATUS || '';
 		(el.MP_LIMIT as HTMLInputElement).value = cfg.MP_LIMIT || '';
@@ -148,6 +163,20 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.AUTO_DAYS_FRIDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_FRIDAY !== false;
 		(el.AUTO_DAYS_SATURDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_SATURDAY !== false;
 		(el.AUTO_DAYS_SUNDAY as HTMLInputElement).checked = cfg.AUTO_DAYS_SUNDAY !== false;
+		(el.AUTO_FROM_MONDAY as HTMLInputElement).value = cfg.AUTO_FROM_MONDAY || '';
+		(el.AUTO_TO_MONDAY as HTMLInputElement).value = cfg.AUTO_TO_MONDAY || '';
+		(el.AUTO_FROM_TUESDAY as HTMLInputElement).value = cfg.AUTO_FROM_TUESDAY || '';
+		(el.AUTO_TO_TUESDAY as HTMLInputElement).value = cfg.AUTO_TO_TUESDAY || '';
+		(el.AUTO_FROM_WEDNESDAY as HTMLInputElement).value = cfg.AUTO_FROM_WEDNESDAY || '';
+		(el.AUTO_TO_WEDNESDAY as HTMLInputElement).value = cfg.AUTO_TO_WEDNESDAY || '';
+		(el.AUTO_FROM_THURSDAY as HTMLInputElement).value = cfg.AUTO_FROM_THURSDAY || '';
+		(el.AUTO_TO_THURSDAY as HTMLInputElement).value = cfg.AUTO_TO_THURSDAY || '';
+		(el.AUTO_FROM_FRIDAY as HTMLInputElement).value = cfg.AUTO_FROM_FRIDAY || '';
+		(el.AUTO_TO_FRIDAY as HTMLInputElement).value = cfg.AUTO_TO_FRIDAY || '';
+		(el.AUTO_FROM_SATURDAY as HTMLInputElement).value = cfg.AUTO_FROM_SATURDAY || '';
+		(el.AUTO_TO_SATURDAY as HTMLInputElement).value = cfg.AUTO_TO_SATURDAY || '';
+		(el.AUTO_FROM_SUNDAY as HTMLInputElement).value = cfg.AUTO_FROM_SUNDAY || '';
+		(el.AUTO_TO_SUNDAY as HTMLInputElement).value = cfg.AUTO_TO_SUNDAY || '';
 	}
 
 	function renderPreview(cfg: any) {
