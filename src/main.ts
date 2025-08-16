@@ -301,6 +301,15 @@ app.whenReady().then(() => {
 		return { outDir };
 	});
 
+	// Versión de la app para mostrar en UI
+	ipcMain.handle('get-app-version', async () => {
+		try {
+			return { version: app.getVersion() };
+		} catch {
+			return { version: 'unknown' };
+		}
+	});
+
 	ipcMain.handle('send-report-email', async () => {
 		const today = new Date().toISOString().slice(0, 10);
 		const outDir = getOutDir();

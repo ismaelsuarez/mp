@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async setWindowSize(width: number, height: number) {
 		return await ipcRenderer.invoke('set-window-size', { width, height });
+	},
+	async getAppVersion() {
+		return await ipcRenderer.invoke('get-app-version');
 	}
 });
 

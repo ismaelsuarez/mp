@@ -226,6 +226,10 @@
 				<li>WhatsApp: 26154669355</li>
 				<li>Email: <a href="mailto:pc@tcmza.com.ar">pc@tcmza.com.ar</a></li>
 			</ul>
+			<div class="mt-4 text-sm text-slate-300">
+				<span class="font-semibold">Versión instalada:</span>
+				<span id="app-version">-</span>
+			</div>
         </section>
 
         <section id="tab-results" class="tab-pane">
@@ -320,6 +324,16 @@
             await window.api.openTodayLog();
         }
     });
+    // Mostrar versión instalada
+    (async () => {
+        try {
+            if (window.api && typeof window.api.getAppVersion === 'function') {
+                const res = await window.api.getAppVersion();
+                const el = document.getElementById('app-version');
+                if (el && res && res.version) el.textContent = res.version;
+            }
+        } catch {}
+    })();
     </script>
     <script src="../dist/src/renderer.js"></script>
 </body>
