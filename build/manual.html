@@ -3,59 +3,628 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Manual de Uso - Mi App MP</title>
+  <title>Manual de Uso - MP</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;padding:24px;background:#0f172a;color:#e2e8f0}
-    h1,h2{color:#93c5fd}
-    .card{background:#111827;border:1px solid #1f2937;border-radius:10px;padding:16px;margin:12px 0}
-    .step{margin:10px 0}
-    img{max-width:100%;border:1px solid #1f2937;border-radius:6px}
-    a{color:#93c5fd}
-    .muted{color:#9ca3af;font-size:12px}
+    :root{
+      --bg:#0f172a;--panel:#111827;--muted:#94a3b8;--text:#e2e8f0;--b:#1f2937;--primary:#60a5fa;--accent:#34d399;
+      --warn:#f59e0b;--rose:#fb7185;--shadow:0 10px 25px rgba(0,0,0,.25)
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;display:flex}
+    a{color:var(--primary);text-decoration:none}
+    a:hover{text-decoration:underline}
+    /* Layout */
+    .sidebar{width:290px;min-width:260px;background:var(--panel);border-right:1px solid var(--b);padding:18px;position:sticky;top:0;height:100vh;overflow:auto}
+    .brand{font-weight:700;letter-spacing:.2px;color:#cbd5e1;margin-bottom:8px}
+    .search{display:flex;gap:8px;margin:10px 0 14px}
+    .search input{flex:1;background:#0b1220;color:var(--text);border:1px solid var(--b);border-radius:8px;padding:8px 10px}
+    .chip{display:inline-block;font-size:11px;padding:2px 8px;border:1px solid var(--b);border-radius:999px;background:#0b1220;color:#cbd5e1}
+    .nav{margin-top:6px}
+    .nav h4{margin:14px 0 6px;font-size:12px;color:#cbd5e1;text-transform:uppercase;letter-spacing:.6px}
+    .nav a{display:block;padding:8px 10px;border-radius:8px;color:#e2e8f0;border:1px solid transparent}
+    .nav a:hover{background:#0b1220;border-color:var(--b)}
+    .nav .sub{margin-left:8px}
+
+    .content{flex:1;min-width:0;height:100vh;overflow:auto}
+    .container{max-width:1100px;margin:0 auto;padding:24px}
+    .hero{background:linear-gradient(180deg,rgba(96,165,250,.08),transparent);border:1px solid var(--b);border-radius:14px;padding:18px 18px;box-shadow:var(--shadow)}
+    .hero h1{margin:0 0 6px;color:#bfdbfe}
+    .muted{color:var(--muted);font-size:13px}
+
+    .grid{display:grid;gap:16px}
+    @media(min-width:900px){.grid.cols-2{grid-template-columns:1fr 1fr}}
+
+    .card{background:var(--panel);border:1px solid var(--b);border-radius:12px;padding:16px}
+    .card h2{margin:0 0 6px;color:#bfdbfe}
+    .list{margin:8px 0 0;padding-left:18px}
+    .list li{margin:6px 0}
+    .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .btn{background:#0b1220;border:1px solid var(--b);color:var(--text);padding:8px 10px;border-radius:8px;font-size:13px}
+    .btn:hover{background:#0f1a33}
+    .badge{display:inline-block;background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.35);color:#a7f3d0;padding:2px 8px;border-radius:999px;font-size:11px;margin-left:6px}
+    .warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.35);color:#fde68a}
+
+    .toc{display:grid;gap:10px;margin-top:8px}
+    .toc a{background:#0b1220;border:1px solid var(--b);padding:10px;border-radius:10px}
+    .toc a:hover{background:#0f1a33}
+
+    .footer{margin:30px 0;color:#64748b;font-size:12px}
+    .kbd{font:inherit;background:#0b1220;border:1px solid var(--b);border-radius:6px;padding:2px 6px}
+    .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+    /* Detail panels */
+    .details{margin:10px 0 0;padding:12px;background:#0b1220;border:1px solid var(--b);border-radius:10px}
+    .details h3{margin:0 0 6px;color:#bfdbfe}
+
+    /* Search highlight */
+    mark{background:rgba(96,165,250,.2);color:inherit;padding:0 2px;border-bottom:1px solid var(--primary)}
+
+    /* Callouts */
+    .callout{border:1px solid var(--b);border-left:4px solid var(--primary);background:#0b1220;padding:12px;border-radius:10px}
+    .callout.warn{border-left-color:var(--warn)}
+    .callout.ok{border-left-color:var(--accent)}
+
+    /* Floating actions */
+    .float-actions{position:fixed;right:16px;bottom:16px;display:flex;flex-direction:column;gap:8px;z-index:10}
+    .fab{background:#0b1220;border:1px solid var(--b);color:#e2e8f0;border-radius:999px;padding:10px 12px;cursor:pointer}
+    .fab:hover{background:#0f1a33}
   </style>
 </head>
 <body>
-  <h1>Manual de Uso – Mi App MP</h1>
-  <p>Bienvenido. Este manual explica cómo usar la aplicación paso a paso. Está orientado a usuarios finales, sin requerir conocimientos técnicos.</p>
+  <nav class="sidebar">
+    <div class="brand">Manual de Uso – MP</div>
+    <div class="search">
+      <input id="q" placeholder="Buscar en navegación (ej. FTP, Automático, DBF)" />
+    </div>
+    <div class="nav" id="nav">
+      <h4>General</h4>
+      <a href="#intro">Introducción</a>
+      <a href="#release-notes">Notas de versión</a>
+      <a href="#quickstart">Guía rápida</a>
+      <a href="#glossary">Glosario</a>
+      <a href="#faq">FAQ / Problemas</a>
 
-  <div class="card">
-    <h2>1. Instalación</h2>
-    <div class="step">1. Ejecute el instalador y acepte la licencia.</div>
-    <div class="step">2. Siga las indicaciones hasta finalizar. Se crearán accesos directos en el escritorio.</div>
+      <h4>Modo Caja</h4>
+      <div class="sub">
+        <a href="#caja-descargar">Descargar MP</a>
+        <a href="#caja-movimientos">Movimientos</a>
+        <a href="#caja-auto">Indicador Automático</a>
+        <a href="#caja-logs">Logs</a>
+        <a href="#caja-config">Configuración rápida</a>
+        <a href="#caja-tabs">Navegación</a>
+        <a href="#caja-hoy">Badge “HOY”</a>
+      </div>
+
+      <h4>Administración</h4>
+      <div class="sub">
+        <a href="#cfg-mp">Mercado Pago</a>
+        <a href="#cfg-email">Email / SMTP</a>
+        <a href="#cfg-ftp">FTP</a>
+        <a href="#cfg-auto">Automatización</a>
+        <a href="#cfg-seg">Seguridad</a>
+        <a href="#cfg-err">Notificaciones de Error</a>
+        <a href="#cfg-result">Resultados</a>
+        <a href="#cfg-hist">Historial</a>
+        <a href="#cfg-acciones">Acciones principales</a>
+        <a href="#cfg-about">Acerca de</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="content">
+    <div class="container">
+      <section id="intro" class="hero">
+        <h1>Bienvenido</h1>
+        <p class="muted">Esta guía resume cómo usar la aplicación en sus dos vistas: <strong>Modo Caja</strong> y <strong>Administración</strong>. Encontrarás enlaces de “Más detalle” a documentos específicos.</p>
+        <div class="btns">
+          <a class="btn" href="#caja">Ir a Modo Caja</a>
+          <a class="btn" href="#admin">Ir a Administración</a>
+          <a class="btn" href="#release-notes">Notas de versión</a>
+          <button class="btn" id="printBtn">Imprimir / PDF</button>
+        </div>
+      </section>
+
+      <section id="quickstart" class="card">
+        <h2>Guía rápida</h2>
+        <ol class="list">
+          <li>En <strong>Administración → Mercado Pago</strong>: ingresa tu <em>Access Token</em> y prueba conexión.</li>
+          <li>Opcional: configura <strong>Email/SMTP</strong> para enviar reportes y <strong>FTP</strong> para <code>mp.dbf</code>.</li>
+          <li>Define <strong>Automatización</strong> (intervalo, calendario) y habilita <strong>Remoto</strong> si corresponde.</li>
+          <li>Ve a <strong>Modo Caja</strong> y pulsa <strong>Descargar MP</strong> para generar archivos del día.</li>
+          <li>Revisa <strong>Resultados</strong> y exporta a <em>CSV/XLSX/DBF/JSON</em> o envía por email.</li>
+        </ol>
+        <div class="callout ok">Sugerencia: usa el buscador de contenido para encontrar rápidamente una opción o campo.</div>
+      </section>
+
+      <div class="btns" style="margin:14px 0 6px">
+        <button class="btn" id="expandAll">Expandir todo</button>
+        <button class="btn" id="collapseAll">Colapsar todo</button>
+        <input id="qc" class="chip" style="margin-left:auto" placeholder="Buscar en contenido" />
+      </div>
+
+      <div class="grid cols-2" style="margin-top:12px" id="caja">
+        <div class="card">
+          <h2>Modo Caja</h2>
+          <p class="muted">Operación diaria y rápida.</p>
+          <div class="toc">
+            <a href="#caja-descargar">1. Descargar MP</a>
+            <a href="#caja-movimientos">2. Movimientos</a>
+            <a href="#caja-auto">3. Indicador Automático</a>
+            <a href="#caja-logs">4. Logs</a>
+            <a href="#caja-config">5. Configuración rápida</a>
+            <a href="#caja-tabs">6. Navegación</a>
+            <a href="#caja-hoy">7. Badge “HOY”</a>
+          </div>
+        </div>
+        <div class="card" id="admin">
+          <h2>Administración</h2>
+          <p class="muted">Configuración completa, automatización y análisis.</p>
+          <div class="toc">
+            <a href="#cfg-mp">Mercado Pago</a>
+            <a href="#cfg-email">Email / SMTP</a>
+            <a href="#cfg-ftp">FTP</a>
+            <a href="#cfg-auto">Automatización</a>
+            <a href="#cfg-seg">Seguridad</a>
+            <a href="#cfg-err">Notificaciones de Error</a>
+            <a href="#cfg-result">Resultados</a>
+            <a href="#cfg-hist">Historial</a>
+            <a href="#cfg-acciones">Acciones principales</a>
+            <a href="#cfg-about">Acerca de</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- CAJA -->
+      <section id="caja-descargar" class="card">
+        <h2>Descargar MP <span class="badge">Acción principal</span></h2>
+        <p>Genera el reporte del día, crea archivos (CSV, XLSX, DBF, JSON) y actualiza la vista de resultados. Si FTP está configurado, envía <code>mp.dbf</code> automáticamente cuando hay cambios.</p>
+        <ul class="list">
+          <li>Flujo equivalente al botón “Descargar MP”.</li>
+          <li>Archivos en <code>C:\2_mp\reportes</code> (o Documentos/MP-Reportes).</li>
+        </ul>
+        <div class="btns">
+          <button class="btn btn-detail" data-target="detail-caja-descargar">Más detalle</button>
+        </div>
+        <div class="details" id="detail-caja-descargar" hidden>
+          <h3>CAJA – Botón "DESCARGAR MP"</h3>
+          <p>Resumen y flujo de generación del reporte diario y exportación de archivos (CSV/XLSX/DBF/JSON). Incluye intento de envío FTP de <code>mp.dbf</code> si corresponde.</p>
+          <p>Para detalle técnico completo, ver el documento original del proyecto.</p>
+        </div>
+      </section>
+
+      <section id="caja-movimientos" class="card">
+        <h2>Movimientos</h2>
+        <p>Tabla con operaciones del día y totales. Permite paginação y filtros rápidos.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-movimientos">Más detalle</button></div>
+        <div class="details" id="detail-caja-movimientos" hidden>
+          <h3>CAJA – Movimientos</h3>
+          <p>Muestra últimos registros con ID, Estado, Monto y Fecha/Hora. Se actualiza tras generar o recibir notificaciones de auto/remoto.</p>
+        </div>
+      </section>
+
+      <section id="caja-auto" class="card">
+        <h2>Indicador Automático</h2>
+        <p>Muestra el estado del proceso automático. El modo <em>remoto</em> es autónomo y respeta intervalos/días/horas configurados.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-auto">Más detalle</button></div>
+        <div class="details" id="detail-caja-auto" hidden>
+          <h3>CAJA – Indicador Automático</h3>
+          <p>Botón de control y contador del auto normal. El modo remoto es autónomo y respeta la configuración de calendario.</p>
+        </div>
+      </section>
+
+      <section id="caja-logs" class="card">
+        <h2>Logs</h2>
+        <p>Acceso rápido al log del día para diagnóstico.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-logs">Más detalle</button></div>
+        <div class="details" id="detail-caja-logs" hidden>
+          <h3>CAJA – Logs</h3>
+          <p>Ventana de 3 líneas con timestamp que muestra estado de acciones, resultados de FTP y mensajes de auto/remoto.</p>
+        </div>
+      </section>
+
+      <section id="caja-config" class="card">
+        <h2>Configuración rápida</h2>
+        <p>Acceso directo a la vista de Administración para ajustar parámetros.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-config">Más detalle</button></div>
+        <div class="details" id="detail-caja-config" hidden>
+          <h3>CAJA – Configuración</h3>
+          <p>Atajo para abrir la vista de Administración, ajustar parámetros y volver a Caja.</p>
+        </div>
+      </section>
+
+      <section id="caja-tabs" class="card">
+        <h2>Navegación</h2>
+        <p>Conmutación entre <strong>Caja</strong> y <strong>Configuración</strong> sin reiniciar la app.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-tabs">Más detalle</button></div>
+        <div class="details" id="detail-caja-tabs" hidden>
+          <h3>CAJA – Pestañas</h3>
+          <p>Separación de Inicio (acciones) y Movimientos (tabla). Alterna visibilidad de secciones para una UI compacta.</p>
+        </div>
+      </section>
+
+      <section id="caja-hoy" class="card">
+        <h2>Badge “HOY”</h2>
+        <p>Resalta el contenido más reciente para evitar confusiones de fecha.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-caja-hoy">Más detalle</button></div>
+        <div class="details" id="detail-caja-hoy" hidden>
+          <h3>CAJA – Badge “Hoy”</h3>
+          <p>Muestra <code>YYYY-MM-DD</code> operativo para validar que los archivos generados correspondan al día esperado.</p>
+        </div>
+      </section>
+
+      <!-- ADMIN -->
+      <section id="cfg-mp" class="card">
+        <h2>Mercado Pago</h2>
+        <p>Configura Access Token, ventana operativa y filtros de búsqueda. Soporta estado único y elección de campo de fecha en español.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-mp">Más detalle</button></div>
+        <div class="details" id="detail-cfg-mp" hidden>
+          <h3>CONFIG – Mercado Pago</h3>
+          <p><strong>Objetivo</strong>: Configurar credenciales y parámetros de consulta.</p>
+          <p><strong>Campos</strong>:</p>
+          <ul>
+            <li>Access Token (APP_USR-...)</li>
+            <li>ID de usuario (opcional)</li>
+            <li>Zona horaria y ventana operativa (inicio/fin)</li>
+            <li>Fechas manuales / Días hacia atrás / Sin filtro</li>
+            <li>Campo de fecha / Estado (único)</li>
+            <li>Paginación (límite / páginas)</li>
+          </ul>
+          <p><strong>Acciones</strong>:</p>
+          <ul><li>Probar conexión</li></ul>
+          <p><strong>Referencias</strong>: <code>src/services/MercadoPagoService.ts</code>, <code>src/main.ts</code>, <code>src/renderer.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-email" class="card">
+        <h2>Email / SMTP</h2>
+        <p>Envía reportes por correo. Validación en vivo del email y control de visibilidad de contraseña.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-email">Más detalle</button></div>
+        <div class="details" id="detail-cfg-email" hidden>
+          <h3>CONFIG – Email / SMTP</h3>
+          <p><strong>Objetivo</strong>: Enviar por correo los archivos generados.</p>
+          <p><strong>Campos</strong>:</p>
+          <ul>
+            <li>Email para reportes (destino)</li>
+            <li>Servidor / Puerto SMTP</li>
+            <li>Usuario / Contraseña</li>
+          </ul>
+          <p><strong>Uso</strong>: En Resultados, “Enviar por email” adjunta los archivos del día.</p>
+          <p><strong>Referencias</strong>: <code>src/services/EmailService.ts</code>, <code>src/main.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-ftp" class="card">
+        <h2>FTP</h2>
+        <p>Envío de <code>mp.dbf</code>. Campos proporcionados, toggle de contraseña con icono, alineación 1/3 + 1/3.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-ftp">Más detalle</button></div>
+        <div class="details" id="detail-cfg-ftp" hidden>
+          <h3>CONFIG – FTP</h3>
+          <p><strong>Objetivo</strong>: Transferir automáticamente <code>mp.dbf</code> y evitar reenvíos innecesarios.</p>
+          <p><strong>Campos</strong>:</p>
+          <ul>
+            <li>IP/Host y Puerto (21 por defecto)</li>
+            <li>FTPS (explícito)</li>
+            <li>Usuario / Contraseña</li>
+            <li>Carpeta remota / Archivo remoto (DBF)</li>
+          </ul>
+          <p><strong>Acciones</strong>:</p>
+          <ul>
+            <li>Probar FTP</li>
+            <li>Enviar DBF por FTP</li>
+            <li>Limpiar Hash FTP</li>
+          </ul>
+          <p><strong>Comportamiento</strong>: Envío automático tras generación: enviado / sin cambios / error</p>
+          <p><strong>Referencias</strong>: <code>src/services/FtpService.ts</code>, <code>src/main.ts</code>, <code>src/renderer.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-auto" class="card">
+        <h2>Automatización</h2>
+        <p>Intervalo, calendario semanal unificado y modo <strong>remoto</strong> autónomo con carpeta disparadora (<code>mp*.txt</code>).</p>
+        <div class="btns">
+          <button class="btn btn-detail" data-target="detail-cfg-auto">Más detalle</button>
+        </div>
+        <div class="details" id="detail-cfg-auto" hidden>
+          <h3>CONFIG – Automatización</h3>
+          <p><strong>Objetivo</strong>: Programar el ciclo automático y el modo remoto (disparador por archivo).</p>
+          <p><strong>Campos</strong>:</p>
+          <ul>
+            <li>Intervalo (segundos)</li>
+            <li>Calendario semanal: Activo / Desde / Hasta</li>
+            <li>Modo remoto: Habilitar y Carpeta remota (C:\\tmp)</li>
+            <li>Probar remoto ahora</li>
+          </ul>
+          <p><strong>Comportamiento</strong>:</p>
+          <ul>
+            <li>Remoto procesa <code>mp*.txt</code>, ejecuta el flujo de reporte y envía <code>mp.dbf</code> por FTP.</li>
+            <li>Remoto es autónomo (no se pausa con auto on/off), pero respeta intervalos/días/horas.</li>
+          </ul>
+          <p><strong>Referencias</strong>: <code>src/main.ts</code>, <code>src/renderer.ts</code>, <code>public/config.html</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-seg" class="card">
+        <h2>Seguridad</h2>
+        <p>Cambio de contraseña/usuario/frase secreta con validaciones de calidad. Toggles de visibilidad.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-seg">Más detalle</button></div>
+        <div class="details" id="detail-cfg-seg" hidden>
+          <h3>CONFIG – Seguridad</h3>
+          <p><strong>Objetivo</strong>: Administrar credenciales del administrador de forma segura.</p>
+          <p><strong>Campos y acciones</strong>:</p>
+          <ul>
+            <li>Contraseña actual</li>
+            <li>Nueva contraseña y confirmación (validación en vivo)</li>
+            <li>Nuevo usuario / frase secreta (opcional)</li>
+            <li>Cambiar contraseña</li>
+          </ul>
+          <p><strong>Errores amigables</strong>: weak_password, invalid_current, invalid_secret, invalid_otp, not_initialized, no_email, locked</p>
+          <p><strong>Referencias</strong>: <code>src/services/AuthService.ts</code>, <code>src/renderer.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-err" class="card">
+        <h2>Notificaciones de Error <span class="badge warn">Nuevo</span></h2>
+        <p>Umbrales configurables, estado actual y acciones para limpiar/resetear. Campos se deshabilitan si el feature está apagado.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-err">Más detalle</button></div>
+        <div class="details" id="detail-cfg-err" hidden>
+          <h3>CONFIG – Notificaciones de Error</h3>
+          <p><strong>Objetivo</strong>: Alertar por email con umbrales y ventana de enfriamiento.</p>
+          <p><strong>Campos</strong>:</p>
+          <ul>
+            <li>Habilitar</li>
+            <li>Mínimo errores antes de notificar</li>
+            <li>Tiempo entre notificaciones (minutos)</li>
+          </ul>
+          <p><strong>Acciones</strong>:</p>
+          <ul>
+            <li>Actualizar resumen</li>
+            <li>Guardar</li>
+            <li>Limpiar errores antiguos</li>
+            <li>Resetear todo</li>
+          </ul>
+          <p><strong>Resumen</strong>: Totales, grupos activos, notificaciones enviadas</p>
+          <p><strong>Referencias</strong>: <code>src/services/ErrorNotificationService.ts</code>, <code>src/main.ts</code>, <code>src/renderer.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-result" class="card">
+        <h2>Resultados</h2>
+        <p>Listado con filtros, exportación a CSV/XLSX/DBF/JSON y totales en tiempo real.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-result">Más detalle</button></div>
+        <div class="details" id="detail-cfg-result" hidden>
+          <h3>CONFIG – Resultados</h3>
+          <p><strong>Objetivo</strong>: Explorar, filtrar y exportar los datos del último reporte generado.</p>
+          <p><strong>Filtros</strong>:</p>
+          <ul>
+            <li>Desde/Hasta</li>
+            <li>Estado</li>
+            <li>Buscar</li>
+            <li>Generar (rango) / Reset</li>
+          </ul>
+          <p><strong>Tabla y sumarios</strong>:</p>
+          <ul>
+            <li>Paginación 10/20/50/100</li>
+            <li>Totales de ingresos, devoluciones y neto</li>
+          </ul>
+          <p><strong>Exportaciones</strong>:</p>
+          <ul>
+            <li>CSV, XLSX, DBF, JSON</li>
+            <li>Enviar por email (si SMTP configurado)</li>
+          </ul>
+          <p><strong>Referencias</strong>: <code>src/renderer.ts</code>, <code>src/main.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-hist" class="card">
+        <h2>Historial</h2>
+        <p>Explora archivos generados por fecha. Acceso directo a la carpeta de reportes.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-hist">Más detalle</button></div>
+        <div class="details" id="detail-cfg-hist" hidden>
+          <h3>CONFIG – Historial</h3>
+          <p><strong>Objetivo</strong>: Consultar rápidamente qué archivos se generaron por día y abrir la carpeta de salida.</p>
+          <p><strong>Acciones</strong>:</p>
+          <ul>
+            <li>Actualizar historial</li>
+            <li>Abrir carpeta de reportes</li>
+          </ul>
+          <p><strong>Detalles</strong>: Detecta prefijos: <code>balance-</code>, <code>transactions-</code>, <code>transactions-full-</code>, <code>transactions-detailed-</code>.</p>
+          <p><strong>Referencias</strong>: <code>src/main.ts</code> (handlers <code>list-history</code>, <code>open-out-dir</code>), <code>src/renderer.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-acciones" class="card">
+        <h2>Acciones principales</h2>
+        <p>Barra de acciones global (cargar, guardar, generar, enviar DBF por FTP, limpiar hash) y vista previa con filtro, copiar, exportar e importar JSON.</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-acciones">Más detalle</button></div>
+        <div class="details" id="detail-cfg-acciones" hidden>
+          <h3>Acciones principales y Vista previa (Administración)</h3>
+          <p><strong>Objetivo</strong>: Facilitar tareas frecuentes (cargar/guardar, generar, enviar por FTP) y ofrecer una vista previa no sensible del JSON de configuración, con herramientas de inspección y respaldo.</p>
+          <p><strong>Acciones principales</strong>:</p>
+          <ul>
+            <li>Cargar configuración</li>
+            <li>Guardar configuración</li>
+            <li>Generar reporte</li>
+            <li>Enviar DBF por FTP</li>
+            <li>Limpiar Hash FTP</li>
+          </ul>
+          <p><strong>Vista previa (no sensible)</strong>:</p>
+          <ul>
+            <li>Filtro de texto, Copiar, Descargar .json, Restaurar .json</li>
+            <li>Expandir/Contraer, Mostrar/Ocultar</li>
+            <li>Ofuscación de secretos</li>
+          </ul>
+          <p><strong>Referencias</strong>: UI: <code>public/config.html</code> y <code>src/renderer.ts</code>. FTP: <code>src/services/FtpService.ts</code>, <code>src/main.ts</code></p>
+        </div>
+      </section>
+
+      <section id="cfg-about" class="card">
+        <h2>Acerca de</h2>
+        <p>Datos de contacto y “Notas de versión” agrupadas por versión, leídas desde <code>docs/RELEASE_NOTES.md</code> (solo lectura).</p>
+        <div class="btns"><button class="btn btn-detail" data-target="detail-cfg-about">Más detalle</button></div>
+        <div class="details" id="detail-cfg-about" hidden>
+          <h3>Acerca de</h3>
+          <p><strong>Objetivo</strong>: Mostrar datos de contacto de soporte y las notas de versión de la aplicación.</p>
+          <p><strong>Ubicación</strong>:</p>
+          <ul>
+            <li>UI: pestaña <code>Acerca de</code> en <code>public/config.html</code>.</li>
+            <li>Lógica: <code>src/renderer.ts</code> (carga/acciones), <code>src/preload.ts</code> (bridge), <code>src/main.ts</code> (IPC).</li>
+          </ul>
+          <p><strong>Campos/Acciones</strong>:</p>
+          <ul>
+            <li>Información de contacto: teléfono, WhatsApp, email.</li>
+            <li>Notas de versión (solo lectura): se leen desde <code>docs/RELEASE_NOTES.md</code> y se agrupan por versión.</li>
+          </ul>
+          <p><strong>Comportamiento</strong>:</p>
+          <ul>
+            <li>Si el archivo no existe, muestra mensaje de ausencia.</li>
+            <li>El contenido se renderiza como acordeones por cada <code>## x.y.z</code>.</li>
+          </ul>
+          <p><strong>Archivo de notas</strong>: Ruta: <code>docs/RELEASE_NOTES.md</code>.</p>
+          <p><strong>Referencias</strong>: <code>ipcMain.handle('about:get-release-notes')</code></p>
+        </div>
+      </section>
+
+      <section id="release-notes" class="card">
+        <h2>Notas de versión</h2>
+        <div class="details" style="display:block">
+          <h3>1.0.5</h3>
+          <ul>
+            <li>Vista previa en Configuración: filtro, copiar, descargar/restaurar JSON, expandir/ocultar.</li>
+            <li>Automatización: modo remoto autónomo, envío FTP de mp.dbf.</li>
+            <li>Configuración: mejoras UI/UX en Mercado Pago, FTP, Seguridad, Email/SMTP y Notificaciones de Error.</li>
+            <li>Documentación: secciones de Caja y Configuración.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="glossary" class="card">
+        <h2>Glosario</h2>
+        <ul class="list">
+          <li><strong>Access Token</strong>: credencial de Mercado Pago para autenticar consultas.</li>
+          <li><strong>Remoto</strong>: modo que ejecuta el proceso al detectar archivos <code>mp*.txt</code> en una carpeta.</li>
+          <li><strong>mp.dbf</strong>: archivo DBF generado para integración con sistemas legados.</li>
+          <li><strong>FTPS</strong>: FTP con TLS explícito.</li>
+        </ul>
+      </section>
+
+      <section id="faq" class="card">
+        <h2>FAQ / Problemas frecuentes</h2>
+        <div class="details" style="display:block">
+          <h3>1) No se envía el DBF por FTP</h3>
+          <div class="list">
+            <li>Verifica host/puerto/credenciales y que <em>FTPS</em> sea el correcto.</li>
+            <li>Usa <strong>Probar FTP</strong> y revisa <strong>Logs</strong> para ver el resultado.</li>
+          </div>
+          <h3>2) Email no llega</h3>
+          <div class="list">
+            <li>Checa que el servidor y puerto SMTP sean correctos y que el usuario tenga permiso para enviar.</li>
+            <li>Revisa spam y configuración de remitente.</li>
+          </div>
+          <h3>3) Automatización no corre</h3>
+          <div class="list">
+            <li>Confirma el intervalo y que el calendario semanal esté activo para el día y hora.</li>
+            <li>En modo remoto, valida que existan archivos <code>mp*.txt</code> en la carpeta configurada.</li>
+          </div>
+        </div>
+      </section>
+
+      <div class="footer">Manual generado para acompañar las funciones de la aplicación MP. Usa el buscador para encontrar temas rápido. Pulsa <span class="kbd">Ctrl</span>+<span class="kbd">F</span> para búsqueda del navegador.</div>
+    </div>
+  </main>
+
+  <div class="float-actions">
+    <button class="fab" id="toTop" title="Arriba">↑</button>
   </div>
 
-  <div class="card">
-    <h2>2. Primer inicio (licencia)</h2>
-    <div class="step">1. Ingrese su <strong>Nombre de cliente</strong>, <strong>Serial</strong> y <strong>Palabra secreta</strong> provistos.</div>
-    <div class="step">2. Presione <em>Registrar</em>. Si es correcto, la aplicación abrirá normalmente.</div>
-  </div>
+  <script>
+    // Print button
+    const printBtn = document.getElementById('printBtn');
+    printBtn && printBtn.addEventListener('click', () => window.print());
+    const q = document.getElementById('q');
+    const nav = document.getElementById('nav');
+    const qc = document.getElementById('qc');
+    const expandAllBtn = document.getElementById('expandAll');
+    const collapseAllBtn = document.getElementById('collapseAll');
+    q?.addEventListener('input', () => {
+      const term = (q.value||'').toLowerCase();
+      for (const link of nav.querySelectorAll('a')) {
+        const show = !term || link.textContent.toLowerCase().includes(term);
+        link.style.display = show ? 'block' : 'none';
+      }
+    });
+    // Toggle detail sections
+    document.addEventListener('click', (ev) => {
+      const target = ev.target;
+      if (!target) return;
+      const btn = target.closest ? target.closest('.btn-detail') : null;
+      if (!btn) return;
+      const id = btn.getAttribute('data-target');
+      if (!id) return;
+      const el = document.getElementById(id);
+      if (!el) return;
+      const willShow = el.hasAttribute('hidden');
+      if (willShow) el.removeAttribute('hidden');
+      else el.setAttribute('hidden', '');
+    });
 
-  <div class="card">
-    <h2>3. Modo Caja</h2>
-    <div class="step">1. Haga clic en <strong>DESCARGAR MP</strong> para generar el reporte del día.</div>
-    <div class="step">2. En <strong>Movimientos</strong> puede ver las últimas operaciones (horario local).</div>
-    <div class="step">3. El indicador inferior muestra el estado del modo automático.</div>
-  </div>
+    function setAllDetails(open) {
+      const nodes = document.querySelectorAll('.details');
+      for (const el of nodes) {
+        if (open) el.removeAttribute('hidden');
+        else el.setAttribute('hidden', '');
+      }
+    }
+    expandAllBtn && expandAllBtn.addEventListener('click', () => setAllDetails(true));
+    collapseAllBtn && collapseAllBtn.addEventListener('click', () => setAllDetails(false));
 
-  <div class="card">
-    <h2>4. Configuración</h2>
-    <div class="step">1. Ingrese a <strong>Configuración</strong> para establecer credenciales de Mercado Pago (Access Token).</div>
-    <div class="step">2. Configure email (opcional) si desea enviar reportes por correo.</div>
-    <div class="step">3. FTP (opcional) permite enviar automáticamente el archivo <code>mp.dbf</code> si hay cambios.</div>
-  </div>
+    qc && qc.addEventListener('input', () => {
+      const raw = qc.value||'';
+      const term = raw.toLowerCase();
+      const cards = document.querySelectorAll('.card');
+      // remove previous highlights
+      for (const m of document.querySelectorAll('mark')) {
+        const parent = m.parentNode;
+        if (!parent) continue;
+        parent.replaceChild(document.createTextNode(m.textContent||''), m);
+        parent.normalize && parent.normalize();
+      }
+      for (const card of cards) {
+        const text = card.textContent ? card.textContent.toLowerCase() : '';
+        const match = !term || text.includes(term);
+        card.style.display = match ? 'block' : 'none';
+        if (match && term) {
+          const details = card.querySelectorAll('.details');
+          for (const d of details) d.removeAttribute('hidden');
+          // highlight matches within this card
+          const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT, null);
+          const nodes = [];
+          let n;
+          while ((n = walker.nextNode())) nodes.push(n);
+          for (const node of nodes) {
+            const val = node.nodeValue||'';
+            const lower = val.toLowerCase();
+            const idx = lower.indexOf(term);
+            if (term && idx !== -1 && node.parentElement && node.parentElement.tagName !== 'SCRIPT' && node.parentElement.tagName !== 'STYLE') {
+              const before = document.createTextNode(val.slice(0, idx));
+              const mark = document.createElement('mark');
+              mark.textContent = val.slice(idx, idx + raw.length);
+              const after = document.createTextNode(val.slice(idx + raw.length));
+              const frag = document.createDocumentFragment();
+              frag.appendChild(before);
+              frag.appendChild(mark);
+              frag.appendChild(after);
+              node.parentNode && node.parentNode.replaceChild(frag, node);
+            }
+          }
+        }
+      }
+    });
 
-  <div class="card">
-    <h2>5. Exportación de reportes</h2>
-    <div class="step">- CSV, XLSX, DBF y JSON quedarán en <code>C:\2_mp\reportes</code> (o Documentos/MP-Reportes).</div>
-    <div class="step">- Los horarios de los archivos reflejan exactamente lo informado por Mercado Pago.</div>
-  </div>
-
-  <div class="card">
-    <h2>6. Soporte</h2>
-    <div class="step">Ante dudas o inconvenientes, contacte a su soporte habitual.</div>
-    <div class="muted">Versión del manual 1.0</div>
-  </div>
-
+    // Scroll to top
+    const toTop = document.getElementById('toTop');
+    toTop && toTop.addEventListener('click', () => window.scrollTo({top:0, behavior:'smooth'}));
+  </script>
 </body>
 </html>
 
