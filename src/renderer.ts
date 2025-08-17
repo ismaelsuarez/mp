@@ -982,14 +982,57 @@ window.addEventListener('DOMContentLoaded', () => {
 		});
 	})();
 
-	// ===== ACERCA DE: Notas de versión =====
-	async function loadReleaseNotes() {
+	// ===== ACERCA DE: Notas de versión dinámicas =====
+	function parseReleaseNotes(md: string): Array<{ version: string; body: string }> {
+		const lines = (md || '').split(/\r?\n/);
+		const entries: Array<{ version: string; body: string }> = [];
+		let current: { version: string; body: string } | null = null;
+		for (const line of lines) {
+			const m = line.match(/^##\s+([0-9]+\.[0-9]+\.[0-9]+)/);
+			if (m) {
+				if (current) entries.push(current);
+				current = { version: m[1], body: '' };
+				continue;
+			}
+			if (!current) {
+				// ignorar cabecera general
+				continue;
+			}
+			current.body += (current.body ? '\n' : '') + line;
+		}
+		if (current) entries.push(current);
+		return entries;
+	}
+	function renderReleaseNotesList(md: string, installedVersion: string) {
+		const container = document.getElementById('release-notes-list') as HTMLElement | null;
+		if (!container) return;
+		const items = parseReleaseNotes(md);
+		container.innerHTML = items.map(({ version, body }, idx) => {
+			const isCurrent = version === installedVersion;
+			const open = idx === 0 || isCurrent;
+			return `
+			<details class="group border border-slate-700 rounded-md ${isCurrent ? 'ring-1 ring-emerald-600/40' : ''}" ${open ? 'open' : ''}>
+				<summary class="cursor-pointer px-3 py-1.5 bg-slate-800 text-sm flex items-center justify-between">
+					<span>v${version} ${isCurrent ? '<span class=\'ml-2 text-emerald-400 text-xs\'>(instalada)</span>' : ''}</span>
+					<span class="text-xs text-slate-400">clic para ver</span>
+				</summary>
+				<pre class="p-3 text-xs whitespace-pre-wrap leading-5">${body.replace(/</g,'&lt;')}</pre>
+			</details>`;
+		}).join('');
+	}
+	async function loadReleaseNotesDynamic() {
 		try {
 			const res = await (window.api as any).getReleaseNotes?.();
-			const box = document.getElementById('release-notes') as HTMLElement | null;
-			if (box && res && res.ok) box.textContent = String(res.content || '');
+			const v = await window.api.getAppVersion();
+			if (res && res.ok) renderReleaseNotesList(String(res.content||''), String((v as any)?.version||''));
 		} catch {}
 	}
-	(document.getElementById('btnRefreshReleaseNotes') as HTMLButtonElement | null)?.addEventListener('click', loadReleaseNotes);
-	loadReleaseNotes();
+	(document.getElementById('btnRefreshReleaseNotes') as HTMLButtonElement | null)?.addEventListener('click', loadReleaseNotesDynamic);
+	(document.getElementById('btnReleaseExpandAll') as HTMLButtonElement | null)?.addEventListener('click', () => {
+		for (const d of Array.from(document.querySelectorAll('#release-notes-list details'))) (d as HTMLDetailsElement).open = true;
+	});
+	(document.getElementById('btnReleaseCollapseAll') as HTMLButtonElement | null)?.addEventListener('click', () => {
+		for (const d of Array.from(document.querySelectorAll('#release-notes-list details'))) (d as HTMLDetailsElement).open = false;
+	});
+	loadReleaseNotesDynamic();
 });

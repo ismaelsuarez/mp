@@ -22,6 +22,8 @@ declare global {
 			listHistory(): Promise<any>;
 			openView(view: 'config' | 'caja'): Promise<any>;
 			setWindowSize(width: number, height: number): Promise<any>;
+			getAppVersion(): Promise<{ version: string }>;
+			getReleaseNotes(): Promise<{ ok: boolean; path?: string; content?: string; error?: string }>;
 			// Error Notifications
 			getErrorNotificationConfig(): Promise<{
 				enabled: boolean;
