@@ -763,6 +763,31 @@ window.addEventListener('DOMContentLoaded', () => {
 		});
 	}
 
+	// Toggle mostrar/ocultar contraseña FTP
+	const btnToggleFtpPass = document.getElementById('btnToggleFtpPass') as HTMLButtonElement | null;
+	if (btnToggleFtpPass) {
+		btnToggleFtpPass.addEventListener('click', () => {
+			const inp = document.getElementById('FTP_PASS') as HTMLInputElement | null;
+			if (!inp) return;
+			inp.type = inp.type === 'password' ? 'text' : 'password';
+			btnToggleFtpPass.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+		});
+	}
+
+	// Toggles de seguridad
+	function attachPwToggle(btnId: string, inputId: string) {
+		const btn = document.getElementById(btnId) as HTMLButtonElement | null;
+		const inp = document.getElementById(inputId) as HTMLInputElement | null;
+		if (!btn || !inp) return;
+		btn.addEventListener('click', () => {
+			inp.type = inp.type === 'password' ? 'text' : 'password';
+			btn.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+		});
+	}
+	attachPwToggle('btnToggleCurrentPw', 'current-password');
+	attachPwToggle('btnToggleNewPw', 'new-password');
+	attachPwToggle('btnToggleConfirmPw', 'confirm-password');
+
 	// Interceptar estados múltiples al momento de guardar o generar
 	function readStatusesCsv(): string | undefined {
 		const statusEl = document.getElementById('MP_STATUS') as HTMLSelectElement | null;

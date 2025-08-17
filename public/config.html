@@ -51,9 +51,15 @@
 
 						<!-- Ventana operativa -->
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-							<label>Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
-							<label>Hora de inicio <input id="MP_WINDOW_START" placeholder="00:00" /></label>
-							<label>Hora de finalización <input id="MP_WINDOW_END" placeholder="23:59" /></label>
+							<label class="md:col-span-2">Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
+							<div class="md:col-span-2">
+								<label class="block text-sm mb-1">Ventana operativa (HH:mm)</label>
+								<div class="flex items-center gap-2">
+									<input id="MP_WINDOW_START" type="time" class="w-24 text-center" placeholder="00:00" />
+									<span class="text-sm">a</span>
+									<input id="MP_WINDOW_END" type="time" class="w-24 text-center" placeholder="23:59" />
+								</div>
+							</div>
 						</div>
 						<p class="text-xs text-slate-500 -mt-2">Define el día operativo en tu zona horaria. Se sugiere 00:00 a 23:59.</p>
 
@@ -117,16 +123,46 @@
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						FTP
 					</summary>
-					<div class="p-3 space-y-2">
-						<label>IP o Host <input id="FTP_IP" placeholder="192.168.0.10" /></label>
-						<label>Puerto <input id="FTP_PORT" type="number" placeholder="21" /></label>
-						<label class="checkbox"><input id="FTP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
-						<label>Usuario <input id="FTP_USER" placeholder="usuario" /></label>
-						<label>Contraseña <input id="FTP_PASS" type="password" placeholder="********" /></label>
-						<label>Carpeta remota <input id="FTP_DIR" placeholder="/reportes" /></label>
-						<label>Archivo remoto (DBF) <input id="FTP_FILE" placeholder="transactions-detailed-YYYY-MM-DD.dbf" /></label>
+					<div class="p-3 space-y-3">
+						<!-- Host / Puerto -->
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<label class="md:col-span-2">IP o Host
+								<input id="FTP_IP" placeholder="192.168.0.10" />
+							</label>
+							<label>Puerto
+								<input id="FTP_PORT" type="number" placeholder="21" />
+							</label>
+						</div>
+						<p class="text-xs text-slate-500 -mt-2">Puerto por defecto: 21. Si tu servidor exige TLS explícito, marca FTPS.</p>
+
+						<!-- FTPS -->
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+
+						<!-- Credenciales -->
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label class="md:col-span-1">Usuario
+								<input id="FTP_USER" placeholder="usuario" />
+							</label>
+							<label class="md:col-span-1">Contraseña
+								<input id="FTP_PASS" type="password" placeholder="********" />
+							</label>
+							<div class="md:col-span-1">
+								<button type="button" id="btnToggleFtpPass" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 w-full">👁 Mostrar</button>
+							</div>
+						</div>
+
+						<!-- Rutas remotas -->
+						<label>Carpeta remota
+							<input id="FTP_DIR" placeholder="/reportes" />
+						</label>
+						<label>Archivo remoto (DBF)
+							<input id="FTP_FILE" placeholder="mp.dbf o transactions-detailed-YYYY-MM-DD.dbf" />
+						</label>
+						<p class="text-xs text-slate-500 -mt-2">Si dejas vacío, el sistema enviará el archivo fijo <code>mp.dbf</code> (generado automáticamente).</p>
+
+						<!-- Probar -->
 						<div class="row">
-							<button type="button" id="btnTestFtp">Probar FTP</button>
+							<button type="button" id="btnTestFtp" class="bg-blue-600 text-white border-transparent">Probar FTP</button>
 							<span id="ftpTestStatus"></span>
 						</div>
 					</div>
@@ -230,10 +266,31 @@
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Seguridad
 					</summary>
-					<div class="p-3 space-y-2">
-						<label>Contraseña actual <input id="current-password" type="password" placeholder="Ingrese su contraseña actual" /></label>
-						<label>Nueva contraseña <input id="new-password" type="password" placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número" /></label>
-						<label>Confirmar nueva contraseña <input id="confirm-password" type="password" placeholder="Repita la nueva contraseña" /></label>
+					<div class="p-3 space-y-3">
+						<div>
+							<label class="block text-sm mb-1">Contraseña actual</label>
+							<div class="flex items-center gap-2 w-full">
+								<input id="current-password" type="password" placeholder="Ingrese su contraseña actual" class="flex-1" />
+								<button type="button" id="btnToggleCurrentPw" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 whitespace-nowrap">👁 Mostrar</button>
+							</div>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">Nueva contraseña</label>
+							<div class="flex items-center gap-2 w-full">
+								<input id="new-password" type="password" placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número" class="flex-1" />
+								<button type="button" id="btnToggleNewPw" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 whitespace-nowrap">👁 Mostrar</button>
+							</div>
+							<p class="text-xs text-slate-500 mt-1">Debe contener al menos 8 caracteres, una mayúscula y un número.</p>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">Confirmar nueva contraseña</label>
+							<div class="flex items-center gap-2 w-full">
+								<input id="confirm-password" type="password" placeholder="Repita la nueva contraseña" class="flex-1" />
+								<button type="button" id="btnToggleConfirmPw" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 whitespace-nowrap">👁 Mostrar</button>
+							</div>
+						</div>
 						<label>Nuevo usuario (opcional) <input id="new-username" placeholder="Dejar vacío para mantener el actual" /></label>
 						<label>Nueva frase secreta (opcional) <input id="new-secret-phrase" placeholder="Dejar vacío para mantener la actual" /></label>
 						<div class="row">
