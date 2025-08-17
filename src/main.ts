@@ -230,6 +230,8 @@ app.whenReady().then(() => {
 	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
 			store.set('config', cfg);
+			// Reiniciar timer remoto para aplicar cambios (intervalo/directorio)
+			restartRemoteTimerIfNeeded();
 			return true;
 		}
 		return false;
@@ -239,42 +241,27 @@ app.whenReady().then(() => {
 		return await testConnection();
 	});
 
+	// Validar existencia de carpeta remota (modo "remoto")
+	ipcMain.handle('auto-remote:validate-dir', async (_e, dirPath: string) => {
+		try {
+			if (!dirPath || typeof dirPath !== 'string') return { ok: false, exists: false, isDir: false };
+			const exists = fs.existsSync(dirPath);
+			let isDir = false;
+			if (exists) {
+				try { isDir = fs.statSync(dirPath).isDirectory(); } catch {}
+			}
+			return { ok: true, exists, isDir };
+		} catch (e: any) {
+			return { ok: false, exists: false, isDir: false, error: String(e?.message || e) };
+		}
+	});
+
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
 		logInfo('Reporte manual solicitado');
 		try {
-			const { payments, range } = await searchPaymentsWithConfig();
-			const tag = new Date().toISOString().slice(0, 10);
-			const result = await generateFiles(payments as any[], tag, range);
-			logSuccess('Archivos generados exitosamente', { files: (result as any)?.files, count: (payments as any[])?.length });
-			// Auto-enviar mp.dbf vía FTP si está configurado
-			try {
-				const mpPath = (result as any)?.files?.mpDbfPath;
-				if (mpPath && fs.existsSync(mpPath)) {
-					const ftpResult = await sendDbf(mpPath, 'mp.dbf');
-					if (ftpResult.skipped) {
-						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
-					} else {
-						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
-					}
-				}
-			} catch (e) {
-				console.warn('[main] auto FTP send failed:', e);
-				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
-			}
-			// Reducir payload para UI y notificar a Caja
-			const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
-				id: p?.id,
-				status: p?.status,
-				amount: p?.transaction_amount,
-				date: p?.date_created,
-				method: p?.payment_method_id
-			}));
-			if (mainWindow) {
-				const rowsShort = uiRows.slice(0, 8);
-				mainWindow.webContents.send('auto-report-notice', { manual: true, count: (payments as any[]).length, rows: rowsShort });
-			}
-			return { count: (payments as any[]).length, outDir: result.outDir, files: result.files, rows: uiRows };
+			const res = await runReportFlowAndNotify('manual');
+			return res;
 		} catch (error: any) {
 			// Capturar error específico de MP_ACCESS_TOKEN y mostrar mensaje amigable
 			if (error.message && error.message.includes('MP_ACCESS_TOKEN')) {
@@ -286,10 +273,7 @@ app.whenReady().then(() => {
 				recordError('MP_CONFIG', 'Error de configuración Mercado Pago', { message: userMessage });
 				throw new Error(userMessage);
 			} else {
-				// Para otros errores, mantener el comportamiento original
-				if (mainWindow) {
-					mainWindow.webContents.send('auto-report-notice', { error: String(error?.message || error) });
-				}
+				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(error?.message || error) });
 				throw error;
 			}
 		}
@@ -479,6 +463,8 @@ app.whenReady().then(() => {
 	let autoPaused = false;
 	let remainingSeconds = 0;
 	let countdownTimer: NodeJS.Timeout | null = null;
+	// Timer autónomo para "remoto"
+	let remoteTimer: NodeJS.Timeout | null = null;
 
 	function isDayEnabled(): boolean {
 		const cfg: any = store.get('config') || {};
@@ -549,6 +535,13 @@ app.whenReady().then(() => {
 		autoActive = false;
 	}
 
+	function stopRemoteTimer() {
+		if (remoteTimer) {
+			clearInterval(remoteTimer);
+			remoteTimer = null;
+		}
+	}
+
 	function startCountdown(seconds: number) {
 		remainingSeconds = seconds;
 		if (countdownTimer) clearInterval(countdownTimer);
@@ -567,6 +560,98 @@ app.whenReady().then(() => {
 				});
 			}
 		}, 1000);
+	}
+
+	// Timer autónomo para modo "remoto"
+	function startRemoteTimer() {
+		stopRemoteTimer();
+		const cfg: any = store.get('config') || {};
+		const intervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
+		if (!enabled) return false;
+		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return false;
+		remoteTimer = setInterval(async () => {
+			if (!isDayEnabled()) return;
+			await processRemoteOnce();
+		}, Math.max(1000, intervalSec * 1000));
+		return true;
+	}
+
+	function restartRemoteTimerIfNeeded() {
+		stopRemoteTimer();
+		startRemoteTimer();
+	}
+
+	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
+	async function runReportFlowAndNotify(origin: 'manual' | 'auto' | 'remoto' = 'manual') {
+		const { payments, range } = await searchPaymentsWithConfig();
+		const tag = new Date().toISOString().slice(0, 10);
+		const result = await generateFiles(payments as any[], tag, range);
+		logSuccess('Archivos generados exitosamente', { files: (result as any)?.files, count: (payments as any[])?.length, origin });
+
+		// Auto-enviar mp.dbf vía FTP si está configurado
+		let ftpAttempted = false;
+		let ftpSent = false;
+		let ftpSkipped = false;
+		let ftpErrorMessage: string | undefined;
+		try {
+			const mpPath = (result as any)?.files?.mpDbfPath;
+			if (mpPath && fs.existsSync(mpPath)) {
+				ftpAttempted = true;
+				const ftpResult = await sendDbf(mpPath, 'mp.dbf');
+				if (ftpResult.skipped) {
+					ftpSkipped = true;
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
+				} else {
+					ftpSent = true;
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
+				}
+			}
+		} catch (e) {
+			ftpErrorMessage = String((e as any)?.message || e);
+			console.warn('[main] auto FTP send failed:', e);
+			if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${ftpErrorMessage}` });
+		}
+
+		// Reducir payload para UI
+		const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
+			id: p?.id,
+			status: p?.status,
+			amount: p?.transaction_amount,
+			date: p?.date_created,
+			method: p?.payment_method_id
+		}));
+		if (mainWindow) {
+			const rowsShort = uiRows.slice(0, 8);
+			mainWindow.webContents.send('auto-report-notice', { [origin]: true, count: (payments as any[]).length, rows: rowsShort });
+		}
+		return { count: (payments as any[]).length, outDir: (result as any).outDir, files: (result as any).files, rows: uiRows, ftp: { attempted: ftpAttempted, sent: ftpSent, skipped: ftpSkipped, errorMessage: ftpErrorMessage } };
+	}
+
+	// Escaneo remoto una vez (autónomo)
+	async function processRemoteOnce(): Promise<number> {
+		if (!isDayEnabled()) return 0;
+		try {
+			const cfgNow: any = store.get('config') || {};
+			const enabled = cfgNow.AUTO_REMOTE_ENABLED !== false;
+			if (!enabled) return 0;
+			const remoteDir = String(cfgNow.AUTO_REMOTE_DIR || 'C:\\tmp');
+			let processed = 0;
+			if (remoteDir && fs.existsSync(remoteDir)) {
+				const entries = fs.readdirSync(remoteDir);
+				const toProcess = entries.filter(name => /^mp.*\.txt$/i.test(name));
+				for (const name of toProcess) {
+					await runReportFlowAndNotify('remoto');
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${name}` });
+					try { fs.unlinkSync(path.join(remoteDir, name)); } catch {}
+					processed += 1;
+				}
+			}
+			return processed;
+		} catch (e) {
+			console.warn('[main] remoto: error procesando carpeta remota', e);
+			return 0;
+		}
 	}
 
 	async function startAutoTimer() {
@@ -591,32 +676,9 @@ app.whenReady().then(() => {
 			}
 			
 			try {
-				const { payments, range } = await searchPaymentsWithConfig();
-				const tag = new Date().toISOString().slice(0, 10);
-				const result = await generateFiles(payments as any[], tag, range);
-				try {
-					const mpPath = (result as any)?.files?.mpDbfPath;
-					if (mpPath && fs.existsSync(mpPath)) {
-						const { sendDbf } = await import('./services/FtpService');
-						const ftpResult = await sendDbf(mpPath, 'mp.dbf');
-						if (ftpResult.skipped) {
-							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
-						} else {
-							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
-						}
-					}
-				} catch (e) {
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `FTP: ${String((e as any)?.message || e)}` });
-				}
-				if (mainWindow) {
-					const uiRows = (payments as any[]).slice(0, 1000).map((p: any) => ({
-						id: p?.id,
-						status: p?.status,
-						amount: p?.transaction_amount,
-						date: p?.date_created,
-						method: p?.payment_method_id
-					}));
-					mainWindow.webContents.send('auto-report-notice', { when: new Date().toISOString(), count: (payments as any[]).length, rows: uiRows.slice(0,8) });
+				const processedRemote = await processRemoteOnce();
+				if (processedRemote === 0) {
+					await runReportFlowAndNotify('auto');
 				}
 				
 				// Reiniciar el countdown después de la ejecución
@@ -722,6 +784,8 @@ app.whenReady().then(() => {
 		} else {
 			startAutoTimer().catch(()=>{});
 		}
+		// Iniciar también el timer autónomo de remoto
+		startRemoteTimer();
 	}
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====

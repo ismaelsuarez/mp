@@ -146,6 +146,20 @@
 							<p class="text-xs text-slate-400 mt-1">Si el rango está vacío, se considera todo el día. Si el fin es menor que el inicio, se interpreta como rango nocturno (p. ej. 22:00 a 02:00).</p>
 						</div>
 						
+						<!-- Carpeta Remota para acción "remoto" -->
+						<div class="mb-3 p-3 rounded-md border border-slate-700 bg-slate-800/40">
+							<div class="text-sm font-semibold mb-2">Modo remoto (disparador por archivo)</div>
+							<p class="text-xs text-slate-400 mb-2">Si habilitas el modo remoto, el sistema revisará periódicamente la carpeta configurada. Cuando encuentre un archivo <code>mp*.txt</code>, ejecutará el mismo proceso que “Descargar MP” y luego eliminará el archivo. Útil para integraciones con otros sistemas que dejan un “disparador”.</p>
+							<label class="block mb-2">Carpeta Remota
+								<input id="AUTO_REMOTE_DIR" placeholder="C:\tmp" />
+							</label>
+							<label class="checkbox inline-flex items-center gap-2 mb-2">
+								<input id="AUTO_REMOTE_ENABLED" type="checkbox" checked /> <span class="text-sm">Habilitar remoto</span>
+							</label>
+							<button type="button" id="btnTestRemote" class="ml-2 text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar remoto ahora</button>
+							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta el intervalo, días y horarios configurados arriba.</div>
+						</div>
+						
 						<div class="row">
 							<button type="button" id="btnAutoStart">Activar</button>
 							<button type="button" id="btnAutoStop">Desactivar</button>

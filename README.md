@@ -16,6 +16,7 @@ Este proyecto genera reportes operativos de ventas (Pagos) usando el SDK oficial
 - Envío por email de los archivos adjuntos si hay SMTP y destinatario configurados.
 - Filtros de fecha configurables: día completo, rango por fechas o sin filtro.
 - Paginación configurable para cubrir conjuntos de datos grandes.
+- Modo remoto (Automatización): colocar un `.txt` cuyo nombre comience con `mp` en una carpeta configurable (por defecto `C:\tmp`) dispara el mismo flujo que "Descargar MP".
 
 ---
 

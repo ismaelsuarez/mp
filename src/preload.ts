@@ -68,6 +68,12 @@ contextBridge.exposeInMainWorld('api', {
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
 	},
+	async validateRemoteDir(dirPath: string) {
+		return await ipcRenderer.invoke('auto-remote:validate-dir', dirPath);
+	},
+	async runRemoteOnce() {
+		return await ipcRenderer.invoke('auto-remote:run-once');
+	},
 	async openOutDir() {
 		return await ipcRenderer.invoke('open-out-dir');
 	},

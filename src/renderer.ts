@@ -22,7 +22,8 @@ window.addEventListener('DOMContentLoaded', () => {
         'MP_NO_DATE_FILTER','MP_RANGE','MP_STATUS','MP_LIMIT','MP_MAX_PAGES','EMAIL_REPORT','SMTP_HOST','SMTP_PORT','SMTP_USER','SMTP_PASS',
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
 		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY',
-		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY'
+		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY',
+		'AUTO_REMOTE_DIR','AUTO_REMOTE_ENABLED'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -124,6 +125,8 @@ window.addEventListener('DOMContentLoaded', () => {
 			AUTO_TO_SATURDAY: (el.AUTO_TO_SATURDAY as HTMLInputElement)?.value || undefined,
 			AUTO_FROM_SUNDAY: (el.AUTO_FROM_SUNDAY as HTMLInputElement)?.value || undefined,
 			AUTO_TO_SUNDAY: (el.AUTO_TO_SUNDAY as HTMLInputElement)?.value || undefined,
+			AUTO_REMOTE_DIR: (el.AUTO_REMOTE_DIR as HTMLInputElement)?.value || undefined,
+			AUTO_REMOTE_ENABLED: (el.AUTO_REMOTE_ENABLED as HTMLInputElement)?.checked || false,
 			DEFAULT_VIEW: 'caja'
 		};
 	}
@@ -177,6 +180,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.AUTO_TO_SATURDAY as HTMLInputElement).value = cfg.AUTO_TO_SATURDAY || '';
 		(el.AUTO_FROM_SUNDAY as HTMLInputElement).value = cfg.AUTO_FROM_SUNDAY || '';
 		(el.AUTO_TO_SUNDAY as HTMLInputElement).value = cfg.AUTO_TO_SUNDAY || '';
+		(el.AUTO_REMOTE_DIR as HTMLInputElement).value = cfg.AUTO_REMOTE_DIR || 'C:\\tmp';
+		(el.AUTO_REMOTE_ENABLED as HTMLInputElement).checked = cfg.AUTO_REMOTE_ENABLED !== false;
 	}
 
 	function renderPreview(cfg: any) {
@@ -399,6 +404,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		window.api.onAutoNotice((payload) => {
 			if ((payload as any)?.error) {
 				showToast(`Auto-reporte error: ${(payload as any).error}`);
+			} else if ((payload as any)?.info) {
+				showToast(String((payload as any).info));
 			} else {
 				showToast(`Auto-reporte generado (${(payload as any)?.count ?? 0})`);
 				addHistoryItem({ tag: new Date().toISOString().slice(0,10), files: [] } as any);
@@ -699,6 +706,49 @@ window.addEventListener('DOMContentLoaded', () => {
 			const errorMessage = showAuthError(error.message);
 			statusElement.textContent = `Error: ${errorMessage}`;
 			statusElement.className = 'text-red-400 text-sm';
+		}
+	});
+
+	// Validar carpeta remota al cargar y al editar
+	async function validateRemoteDirAndShow() {
+		try {
+			const dir = (document.getElementById('AUTO_REMOTE_DIR') as HTMLInputElement)?.value || 'C:\\tmp';
+			const res = await (window.api as any).validateRemoteDir?.(dir);
+			const status = document.getElementById('autoStatus') as HTMLElement | null;
+			if (res?.ok && res.exists && res.isDir) {
+				if (status) status.textContent = (status.textContent ? status.textContent + ' • ' : '') + 'Remoto: OK';
+				showToast('Carpeta remota: OK');
+			} else {
+				if (status) status.textContent = (status.textContent ? status.textContent + ' • ' : '') + 'Remoto: No encontrada';
+				showToast('Advertencia: Carpeta remota no existe');
+			}
+		} catch {}
+	}
+
+	(document.getElementById('AUTO_REMOTE_DIR') as HTMLInputElement | null)?.addEventListener('change', () => {
+		validateRemoteDirAndShow();
+	});
+
+	document.getElementById('btnTestRemote')?.addEventListener('click', async () => {
+		try {
+			const dir = (document.getElementById('AUTO_REMOTE_DIR') as HTMLInputElement)?.value || 'C:\\tmp';
+			const val = await (window.api as any).validateRemoteDir?.(dir);
+			if (!val?.ok || !val.exists || !val.isDir) {
+				showToast('Error: Carpeta remota no válida');
+				return;
+			}
+			const res = await (window.api as any).runRemoteOnce?.();
+			const n = Number(res?.processed || 0);
+			const status = document.getElementById('autoStatus') as HTMLElement | null;
+			if (n > 0) {
+				showToast(`Remoto ejecutado: ${n} archivo(s) procesado(s)`);
+				if (status) status.textContent = (status.textContent ? status.textContent + ' • ' : '') + `Remoto procesó ${n}`;
+			} else {
+				showToast('Remoto: sin archivos para procesar');
+				if (status) status.textContent = (status.textContent ? status.textContent + ' • ' : '') + 'Remoto sin archivos';
+			}
+		} catch (e: any) {
+			showToast(`Error remoto: ${String(e?.message || e)}`);
 		}
 	});
 });
