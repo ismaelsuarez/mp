@@ -110,12 +110,33 @@
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Email / SMTP
 					</summary>
-					<div class="p-3 space-y-2">
-						<label>Email para reportes <input id="EMAIL_REPORT" placeholder="correo@dominio.com" /></label>
-						<label>Servidor SMTP <input id="SMTP_HOST" placeholder="smtp.gmail.com" /></label>
-						<label>Puerto SMTP <input id="SMTP_PORT" type="number" placeholder="587" /></label>
-						<label>Usuario SMTP <input id="SMTP_USER" /></label>
-						<label>Contraseña SMTP <input id="SMTP_PASS" type="password" /></label>
+					<div class="p-3 space-y-3">
+						<label>Email para reportes
+							<input id="EMAIL_REPORT" placeholder="correo@dominio.com" />
+						</label>
+						<p id="EMAIL_REPORT_HELP" class="text-xs text-slate-500">Destinatario que recibirá los reportes por email.</p>
+
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<label class="md:col-span-2">Servidor SMTP
+								<input id="SMTP_HOST" placeholder="smtp.gmail.com" />
+							</label>
+							<label>Puerto
+								<input id="SMTP_PORT" type="number" placeholder="587" />
+							</label>
+						</div>
+						<p class="text-xs text-slate-500 -mt-2">Ejemplo Gmail: host <code>smtp.gmail.com</code>, puerto <code>587</code> (STARTTLS). Revisa la configuración de tu proveedor.</p>
+
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label>Usuario
+								<input id="SMTP_USER" placeholder="tu_email@dominio" />
+							</label>
+							<label>Contraseña
+								<div class="relative">
+									<input id="SMTP_PASS" type="password" class="w-full pr-8" />
+									<button type="button" id="btnToggleSmtpPass" class="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-1 py-0.5 rounded border border-slate-600 hover:bg-slate-700" title="Mostrar/Ocultar">👁</button>
+								</div>
+							</label>
+						</div>
 					</div>
 				</details>
 
@@ -173,9 +194,10 @@
 						Automatización
 					</summary>
 					<div class="p-3 space-y-2">
-						<label>Intervalo (segundos)
-							<input id="AUTO_INTERVAL_SECONDS" type="number" placeholder="3600" />
-						</label>
+						<div class="flex items-center gap-2">
+							<label class="text-sm">Intervalo (segundos)</label>
+							<input id="AUTO_INTERVAL_SECONDS" type="number" placeholder="3600" min="1" step="1" class="w-24 text-center" />
+						</div>
 						
 						<!-- Calendario semanal (unificado): Día • Activo • Desde • Hasta -->
 						<div class="mb-3">
@@ -313,18 +335,18 @@
 						<div class="grid grid-cols-2 gap-4">
 							<label class="text-sm">
 								Mínimo errores antes de notificar
-								<input id="min-errors-before-notify" type="number" min="1" max="10" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								<input id="min-errors-before-notify" type="number" min="1" max="10" step="1" placeholder="3" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
 							</label>
 							<label class="text-sm">
 								Tiempo entre notificaciones (minutos)
-								<input id="min-time-between-notifications" type="number" min="15" max="1440" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								<input id="min-time-between-notifications" type="number" min="15" max="1440" step="5" placeholder="60" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
 							</label>
 						</div>
 
 						<div class="bg-gray-800 p-3 rounded text-sm">
 							<div class="flex justify-between items-center mb-2">
 								<span class="font-semibold">📊 Estado Actual:</span>
-								<button type="button" id="btnRefreshErrorSummary" class="text-xs text-blue-400 hover:text-blue-300">Actualizar</button>
+								<button type="button" id="btnRefreshErrorSummary" class="text-xs text-blue-400 hover:text-blue-300" title="Actualizar resumen">Actualizar</button>
 							</div>
 							<div id="error-summary" class="space-y-1 text-xs">
 								<div>• Errores totales: <span id="total-errors">-</span></div>
@@ -334,15 +356,9 @@
 						</div>
 
 						<div class="flex space-x-2">
-							<button type="button" id="btnSaveErrorNotifications" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">
-								💾 Guardar Configuración
-							</button>
-							<button type="button" id="btnClearOldErrors" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded">
-								🧹 Limpiar Errores Antiguos
-							</button>
-							<button type="button" id="btnResetErrorNotifications" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">
-								🔄 Resetear Todo
-							</button>
+							<button type="button" id="btnSaveErrorNotifications" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded" title="Guardar configuración">💾 Guardar Configuración</button>
+							<button type="button" id="btnClearOldErrors" class="px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded" title="Eliminar errores de más de 24h">🧹 Limpiar Errores Antiguos</button>
+							<button type="button" id="btnResetErrorNotifications" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded" title="Borrar todos los registros y contadores">🔄 Resetear Todo</button>
 						</div>
 						
 						<div id="error-notifications-status" class="text-sm"></div>
@@ -350,16 +366,35 @@
 				</details>
 
 				<!-- Acciones principales (debajo de todas las secciones) -->
-				<div class="actions-row mt-4">
-					<button type="button" id="btnLoad">Cargar configuración</button>
-					<button type="button" id="btnSave">Guardar configuración</button>
-					<button type="button" id="btnGenerate">Generar reporte</button>
-					<button type="button" id="btnSendDbfFtp">Enviar DBF por FTP</button>
-					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío">Limpiar Hash FTP</button>
+				<div class="actions-row mt-4 flex flex-wrap items-center gap-2">
+					<button type="button" id="btnLoad" title="Leer configuración desde disco">📂 Cargar configuración</button>
+					<button type="button" id="btnSave" title="Guardar configuración de todos los paneles">💾 Guardar configuración</button>
+					<button type="button" id="btnGenerate" title="Generar reporte con la configuración actual">📊 Generar reporte</button>
+					<button type="button" id="btnSendDbfFtp" title="Enviar el archivo mp.dbf por FTP">📤 Enviar DBF por FTP</button>
+					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío">🧹 Limpiar Hash FTP</button>
 				</div>
+				
+				<!-- Controles de vista previa -->
+				<div class="mt-4">
+					<div class="flex items-center justify-between gap-2">
+						<div class="flex items-center gap-2">
+							<h3 class="m-0 text-sm font-semibold text-slate-200">Vista previa</h3>
+							<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">no sensible</span>
+						</div>
+						<p class="text-xs text-slate-400 hidden md:block">Muestra una copia de la configuración guardada; los campos sensibles se ofuscan.</p>
+					</div>
+					<div class="mt-2 p-2 rounded border border-slate-700 bg-slate-800/40 flex flex-wrap items-center gap-2">
+						<input id="previewFilter" placeholder="Filtrar por texto (ej. FTP_)" class="px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded md:w-64 flex-1" />
+						<button type="button" id="btnPreviewCopy" class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Copiar JSON de la vista previa">📋 <span>Copiar</span></button>
+						<button type="button" id="btnPreviewDownload" class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Descargar JSON (vista previa)">💾 <span>Descargar .json</span></button>
+						<button type="button" id="btnPreviewRestore" class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Restaurar configuración desde un JSON">⤴️ <span>Restaurar</span></button>
+						<input id="previewRestoreFile" type="file" accept="application/json,.json" class="hidden" />
+						<button type="button" id="btnPreviewExpand" class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Expandir/contraer alto">⤢ <span>Expandir</span></button>
+						<button type="button" id="btnPreviewToggle" class="inline-flex items-center gap-1 whitespace-nowrap px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Mostrar/Ocultar vista">👁 <span>Ocultar</span></button>
+					</div>
+				</div>
+				<pre id="preview" class="mt-2 bg-slate-900 border border-slate-700 rounded p-3 text-xs h-64 overflow-auto"></pre>
 			</form>
-            <h3>Vista previa (no sensible)</h3>
-            <pre id="preview"></pre>
         </section>
 
         <section id="tab-about" class="tab-pane">

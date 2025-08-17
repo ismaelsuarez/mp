@@ -188,7 +188,18 @@ window.addEventListener('DOMContentLoaded', () => {
 		const safe = { ...cfg } as any;
 		if (safe.MP_ACCESS_TOKEN) safe.MP_ACCESS_TOKEN = '********';
 		if (safe.SMTP_PASS) safe.SMTP_PASS = '********';
-		preview.textContent = JSON.stringify(safe, null, 2);
+		const filterEl = document.getElementById('previewFilter') as HTMLInputElement | null;
+		let obj: any = safe;
+		if (filterEl && filterEl.value) {
+			const q = filterEl.value.toLowerCase();
+			const filtered: any = {};
+			Object.keys(safe || {}).forEach((k) => {
+				const val = (safe as any)[k];
+				if (k.toLowerCase().includes(q) || String(val).toLowerCase().includes(q)) filtered[k] = val;
+			});
+			obj = filtered;
+		}
+		preview.textContent = JSON.stringify(obj, null, 2);
 	}
 
 	document.getElementById('btnLoad')!.addEventListener('click', async () => {
@@ -759,7 +770,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			const inp = document.getElementById('MP_ACCESS_TOKEN') as HTMLInputElement | null;
 			if (!inp) return;
 			inp.type = inp.type === 'password' ? 'text' : 'password';
-			btnToggleToken.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+			btnToggleToken.textContent = inp.type === 'password' ? '👁' : '🙈';
 		});
 	}
 
@@ -770,9 +781,21 @@ window.addEventListener('DOMContentLoaded', () => {
 			const inp = document.getElementById('FTP_PASS') as HTMLInputElement | null;
 			if (!inp) return;
 			inp.type = inp.type === 'password' ? 'text' : 'password';
-			btnToggleFtpPass.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+			btnToggleFtpPass.textContent = inp.type === 'password' ? '👁' : '🙈';
 		});
 	}
+
+	// Toggle mostrar/ocultar contraseña SMTP
+	// Para SMTP usamos solo icono; no cambiamos textContent a 'Ocultar'
+	(function adjustSmtpToggle(){
+		const btn = document.getElementById('btnToggleSmtpPass') as HTMLButtonElement | null;
+		const inp = document.getElementById('SMTP_PASS') as HTMLInputElement | null;
+		if (!btn || !inp) return;
+		btn.addEventListener('click', () => {
+			inp.type = inp.type === 'password' ? 'text' : 'password';
+			btn.textContent = '👁';
+		});
+	})();
 
 	// Toggles de seguridad
 	function attachPwToggle(btnId: string, inputId: string) {
@@ -781,7 +804,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (!btn || !inp) return;
 		btn.addEventListener('click', () => {
 			inp.type = inp.type === 'password' ? 'text' : 'password';
-			btn.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+			btn.textContent = inp.type === 'password' ? '👁' : '🙈';
 		});
 	}
 	attachPwToggle('btnToggleCurrentPw', 'current-password');
@@ -838,4 +861,124 @@ window.addEventListener('DOMContentLoaded', () => {
 		const csv = readStatusesCsv();
 		if (csv !== undefined) (document.getElementById('MP_STATUS_HIDDEN') as HTMLInputElement | null)?.setAttribute('value', csv);
 	});
+
+	// Validación simple de email
+	function isValidEmail(value: string): boolean {
+		return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+	}
+	const emailInput = document.getElementById('EMAIL_REPORT') as HTMLInputElement | null;
+	const emailHelp = document.getElementById('EMAIL_REPORT_HELP') as HTMLElement | null;
+	function updateEmailValidation() {
+		if (!emailInput || !emailHelp) return;
+		const ok = !emailInput.value || isValidEmail(emailInput.value);
+		emailHelp.textContent = ok ? 'Destinatario que recibirá los reportes por email.' : 'Formato de email inválido';
+		emailHelp.className = ok ? 'text-xs text-slate-500' : 'text-xs text-rose-400';
+	}
+	emailInput?.addEventListener('input', updateEmailValidation);
+	updateEmailValidation();
+
+	// Bloquear guardado con email inválido
+	document.getElementById('btnSave')?.addEventListener('click', (e) => {
+		if (emailInput && emailInput.value && !isValidEmail(emailInput.value)) {
+			updateEmailValidation();
+			showToast('Error: email inválido');
+			(e as any).preventDefault?.();
+		}
+	});
+
+	// Habilitar/Deshabilitar campos de notificaciones
+	(function wireErrorNotifyToggles(){
+		const enabled = document.getElementById('error-notifications-enabled') as HTMLInputElement | null;
+		const minErrors = document.getElementById('min-errors-before-notify') as HTMLInputElement | null;
+		const minTime = document.getElementById('min-time-between-notifications') as HTMLInputElement | null;
+		function applyState() {
+			const on = !!enabled?.checked;
+			if (minErrors) { minErrors.disabled = !on; minErrors.style.opacity = on ? '1' : '0.6'; }
+			if (minTime) { minTime.disabled = !on; minTime.style.opacity = on ? '1' : '0.6'; }
+		}
+		enabled?.addEventListener('change', applyState);
+		applyState();
+	})();
+
+	// Controles de vista previa
+	(function wirePreviewControls(){
+		const pre = document.getElementById('preview') as HTMLPreElement | null;
+		const filter = document.getElementById('previewFilter') as HTMLInputElement | null;
+		const btnCopy = document.getElementById('btnPreviewCopy') as HTMLButtonElement | null;
+		const btnExpand = document.getElementById('btnPreviewExpand') as HTMLButtonElement | null;
+		const btnToggle = document.getElementById('btnPreviewToggle') as HTMLButtonElement | null;
+		let expanded = false;
+		let hidden = false;
+		filter?.addEventListener('input', async () => {
+			const cfg = await window.api.getConfig();
+			renderPreview(cfg || {});
+		});
+		btnCopy?.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(pre?.textContent || '');
+				showToast('Vista previa copiada al portapapeles');
+			} catch {
+				showToast('No se pudo copiar');
+			}
+		});
+		btnExpand?.addEventListener('click', () => {
+			expanded = !expanded;
+			if (pre) pre.style.height = expanded ? '70vh' : '16rem';
+			if (btnExpand) btnExpand.textContent = expanded ? '⤡ Contraer' : '⤢ Expandir';
+		});
+		btnToggle?.addEventListener('click', async () => {
+			hidden = !hidden;
+			if (pre) pre.style.display = hidden ? 'none' : 'block';
+			if (btnToggle) btnToggle.textContent = hidden ? '👁 Mostrar' : '👁 Ocultar';
+			if (!hidden) {
+				const cfg = await window.api.getConfig();
+				renderPreview(cfg || {});
+			}
+		});
+	})();
+
+	// Descargar / Restaurar JSON (vista previa)
+	(function wirePreviewImportExport(){
+		const pre = document.getElementById('preview') as HTMLPreElement | null;
+		const btnDownload = document.getElementById('btnPreviewDownload') as HTMLButtonElement | null;
+		const btnRestore = document.getElementById('btnPreviewRestore') as HTMLButtonElement | null;
+		const fileInput = document.getElementById('previewRestoreFile') as HTMLInputElement | null;
+		btnDownload?.addEventListener('click', async () => {
+			try {
+				let text = pre?.textContent || '';
+				if (!text) {
+					const cfg = await window.api.getConfig();
+					renderPreview(cfg || {});
+					text = pre?.textContent || '';
+				}
+				const blob = new Blob([text], { type: 'application/json' });
+				const a = document.createElement('a');
+				const url = URL.createObjectURL(blob);
+				a.href = url;
+				a.download = `config-preview-${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+				document.body.appendChild(a);
+				a.click();
+				setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+				showToast('Descargado config-preview.json');
+			} catch { showToast('No se pudo descargar'); }
+		});
+		btnRestore?.addEventListener('click', () => fileInput?.click());
+		fileInput?.addEventListener('change', async () => {
+			try {
+				const f = (fileInput.files && fileInput.files[0]) || null;
+				if (!f) return;
+				const text = await f.text();
+				const data = JSON.parse(text);
+				if (!confirm('¿Sobrescribir configuración actual con el JSON seleccionado?')) { fileInput.value=''; return; }
+				const current = await window.api.getConfig();
+				const merged = { ...(current||{}), ...(data||{}) };
+				await window.api.saveConfig(merged);
+				setFormFromConfig(merged);
+				renderPreview(merged);
+				showToast('Configuración restaurada desde JSON');
+			} catch (e:any) {
+				showToast(`Error al restaurar: ${String(e?.message||e)}`);
+			} finally { if (fileInput) fileInput.value = ''; }
+		});
+	})();
 });
