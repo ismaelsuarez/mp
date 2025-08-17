@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, screen, Notification } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -298,6 +298,13 @@ function createMainWindow() {
 		mainWindow = null;
 	});
 }
+function notifySystem(title: string, body: string) {
+	try {
+		if (Notification.isSupported()) {
+			new Notification({ title, body, silent: false }).show();
+		}
+	} catch {}
+}
 
 // Desactivar aceleración por GPU (mejora compatibilidad en WSL/VMs)
 app.disableHardwareAcceleration();
@@ -409,9 +416,14 @@ app.whenReady().then(() => {
 				}
 				logError('Error de configuración Mercado Pago', { message: userMessage });
 				recordError('MP_CONFIG', 'Error de configuración Mercado Pago', { message: userMessage });
+				notifySystem('MP – Configuración requerida', 'Verifica el Access Token en Configuración → Mercado Pago');
 				throw new Error(userMessage);
 			} else {
-				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: String(error?.message || error) });
+				const msg = String(error?.message || error);
+				if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: msg });
+				// Notificar caída de comunicación con MP
+				recordError('MP_COMM', 'Fallo de comunicación con Mercado Pago', { message: msg });
+				notifySystem('MP – Comunicación fallida', 'No se pudo consultar Mercado Pago. Revisa conexión y credenciales.');
 				throw error;
 			}
 		}

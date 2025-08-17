@@ -2,6 +2,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import { recordError } from './ErrorNotificationService';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -91,11 +92,16 @@ export async function searchPaymentsWithConfig() {
 		}
 		if (statusFilter) options.status = statusFilter;
 
-		const resp = await payment.search({ options });
-		const results = Array.isArray((resp as any)?.results) ? (resp as any).results : [];
-		all.push(...results);
-		if (results.length < pageLimit) break;
-		offset += pageLimit;
+		try {
+			const resp = await payment.search({ options });
+			const results = Array.isArray((resp as any)?.results) ? (resp as any).results : [];
+			all.push(...results);
+			if (results.length < pageLimit) break;
+			offset += pageLimit;
+		} catch (e: any) {
+			recordError('MP_COMM', 'Fallo al consultar pagos en Mercado Pago', { step: 'payment.search', page, offset, error: String(e?.message || e) });
+			throw e;
+		}
 	}
 
 	return {
