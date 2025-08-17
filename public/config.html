@@ -30,28 +30,72 @@
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Mercado Pago
 					</summary>
-					<div class="p-3 space-y-2 overflow-visible">
-						<label>Access Token (Mercado Pago) <input id="MP_ACCESS_TOKEN" type="password" /></label>
+					<div class="p-3 space-y-3 overflow-visible">
+						<p class="text-xs text-slate-400">Completa tu Access Token y parámetros de búsqueda. Puedes <strong>probar la conexión</strong> para verificar que todo esté correcto.</p>
+
+						<!-- Credenciales -->
+						<div>
+							<label class="block text-sm mb-1">Access Token (Mercado Pago)</label>
+							<div class="flex items-center gap-2">
+								<input id="MP_ACCESS_TOKEN" type="password" class="flex-1" />
+								<button type="button" id="btnToggleToken" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">👁 Mostrar</button>
+							</div>
+							<p class="text-xs text-slate-500 mt-1">Usa un token de producción <code>APP_USR-…</code>. No compartas este valor.</p>
+						</div>
+
 						<label>ID de usuario (opcional) <input id="MP_USER_ID" /></label>
 						<div class="row">
-							<button type="button" id="btnTest">Probar conexión</button>
+							<button type="button" id="btnTest" class="bg-blue-600 text-white border-transparent">Probar conexión</button>
 							<span id="testStatus"></span>
 						</div>
-						<label>Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
-						<label>Hora de inicio <input id="MP_WINDOW_START" placeholder="00:00" /></label>
-						<label>Hora de finalización <input id="MP_WINDOW_END" placeholder="23:59" /></label>
-						<label>Desde (fecha) <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
-						<label>Hasta (fecha) <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
-						<label class="checkbox">
-							<input id="MP_NO_DATE_FILTER" type="checkbox" /> Sin filtro de fechas
-						</label>
-						<label>Días hacia atrás (por defecto)
-							<input id="MP_DAYS_BACK" type="number" min="1" step="1" placeholder="7" />
-						</label>
-						<label>Campo de fecha <input id="MP_RANGE" placeholder="date_last_updated" /></label>
-						<label>Estado (opcional) <input id="MP_STATUS" placeholder="approved,refunded" /></label>
-						<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" /></label>
-						<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" /></label>
+
+						<!-- Ventana operativa -->
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label>Zona horaria <input id="MP_TZ" placeholder="America/Argentina/Buenos_Aires" /></label>
+							<label>Hora de inicio <input id="MP_WINDOW_START" placeholder="00:00" /></label>
+							<label>Hora de finalización <input id="MP_WINDOW_END" placeholder="23:59" /></label>
+						</div>
+						<p class="text-xs text-slate-500 -mt-2">Define el día operativo en tu zona horaria. Se sugiere 00:00 a 23:59.</p>
+
+						<!-- Rango manual (opcional) -->
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label>Desde (fecha) <input id="MP_DATE_FROM" placeholder="YYYY-MM-DD" /></label>
+							<label>Hasta (fecha) <input id="MP_DATE_TO" placeholder="YYYY-MM-DD" /></label>
+						</div>
+						<div class="row">
+							<label class="checkbox">
+								<input id="MP_NO_DATE_FILTER" type="checkbox" /> Sin filtro de fechas
+							</label>
+							<label>Días hacia atrás (por defecto)
+								<input id="MP_DAYS_BACK" type="number" min="1" step="1" placeholder="7" />
+							</label>
+						</div>
+						<p class="text-xs text-slate-500 -mt-2">Si completas fechas, se ignora “Días hacia atrás”. “Sin filtro” trae todo (solo diagnóstico).</p>
+
+						<!-- Búsqueda y paginación -->
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<label>Campo de fecha
+								<select id="MP_RANGE" class="w-full">
+									<option value="date_last_updated">Última actualización</option>
+									<option value="date_created">Creación</option>
+									<option value="date_approved">Aprobación</option>
+								</select>
+							</label>
+							<label>Estado (opcional)
+								<select id="MP_STATUS" class="w-full">
+									<option value="">Todos</option>
+									<option value="approved">Aprobado</option>
+									<option value="refunded">Reintegrada</option>
+									<option value="cancelled">Cancelado</option>
+									<option value="in_process">En proceso</option>
+									<option value="pending">Pendiente</option>
+									<option value="charged_back">Contracargo</option>
+								</select>
+							</label>
+							<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" placeholder="50" /></label>
+							<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" placeholder="100" /></label>
+						</div>
+						<p class="text-xs text-slate-500 -mt-2">“Campo de fecha” define qué timestamp usa el filtro (sugerido: “Última actualización”). “Estado” permite elegir un estado específico o “Todos”.</p>
 					</div>
 				</details>
 

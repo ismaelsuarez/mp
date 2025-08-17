@@ -751,4 +751,66 @@ window.addEventListener('DOMContentLoaded', () => {
 			showToast(`Error remoto: ${String(e?.message || e)}`);
 		}
 	});
+
+	// Toggle mostrar/ocultar token
+	const btnToggleToken = document.getElementById('btnToggleToken') as HTMLButtonElement | null;
+	if (btnToggleToken) {
+		btnToggleToken.addEventListener('click', () => {
+			const inp = document.getElementById('MP_ACCESS_TOKEN') as HTMLInputElement | null;
+			if (!inp) return;
+			inp.type = inp.type === 'password' ? 'text' : 'password';
+			btnToggleToken.textContent = inp.type === 'password' ? '👁 Mostrar' : '🙈 Ocultar';
+		});
+	}
+
+	// Interceptar estados múltiples al momento de guardar o generar
+	function readStatusesCsv(): string | undefined {
+		const statusEl = document.getElementById('MP_STATUS') as HTMLSelectElement | null;
+		if (!statusEl) return undefined;
+		const val = String(statusEl.value || '').trim();
+		return val || undefined;
+	}
+
+	function applyStatusesToSelect(csv: string | undefined) {
+		const statusEl = document.getElementById('MP_STATUS') as HTMLSelectElement | null;
+		if (!statusEl) return;
+		const val = String(csv || '').trim();
+		statusEl.value = val;
+	}
+
+	// Hook en Cargar config inicial
+	window.api.getConfig().then((cfg) => {
+		applyStatusesToSelect((cfg as any)?.MP_STATUS);
+	});
+
+	// Hook en Guardar configuración
+	const origBtnSave = document.getElementById('btnSave');
+	origBtnSave?.addEventListener('click', () => {
+		const csv = readStatusesCsv();
+		if (csv !== undefined) {
+			try {
+				const elStatusInput = document.createElement('input');
+				elStatusInput.value = csv;
+				// Inyectar momentáneamente para que buildConfigFromForm lo lea
+				const statusHidden = document.getElementById('MP_STATUS_HIDDEN') as HTMLInputElement | null;
+				if (!statusHidden) {
+					elStatusInput.id = 'MP_STATUS_HIDDEN';
+					elStatusInput.type = 'hidden';
+					(document.body as any).appendChild(elStatusInput);
+				} else {
+					statusHidden.value = csv;
+				}
+			} catch {}
+		}
+	}, { once: false });
+
+	// Hook en Generar (rango) y Generar
+	document.getElementById('btnGenerateRange')?.addEventListener('click', () => {
+		const csv = readStatusesCsv();
+		if (csv !== undefined) (document.getElementById('MP_STATUS_HIDDEN') as HTMLInputElement | null)?.setAttribute('value', csv);
+	});
+	document.getElementById('btnGenerate')?.addEventListener('click', () => {
+		const csv = readStatusesCsv();
+		if (csv !== undefined) (document.getElementById('MP_STATUS_HIDDEN') as HTMLInputElement | null)?.setAttribute('value', csv);
+	});
 });
