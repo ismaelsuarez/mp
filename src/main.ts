@@ -294,6 +294,18 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// ===== ABOUT: Release notes =====
+	ipcMain.handle('about:get-release-notes', async () => {
+		try {
+			const p = path.join(app.getAppPath(), 'docs', 'RELEASE_NOTES.md');
+			const exists = fs.existsSync(p);
+			const content = exists ? fs.readFileSync(p, 'utf8') : 'No hay notas de versión disponibles.';
+			return { ok: true, path: p, content };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	ipcMain.handle('send-report-email', async () => {
 		const today = new Date().toISOString().slice(0, 10);
 		const outDir = getOutDir();

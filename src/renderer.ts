@@ -981,4 +981,15 @@ window.addEventListener('DOMContentLoaded', () => {
 			} finally { if (fileInput) fileInput.value = ''; }
 		});
 	})();
+
+	// ===== ACERCA DE: Notas de versión =====
+	async function loadReleaseNotes() {
+		try {
+			const res = await (window.api as any).getReleaseNotes?.();
+			const box = document.getElementById('release-notes') as HTMLElement | null;
+			if (box && res && res.ok) box.textContent = String(res.content || '');
+		} catch {}
+	}
+	(document.getElementById('btnRefreshReleaseNotes') as HTMLButtonElement | null)?.addEventListener('click', loadReleaseNotes);
+	loadReleaseNotes();
 });

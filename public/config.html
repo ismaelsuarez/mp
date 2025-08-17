@@ -395,18 +395,35 @@
         </section>
 
         <section id="tab-about" class="tab-pane">
-			<p><strong>Información de contacto por fallas</strong></p>
-			<p>Servicio técnico – Todo-Computación</p>
-			<ul>
-				<li>Teléfono: 0261 4201555 int. 2</li>
-				<li>WhatsApp: 26154669355</li>
-				<li>Email: <a href="mailto:pc@tcmza.com.ar">pc@tcmza.com.ar</a></li>
-			</ul>
-			<div class="mt-4 text-sm text-slate-300">
-				<span class="font-semibold">Versión instalada:</span>
-				<span id="app-version">-</span>
-			</div>
-        </section>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<div>
+						<p class="font-semibold">Información de contacto por fallas</p>
+						<p>Servicio técnico – Todo-Computación</p>
+						<ul class="space-y-1">
+							<li>Teléfono: 0261 4201555 int. 2</li>
+							<li>WhatsApp: 26154669355</li>
+							<li>Email: <a class="text-blue-300 hover:underline" href="mailto:pc@tcmza.com.ar">pc@tcmza.com.ar</a></li>
+						</ul>
+					</div>
+					<div>
+						<div class="text-sm text-slate-300 mb-2">
+							<span class="font-semibold">Versión instalada:</span>
+							<span id="app-version">-</span>
+						</div>
+						<div class="border border-slate-700 rounded-md bg-slate-800/40">
+							<div class="flex items-center justify-between px-3 py-2 border-b border-slate-700">
+								<h4 class="text-sm font-semibold">Notas de versión</h4>
+								<div class="flex items-center gap-2">
+									<button id="btnRefreshReleaseNotes" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700" title="Recargar notas desde archivo">↻ Recargar</button>
+								</div>
+							</div>
+							<div class="p-3">
+								<pre id="release-notes" class="text-xs whitespace-pre-wrap leading-5"></pre>
+								<p class="mt-2 text-[11px] text-slate-400">Las notas se leen desde <code>docs/RELEASE_NOTES.md</code> y son de solo lectura.</p>
+							</div>
+						</div>
+					</div>
+			</section>
 
         <section id="tab-results" class="tab-pane">
 			<div class="filters">

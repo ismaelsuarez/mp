@@ -94,6 +94,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async getAppVersion() {
 		return await ipcRenderer.invoke('get-app-version');
+	},
+	async getReleaseNotes() {
+		return await ipcRenderer.invoke('about:get-release-notes');
 	}
 });
 
