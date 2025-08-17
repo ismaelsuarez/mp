@@ -1009,7 +1009,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		const items = parseReleaseNotes(md);
 		container.innerHTML = items.map(({ version, body }, idx) => {
 			const isCurrent = version === installedVersion;
-			const open = idx === 0 || isCurrent;
+			const open = false;
 			return `
 			<details class="group border border-slate-700 rounded-md ${isCurrent ? 'ring-1 ring-emerald-600/40' : ''}" ${open ? 'open' : ''}>
 				<summary class="cursor-pointer px-3 py-1.5 bg-slate-800 text-sm flex items-center justify-between">

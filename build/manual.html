@@ -63,7 +63,7 @@
     <div class="nav" id="nav">
       <h4>General</h4>
       <a href="#intro">Introducción</a>
-      <a href="RELEASE_NOTES.md" target="_blank">Notas de versión<span class="chip">docs</span></a>
+      <a href="#release-notes">Notas de versión</a>
 
       <h4>Modo Caja</h4>
       <div class="sub">
@@ -100,7 +100,7 @@
         <div class="btns">
           <a class="btn" href="#caja">Ir a Modo Caja</a>
           <a class="btn" href="#admin">Ir a Administración</a>
-          <a class="btn" href="RELEASE_NOTES.md" target="_blank">Notas de versión</a>
+          <a class="btn" href="#release-notes">Notas de versión</a>
         </div>
       </section>
 
@@ -247,6 +247,32 @@
         <h2>Acerca de</h2>
         <p>Datos de contacto y “Notas de versión” agrupadas por versión, leídas desde <code>docs/RELEASE_NOTES.md</code> (solo lectura).</p>
         <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_ACERCA_DE.md">Más detalle</a></div>
+      </section>
+
+      <section id="release-notes" class="card">
+        <h2>Notas de versión</h2>
+        <div class="btns">
+          <button class="btn btn-detail" data-target="rel-1-0-6">Ver 1.0.6</button>
+          <button class="btn btn-detail" data-target="rel-1-0-5">Ver 1.0.5</button>
+        </div>
+        <div class="details" id="rel-1-0-6" hidden>
+          <h3>1.0.6 <span class="muted">(2025-08-17)</span></h3>
+          <ul>
+            <li>Manual autónomo en <code>build/manual.html</code>: integración completa de contenido (Admin/Caja) con paneles de detalle, búsqueda con resaltado, Expandir/Colapsar todo, Imprimir/PDF, Guía rápida, Glosario, FAQ, callouts y botón “Arriba”. Notas internas.</li>
+            <li>Bandeja del sistema (Windows): minimizar/cerrar oculta a bandeja; menú contextual (Mostrar, Ir a Caja, Ir a Configuración, Salir). Navegación desde bandeja corregida.</li>
+            <li>Icono de bandeja: prioridad a <code>build/icon.ico</code>; fallback a <code>public/icon.png</code>/<code>icon.ico</code> o ejecutable. Redimensionado 16×16 en Windows.</li>
+            <li>Persistencia de posición (Modo Caja): guarda y restaura coordenadas, adaptadas a la resolución y dentro de pantalla; restaura también al elegir “Ir a Caja”.</li>
+          </ul>
+        </div>
+        <div class="details" id="rel-1-0-5" hidden>
+          <h3>1.0.5</h3>
+          <ul>
+            <li>Vista previa en Configuración: filtro, copiar, descargar/restaurar JSON, expandir/ocultar.</li>
+            <li>Automatización: modo remoto autónomo, envío FTP de mp.dbf.</li>
+            <li>Configuración: mejoras UI/UX en Mercado Pago, FTP, Seguridad, Email/SMTP y Notificaciones de Error.</li>
+            <li>Documentación: secciones de Caja y Configuración.</li>
+          </ul>
+        </div>
       </section>
 
       <div class="footer">Manual generado para acompañar las funciones de la aplicación MP. Usa el buscador para encontrar temas rápido. Pulsa <span class="kbd">Ctrl</span>+<span class="kbd">F</span> para búsqueda del navegador.</div>
