@@ -1,55 +1,35 @@
 LICENCIA DE USO DE SOFTWARE
 
-Este software es propiedad de Suarez Ismael / Mendozasistemas.com y está protegido por las leyes de derechos de autor de la República Argentina (Ley 11.723) y tratados internacionales.
+Este software es propiedad de Suarez Ismael / Mendozasistemas.com y esta protegido por las leyes de derechos de autor de la Republica Argentina (Ley 11723) y tratados internacionales.
 
-Al instalar o utilizar este software, usted acepta los siguientes términos:
+Al instalar o utilizar este software, usted acepta los siguientes terminos:
 
-1. Otorgamiento de Licencia:
-   - Se le concede una licencia no exclusiva, no transferible, para usar este software únicamente para los fines establecidos por el licenciante.
-   - La licencia es válida únicamente con un número de serie autorizado.
+1. Otorgamiento de Licencia
 
-2. Restricciones:
-   - No podrá copiar, modificar, descompilar, realizar ingeniería inversa ni distribuir este software sin autorización por escrito.
-   - No podrá ceder, alquilar o revender este software.
+Se concede una licencia no exclusiva y no transferible para usar este software unicamente para los fines establecidos por el licenciante.
 
-3. Propiedad Intelectual:
-   - Este software y toda su documentación están protegidos por la Ley de Propiedad Intelectual de la República Argentina y las normas internacionales aplicables.
+La licencia es valida unicamente con un numero de serie autorizado.
 
-4. Limitación de Responsabilidad:
-   - El licenciante no será responsable por daños directos o indirectos derivados del uso o imposibilidad de uso del software.
+2. Restricciones
 
-5. Terminación:
-   - El incumplimiento de cualquiera de estos términos dará lugar a la terminación automática de la licencia.
+No esta permitido copiar, modificar, descompilar, realizar ingenieria inversa ni distribuir este software sin autorizacion por escrito.
 
-Jurisdicción:  
-Para todas las controversias que pudieran derivarse del presente contrato, las partes se someten a la jurisdicción de los tribunales ordinarios de la Ciudad de Mendoza, renunciando a cualquier otro fuero o jurisdicción.
+No esta permitido ceder, alquilar o revender este software.
 
-© 2025 Ismael Suarez/Mendozasistemas.com . Todos los derechos reservados.
+3. Propiedad Intelectual
 
-LICENCIA DE USO DE SOFTWARE
+Este software y toda su documentacion estan protegidos por la Ley de Propiedad Intelectual de la Republica Argentina y las normas internacionales aplicables.
 
-Este software es propiedad de Suarez Ismael / Mendozasistemas.com y está protegido por las leyes de derechos de autor de la República Argentina (Ley 11.723) y tratados internacionales.
+4. Limitacion de Responsabilidad
 
-Al instalar o utilizar este software, usted acepta los siguientes términos:
+El licenciante no sera responsable por danos directos o indirectos derivados del uso o imposibilidad de uso del software.
 
-1. Otorgamiento de Licencia:
-   - Se le concede una licencia no exclusiva, no transferible, para usar este software únicamente para los fines establecidos por el licenciante.
-   - La licencia es válida únicamente con un número de serie autorizado.
+5. Terminacion
 
-2. Restricciones:
-   - No podrá copiar, modificar, descompilar, realizar ingeniería inversa ni distribuir este software sin autorización por escrito.
-   - No podrá ceder, alquilar o revender este software.
+El incumplimiento de cualquiera de estos terminos dara lugar a la terminacion automatica de la licencia.
 
-3. Propiedad Intelectual:
-   - Este software y toda su documentación están protegidos por la Ley de Propiedad Intelectual de la República Argentina y las normas internacionales aplicables.
+Jurisdiccion
 
-4. Limitación de Responsabilidad:
-   - El licenciante no será responsable por daños directos o indirectos derivados del uso o imposibilidad de uso del software.
+Para todas las controversias que pudieran derivarse del presente contrato, las partes se someten a la jurisdiccion de los tribunales ordinarios de la Ciudad de Mendoza, renunciando a cualquier otro fuero o jurisdiccion.
 
-5. Terminación:
-   - El incumplimiento de cualquiera de estos términos dará lugar a la terminación automática de la licencia.
-
-Jurisdicción:  
-Para todas las controversias que pudieran derivarse del presente contrato, las partes se someten a la jurisdicción de los tribunales ordinarios de la Ciudad de Mendoza, renunciando a cualquier otro fuero o jurisdicción.
-
-© [2025] Ismael Suarez/Mendozasistemas.com . Todos los derechos reservados.
+© 2025 Ismael Suarez / Mendozasistemas.com. Todos los derechos reservados.

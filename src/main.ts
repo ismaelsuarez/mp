@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog, Tray, Menu, nativeImage, screen } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
@@ -18,6 +18,141 @@ import { OtpService } from './services/OtpService';
 import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+
+function getTrayImage() {
+	try {
+		const candidates = [
+			// Preferir icono del ejecutable en Windows (suele existir y verse bien)
+			process.platform === 'win32' ? process.execPath : '',
+			// Icono provisto por el proyecto
+			path.join(app.getAppPath(), 'build', 'icon.ico'),
+			path.join(app.getAppPath(), 'public', 'icon.png'),
+			path.join(app.getAppPath(), 'public', 'icon.ico'),
+			path.join(app.getAppPath(), 'icon.png'),
+			path.join(process.resourcesPath || '', 'icon.png'),
+			path.join(process.resourcesPath || '', 'build', 'icon.ico')
+		];
+		for (const p of candidates) {
+			try {
+				if (!p) continue;
+				let img = nativeImage.createFromPath(p);
+				if (!img.isEmpty()) {
+					// Ajustar tamaño para bandeja en Windows para evitar icono invisible/borroso
+					if (process.platform === 'win32') {
+						img = img.resize({ width: 16, height: 16 });
+					}
+					return img;
+				}
+			} catch {}
+		}
+		// Último recurso: usar icono del proceso (no siempre disponible) o un vacío
+		const procImg = nativeImage.createFromPath(process.execPath);
+		if (!procImg.isEmpty()) {
+			return process.platform === 'win32' ? procImg.resize({ width: 16, height: 16 }) : procImg;
+		}
+		return nativeImage.createEmpty();
+	} catch {
+		return nativeImage.createEmpty();
+	}
+}
+
+async function openViewFromTray(view: 'config' | 'caja') {
+	if (!mainWindow) return;
+	// Asegurar que la ventana esté visible (fuera de bandeja) antes de cambiar la vista
+	showMainWindow();
+	if (view === 'config') {
+		const target = path.join(app.getAppPath(), 'public', 'auth.html');
+		try {
+			mainWindow.setMinimumSize(500, 400);
+			mainWindow.setSize(500, 400);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+			try { mainWindow.center(); } catch {}
+		} catch {}
+		await mainWindow.loadFile(target);
+		return;
+	}
+	// caja
+	const target = path.join(app.getAppPath(), 'public', 'caja.html');
+	try {
+		mainWindow.setMinimumSize(420, 320);
+		mainWindow.setSize(420, 320);
+		mainWindow.setMenuBarVisibility(false);
+		mainWindow.setAutoHideMenuBar(true);
+		// Restaurar posición previa; si no existe, centrar
+		if (!restoreCajaWindowPosition(420, 320)) {
+			try { mainWindow.center(); } catch {}
+		}
+	} catch {}
+	await mainWindow.loadFile(target);
+}
+
+function showMainWindow() {
+	if (!mainWindow) return;
+	try { mainWindow.setSkipTaskbar(false); } catch {}
+	mainWindow.show();
+	mainWindow.focus();
+}
+
+function hideToTray() {
+	if (!mainWindow) return;
+	try { mainWindow.setSkipTaskbar(true); } catch {}
+	mainWindow.hide();
+}
+
+function createTray() {
+	if (tray) return;
+	tray = new Tray(getTrayImage());
+	try { tray.setToolTip('MP'); } catch {}
+	tray.on('click', () => {
+		if (!mainWindow) return;
+		if (mainWindow.isVisible()) hideToTray();
+		else showMainWindow();
+	});
+	const contextMenu = Menu.buildFromTemplate([
+		{ label: 'Mostrar', click: () => showMainWindow() },
+		{ type: 'separator' },
+		{ label: 'Ir a Caja', click: () => openViewFromTray('caja') },
+		{ label: 'Ir a Configuración', click: () => openViewFromTray('config') },
+		{ type: 'separator' },
+		{ label: 'Salir', click: () => { isQuitting = true; app.quit(); } }
+	]);
+	try { tray.setContextMenu(contextMenu); } catch {}
+}
+
+function saveCajaWindowPosition() {
+	try {
+		if (!mainWindow) return;
+		const bounds = mainWindow.getBounds();
+		const display = screen.getDisplayMatching(bounds);
+		const work = display.workArea || display.bounds;
+		store.set('cajaWindowPosition', {
+			x: bounds.x,
+			y: bounds.y,
+			workW: work.width,
+			workH: work.height
+		});
+	} catch {}
+}
+
+function restoreCajaWindowPosition(minWidth = 420, minHeight = 320) {
+	try {
+		const saved = store.get('cajaWindowPosition') as { x: number; y: number; workW?: number; workH?: number } | undefined;
+		if (!saved || saved.x === undefined || saved.y === undefined) return false;
+		const primary = screen.getPrimaryDisplay();
+		const { width, height } = primary.workAreaSize;
+		const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
+		const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
+		let x = Math.round(saved.x * scaleX);
+		let y = Math.round(saved.y * scaleY);
+		x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
+		y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+		if (mainWindow) mainWindow.setPosition(x, y);
+		return true;
+	} catch { return false; }
+}
 
 function getEncryptionKey(): string | undefined {
 	const dir = app.getPath('userData');
@@ -80,20 +215,8 @@ function createMainWindow() {
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
 			
-			// Restaurar posición guardada para modo caja
-			const savedPosition = store.get('cajaWindowPosition') as { x: number; y: number } | undefined;
-			if (savedPosition && savedPosition.x !== undefined && savedPosition.y !== undefined) {
-				// Verificar que la posición esté dentro de los límites de la pantalla
-				const { screen } = require('electron');
-				const primaryDisplay = screen.getPrimaryDisplay();
-				const { width, height } = primaryDisplay.workAreaSize;
-				
-				// Asegurar que la ventana esté visible en la pantalla
-				const x = Math.max(0, Math.min(savedPosition.x, width - 420));
-				const y = Math.max(0, Math.min(savedPosition.y, height - 320));
-				
-				mainWindow.setPosition(x, y);
-			} else {
+			// Restaurar posición guardada para modo caja (escalando por resolución)
+			if (!restoreCajaWindowPosition(420, 320)) {
 				// Si no hay posición guardada, centrar
 				try { mainWindow.center(); } catch {}
 			}
@@ -144,6 +267,22 @@ function createMainWindow() {
 	const htmlPath = path.join(app.getAppPath(), 'public', initialFile);
 	mainWindow.loadFile(htmlPath);
 
+	// Minimizar a bandeja (Windows)
+	mainWindow.on('minimize', (e) => {
+		try { e.preventDefault(); } catch {}
+		saveCajaWindowPosition();
+		hideToTray();
+	});
+	mainWindow.on('close', (e) => {
+		if (isQuitting) return;
+		try { e.preventDefault(); } catch {}
+		saveCajaWindowPosition();
+		hideToTray();
+	});
+	mainWindow.on('show', () => {
+		try { mainWindow?.setSkipTaskbar(false); } catch {}
+	});
+
 	// Guardar posición de la ventana cuando se mueve (solo para modo caja)
 	mainWindow.on('moved', () => {
 		const cfg: any = store.get('config') || {};
@@ -151,8 +290,7 @@ function createMainWindow() {
 		
 		// Solo guardar posición si estamos en modo caja
 		if (currentView === 'caja') {
-			const [x, y] = mainWindow.getPosition();
-			store.set('cajaWindowPosition', { x, y });
+			saveCajaWindowPosition();
 		}
 	});
 
@@ -468,6 +606,8 @@ app.whenReady().then(() => {
 	});
 
 	createMainWindow();
+	createTray();
+	app.on('before-quit', () => { isQuitting = true; });
 
 	// Programación automática
 	let autoTimer: NodeJS.Timeout | null = null;
