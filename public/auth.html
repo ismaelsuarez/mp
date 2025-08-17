@@ -13,6 +13,9 @@
   <div class="text-center">
     <h1 id="form-title" class="text-2xl font-bold">Modo Administrador</h1>
     <p id="form-subtitle" class="text-gray-400 text-sm">Ingrese sus credenciales</p>
+    <div class="mt-3">
+      <button id="btnBackToCaja" class="px-4 py-2 bg-emerald-600 rounded hover:bg-emerald-500 font-semibold">← Volver a Modo Caja</button>
+    </div>
   </div>
 
   <!-- LOGIN FORM -->
@@ -90,6 +93,17 @@
   const subtitle = document.getElementById('form-subtitle');
 
   // Cargar usuario recordado al iniciar
+  // Volver a Modo Caja
+  document.getElementById('btnBackToCaja')?.addEventListener('click', async () => {
+    try {
+      if (window.api && typeof window.api.openView === 'function') {
+        await window.api.openView('caja');
+        return;
+      }
+    } catch {}
+    // Fallback: navegar directo
+    window.location.href = 'caja.html';
+  });
   const rememberedUser = localStorage.getItem('rememberedUser');
   if (rememberedUser) {
     document.getElementById('login-user').value = rememberedUser;
