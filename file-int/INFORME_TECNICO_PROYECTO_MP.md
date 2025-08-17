@@ -3,7 +3,7 @@
 ## RESUMEN EJECUTIVO
 
 **Proyecto:** Sistema de Reportes de Pagos Mercado Pago  
-**Versión:** 1.0.3  
+**Versión:** 1.0.5  
 **Tecnologías:** TypeScript + Electron + Node.js  
 **Propósito:** Generación automatizada de reportes operativos de ventas desde Mercado Pago
 
@@ -189,6 +189,21 @@ GH_TOKEN=ghp_xxx
 - **Feedback Visual:** Mensaje informativo en logs y botón
 - **Control Granular:** Permite configurar exactamente qué días ejecutar
 
+#### 1.4 Modo Remoto (Nuevo)
+**Resumen:** Se agregó un modo de automatización autónomo llamado "remoto" que permite disparar el flujo de generación/envío depositando archivos `mp*.txt` en una carpeta configurable.
+
+**Características:**
+- Carpeta configurable `AUTO_REMOTE_DIR` (por defecto `C:\\tmp`).
+- Toggle `AUTO_REMOTE_ENABLED` para habilitar/deshabilitar el modo remoto de forma independiente al auto normal.
+- Respeta intervalo, días y rangos horarios de la automatización (`AUTO_INTERVAL_SECONDS`, `AUTO_DAYS_*`, `AUTO_FROM_*`, `AUTO_TO_*`).
+- Ejecuta el mismo flujo que “Descargar MP”: consulta pagos, genera archivos (CSV/XLSX/DBF/JSON) y envía `mp.dbf` por FTP.
+- Elimina los archivos `mp*.txt` procesados y notifica en UI: `Se procesó archivo remoto: <nombreArchivo>`.
+- Timer autónomo (no se pausa con los controles de auto de Caja).
+
+**UX/IX:**
+- Bloque explicativo en Configuración → Automatización con descripción del modo remoto, ejemplo de disparador y botón “Probar remoto ahora”.
+- Validación de carpeta remota con feedback visible (OK / no existe).
+
 ### 2. SISTEMA DE MENSAJES DE ERROR AMIGABLES
 
 #### 2.1 Captura de Errores de Mercado Pago
@@ -346,6 +361,8 @@ contextBridge.exposeInMainWorld('api', {
     onAutoTimerUpdate(callback: (payload: any) => void) {
         ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
     },
+    async validateRemoteDir(dir: string) { return await ipcRenderer.invoke('auto-remote:validate-dir', dir); },
+    async runRemoteOnce() { return await ipcRenderer.invoke('auto-remote:run-once'); }
 });
 
 // Nuevo bridge para autenticación

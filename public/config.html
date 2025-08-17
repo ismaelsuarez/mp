@@ -30,7 +30,7 @@
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Mercado Pago
 					</summary>
-					<div class="p-3 space-y-2">
+					<div class="p-3 space-y-2 overflow-visible">
 						<label>Access Token (Mercado Pago) <input id="MP_ACCESS_TOKEN" type="password" /></label>
 						<label>ID de usuario (opcional) <input id="MP_USER_ID" /></label>
 						<div class="row">
@@ -97,51 +97,65 @@
 							<input id="AUTO_INTERVAL_SECONDS" type="number" placeholder="3600" />
 						</label>
 						
+						<!-- Calendario semanal (unificado): Día • Activo • Desde • Hasta -->
 						<div class="mb-3">
-							<label class="block text-sm font-medium mb-2">Días habilitados para ejecución automática:</label>
-							<div class="grid grid-cols-2 gap-2">
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_MONDAY" type="checkbox" checked />
-									<span class="text-sm">Lunes</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_TUESDAY" type="checkbox" checked />
-									<span class="text-sm">Martes</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_WEDNESDAY" type="checkbox" checked />
-									<span class="text-sm">Miércoles</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_THURSDAY" type="checkbox" checked />
-									<span class="text-sm">Jueves</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_FRIDAY" type="checkbox" checked />
-									<span class="text-sm">Viernes</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_SATURDAY" type="checkbox" checked />
-									<span class="text-sm">Sábado</span>
-								</label>
-								<label class="flex items-center space-x-2">
-									<input id="AUTO_DAYS_SUNDAY" type="checkbox" checked />
-									<span class="text-sm">Domingo</span>
-								</label>
-							</div>
-						</div>
-						
-						<!-- Rangos horarios por día (opcional) -->
-						<div class="mb-3">
-							<label class="block text-sm font-medium mb-2">Rangos horarios por día (opcional)</label>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Lunes</span><input id="AUTO_FROM_MONDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_MONDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Martes</span><input id="AUTO_FROM_TUESDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_TUESDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Miércoles</span><input id="AUTO_FROM_WEDNESDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_WEDNESDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Jueves</span><input id="AUTO_FROM_THURSDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_THURSDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Viernes</span><input id="AUTO_FROM_FRIDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_FRIDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Sábado</span><input id="AUTO_FROM_SATURDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_SATURDAY" type="time" class="w-28" /></div>
-								<div class="flex items-center gap-2"><span class="w-24 text-sm">Domingo</span><input id="AUTO_FROM_SUNDAY" type="time" class="w-28" /><span class="text-sm">a</span><input id="AUTO_TO_SUNDAY" type="time" class="w-28" /></div>
+							<label class="block text-sm font-medium mb-2">Calendario semanal de ejecución</label>
+							<div class="grid grid-cols-1 gap-2">
+								<div class="grid grid-cols-12 items-center gap-2 text-xs text-slate-400">
+									<div class="col-span-4 md:col-span-3">Día</div>
+									<div class="col-span-2 md:col-span-2">Activo</div>
+									<div class="col-span-3 md:col-span-3">Desde</div>
+									<div class="col-span-3 md:col-span-3">Hasta</div>
+								</div>
+								<!-- Lunes -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Lunes</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_MONDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_MONDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_MONDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Martes -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Martes</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_TUESDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_TUESDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_TUESDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Miércoles -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Miércoles</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_WEDNESDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_WEDNESDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_WEDNESDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Jueves -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Jueves</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_THURSDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_THURSDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_THURSDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Viernes -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Viernes</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_FRIDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_FRIDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_FRIDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Sábado -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Sábado</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_SATURDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_SATURDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_SATURDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
+								<!-- Domingo -->
+								<div class="grid grid-cols-12 items-center gap-2">
+									<div class="col-span-4 md:col-span-3 text-sm">Domingo</div>
+									<div class="col-span-2 md:col-span-2"><input id="AUTO_DAYS_SUNDAY" type="checkbox" checked /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_FROM_SUNDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+									<div class="col-span-3 md:col-span-3"><input id="AUTO_TO_SUNDAY" type="time" class="w-24 sm:w-28 text-center" /></div>
+								</div>
 							</div>
 							<p class="text-xs text-slate-400 mt-1">Si el rango está vacío, se considera todo el día. Si el fin es menor que el inicio, se interpreta como rango nocturno (p. ej. 22:00 a 02:00).</p>
 						</div>
