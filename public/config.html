@@ -11,7 +11,7 @@
 <body class="text-slate-200">
     <div class="container">
         <div class="flex items-center justify-between mb-2">
-            <h1>TODO-COMPUTACION</h1>
+            <img id="brandLogo" src="nombre_tc.png" alt="TODO-COMPUTACION" class="h-10 select-none" />
             <div class="flex items-center gap-2">
                 <button id="btnOpenLogs" class="px-3 py-1.5 rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Abrir log de hoy</button>
                 <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
@@ -493,6 +493,17 @@
     </div>
     <div id="toast" class="fixed bottom-4 right-4 hidden px-4 py-2 rounded bg-slate-800 border border-slate-700"></div>
     <script>
+    // Fallback si no existe nombre_tc.png → mostrar texto
+    (function ensureBrand(){
+        const img = document.getElementById('brandLogo');
+        if (!img) return;
+        img.addEventListener('error', () => {
+            const h1 = document.createElement('h1');
+            h1.textContent = 'TODO-COMPUTACION';
+            const parent = img.parentElement;
+            if (parent) parent.replaceChild(h1, img);
+        }, { once: true });
+    })();
     document.getElementById('btnOpenCaja')?.addEventListener('click', async () => {
         console.log('[UI] Modo Caja: click capturado');
         try {
