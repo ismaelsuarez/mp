@@ -15,6 +15,7 @@
             <div class="flex items-center gap-2">
                 <button id="btnOpenLogs" class="px-3 py-1.5 rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Abrir log de hoy</button>
                 <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
+                <button id="btnOpenImagen" class="px-4 py-2 rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">Modo Imagen</button>
             </div>
         </div>
         <div class="tabs">
@@ -275,6 +276,22 @@
 							<button type="button" id="btnTestRemote" class="ml-2 text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar remoto ahora</button>
 							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta el intervalo, días y horarios configurados arriba.</div>
 						</div>
+
+						<!-- Modo Imagen para visualización remota -->
+						<div class="mb-3 p-3 rounded-md border border-slate-700 bg-slate-800/40">
+							<div class="text-sm font-semibold mb-2">📷 Modo Imagen (visualización remota)</div>
+							<p class="text-xs text-slate-400 mb-2">El modo imagen permite visualizar automáticamente contenido (imágenes, PDFs, audio, video) cuando se detecta un archivo de control. El archivo de control debe contener la ruta completa al archivo a mostrar.</p>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+								<label class="block">Carpeta de control
+									<input id="IMAGE_CONTROL_DIR" placeholder="C:\tmp" />
+								</label>
+								<label class="block">Archivo de control
+									<input id="IMAGE_CONTROL_FILE" placeholder="direccion.txt" />
+								</label>
+							</div>
+							<button type="button" id="btnTestImage" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar lectura ahora</button>
+							<div class="text-xs text-slate-400 mt-2">El modo imagen respeta el intervalo, días y horarios configurados arriba. Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc.</div>
+						</div>
 						
 						<div class="row">
 							<button type="button" id="btnAutoStart">Activar</button>
@@ -521,6 +538,24 @@
         // Fallback directo por si IPC no está disponible en dev
         console.warn('[UI] Fallback: navegando directo a caja.html');
         window.location.href = 'caja.html';
+    });
+    document.getElementById('btnOpenImagen')?.addEventListener('click', async () => {
+        console.log('[UI] Modo Imagen: click capturado');
+        try {
+            const toast = document.getElementById('toast');
+            if (toast) { toast.textContent = 'Abriendo Modo Imagen...'; toast.classList.remove('hidden'); setTimeout(()=>toast.classList.add('hidden'), 1500); }
+        } catch {}
+        try {
+            if (window.api && typeof window.api.openView === 'function') {
+                console.log('[UI] Llamando window.api.openView("imagen")');
+                await window.api.openView('imagen');
+                console.log('[UI] openView resuelto');
+                return;
+            }
+        } catch {}
+        // Fallback directo por si IPC no está disponible en dev
+        console.warn('[UI] Fallback: navegando directo a imagen.html');
+        window.location.href = 'imagen.html';
     });
     document.getElementById('btnOpenLogs')?.addEventListener('click', async () => {
         if (window.api && typeof window.api.openTodayLog === 'function') {

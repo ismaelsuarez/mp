@@ -20,7 +20,7 @@ declare global {
 			openOutDir(): Promise<any>;
 			openTodayLog(): Promise<any>;
 			listHistory(): Promise<any>;
-			openView(view: 'config' | 'caja'): Promise<any>;
+			openView(view: 'config' | 'caja' | 'imagen'): Promise<any>;
 			setWindowSize(width: number, height: number): Promise<any>;
 			getAppVersion(): Promise<{ version: string }>;
 			getReleaseNotes(): Promise<{ ok: boolean; path?: string; content?: string; error?: string }>;
@@ -39,6 +39,9 @@ declare global {
 			}>;
 			clearOldErrors(hours?: number): Promise<{ ok: boolean; error?: string }>;
 			resetErrorNotifications(): Promise<{ ok: boolean; error?: string }>;
+			// Image Mode
+			testImageControl?(): Promise<{ success: boolean; filePath?: string; error?: string }>;
+			onNewImageContent?(callback: (payload: { filePath: string }) => void): void;
 		};
 		auth: {
 			isInitialized(): Promise<boolean>;

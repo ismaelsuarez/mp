@@ -78,7 +78,7 @@ function getTrayImage() {
 	}
 }
 
-async function openViewFromTray(view: 'config' | 'caja') {
+async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 	if (!mainWindow) return;
 	// Asegurar que la ventana esté visible (fuera de bandeja) antes de cambiar la vista
 	showMainWindow();
@@ -93,20 +93,32 @@ async function openViewFromTray(view: 'config' | 'caja') {
 		} catch {}
 		await mainWindow.loadFile(target);
 		return;
-	}
-	// caja
-	const target = path.join(app.getAppPath(), 'public', 'caja.html');
-	try {
-		mainWindow.setMinimumSize(420, 320);
-		mainWindow.setSize(420, 320);
-		mainWindow.setMenuBarVisibility(false);
-		mainWindow.setAutoHideMenuBar(true);
-		// Restaurar posición previa; si no existe, centrar
-		if (!restoreCajaWindowPosition(420, 320)) {
+	} else if (view === 'caja') {
+		// caja
+		const target = path.join(app.getAppPath(), 'public', 'caja.html');
+		try {
+			mainWindow.setMinimumSize(420, 320);
+			mainWindow.setSize(420, 320);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+			// Restaurar posición previa; si no existe, centrar
+			if (!restoreCajaWindowPosition(420, 320)) {
+				try { mainWindow.center(); } catch {}
+			}
+		} catch {}
+		await mainWindow.loadFile(target);
+	} else if (view === 'imagen') {
+		// imagen
+		const target = path.join(app.getAppPath(), 'public', 'imagen.html');
+		try {
+			mainWindow.setMinimumSize(800, 600);
+			mainWindow.setSize(800, 600);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
 			try { mainWindow.center(); } catch {}
-		}
-	} catch {}
-	await mainWindow.loadFile(target);
+		} catch {}
+		await mainWindow.loadFile(target);
+	}
 }
 
 function showMainWindow() {
@@ -135,6 +147,7 @@ function createTray() {
 		{ label: 'Mostrar', click: () => showMainWindow() },
 		{ type: 'separator' },
 		{ label: 'Ir a Caja', click: () => openViewFromTray('caja') },
+		{ label: 'Ir a Imagen', click: () => openViewFromTray('imagen') },
 		{ label: 'Ir a Configuración', click: () => openViewFromTray('config') },
 		{ type: 'separator' },
 		{ label: 'Salir', click: () => { isQuitting = true; app.quit(); } }
@@ -582,8 +595,8 @@ app.whenReady().then(() => {
 		}
 	});
 
-	// Abrir vistas (config/caja)
-	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja') => {
+	// Abrir vistas (config/caja/imagen)
+	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja' | 'imagen') => {
 		console.log('[main] open-view →', view);
 		
 		if (view === 'config') {
@@ -605,7 +618,7 @@ app.whenReady().then(() => {
 				console.log('[main] auth.html loaded');
 				return { ok: true };
 			}
-		} else {
+		} else if (view === 'caja') {
 			// Para caja, abrir directamente
 			const file = 'caja.html';
 			console.log('[main] caja requested → loading caja.html');
@@ -636,6 +649,25 @@ app.whenReady().then(() => {
 						// Si no hay posición guardada, centrar
 						try { mainWindow.center(); } catch {}
 					}
+				} catch {}
+				await mainWindow.loadFile(target);
+				console.log('[main] loadFile done');
+				return { ok: true };
+			}
+		} else if (view === 'imagen') {
+			// Para imagen, abrir directamente
+			const file = 'imagen.html';
+			console.log('[main] imagen requested → loading imagen.html');
+			if (mainWindow) {
+				const target = path.join(app.getAppPath(), 'public', file);
+				console.log('[main] loading file:', target);
+				// Ajustar tamaño para modo imagen
+				try {
+					mainWindow.setMinimumSize(800, 600);
+					mainWindow.setSize(800, 600);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
 				} catch {}
 				await mainWindow.loadFile(target);
 				console.log('[main] loadFile done');
@@ -779,6 +811,7 @@ app.whenReady().then(() => {
 		remoteTimer = setInterval(async () => {
 			if (!isDayEnabled()) return;
 			await processRemoteOnce();
+			await processImageControlOnce(); // Procesar también archivos de control de imagen
 		}, Math.max(1000, intervalSec * 1000));
 		return true;
 	}
@@ -856,6 +889,59 @@ app.whenReady().then(() => {
 			return processed;
 		} catch (e) {
 			console.warn('[main] remoto: error procesando carpeta remota', e);
+			return 0;
+		}
+	}
+
+	// Procesamiento de archivos de control de imagen
+	async function processImageControlOnce(): Promise<number> {
+		if (!isDayEnabled()) return 0;
+		try {
+			const cfgNow: any = store.get('config') || {};
+			const enabled = cfgNow.AUTO_REMOTE_ENABLED !== false;
+			if (!enabled) return 0;
+			
+			const controlDir = String(cfgNow.IMAGE_CONTROL_DIR || 'C:\\tmp');
+			const controlFile = String(cfgNow.IMAGE_CONTROL_FILE || 'direccion.txt');
+			const controlPath = path.join(controlDir, controlFile);
+			
+			if (!fs.existsSync(controlPath)) {
+				return 0; // No hay archivo de control
+			}
+			
+			const content = fs.readFileSync(controlPath, 'utf8').trim();
+			if (!content) {
+				// Archivo vacío, eliminarlo
+				try { fs.unlinkSync(controlPath); } catch {}
+				return 0;
+			}
+			
+			// Extraer la ruta del contenido (soporta formato "URI=ruta" o solo "ruta")
+			let filePath = content;
+			if (content.startsWith('URI=')) {
+				filePath = content.substring(4).trim();
+			}
+			
+			// Verificar si el archivo de contenido existe
+			if (!fs.existsSync(filePath)) {
+				logError('Archivo de contenido no encontrado', { filePath, originalContent: content });
+				// Eliminar archivo de control aunque el contenido no exista
+				try { fs.unlinkSync(controlPath); } catch {}
+				return 0;
+			}
+			
+			// Notificar a la UI sobre el nuevo contenido
+			if (mainWindow) {
+				mainWindow.webContents.send('image:new-content', { filePath });
+			}
+			
+			// Eliminar archivo de control después de procesarlo
+			try { fs.unlinkSync(controlPath); } catch {}
+			
+			logSuccess('Contenido de imagen procesado', { filePath, originalContent: content });
+			return 1;
+		} catch (e) {
+			console.warn('[main] imagen: error procesando archivo de control', e);
 			return 0;
 		}
 	}
@@ -1138,6 +1224,43 @@ app.whenReady().then(() => {
 		} catch (error: any) {
 			logError('Error al resetear notificaciones', { error: error.message });
 			return { ok: false, error: error.message };
+		}
+	});
+
+	// ===== HANDLERS DE MODO IMAGEN =====
+
+	// Probar lectura del archivo de control
+	ipcMain.handle('image:test-control', async () => {
+		try {
+			const cfg: any = store.get('config') || {};
+			const controlDir = String(cfg.IMAGE_CONTROL_DIR || 'C:\\tmp');
+			const controlFile = String(cfg.IMAGE_CONTROL_FILE || 'direccion.txt');
+			const controlPath = path.join(controlDir, controlFile);
+			
+			if (!fs.existsSync(controlPath)) {
+				return { success: false, error: 'Archivo de control no encontrado' };
+			}
+			
+			const content = fs.readFileSync(controlPath, 'utf8').trim();
+			if (!content) {
+				return { success: false, error: 'Archivo de control vacío' };
+			}
+			
+			// Extraer la ruta del contenido (soporta formato "URI=ruta" o solo "ruta")
+			let filePath = content;
+			if (content.startsWith('URI=')) {
+				filePath = content.substring(4).trim();
+			}
+			
+			// Verificar si el archivo existe
+			if (!fs.existsSync(filePath)) {
+				return { success: false, error: 'Archivo de contenido no encontrado' };
+			}
+			
+			return { success: true, filePath };
+		} catch (error: any) {
+			logError('Error al probar archivo de control de imagen', { error: error.message });
+			return { success: false, error: error.message };
 		}
 	});
 

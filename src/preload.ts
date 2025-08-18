@@ -83,7 +83,7 @@ contextBridge.exposeInMainWorld('api', {
 	async listHistory() {
 		return await ipcRenderer.invoke('list-history');
 	},
-	async openView(view: 'config' | 'caja') {
+	async openView(view: 'config' | 'caja' | 'imagen') {
 		console.log('[preload] openView invoked with', view);
 		const res = await ipcRenderer.invoke('open-view', view);
 		console.log('[preload] openView result', res);
@@ -97,6 +97,13 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async getReleaseNotes() {
 		return await ipcRenderer.invoke('about:get-release-notes');
+	},
+	// Image Mode functions
+	async testImageControl() {
+		return await ipcRenderer.invoke('image:test-control');
+	},
+	onNewImageContent(callback: (payload: { filePath: string }) => void) {
+		ipcRenderer.on('image:new-content', (_e, payload) => callback(payload));
 	}
 });
 
