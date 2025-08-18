@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -53,7 +53,12 @@
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "publisherName": "TODO-Computacion",
       "requestedExecutionLevel": "asInvoker",
