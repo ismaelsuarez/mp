@@ -21,6 +21,26 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 
+// Limpia artefactos previos del updater que pueden producir EPERM al renombrar
+function cleanupUpdaterPendingDir(): void {
+    try {
+        if (process.platform !== 'win32') return;
+        const local = process.env.LOCALAPPDATA;
+        if (!local) return;
+        const pendingDir = path.join(local, 'tc-mp-updater', 'pending');
+        if (!fs.existsSync(pendingDir)) return;
+        const files = fs.readdirSync(pendingDir);
+        for (const f of files) {
+            try {
+                const lower = f.toLowerCase();
+                if (lower.endsWith('.exe') || lower.endsWith('.zip') || lower.includes('tc-mp')) {
+                    fs.rmSync(path.join(pendingDir, f), { force: true });
+                }
+            } catch {}
+        }
+    } catch {}
+}
+
 function getTrayImage() {
 	try {
 		const candidates = [
@@ -323,6 +343,7 @@ app.whenReady().then(() => {
 
         autoUpdater.on('error', (error) => {
             try { logError('AutoUpdate error', { message: String((error as any)?.message || error) }); } catch {}
+            try { mainWindow?.setProgressBar(-1); } catch {}
         });
 
         autoUpdater.on('update-available', async (info) => {
@@ -336,11 +357,31 @@ app.whenReady().then(() => {
                     message: `Se encontró una nueva versión (${info?.version || ''}). ¿Desea instalarla ahora?`
                 });
                 if (result.response === 0) {
-                    await autoUpdater.downloadUpdate();
+                    // Limpiar pendientes para evitar EPERM por residuos
+                    cleanupUpdaterPendingDir();
+                    try {
+                        try { mainWindow?.setProgressBar(0.01); } catch {}
+                        await autoUpdater.downloadUpdate();
+                    } catch (e) {
+                        try { logError('AutoUpdate download failed', { message: String((e as any)?.message || e) }); } catch {}
+                        try { mainWindow?.setProgressBar(-1); } catch {}
+                    }
                 }
             } catch (e) {
                 try { logError('AutoUpdate prompt failed', { message: String((e as any)?.message || e) }); } catch {}
             }
+        });
+
+        autoUpdater.on('download-progress', (progress) => {
+            try {
+                const percent = Number(progress?.percent || 0);
+                mainWindow?.setProgressBar(Math.max(0, Math.min(1, percent / 100)));
+                logInfo('AutoUpdate progress', {
+                    percent: Math.round(percent * 10) / 10,
+                    transferred: Number(progress?.transferred || 0),
+                    total: Number(progress?.total || 0)
+                });
+            } catch {}
         });
 
         autoUpdater.on('update-downloaded', async () => {
@@ -356,6 +397,7 @@ app.whenReady().then(() => {
                 if (result.response === 0) {
                     setImmediate(() => autoUpdater.quitAndInstall());
                 }
+                try { mainWindow?.setProgressBar(-1); } catch {}
             } catch (e) {
                 try { logError('AutoUpdate restart prompt failed', { message: String((e as any)?.message || e) }); } catch {}
             }
