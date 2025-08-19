@@ -1095,7 +1095,7 @@ window.addEventListener('DOMContentLoaded', () => {
 					port: Number((document.getElementById('FTP_SRV_PORT') as HTMLInputElement)?.value || 2121),
 					user: (document.getElementById('FTP_SRV_USER') as HTMLInputElement)?.value || 'user',
 					pass: (document.getElementById('FTP_SRV_PASS') as HTMLInputElement)?.value || 'pass',
-					root: (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || 'C\\tmp\\ftp_share'
+					root: (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || 'C:\\tmp\\ftp_share'
 				});
 				{
 					const ftpStatusEl = document.getElementById('ftpSrvStatus') as HTMLElement | null;
@@ -1138,4 +1138,31 @@ window.addEventListener('DOMContentLoaded', () => {
 			}
 		}).catch(() => {});
 	}
+
+	// Botones extra: Copiar URL y Abrir carpeta raíz
+	(function wireFtpHelperButtons(){
+		const btnCopy = document.getElementById('btnFtpCopyUrl') as HTMLButtonElement | null;
+		const btnOpen = document.getElementById('btnFtpOpenRoot') as HTMLButtonElement | null;
+		btnCopy?.addEventListener('click', async () => {
+			try {
+				let host = (document.getElementById('FTP_SRV_HOST') as HTMLInputElement)?.value || '0.0.0.0';
+				const port = (document.getElementById('FTP_SRV_PORT') as HTMLInputElement)?.value || '2121';
+				const user = (document.getElementById('FTP_SRV_USER') as HTMLInputElement)?.value || 'user';
+				// Si el host está en 0.0.0.0 (escuchar en todas), para conectarse local usar 127.0.0.1
+				if (!host || host === '0.0.0.0') host = '127.0.0.1';
+				// Windows Explorer suele funcionar mejor sin usuario en la URL (pedirá credenciales)
+				const url = `ftp://${host}:${port}`;
+				await navigator.clipboard.writeText(url);
+				showToast(`URL copiada: ${url} (usuario: ${user})`);
+			} catch { showToast('No se pudo copiar'); }
+		});
+		btnOpen?.addEventListener('click', async () => {
+			try {
+				const root = (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || '';
+				if (!root) { showToast('Carpeta raíz vacía'); return; }
+				const res = await (window.api as any).openPath?.(root);
+				if (res && res.ok) showToast('Carpeta abierta'); else showToast('No se pudo abrir la carpeta');
+			} catch { showToast('No se pudo abrir la carpeta'); }
+		});
+	})();
 });

@@ -207,8 +207,10 @@
 						<p class="text-xs text-slate-500">Puerto: por defecto 2121. Usa 21 solo si no hay otro servicio activo en ese puerto (IIS/FileZilla) y el firewall lo permite.</p>
 						<p class="text-xs text-slate-500">Carpeta raíz: se creará automáticamente si no existe. Lo que coloques aquí será lo que verán los clientes al conectarse.</p>
 						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_SRV_ENABLED" type="checkbox" /> Habilitado (autoarranque)</label>
-						<div class="flex items-center gap-2">
+						<div class="flex items-center gap-2 flex-wrap">
 							<button type="button" id="btnFtpSrvToggle" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Iniciar servidor FTP</button>
+							<button type="button" id="btnFtpCopyUrl" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Copiar URL</button>
+							<button type="button" id="btnFtpOpenRoot" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Abrir carpeta</button>
 							<span id="ftpSrvStatus" class="text-xs text-slate-400"></span>
 						</div>
 						<p class="text-xs text-slate-400">El servidor FTP se ejecuta en paralelo, valida credenciales y expone la carpeta raíz configurada.</p>

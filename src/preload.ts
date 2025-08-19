@@ -108,6 +108,10 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	onNewImageContent(callback: (payload: { filePath: string }) => void) {
 		ipcRenderer.on('image:new-content', (_e, payload) => callback(payload));
+	},
+	// Utils
+	async openPath(fullPath: string) {
+		return await ipcRenderer.invoke('open-path', fullPath);
 	}
 });
 

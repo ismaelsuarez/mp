@@ -589,6 +589,32 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// Abrir ruta arbitraria (archivo/carpeta)
+	ipcMain.handle('open-path', async (_e, fullPath: string) => {
+		try {
+			if (!fullPath) return { ok: false, error: 'Ruta vacía' };
+			let target = fullPath;
+			// Normalizar rutas Windows: agregar ':' si falta (C\\tmp → C:\\tmp) y ajustar separadores
+			if (process.platform === 'win32') {
+				const m = target.match(/^([a-zA-Z])(\\|\/)/);
+				if (m && !/^([a-zA-Z]):/.test(target)) {
+					target = `${m[1]}:${target.slice(1)}`;
+				}
+				target = target.replace(/\//g, '\\');
+			}
+			// Crear carpeta si no existe (uso común de este botón)
+			try {
+				if (!fs.existsSync(target)) {
+					fs.mkdirSync(target, { recursive: true });
+				}
+			} catch {}
+			await shell.openPath(target);
+			return { ok: true, path: target };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// Listar historial simple por fecha (tags)
 	ipcMain.handle('list-history', async () => {
 		const dir = getOutDir();
