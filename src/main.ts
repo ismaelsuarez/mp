@@ -332,6 +332,8 @@ function isWebUrl(value: string): boolean {
     } catch { return false; }
 }
 
+// (revertido) normalización de rutas eliminada a pedido del cliente
+
 let store: Store<{ config?: Record<string, unknown> }>;
 try {
     store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
@@ -491,6 +493,23 @@ function notifySystem(title: string, body: string) {
 
 // Desactivar aceleración por GPU (mejora compatibilidad en WSL/VMs)
 app.disableHardwareAcceleration();
+
+// Instancia única: evita múltiples procesos y enfoca la ventana existente
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        try {
+            if (mainWindow) {
+                try { if (mainWindow.isMinimized()) mainWindow.restore(); } catch {}
+                showMainWindow();
+            } else {
+                createMainWindow();
+            }
+        } catch {}
+    });
+}
 
 app.whenReady().then(() => {
     ensureLogsDir();
@@ -1199,6 +1218,7 @@ app.whenReady().then(() => {
 				// fallback legacy: línea completa era la ruta
 				filePath = content;
 			}
+			// Usar la ruta tal cual llega en el archivo de control (sin normalizar)
 			
 			// Si es una URL web y piden 'nueva', abrir en el navegador del sistema
 			if (windowMode === 'nueva' && isWebUrl(filePath)) {
