@@ -1103,6 +1103,8 @@ window.addEventListener('DOMContentLoaded', () => {
 				}
 				const btn = document.getElementById('btnFtpSrvToggle') as HTMLButtonElement | null;
 				if (btn && res?.ok) { btn.textContent = 'Detener servidor FTP'; }
+				renderPreview(await window.api.getConfig());
+				refreshFtpSrvStatusLine();
 			} else {
 				const res = await (window.api as any).ftpStop?.();
 				{
@@ -1111,10 +1113,29 @@ window.addEventListener('DOMContentLoaded', () => {
 				}
 				const btn = document.getElementById('btnFtpSrvToggle') as HTMLButtonElement | null;
 				if (btn && res?.ok) { btn.textContent = 'Iniciar servidor FTP'; }
+				renderPreview(await window.api.getConfig());
+				refreshFtpSrvStatusLine();
 			}
 		} catch (e: any) {
 			const ftpStatusEl3 = document.getElementById('ftpSrvStatus') as HTMLElement | null;
 			if (ftpStatusEl3) ftpStatusEl3.textContent = 'Error: ' + (e?.message || e);
 		}
 	});
+
+	function refreshFtpSrvStatusLine() {
+		const statusEl = document.getElementById('ftpSrvStatus') as HTMLElement | null;
+		if (!statusEl) return;
+		(window.api as any).ftpStatus?.().then((st: any) => {
+			const running = !!(st && st.running);
+			const host = (document.getElementById('FTP_SRV_HOST') as HTMLInputElement)?.value || '0.0.0.0';
+			const port = (document.getElementById('FTP_SRV_PORT') as HTMLInputElement)?.value || '2121';
+			const user = (document.getElementById('FTP_SRV_USER') as HTMLInputElement)?.value || 'user';
+			const root = (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || '';
+			if (running) {
+				statusEl.textContent = `ON • ftp://${user}:••••@${host}:${port}  →  ${root}`;
+			} else {
+				statusEl.textContent = 'OFF';
+			}
+		}).catch(() => {});
+	}
 });
