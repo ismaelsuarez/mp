@@ -27,6 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'DEFAULT_VIEW',
 		// FTP Server (admin)
 		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
+		,'FTP_SRV_PASV_HOST','FTP_SRV_PASV_MIN','FTP_SRV_PASV_MAX'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -148,7 +149,10 @@ window.addEventListener('DOMContentLoaded', () => {
 			FTP_SRV_USER: (el.FTP_SRV_USER as HTMLInputElement)?.value || undefined,
 			FTP_SRV_PASS: (el.FTP_SRV_PASS as HTMLInputElement)?.value || undefined,
 			FTP_SRV_ROOT: (el.FTP_SRV_ROOT as HTMLInputElement)?.value || undefined,
-			FTP_SRV_ENABLED: (el.FTP_SRV_ENABLED as HTMLInputElement)?.checked === true
+			FTP_SRV_ENABLED: (el.FTP_SRV_ENABLED as HTMLInputElement)?.checked === true,
+			FTP_SRV_PASV_HOST: (el.FTP_SRV_PASV_HOST as HTMLInputElement)?.value || undefined,
+			FTP_SRV_PASV_MIN: (el.FTP_SRV_PASV_MIN as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MIN as HTMLInputElement).value) : undefined,
+			FTP_SRV_PASV_MAX: (el.FTP_SRV_PASV_MAX as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MAX as HTMLInputElement).value) : undefined
 		};
 	}
 
@@ -220,6 +224,12 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (ftpRootEl) ftpRootEl.value = cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share';
 		const ftpEnabledEl = document.getElementById('FTP_SRV_ENABLED') as HTMLInputElement | null;
 		if (ftpEnabledEl) ftpEnabledEl.checked = cfg.FTP_SRV_ENABLED === true;
+		const ftpPasvHostEl = document.getElementById('FTP_SRV_PASV_HOST') as HTMLInputElement | null;
+		const ftpPasvMinEl = document.getElementById('FTP_SRV_PASV_MIN') as HTMLInputElement | null;
+		const ftpPasvMaxEl = document.getElementById('FTP_SRV_PASV_MAX') as HTMLInputElement | null;
+		if (ftpPasvHostEl) ftpPasvHostEl.value = cfg.FTP_SRV_PASV_HOST || '';
+		if (ftpPasvMinEl) ftpPasvMinEl.value = String(cfg.FTP_SRV_PASV_MIN || '50000');
+		if (ftpPasvMaxEl) ftpPasvMaxEl.value = String(cfg.FTP_SRV_PASV_MAX || '50100');
 	}
 
 	function renderPreview(cfg: any) {
@@ -1101,7 +1111,10 @@ window.addEventListener('DOMContentLoaded', () => {
 					port: Number((document.getElementById('FTP_SRV_PORT') as HTMLInputElement)?.value || 2121),
 					user: (document.getElementById('FTP_SRV_USER') as HTMLInputElement)?.value || 'user',
 					pass: (document.getElementById('FTP_SRV_PASS') as HTMLInputElement)?.value || 'pass',
-					root: (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || 'C:\\tmp\\ftp_share'
+					root: (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || 'C:\\tmp\\ftp_share',
+					pasv_host: (document.getElementById('FTP_SRV_PASV_HOST') as HTMLInputElement)?.value || undefined,
+					pasv_min: Number((document.getElementById('FTP_SRV_PASV_MIN') as HTMLInputElement)?.value || 50000),
+					pasv_max: Number((document.getElementById('FTP_SRV_PASV_MAX') as HTMLInputElement)?.value || 50100)
 				});
 				{
 					const ftpStatusEl = document.getElementById('ftpSrvStatus') as HTMLElement | null;

@@ -148,6 +148,25 @@ window.addEventListener('DOMContentLoaded', () => {
 	window.api.onNewImageContent?.((payload: any) => {
 		if (payload && payload.filePath) {
 			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}`);
+			// Aplicar estilo de "espejo" si windowMode === 'nueva12'
+			try {
+				const mode = String(payload.windowMode || '').toLowerCase();
+				const titleEl = document.getElementById('customTitleText');
+				const barEl = document.getElementById('customTitlebar');
+				if (mode === 'nueva12') {
+					// franja azul en body para diferenciación
+					document.body.classList.add('mirror-mode');
+					// si existiera barra de título personalizada, cambiar color y sufijo
+					if (barEl) (barEl as HTMLElement).style.background = '#0ea5e9';
+					if (titleEl && typeof (titleEl as any).textContent === 'string') {
+						const t = String((titleEl as any).textContent || '').replace(/\s*\(ESPEJO\)\s*$/i,'').trim();
+						(titleEl as any).textContent = t ? `${t} (ESPEJO)` : 'ESPEJO';
+					}
+				} else {
+					document.body.classList.remove('mirror-mode');
+					if (barEl) (barEl as HTMLElement).style.background = '#10b981';
+				}
+			} catch {}
 			showContent(payload.filePath);
 			// Mostrar info (si existiera en el futuro una barra superior)
 			try {

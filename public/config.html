@@ -202,10 +202,21 @@
 							<label>Usuario <input id="FTP_SRV_USER" placeholder="user" /></label>
 							<label>Contraseña <input id="FTP_SRV_PASS" type="password" placeholder="pass" /></label>
 							<label class="md:col-span-2">Carpeta raíz <input id="FTP_SRV_ROOT" placeholder="C:\\tmp\\ftp_share" /></label>
+							<label>PASV Host (IP anunciada)
+								<input id="FTP_SRV_PASV_HOST" placeholder="IP LAN o Pública (ej. 192.168.x.x)" />
+							</label>
+							<label>Rango PASV (mín)
+								<input id="FTP_SRV_PASV_MIN" type="number" placeholder="50000" />
+							</label>
+							<label>Rango PASV (máx)
+								<input id="FTP_SRV_PASV_MAX" type="number" placeholder="50100" />
+							</label>
 						</div>
 						<p class="text-xs text-slate-500">Host: deja 0.0.0.0 para escuchar en todas las IPs de esta PC. Usa 127.0.0.1 para solo local, o tu IP LAN (ej. 192.168.x.x) para restringir.</p>
 						<p class="text-xs text-slate-500">Puerto: por defecto 2121. Usa 21 solo si no hay otro servicio activo en ese puerto (IIS/FileZilla) y el firewall lo permite.</p>
+						<p class="text-xs text-slate-500">PASV: si hay firewalls/NAT o clientes externos, define <strong>PASV Host</strong> (IP LAN o pública) y abre el <strong>Rango</strong> en el firewall/router. Sugerido: 50000–50100.</p>
 						<p class="text-xs text-slate-500">Carpeta raíz: se creará automáticamente si no existe. Lo que coloques aquí será lo que verán los clientes al conectarse.</p>
+						<p class="text-xs text-emerald-400">Nota: este <strong>Servidor FTP</strong> no usa intervalos ni temporizadores: queda a la espera y atiende conexiones entrantes. Los intervalos pertenecen únicamente al <strong>Cliente FTP</strong> (envío saliente).</p>
 						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_SRV_ENABLED" type="checkbox" /> Habilitado (autoarranque)</label>
 						<div class="flex items-center gap-2 flex-wrap">
 							<button type="button" id="btnFtpSrvToggle" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Iniciar servidor FTP</button>

@@ -11,11 +11,17 @@ type FtpServerConfig = {
   user?: string;
   pass?: string;
   root?: string; // C:\tmp\ftp_share
+  pasv_host?: string; // IP anunciada para PASV (LAN o pública)
+  pasv_min?: number;  // rango PASV inferior
+  pasv_max?: number;  // rango PASV superior
 };
 
 export async function startFtpServer(cfg: FtpServerConfig): Promise<boolean> {
   try {
     const { host = '0.0.0.0', port = 2121, user = 'user', pass = 'pass' } = cfg || {};
+    const pasvHost = (cfg?.pasv_host as string) || '';
+    const pasvMin = Number.isFinite(cfg?.pasv_min as number) ? (cfg?.pasv_min as number) : 50000;
+    const pasvMax = Number.isFinite(cfg?.pasv_max as number) ? (cfg?.pasv_max as number) : 50100;
     let root = (cfg?.root as string) || path.join('C:', 'tmp', 'ftp_share');
     // Normalizar ruta de Windows y asegurar absoluta
     try {
@@ -48,12 +54,16 @@ export async function startFtpServer(cfg: FtpServerConfig): Promise<boolean> {
       FtpSrvCtor = (mod as any).default || (mod as any).FtpSrv;
     }
 
-    ftpServer = new FtpSrvCtor({
+    const options: any = {
       url: `ftp://${host}:${port}`,
-      pasv_min: 49152,
-      pasv_max: 65534,
+      pasv_min: pasvMin,
+      pasv_max: pasvMax,
       anonymous: false
-    });
+    };
+    if (pasvHost && typeof pasvHost === 'string') {
+      (options as any).pasv_url = pasvHost; // FTP PASV URL anunciada
+    }
+    ftpServer = new FtpSrvCtor(options);
 
     ftpServer.on('login', ({ username, password }: any, resolve: any, reject: any) => {
       try {
@@ -61,6 +71,8 @@ export async function startFtpServer(cfg: FtpServerConfig): Promise<boolean> {
           logInfo('FTP login OK', { username });
           return resolve({ root });
         }
+        // No exponer la contraseña; mostrar usuario (y IP si está disponible por otros logs)
+        try { console.warn('[ftp] login reject user=', username); } catch {}
         logError('FTP login reject', { username });
         return reject(new Error('Invalid credentials'));
       } catch (e: any) {
@@ -78,7 +90,7 @@ export async function startFtpServer(cfg: FtpServerConfig): Promise<boolean> {
     ftpServer.on('connection', () => logInfo('FTP connection')); 
 
     await ftpServer.listen();
-    logInfo('FTP server started', { host, port, root });
+    logInfo('FTP server started', { host, port, root, pasvHost: pasvHost || undefined, pasvRange: `${pasvMin}-${pasvMax}` });
     return true;
   } catch (e: any) {
     logError('Failed to start FTP server', { message: e?.message || String(e) });

@@ -1,5 +1,23 @@
 # Notas de versión
 
+## 1.0.9
+Fecha de publicación: 2025-08-19
+- Modo Imagen: manejo de múltiples ventanas según `VENTANA=`
+  - `VENTANA=comun12`: refleja el contenido en dos ventanas (principal y secundaria), ambas persisten tamaño/posición y se reutilizan sin duplicados.
+  - Ventana secundaria persistente (`imageDualWindow`): guarda/restaura bounds entre usos.
+  - `VENTANA=nueva`: cada solicitud crea una ventana nueva; primera vez centrada en el mismo monitor de la ventana “comun”, siguientes veces restauran bounds guardados. Cierra con tecla ESC.
+  - Enlaces web: si `URI` comienza con `http://` o `https://` y `VENTANA=nueva`, se abre en el navegador predeterminado del sistema.
+  - UI: se oculta la barra de menú en todas las ventanas (principal y nuevas) para una presentación limpia.
+  - Espejo (visual): la ventana secundaria de `comun12` se diferencia con un skin rosado (marco 4 px en todo el contorno y borde redondeado del visor), y agrega sufijo “(ESPEJO)” en el título cuando aplica.
+
+## 1.0.8
+Fecha de publicación: 2025-08-19
+- FTP: correcciones de control de tiempo y estabilidad
+  - Respeto de `AUTO_REMOTE_MS_INTERVAL` o, en su defecto, del intervalo global; ejecución con mutex para evitar reentradas concurrentes.
+  - Procesamiento de un único `mp*.txt` por ciclo para reducir contención y “saturación”.
+  - Reintentos ante errores de archivo típicos (`EPERM`, `EACCES`, `EBUSY`, `EEXIST`) durante generación/envío.
+  - Logging más claro del estado de envío (enviado/sin cambios/error).
+
 ## 1.0.7
 Fecha de publicación: 2025-08-19
 - Modo Imagen: visor responsive (420×420 inicial, redimensionable, recuerda tamaño/posición). Soporta Imágenes/PDF/Audio/Video y mantiene el último contenido en pantalla. Lee archivo de control `URI=...@VENTANA=...@INFO=...` (segmentos opcionales):

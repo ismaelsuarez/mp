@@ -231,3 +231,77 @@ La inversión en esta funcionalidad se justifica por los beneficios operativos i
 ---
 
 **Solicitud**: Se requiere autorización para proceder con el desarrollo del servidor FTP como complemento al sistema existente.
+
+
+## Anexo A: Guía de diagnóstico (recepción FTP)
+
+Cuando “no llegan los archivos desde otro servidor”, seguir este checklist en orden. Este proyecto opera por requerimiento en el **puerto 21** [[PUERTO 21]] (ver políticas internas).  
+
+### 1) ¿El servicio está escuchando en 21?
+- Windows (PowerShell):
+  - `Test-NetConnection -ComputerName 127.0.0.1 -Port 21`
+- Windows (cmd/bash):
+  - `netstat -an | findstr :21`
+
+Debe verse LISTENING en 0.0.0.0:21 o en la IP configurada. Si no:
+- Verificar que el servidor esté arrancado desde Administración.
+- Revisar logs de la app (hoy.log) por errores al iniciar el FTP.
+
+### 2) Firewall/AV
+- Crear regla de entrada para TCP 21 (perfil privado y dominio).  
+- Si hay clientes a través de Internet o subredes, abrir además el **rango PASV** (ej.: 50000–50100) en el firewall y en el router/NAT hacia el equipo.
+- Si hay antivirus/EDR, permitir el proceso de la app.
+
+### 3) Modo de transferencia del cliente
+- Exigir al emisor usar **PASV (Passive Mode)**.  
+- Si hay NAT: el servidor debe anunciar su IP pública en PASV; caso contrario, el cliente intentará conectarse a una IP privada y fallará.  
+- Validar que el emisor no esté forzando Active Mode.
+
+### 4) Credenciales y raíz
+- Usuario/contraseña exactamente como configurado.  
+- Carpeta raíz configurada existente y con permisos de escritura para el usuario del servicio (la app corre en el usuario actual).  
+- Probar subir un archivo pequeño (ej.: `ping.txt`).
+
+### 5) Prueba cruzada con cliente conocido
+- Desde otra PC en la misma red, probar con FileZilla/WinSCP:
+  - Host: IP del servidor  
+  - Puerto: 21  
+  - Protocolo: FTP (no FTPS)  
+  - Modo: PASV  
+  - Subir `prueba.txt` y confirmar que aparece en la raíz configurada.
+
+### 6) Logs y errores típicos
+- `530 Login incorrect.` → credenciales incorrectas.
+- `425/426 Can't open data connection` → problema de PASV/NAT/firewall (abrir rango PASV y anunciar IP correcta).
+- `550 Permission denied` → permisos de carpeta raíz.
+- `ECONNREFUSED` → servicio no está escuchando/puerto cerrado.
+
+### 7) Validaciones adicionales
+- Si el emisor es otro servidor automatizado, pedir captura/log de su lado.  
+- Confirmar que apunta a la **IP correcta** (no a 127.0.0.1 ni a otra máquina).  
+- Si se usa FTPS externamente, validar cert/puerto y que el cliente acepte TLS explícito.
+
+---
+
+## Anexo B: Plan de pruebas sugerido
+
+1. Local (misma máquina): conectar a 127.0.0.1:21 y subir `local-ok.txt` (esperado: OK).  
+2. LAN (otra PC): conectar a IP LAN:21 y subir `lan-ok.txt` (esperado: OK).  
+3. NAT (Internet): desde fuera, conectar a IP pública:21 y subir `wan-ok.txt` usando PASV (esperado: OK).  
+4. Emisor real: repetir el envío “productivo” y verificar archivo recibido.  
+
+Registrar capturas y timestamps; ante falla, anotar mensaje exacto del cliente.
+
+---
+
+## Anexo C: Recomendaciones de configuración
+
+- Puerto: 21 (requerimiento del cliente).  
+- Modo: FTP sin TLS para LAN; considerar FTPS explícito solo si exposición WAN y ambos extremos lo soportan.  
+- PASV: definir rango fijo (ej.: 50000–50100) y abrirlo en firewall/NAT; anunciar IP pública si corresponde.  
+- Raíz: carpeta dedicada (p.ej. `C:\tmp\ftp_share`) con permisos adecuados.  
+- Logs: activar logs de transferencia y revisar “hoy.log” de la app ante incidentes.
+
+---
+
+> Nota operativa: si el objetivo es alimentar el “Modo Imagen” con `direccion.txt`, validar que el archivo llegue efectivamente a la carpeta de control o a una carpeta intermedia desde la cual un proceso lo mueva; confirmar que el contenido respete el formato `URI=...@VENTANA=...@INFO=...`.

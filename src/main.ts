@@ -21,6 +21,83 @@ import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let currentViewName: 'config' | 'caja' | 'imagen' = 'caja';
+// Ventana persistente para presentaciones (comun12)
+let imageDualWindow: BrowserWindow | null = null;
+
+// Guardar tamaño/posición de la ventana secundaria (comun12)
+function saveImageDualWindowBounds() {
+	try {
+		if (!imageDualWindow) return;
+		const bounds = imageDualWindow.getBounds();
+		const display = screen.getDisplayMatching(bounds);
+		const work = display.workArea || display.bounds;
+		store.set('imageDualWindowBounds', {
+			x: bounds.x,
+			y: bounds.y,
+			width: bounds.width,
+			height: bounds.height,
+			workW: work.width,
+			workH: work.height
+		});
+	} catch {}
+}
+
+function restoreImageDualWindowBounds(win: BrowserWindow, minWidth = 420, minHeight = 420): boolean {
+	try {
+		const saved = store.get('imageDualWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+		if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
+		const primary = screen.getPrimaryDisplay();
+		const { width, height } = primary.workAreaSize;
+		const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
+		const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
+		let x = Math.round(saved.x * scaleX);
+		let y = Math.round(saved.y * scaleY);
+		let w = Math.max(minWidth, Math.round(saved.width * scaleX));
+		let h = Math.max(minHeight, Math.round(saved.height * scaleY));
+		x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
+		y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+		win.setBounds({ x, y, width: w, height: h });
+		return true;
+	} catch { return false; }
+}
+
+// Persistencia para ventanas creadas con VENTANA=nueva
+function saveImageNewWindowBounds(win: BrowserWindow | null) {
+    try {
+        if (!win) return;
+        const bounds = win.getBounds();
+        const display = screen.getDisplayMatching(bounds);
+        const work = display.workArea || display.bounds;
+        store.set('imageNewWindowBounds', {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            workW: work.width,
+            workH: work.height
+        });
+    } catch {}
+}
+
+function restoreImageNewWindowBounds(win: BrowserWindow, minWidth = 420, minHeight = 420): boolean {
+    try {
+        const saved = store.get('imageNewWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+        if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
+        const primary = screen.getPrimaryDisplay();
+        const { width, height } = primary.workAreaSize;
+        const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
+        const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
+        let x = Math.round(saved.x * scaleX);
+        let y = Math.round(saved.y * scaleY);
+        let w = Math.max(minWidth, Math.round(saved.width * scaleX));
+        let h = Math.max(minHeight, Math.round(saved.height * scaleY));
+        x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
+        y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+        win.setBounds({ x, y, width: w, height: h });
+        return true;
+    } catch { return false; }
+}
 
 // Limpia artefactos previos del updater que pueden producir EPERM al renombrar
 function cleanupUpdaterPendingDir(): void {
@@ -245,6 +322,16 @@ function getEncryptionKey(): string | undefined {
 	}
 }
 
+function isWebUrl(value: string): boolean {
+    try {
+        if (!value || typeof value !== 'string') return false;
+        const lower = value.trim().toLowerCase();
+        if (lower.startsWith('http://') || lower.startsWith('https://')) return true;
+        // URL constructor puede lanzar en Windows con rutas locales; usar chequeo simple
+        return false;
+    } catch { return false; }
+}
+
 let store: Store<{ config?: Record<string, unknown> }>;
 try {
     store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
@@ -283,6 +370,7 @@ function createMainWindow() {
 		return 'caja';
 	})();
 	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'config.html');
+	let currentViewName: 'config' | 'caja' | 'imagen' = defaultView;
 
 	// Bypass de licencia en desarrollo si SKIP_LICENSE=true o flag --skip-license
 	const devBypass = (!app.isPackaged) && (String(process.env.SKIP_LICENSE).toLowerCase() === 'true' || process.argv.includes('--skip-license'));
@@ -374,13 +462,17 @@ function createMainWindow() {
 
 	// Guardar posición de la ventana cuando se mueve (solo para modo caja)
 	mainWindow.on('moved', () => {
-		const cfg: any = store.get('config') || {};
-		const currentView = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
-		
-		// Guardar posición según vista activa
-		if (currentView === 'caja') {
+		if (currentViewName === 'caja') {
 			saveCajaWindowPosition();
-		} else {
+		} else if (currentViewName === 'imagen') {
+			saveImagenWindowBounds();
+		}
+	});
+
+	mainWindow.on('resize', () => {
+		if (currentViewName === 'caja') {
+			saveCajaWindowPosition();
+		} else if (currentViewName === 'imagen') {
 			saveImagenWindowBounds();
 		}
 	});
@@ -403,6 +495,7 @@ app.disableHardwareAcceleration();
 app.whenReady().then(() => {
     ensureLogsDir();
     ensureTodayLogExists();
+    try { Menu.setApplicationMenu(null); } catch {}
 
     // Autoarranque FTP Server si está habilitado
     try {
@@ -413,7 +506,7 @@ app.whenReady().then(() => {
                 port: Number(cfg.FTP_SRV_PORT || 2121),
                 user: cfg.FTP_SRV_USER || 'user',
                 pass: cfg.FTP_SRV_PASS || 'pass',
-                root: cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share'
+                root: cfg.FTP_SRV_ROOT || 'C:\\tmp\\ftp_share'
             }).then((ok) => { if (ok) logInfo('FTP auto-start OK'); else logWarning('FTP auto-start failed'); }).catch(()=>{});
         }
     } catch {}
@@ -722,6 +815,7 @@ app.whenReady().then(() => {
 			const file = 'caja.html';
 			console.log('[main] caja requested → loading caja.html');
 			if (mainWindow) {
+				currentViewName = 'caja';
 				const target = path.join(app.getAppPath(), 'public', file);
 				console.log('[main] loading file:', target);
 				// Ajustar tamaño según vista
@@ -758,6 +852,7 @@ app.whenReady().then(() => {
 			const file = 'imagen.html';
 			console.log('[main] imagen requested → loading imagen.html');
 			if (mainWindow) {
+				currentViewName = 'imagen';
 				const target = path.join(app.getAppPath(), 'public', file);
 				console.log('[main] loading file:', target);
 				// Ajustar tamaño para modo imagen
@@ -1097,7 +1192,7 @@ app.whenReady().then(() => {
 				const key = String(kRaw || '').trim().toUpperCase();
 				const val = rest.join('=').trim();
 				if (key === 'URI') filePath = val;
-				else if (key === 'VENTANA') windowMode = (val as any) as any;
+				else if (key === 'VENTANA') windowMode = String(val).trim().toLowerCase() as any;
 				else if (key === 'INFO') infoText = val;
 			}
 			if (!filePath) {
@@ -1105,8 +1200,16 @@ app.whenReady().then(() => {
 				filePath = content;
 			}
 			
-			// Verificar si el archivo de contenido existe
-			if (!fs.existsSync(filePath)) {
+			// Si es una URL web y piden 'nueva', abrir en el navegador del sistema
+			if (windowMode === 'nueva' && isWebUrl(filePath)) {
+				try { await shell.openExternal(filePath); } catch {}
+				try { fs.unlinkSync(controlPath); } catch {}
+				logSuccess('URL abierta en navegador del sistema', { url: filePath });
+				return 1;
+			}
+
+			// Verificar si el archivo de contenido existe (solo para rutas locales/UNC)
+			if (!isWebUrl(filePath) && !fs.existsSync(filePath)) {
 				logError('Archivo de contenido no encontrado', { filePath, originalContent: content });
 				// Eliminar archivo de control aunque el contenido no exista
 				try { fs.unlinkSync(controlPath); } catch {}
@@ -1115,7 +1218,50 @@ app.whenReady().then(() => {
 			
 			// Notificar a la UI sobre el nuevo contenido o abrir ventana separada
 			const wantNewWindow = (windowMode === 'nueva') || (cfgNow.IMAGE_WINDOW_SEPARATE === true);
-			if (wantNewWindow) {
+			// En modo 'comun12' se envía a ambas: ventana actual (si corresponde) y ventana persistente (reutilizable)
+			if (windowMode === 'comun12') {
+				if (mainWindow) {
+					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
+					mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'comun' });
+				}
+				// Reutilizar o crear la ventana persistente para presentación
+				try {
+					if (!imageDualWindow || imageDualWindow.isDestroyed()) {
+						imageDualWindow = new BrowserWindow({
+							width: 420,
+							height: 420,
+							title: infoText || path.basename(filePath),
+							backgroundColor: '#0f172a',
+							webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
+						});
+						try { imageDualWindow.setMenuBarVisibility(false); } catch {}
+						try { imageDualWindow.setAutoHideMenuBar(true); } catch {}
+						imageDualWindow.on('closed', () => { imageDualWindow = null; });
+						imageDualWindow.on('moved', () => saveImageDualWindowBounds());
+						imageDualWindow.on('resize', () => saveImageDualWindowBounds());
+						await imageDualWindow.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
+						// Intentar restaurar tamaño/posición previa
+						if (!restoreImageDualWindowBounds(imageDualWindow, 420, 420)) {
+							// Si no hay bounds guardados, centrar en el mismo monitor que la "comun"
+							try {
+								const base = mainWindow?.getBounds();
+								if (base) {
+									const display = screen.getDisplayMatching(base);
+									const work = display.workArea || display.bounds;
+									const [w, h] = [imageDualWindow.getBounds().width, imageDualWindow.getBounds().height];
+									const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - w) / 2), work.x + work.width - w));
+									const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - h) / 2), work.y + work.height - h));
+									imageDualWindow.setBounds({ x, y, width: w, height: h });
+								}
+							} catch {}
+						}
+					}
+					try { imageDualWindow?.focus(); } catch {}
+					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
+					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12' });
+				} catch {}
+			} else if (wantNewWindow) {
+				// 'nueva': crear una nueva ventana. Primera vez: centrar; siguientes: restaurar coordenadas guardadas
 				try {
 					const win = new BrowserWindow({
 						width: 420,
@@ -1124,11 +1270,37 @@ app.whenReady().then(() => {
 						backgroundColor: '#0f172a',
 						webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
 					});
+					try { win.setMenuBarVisibility(false); } catch {}
+					try { win.setAutoHideMenuBar(true); } catch {}
+					// Cerrar con ESC
+					try {
+						win.webContents.on('before-input-event', (event, input) => {
+							if (input.type === 'keyDown' && (input.key === 'Escape' || input.code === 'Escape')) {
+								try { event.preventDefault(); } catch {}
+								try { win.close(); } catch {}
+							}
+						});
+					} catch {}
 					await win.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
+					// Restaurar coordenadas guardadas; si no hay, centrar en el mismo monitor que la "comun"
+					if (!restoreImageNewWindowBounds(win, 420, 420)) {
+						try {
+							const base = mainWindow?.getBounds();
+							if (base) {
+								const display = screen.getDisplayMatching(base);
+								const work = display.workArea || display.bounds;
+								const [w, h] = [win.getBounds().width, win.getBounds().height];
+								const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - w) / 2), work.x + work.width - w));
+								const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - h) / 2), work.y + work.height - h));
+								win.setBounds({ x, y, width: w, height: h });
+							}
+						} catch {}
+					}
+					win.on('moved', () => saveImageNewWindowBounds(win));
+					win.on('resize', () => saveImageNewWindowBounds(win));
 					try { win.focus(); } catch {}
 					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
-					// Enviar evento al render para mostrar contenido
-					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun' });
+					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva' });
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
