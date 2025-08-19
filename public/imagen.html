@@ -9,11 +9,11 @@
     <style>
     /* Ajustes para visor de contenido */
     html, body { height: 100%; }
-    body { display: flex; align-items: center; justify-content: center; background:#0b1220; }
-    .container{max-width:none;margin:0 auto}
+    body { margin:0; padding:0; display: flex; align-items: center; justify-content: center; background:#0b1220; width:100vw; height:100vh; overflow:hidden; }
+    .container{max-width:none;margin:0 auto; width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;}
     .content-viewer {
-        width: 400px;
-        height: 400px;
+        width: 100vw;
+        height: 100vh;
         background: transparent;
         border: none;
         border-radius: 0;
@@ -24,18 +24,16 @@
         overflow: hidden;
     }
     .content-viewer img {
-        max-width: 100%;
-        max-height: 100%;
+        width: 100%;
+        height: 100%;
         object-fit: contain;
     }
     .content-viewer video {
-        max-width: 100%;
-        max-height: 100%;
-    }
-    .content-viewer audio {
         width: 100%;
-        max-width: 400px;
+        height: 100%;
+        object-fit: contain;
     }
+    .content-viewer audio { width: 100%; }
     .content-viewer iframe {
         width: 100%;
         height: 100%;
@@ -54,9 +52,6 @@
 
     <main class="container">
 		<section id="pane-viewer" class="tab-pane" style="display:block;">
-			<div class="mb-2 flex justify-end">
-				<button id="btnTestImage" class="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-500">Probar</button>
-			</div>
             <div class="content-viewer" id="contentViewer">
                 <div class="no-content">
                     <div>📷</div>
@@ -64,10 +59,6 @@
                     <div class="text-sm mt-2">El contenido aparecerá automáticamente</div>
                 </div>
             </div>
-		</section>
-
-		<section id="pane-logs" class="tab-pane" style="display:none;">
-            <div id="imagenLogs" class="bg-black/90 border border-slate-700 rounded-md p-2 h-80 overflow-auto font-mono text-xs"></div>
 		</section>
 	</main>
 

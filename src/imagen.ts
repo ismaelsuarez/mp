@@ -144,22 +144,6 @@ function showNoContent() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-	// Botón probar lectura
-	document.getElementById('btnTestImage')?.addEventListener('click', async () => {
-		appendLogImagen('Probando lectura de archivo de control...');
-		try {
-			const result = await (window.api as any).testImageControl?.();
-			if (result && result.success) {
-				appendLogImagen(`Archivo encontrado: ${result.filePath}`);
-				showContent(result.filePath);
-			} else {
-				appendLogImagen('No se encontró archivo de control o error en lectura');
-			}
-		} catch (error) {
-			appendLogImagen(`Error al probar lectura: ${error}`);
-		}
-	});
-
 	// Notificaciones de nuevo contenido
 	window.api.onNewImageContent?.((payload) => {
 		if (payload && payload.filePath) {
