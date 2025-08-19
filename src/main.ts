@@ -112,11 +112,14 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 		// imagen
 		const target = path.join(app.getAppPath(), 'public', 'imagen.html');
 		try {
-			mainWindow.setMinimumSize(800, 600);
-			mainWindow.setSize(800, 600);
+			mainWindow.setMinimumSize(420, 420);
+			// Intentar restaurar tamaño/posición previo de imagen; si no, usar 420x420 centrado
+			if (!restoreImagenWindowBounds(420, 420)) {
+				mainWindow.setSize(420, 420);
+				try { mainWindow.center(); } catch {}
+			}
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
-			try { mainWindow.center(); } catch {}
 		} catch {}
 		await mainWindow.loadFile(target);
 	}
@@ -186,6 +189,45 @@ function restoreCajaWindowPosition(minWidth = 420, minHeight = 320) {
 		if (mainWindow) mainWindow.setPosition(x, y);
 		return true;
 	} catch { return false; }
+}
+
+// Guardar tamaño/posición para vista imagen en ventana principal
+function saveImagenWindowBounds() {
+    try {
+        if (!mainWindow) return;
+        const bounds = mainWindow.getBounds();
+        const display = screen.getDisplayMatching(bounds);
+        const work = display.workArea || display.bounds;
+        store.set('imagenWindowBounds', {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            workW: work.width,
+            workH: work.height
+        });
+    } catch {}
+}
+
+function restoreImagenWindowBounds(minWidth = 420, minHeight = 420) {
+    try {
+        const saved = store.get('imagenWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+        if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
+        const primary = screen.getPrimaryDisplay();
+        const { width, height } = primary.workAreaSize;
+        const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
+        const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
+        let x = Math.round(saved.x * scaleX);
+        let y = Math.round(saved.y * scaleY);
+        let w = Math.max(minWidth, Math.round(saved.width * scaleX));
+        let h = Math.max(minHeight, Math.round(saved.height * scaleY));
+        x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
+        y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+        if (mainWindow) {
+            mainWindow.setBounds({ x, y, width: w, height: h });
+        }
+        return true;
+    } catch { return false; }
 }
 
 function getEncryptionKey(): string | undefined {
@@ -322,9 +364,11 @@ function createMainWindow() {
 		const cfg: any = store.get('config') || {};
 		const currentView = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
 		
-		// Solo guardar posición si estamos en modo caja
+		// Guardar posición según vista activa
 		if (currentView === 'caja') {
 			saveCajaWindowPosition();
+		} else {
+			saveImagenWindowBounds();
 		}
 	});
 
