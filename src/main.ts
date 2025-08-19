@@ -445,8 +445,9 @@ app.whenReady().then(() => {
 	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
 			store.set('config', cfg);
-			// Reiniciar timer remoto para aplicar cambios (intervalo/directorio)
+			// Reiniciar timers para aplicar cambios
 			restartRemoteTimerIfNeeded();
+			restartImageTimerIfNeeded();
 			return true;
 		}
 		return false;
@@ -744,6 +745,8 @@ app.whenReady().then(() => {
 	let countdownTimer: NodeJS.Timeout | null = null;
 	// Timer autónomo para "remoto"
 	let remoteTimer: NodeJS.Timeout | null = null;
+	// Timer dedicado para "modo imagen"
+	let imageTimer: NodeJS.Timeout | null = null;
 
 	function isDayEnabled(): boolean {
 		const cfg: any = store.get('config') || {};
@@ -821,6 +824,13 @@ app.whenReady().then(() => {
 		}
 	}
 
+	function stopImageTimer() {
+		if (imageTimer) {
+			clearInterval(imageTimer);
+			imageTimer = null;
+		}
+	}
+
 	function startCountdown(seconds: number) {
 		remainingSeconds = seconds;
 		if (countdownTimer) clearInterval(countdownTimer);
@@ -841,25 +851,21 @@ app.whenReady().then(() => {
 		}, 1000);
 	}
 
-	// Timer autónomo para modo "remoto" y modo imagen
+	// Timer autónomo para modo "remoto"
 	function startRemoteTimer() {
 		stopRemoteTimer();
 		const cfg: any = store.get('config') || {};
 		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
-		const imageIntervalMs = Number(cfg.IMAGE_INTERVAL_MS || 0);
 		const remoteIntervalMs = Number(cfg.AUTO_REMOTE_MS_INTERVAL || 0);
 		const intervalMs = Number.isFinite(remoteIntervalMs) && remoteIntervalMs > 0
 			? remoteIntervalMs
-			: (Number.isFinite(imageIntervalMs) && imageIntervalMs > 0
-				? imageIntervalMs
-				: Math.max(1, globalIntervalSec) * 1000);
+			: Math.max(1, globalIntervalSec) * 1000;
 		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
 		if (!enabled) return false;
 		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
 		remoteTimer = setInterval(async () => {
 			if (!isDayEnabled()) return;
 			await processRemoteOnce();
-			await processImageControlOnce(); // Procesar también archivos de control de imagen
 		}, Math.max(10, intervalMs));
 		return true;
 	}
@@ -867,6 +873,31 @@ app.whenReady().then(() => {
 	function restartRemoteTimerIfNeeded() {
 		stopRemoteTimer();
 		startRemoteTimer();
+	}
+
+	// Timer dedicado para modo imagen
+	function startImageTimer() {
+		stopImageTimer();
+		const cfg: any = store.get('config') || {};
+		const imageEnabled = cfg.IMAGE_ENABLED !== false; // por defecto ON
+		if (!imageEnabled) return false;
+		const imageIntervalMs = Number(cfg.IMAGE_INTERVAL_MS || 0);
+		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		const intervalMs = Number.isFinite(imageIntervalMs) && imageIntervalMs > 0
+			? imageIntervalMs
+			: Math.max(1, globalIntervalSec) * 1000;
+		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
+		imageTimer = setInterval(async () => {
+			if (!isDayEnabled()) return;
+			await processImageControlOnce();
+			await cleanupImageArtifacts();
+		}, Math.max(10, intervalMs));
+		return true;
+	}
+
+	function restartImageTimerIfNeeded() {
+		stopImageTimer();
+		startImageTimer();
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
@@ -946,7 +977,7 @@ app.whenReady().then(() => {
 		if (!isDayEnabled()) return 0;
 		try {
 			const cfgNow: any = store.get('config') || {};
-			const enabled = cfgNow.AUTO_REMOTE_ENABLED !== false;
+			const enabled = cfgNow.IMAGE_ENABLED !== false; // propio enable para imagen
 			if (!enabled) return 0;
 			
 			const controlDir = String(cfgNow.IMAGE_CONTROL_DIR || 'C:\\tmp');
@@ -1006,6 +1037,33 @@ app.whenReady().then(() => {
 		} catch (e) {
 			console.warn('[main] imagen: error procesando archivo de control', e);
 			return 0;
+		}
+	}
+
+	// Limpieza básica: eliminar .txt viejos en la carpeta de control
+	async function cleanupImageArtifacts() {
+		try {
+			const cfg: any = store.get('config') || {};
+			if (cfg.IMAGE_CLEANUP_ENABLED === false) return false;
+			const controlDir = String(cfg.IMAGE_CONTROL_DIR || 'C:\\tmp');
+			const maxHours = Number(cfg.IMAGE_CLEANUP_HOURS || 24);
+			if (!fs.existsSync(controlDir)) return false;
+			const now = Date.now();
+			const entries = fs.readdirSync(controlDir).filter((n) => n.toLowerCase().endsWith('.txt'));
+			for (const name of entries) {
+				try {
+					const p = path.join(controlDir, name);
+					const st = fs.statSync(p);
+					const ageHours = (now - st.mtimeMs) / (1000 * 60 * 60);
+					if (ageHours > maxHours) {
+						fs.unlinkSync(p);
+						logInfo('Imagen cleanup: .txt eliminado por antigüedad', { name, hours: Math.round(ageHours) });
+					}
+				} catch {}
+			}
+			return true;
+		} catch {
+			return false;
 		}
 	}
 
@@ -1069,9 +1127,10 @@ app.whenReady().then(() => {
 
 	ipcMain.handle('auto-start', async () => {
 		const okAuto = await startAutoTimer();
-		// Si no hay intervalo global, intentar al menos encender el timer remoto/imagen
+		// Si no hay intervalo global, intentar al menos encender timers remoto/imagen
 		const okRemote = startRemoteTimer() === true;
-		return { ok: okAuto || okRemote };
+		const okImage = startImageTimer() === true;
+		return { ok: okAuto || okRemote || okImage };
 	});
 
 	ipcMain.handle('auto-stop', async () => {
@@ -1142,8 +1201,9 @@ app.whenReady().then(() => {
 			startAutoTimer().catch(()=>{});
 		}
 	}
-	// Iniciar el timer remoto/imagen si hay `AUTO_REMOTE_MS_INTERVAL` o `IMAGE_INTERVAL_MS` configurado.
+	// Iniciar timers de remoto e imagen si hay configuración.
 	startRemoteTimer();
+	startImageTimer();
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====
 	
