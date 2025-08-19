@@ -288,6 +288,13 @@
 								<label class="block">Archivo de control
 									<input id="IMAGE_CONTROL_FILE" placeholder="direccion.txt" />
 								</label>
+								<label class="block">Intervalo propio (segundos)
+									<input id="IMAGE_INTERVAL_SECONDS" type="number" min="1" step="1" placeholder="30" />
+								</label>
+								<label class="block">
+									<span class="text-sm">Abrir visor en ventana separada</span>
+									<input id="IMAGE_WINDOW_SEPARATE" type="checkbox" />
+								</label>
 							</div>
 							<button type="button" id="btnTestImage" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar lectura ahora</button>
 							<div class="text-xs text-slate-400 mt-2">El modo imagen respeta el intervalo, días y horarios configurados arriba. Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc.</div>

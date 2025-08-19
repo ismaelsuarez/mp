@@ -800,11 +800,13 @@ app.whenReady().then(() => {
 		}, 1000);
 	}
 
-	// Timer autónomo para modo "remoto"
+	// Timer autónomo para modo "remoto" y modo imagen
 	function startRemoteTimer() {
 		stopRemoteTimer();
 		const cfg: any = store.get('config') || {};
-		const intervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
+		const imageIntervalSec = Number(cfg.IMAGE_INTERVAL_SECONDS || 0);
+		const intervalSec = Number.isFinite(imageIntervalSec) && imageIntervalSec > 0 ? imageIntervalSec : globalIntervalSec;
 		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
 		if (!enabled) return false;
 		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return false;
@@ -930,8 +932,23 @@ app.whenReady().then(() => {
 				return 0;
 			}
 			
-			// Notificar a la UI sobre el nuevo contenido
-			if (mainWindow) {
+			// Notificar a la UI sobre el nuevo contenido o abrir ventana separada
+			const openSeparate = cfgNow.IMAGE_WINDOW_SEPARATE === true;
+			if (openSeparate) {
+				try {
+					const win = new BrowserWindow({
+						width: 1100,
+						height: 760,
+						title: 'Modo Imagen – Visor',
+						backgroundColor: '#0f172a',
+						webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
+					});
+					await win.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
+					try { win.focus(); } catch {}
+					// Enviar evento al render para mostrar contenido
+					win.webContents.send('image:new-content', { filePath });
+				} catch {}
+			} else if (mainWindow) {
 				mainWindow.webContents.send('image:new-content', { filePath });
 			}
 			
@@ -1261,6 +1278,16 @@ app.whenReady().then(() => {
 		} catch (error: any) {
 			logError('Error al probar archivo de control de imagen', { error: error.message });
 			return { success: false, error: error.message };
+		}
+	});
+
+	// Abrir archivo con la app del sistema (visor)
+	ipcMain.handle('image:open-external', async (_e, fullPath: string) => {
+		try {
+			await shell.openPath(fullPath);
+			return true;
+		} catch {
+			return false;
 		}
 	});
 

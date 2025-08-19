@@ -42,6 +42,7 @@ declare global {
 			// Image Mode
 			testImageControl?(): Promise<{ success: boolean; filePath?: string; error?: string }>;
 			onNewImageContent?(callback: (payload: { filePath: string }) => void): void;
+			openExternalPath?(fullPath: string): Promise<boolean>;
 		};
 		auth: {
 			isInitialized(): Promise<boolean>;
