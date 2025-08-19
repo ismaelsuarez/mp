@@ -846,11 +846,13 @@ app.whenReady().then(() => {
 		stopRemoteTimer();
 		const cfg: any = store.get('config') || {};
 		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
-		const imageIntervalSec = Number(cfg.IMAGE_INTERVAL_SECONDS || 0);
+		const imageIntervalMs = Number(cfg.IMAGE_INTERVAL_MS || 0);
 		const remoteIntervalMs = Number(cfg.AUTO_REMOTE_MS_INTERVAL || 0);
 		const intervalMs = Number.isFinite(remoteIntervalMs) && remoteIntervalMs > 0
 			? remoteIntervalMs
-			: (Math.max(1, (Number.isFinite(imageIntervalSec) && imageIntervalSec > 0 ? imageIntervalSec : globalIntervalSec)) * 1000);
+			: (Number.isFinite(imageIntervalMs) && imageIntervalMs > 0
+				? imageIntervalMs
+				: Math.max(1, globalIntervalSec) * 1000);
 		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
 		if (!enabled) return false;
 		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
@@ -1066,8 +1068,10 @@ app.whenReady().then(() => {
 	}
 
 	ipcMain.handle('auto-start', async () => {
-		const ok = await startAutoTimer();
-		return { ok };
+		const okAuto = await startAutoTimer();
+		// Si no hay intervalo global, intentar al menos encender el timer remoto/imagen
+		const okRemote = startRemoteTimer() === true;
+		return { ok: okAuto || okRemote };
 	});
 
 	ipcMain.handle('auto-stop', async () => {
@@ -1126,7 +1130,7 @@ app.whenReady().then(() => {
 		};
 	});
 
-	// Opcional: arrancar si estaba configurado
+	// Opcional: arrancar timers si hay configuración previa
 	const cfg0: any = store.get('config') || {};
 	if (Number(cfg0.AUTO_INTERVAL_SECONDS || 0) > 0) {
 		// Restaurar estado de pausa si existía
@@ -1137,9 +1141,9 @@ app.whenReady().then(() => {
 		} else {
 			startAutoTimer().catch(()=>{});
 		}
-		// Iniciar también el timer autónomo de remoto
-		startRemoteTimer();
 	}
+	// Iniciar el timer remoto/imagen si hay `AUTO_REMOTE_MS_INTERVAL` o `IMAGE_INTERVAL_MS` configurado.
+	startRemoteTimer();
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====
 	
