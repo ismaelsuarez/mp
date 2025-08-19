@@ -1045,17 +1045,48 @@ app.whenReady().then(() => {
 				return 0; // No hay archivo de control
 			}
 			
-			const content = fs.readFileSync(controlPath, 'utf8').trim();
+			let content: string = '';
+			try {
+				content = fs.readFileSync(controlPath, 'utf8');
+			} catch (e: any) {
+				const code = String(e?.code || '').toUpperCase();
+				if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+					// Otro proceso está escribiendo el archivo. Reintentar en el próximo intervalo.
+					logInfo('Imagen: archivo de control ocupado, reintentar', { controlPath, code });
+					return 0;
+				}
+				throw e;
+			}
+			content = String(content || '').trim();
 			if (!content) {
 				// Archivo vacío, eliminarlo
 				try { fs.unlinkSync(controlPath); } catch {}
 				return 0;
 			}
 			
-			// Extraer la ruta del contenido (soporta formato "URI=ruta" o solo "ruta")
-			let filePath = content;
-			if (content.startsWith('URI=')) {
-				filePath = content.substring(4).trim();
+			// Parseo flexible: URI=... @VENTANA=... @INFO=...
+			let filePath = '';
+			let windowMode: 'comun' | 'nueva' | 'comun12' | undefined;
+			let infoText: string | undefined;
+			const parts = content.split('@');
+			for (const raw of parts) {
+				const seg = raw.trim();
+				if (!seg) continue;
+				const [kRaw, ...rest] = seg.split('=');
+				if (!rest.length) {
+					// si no hay '=' y aún no hay filePath, asumir que es una URI directa
+					if (!filePath) filePath = seg;
+					continue;
+				}
+				const key = String(kRaw || '').trim().toUpperCase();
+				const val = rest.join('=').trim();
+				if (key === 'URI') filePath = val;
+				else if (key === 'VENTANA') windowMode = (val as any) as any;
+				else if (key === 'INFO') infoText = val;
+			}
+			if (!filePath) {
+				// fallback legacy: línea completa era la ruta
+				filePath = content;
 			}
 			
 			// Verificar si el archivo de contenido existe
@@ -1067,23 +1098,25 @@ app.whenReady().then(() => {
 			}
 			
 			// Notificar a la UI sobre el nuevo contenido o abrir ventana separada
-			const openSeparate = cfgNow.IMAGE_WINDOW_SEPARATE === true;
-			if (openSeparate) {
+			const wantNewWindow = (windowMode === 'nueva') || (cfgNow.IMAGE_WINDOW_SEPARATE === true);
+			if (wantNewWindow) {
 				try {
 					const win = new BrowserWindow({
-						width: 1100,
-						height: 760,
-						title: 'Modo Imagen – Visor',
+						width: 420,
+						height: 420,
+						title: infoText || path.basename(filePath),
 						backgroundColor: '#0f172a',
 						webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
 					});
 					await win.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
 					try { win.focus(); } catch {}
+					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
 					// Enviar evento al render para mostrar contenido
-					win.webContents.send('image:new-content', { filePath });
+					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun' });
 				} catch {}
 			} else if (mainWindow) {
-				mainWindow.webContents.send('image:new-content', { filePath });
+				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
+				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun' });
 			}
 			
 			// Eliminar archivo de control después de procesarlo

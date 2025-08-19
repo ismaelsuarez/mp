@@ -145,10 +145,17 @@ function showNoContent() {
 
 window.addEventListener('DOMContentLoaded', () => {
 	// Notificaciones de nuevo contenido
-	window.api.onNewImageContent?.((payload) => {
+	window.api.onNewImageContent?.((payload: any) => {
 		if (payload && payload.filePath) {
 			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}`);
 			showContent(payload.filePath);
+			// Mostrar info (si existiera en el futuro una barra superior)
+			try {
+				// En vez de superponer sobre la imagen, poner el texto como título de la ventana (ya lo hace main).
+				// Por compatibilidad, aseguramos que no exista barra superpuesta:
+				const old = document.getElementById('contentInfoBar');
+				if (old) old.remove();
+			} catch {}
 		}
 	});
 
