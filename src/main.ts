@@ -806,15 +806,18 @@ app.whenReady().then(() => {
 		const cfg: any = store.get('config') || {};
 		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
 		const imageIntervalSec = Number(cfg.IMAGE_INTERVAL_SECONDS || 0);
-		const intervalSec = Number.isFinite(imageIntervalSec) && imageIntervalSec > 0 ? imageIntervalSec : globalIntervalSec;
+		const remoteIntervalMs = Number(cfg.AUTO_REMOTE_MS_INTERVAL || 0);
+		const intervalMs = Number.isFinite(remoteIntervalMs) && remoteIntervalMs > 0
+			? remoteIntervalMs
+			: (Math.max(1, (Number.isFinite(imageIntervalSec) && imageIntervalSec > 0 ? imageIntervalSec : globalIntervalSec)) * 1000);
 		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
 		if (!enabled) return false;
-		if (!Number.isFinite(intervalSec) || intervalSec <= 0) return false;
+		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
 		remoteTimer = setInterval(async () => {
 			if (!isDayEnabled()) return;
 			await processRemoteOnce();
 			await processImageControlOnce(); // Procesar también archivos de control de imagen
-		}, Math.max(1000, intervalSec * 1000));
+		}, Math.max(10, intervalMs));
 		return true;
 	}
 

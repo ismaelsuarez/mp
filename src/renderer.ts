@@ -23,7 +23,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
 		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY',
 		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY',
-		'AUTO_REMOTE_DIR','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_INTERVAL_SECONDS','IMAGE_WINDOW_SEPARATE'
+		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_INTERVAL_SECONDS','IMAGE_WINDOW_SEPARATE'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -126,6 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			AUTO_FROM_SUNDAY: (el.AUTO_FROM_SUNDAY as HTMLInputElement)?.value || undefined,
 			AUTO_TO_SUNDAY: (el.AUTO_TO_SUNDAY as HTMLInputElement)?.value || undefined,
 			AUTO_REMOTE_DIR: (el.AUTO_REMOTE_DIR as HTMLInputElement)?.value || undefined,
+			AUTO_REMOTE_MS_INTERVAL: (el.AUTO_REMOTE_MS_INTERVAL as HTMLInputElement)?.value ? Number((el.AUTO_REMOTE_MS_INTERVAL as HTMLInputElement).value) : undefined,
 			AUTO_REMOTE_ENABLED: (el.AUTO_REMOTE_ENABLED as HTMLInputElement)?.checked || false,
 			IMAGE_CONTROL_DIR: (el.IMAGE_CONTROL_DIR as HTMLInputElement)?.value || undefined,
 			IMAGE_CONTROL_FILE: (el.IMAGE_CONTROL_FILE as HTMLInputElement)?.value || undefined,
@@ -185,6 +186,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.AUTO_FROM_SUNDAY as HTMLInputElement).value = cfg.AUTO_FROM_SUNDAY || '';
 		(el.AUTO_TO_SUNDAY as HTMLInputElement).value = cfg.AUTO_TO_SUNDAY || '';
 		(el.AUTO_REMOTE_DIR as HTMLInputElement).value = cfg.AUTO_REMOTE_DIR || 'C:\\tmp';
+		(el.AUTO_REMOTE_MS_INTERVAL as HTMLInputElement).value = cfg.AUTO_REMOTE_MS_INTERVAL || '';
 		(el.AUTO_REMOTE_ENABLED as HTMLInputElement).checked = cfg.AUTO_REMOTE_ENABLED !== false;
 		(el.IMAGE_CONTROL_DIR as HTMLInputElement).value = cfg.IMAGE_CONTROL_DIR || 'C:\\tmp';
 		(el.IMAGE_CONTROL_FILE as HTMLInputElement).value = cfg.IMAGE_CONTROL_FILE || 'direccion.txt';

@@ -270,11 +270,16 @@
 							<label class="block mb-2">Carpeta Remota
 								<input id="AUTO_REMOTE_DIR" placeholder="C:\tmp" />
 							</label>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
+								<label class="block">Intervalo remoto (ms)
+									<input id="AUTO_REMOTE_MS_INTERVAL" type="number" min="1" step="1" placeholder="60000" />
+								</label>
+							</div>
 							<label class="checkbox inline-flex items-center gap-2 mb-2">
 								<input id="AUTO_REMOTE_ENABLED" type="checkbox" checked /> <span class="text-sm">Habilitar remoto</span>
 							</label>
 							<button type="button" id="btnTestRemote" class="ml-2 text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar remoto ahora</button>
-							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta el intervalo, días y horarios configurados arriba.</div>
+							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta los <strong>días</strong> y <strong>horarios</strong> configurados arriba. Si defines un <strong>intervalo remoto (ms)</strong>, usará ese valor.</div>
 						</div>
 
 						<!-- Modo Imagen para visualización remota -->
