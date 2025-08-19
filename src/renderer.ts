@@ -24,6 +24,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY',
 		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY',
 		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_INTERVAL_MS','IMAGE_WINDOW_SEPARATE',
+		'DEFAULT_VIEW',
 		// FTP Server (admin)
 		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
 	];
@@ -134,7 +135,14 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_CONTROL_FILE: (el.IMAGE_CONTROL_FILE as HTMLInputElement)?.value || undefined,
 			IMAGE_INTERVAL_MS: (el.IMAGE_INTERVAL_MS as HTMLInputElement)?.value ? Number((el.IMAGE_INTERVAL_MS as HTMLInputElement).value) : undefined,
 			IMAGE_WINDOW_SEPARATE: (el.IMAGE_WINDOW_SEPARATE as HTMLInputElement)?.checked || false,
-			DEFAULT_VIEW: 'caja',
+			DEFAULT_VIEW: ((): 'config'|'caja'|'imagen' => {
+				try {
+					const href = String(window.location.pathname || '').toLowerCase();
+					if (href.includes('imagen.html')) return 'imagen';
+					if (href.includes('config.html')) return 'config';
+					return 'caja';
+				} catch { return 'caja'; }
+			})(),
 			// FTP server config (persisted)
 			FTP_SRV_HOST: (el.FTP_SRV_HOST as HTMLInputElement)?.value || undefined,
 			FTP_SRV_PORT: (el.FTP_SRV_PORT as HTMLInputElement)?.value ? Number((el.FTP_SRV_PORT as HTMLInputElement).value) : undefined,

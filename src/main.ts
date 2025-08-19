@@ -276,8 +276,13 @@ function createMainWindow() {
 
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
 	const cfg: any = store.get('config') || {};
-	let defaultView: 'config' | 'caja' = (cfg?.DEFAULT_VIEW as any) === 'config' ? 'config' : 'caja';
-	const initialFile = (defaultView ?? 'caja') === 'caja' ? 'caja.html' : 'config.html';
+	let defaultView: 'config' | 'caja' | 'imagen' = ((): any => {
+		const v = String(cfg?.DEFAULT_VIEW || '').toLowerCase();
+		if (v === 'config') return 'config';
+		if (v === 'imagen') return 'imagen';
+		return 'caja';
+	})();
+	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'config.html');
 
 	// Bypass de licencia en desarrollo si SKIP_LICENSE=true o flag --skip-license
 	const devBypass = (!app.isPackaged) && (String(process.env.SKIP_LICENSE).toLowerCase() === 'true' || process.argv.includes('--skip-license'));
@@ -294,6 +299,14 @@ function createMainWindow() {
 			// Restaurar posición guardada para modo caja (escalando por resolución)
 			if (!restoreCajaWindowPosition(420, 320)) {
 				// Si no hay posición guardada, centrar
+				try { mainWindow.center(); } catch {}
+			}
+		} else if (defaultView === 'imagen') {
+			mainWindow.setMinimumSize(420, 420);
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
+			if (!restoreImagenWindowBounds(420, 420)) {
+				mainWindow.setSize(420, 420);
 				try { mainWindow.center(); } catch {}
 			}
 		} else {
