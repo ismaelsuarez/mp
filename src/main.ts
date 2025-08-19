@@ -1208,12 +1208,27 @@ app.whenReady().then(() => {
 				return 1;
 			}
 
-			// Verificar si el archivo de contenido existe (solo para rutas locales/UNC)
+			// Verificar si el archivo de contenido existe (solo para rutas locales/UNC).
+			// Si no existe, usar logo por defecto como fallback visual.
+			let isFallback = false;
 			if (!isWebUrl(filePath) && !fs.existsSync(filePath)) {
 				logError('Archivo de contenido no encontrado', { filePath, originalContent: content });
-				// Eliminar archivo de control aunque el contenido no exista
-				try { fs.unlinkSync(controlPath); } catch {}
-				return 0;
+				try {
+					const noImage = path.join(app.getAppPath(), 'public', 'Noimage.jpg');
+					const logo = path.join(app.getAppPath(), 'public', 'nombre_tc.png');
+					const candidate = fs.existsSync(noImage) ? noImage : (fs.existsSync(logo) ? logo : '');
+					if (candidate) {
+						filePath = candidate;
+						isFallback = true;
+						infoText = infoText ? `${infoText} • (no encontrado)` : 'Contenido no encontrado';
+					} else {
+						try { fs.unlinkSync(controlPath); } catch {}
+						return 0;
+					}
+				} catch {
+					try { fs.unlinkSync(controlPath); } catch {}
+					return 0;
+				}
 			}
 			
 			// Notificar a la UI sobre el nuevo contenido o abrir ventana separada
@@ -1258,7 +1273,7 @@ app.whenReady().then(() => {
 					}
 					try { imageDualWindow?.focus(); } catch {}
 					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
-					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12' });
+					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12', fallback: isFallback });
 				} catch {}
 			} else if (wantNewWindow) {
 				// 'nueva': crear una nueva ventana. Primera vez: centrar; siguientes: restaurar coordenadas guardadas
@@ -1300,11 +1315,11 @@ app.whenReady().then(() => {
 					win.on('resize', () => saveImageNewWindowBounds(win));
 					try { win.focus(); } catch {}
 					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
-					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva' });
+					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
-				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun' });
+				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun', fallback: isFallback });
 			}
 			
 			// Eliminar archivo de control después de procesarlo

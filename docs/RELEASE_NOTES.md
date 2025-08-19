@@ -9,6 +9,7 @@ Fecha de publicación: 2025-08-19
   - Enlaces web: si `URI` comienza con `http://` o `https://` y `VENTANA=nueva`, se abre en el navegador predeterminado del sistema.
   - UI: se oculta la barra de menú en todas las ventanas (principal y nuevas) para una presentación limpia.
   - Espejo (visual): la ventana secundaria de `comun12` se diferencia con un skin rosado (marco 4 px en todo el contorno y borde redondeado del visor), y agrega sufijo “(ESPEJO)” en el título cuando aplica.
+  - Fallback visual: si la `URI` local/UNC no existe, se muestra `public/Noimage.jpg` (o `nombre_tc.png` como respaldo). Se registra en logs y el título indica “(no encontrado)”.
 
 ## 1.0.8
 Fecha de publicación: 2025-08-19

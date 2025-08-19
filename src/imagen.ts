@@ -147,7 +147,8 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Notificaciones de nuevo contenido
 	window.api.onNewImageContent?.((payload: any) => {
 		if (payload && payload.filePath) {
-			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}`);
+			const wasFallback = !!payload.fallback;
+			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}${wasFallback ? ' (fallback)' : ''}`);
 			// Aplicar estilo de "espejo" si windowMode === 'nueva12'
 			try {
 				const mode = String(payload.windowMode || '').toLowerCase();
