@@ -23,7 +23,9 @@ window.addEventListener('DOMContentLoaded', () => {
 		'FTP_IP','FTP_PORT','FTP_SECURE','FTP_USER','FTP_PASS','FTP_DIR','FTP_FILE',
 		'AUTO_INTERVAL_SECONDS','AUTO_DAYS_MONDAY','AUTO_DAYS_TUESDAY','AUTO_DAYS_WEDNESDAY','AUTO_DAYS_THURSDAY','AUTO_DAYS_FRIDAY','AUTO_DAYS_SATURDAY','AUTO_DAYS_SUNDAY',
 		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY',
-		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_INTERVAL_SECONDS','IMAGE_WINDOW_SEPARATE'
+		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_INTERVAL_SECONDS','IMAGE_WINDOW_SEPARATE',
+		// FTP Server (admin)
+		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -132,7 +134,14 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_CONTROL_FILE: (el.IMAGE_CONTROL_FILE as HTMLInputElement)?.value || undefined,
 			IMAGE_INTERVAL_SECONDS: (el.IMAGE_INTERVAL_SECONDS as HTMLInputElement)?.value ? Number((el.IMAGE_INTERVAL_SECONDS as HTMLInputElement).value) : undefined,
 			IMAGE_WINDOW_SEPARATE: (el.IMAGE_WINDOW_SEPARATE as HTMLInputElement)?.checked || false,
-			DEFAULT_VIEW: 'caja'
+			DEFAULT_VIEW: 'caja',
+			// FTP server config (persisted)
+			FTP_SRV_HOST: (el.FTP_SRV_HOST as HTMLInputElement)?.value || undefined,
+			FTP_SRV_PORT: (el.FTP_SRV_PORT as HTMLInputElement)?.value ? Number((el.FTP_SRV_PORT as HTMLInputElement).value) : undefined,
+			FTP_SRV_USER: (el.FTP_SRV_USER as HTMLInputElement)?.value || undefined,
+			FTP_SRV_PASS: (el.FTP_SRV_PASS as HTMLInputElement)?.value || undefined,
+			FTP_SRV_ROOT: (el.FTP_SRV_ROOT as HTMLInputElement)?.value || undefined,
+			FTP_SRV_ENABLED: (el.FTP_SRV_ENABLED as HTMLInputElement)?.checked === true
 		};
 	}
 
@@ -188,10 +197,23 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.AUTO_REMOTE_DIR as HTMLInputElement).value = cfg.AUTO_REMOTE_DIR || 'C:\\tmp';
 		(el.AUTO_REMOTE_MS_INTERVAL as HTMLInputElement).value = cfg.AUTO_REMOTE_MS_INTERVAL || '';
 		(el.AUTO_REMOTE_ENABLED as HTMLInputElement).checked = cfg.AUTO_REMOTE_ENABLED !== false;
-		(el.IMAGE_CONTROL_DIR as HTMLInputElement).value = cfg.IMAGE_CONTROL_DIR || 'C:\\tmp';
+		(el.IMAGE_CONTROL_DIR as HTMLInputElement).value = cfg.IMAGE_CONTROL_DIR || 'C\\tmp';
 		(el.IMAGE_CONTROL_FILE as HTMLInputElement).value = cfg.IMAGE_CONTROL_FILE || 'direccion.txt';
 		(el.IMAGE_INTERVAL_SECONDS as HTMLInputElement).value = cfg.IMAGE_INTERVAL_SECONDS || '';
 		(el.IMAGE_WINDOW_SEPARATE as HTMLInputElement).checked = cfg.IMAGE_WINDOW_SEPARATE === true;
+		// FTP Server
+		const ftpHostEl = document.getElementById('FTP_SRV_HOST') as HTMLInputElement | null;
+		const ftpPortEl = document.getElementById('FTP_SRV_PORT') as HTMLInputElement | null;
+		const ftpUserEl = document.getElementById('FTP_SRV_USER') as HTMLInputElement | null;
+		const ftpPassEl = document.getElementById('FTP_SRV_PASS') as HTMLInputElement | null;
+		const ftpRootEl = document.getElementById('FTP_SRV_ROOT') as HTMLInputElement | null;
+		if (ftpHostEl) ftpHostEl.value = cfg.FTP_SRV_HOST || '0.0.0.0';
+		if (ftpPortEl) ftpPortEl.value = String(cfg.FTP_SRV_PORT || '2121');
+		if (ftpUserEl) ftpUserEl.value = cfg.FTP_SRV_USER || '';
+		if (ftpPassEl) ftpPassEl.value = cfg.FTP_SRV_PASS || '';
+		if (ftpRootEl) ftpRootEl.value = cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share';
+		const ftpEnabledEl = document.getElementById('FTP_SRV_ENABLED') as HTMLInputElement | null;
+		if (ftpEnabledEl) ftpEnabledEl.checked = cfg.FTP_SRV_ENABLED === true;
 	}
 
 	function renderPreview(cfg: any) {
@@ -1058,4 +1080,41 @@ window.addEventListener('DOMContentLoaded', () => {
 		for (const d of Array.from(document.querySelectorAll('#release-notes-list details'))) (d as HTMLDetailsElement).open = false;
 	});
 	loadReleaseNotesDynamic();
+
+	// FTP Server toggle
+	document.getElementById('btnFtpSrvToggle')?.addEventListener('click', async () => {
+		try {
+			const status = await (window.api as any).ftpStatus?.();
+			const running = !!(status && status.running);
+			if (!running) {
+				// Start
+				const cfg = buildConfigFromForm();
+				await window.api.saveConfig(cfg);
+				const res = await (window.api as any).ftpStart?.({
+					host: (document.getElementById('FTP_SRV_HOST') as HTMLInputElement)?.value || '0.0.0.0',
+					port: Number((document.getElementById('FTP_SRV_PORT') as HTMLInputElement)?.value || 2121),
+					user: (document.getElementById('FTP_SRV_USER') as HTMLInputElement)?.value || 'user',
+					pass: (document.getElementById('FTP_SRV_PASS') as HTMLInputElement)?.value || 'pass',
+					root: (document.getElementById('FTP_SRV_ROOT') as HTMLInputElement)?.value || 'C\\tmp\\ftp_share'
+				});
+				{
+					const ftpStatusEl = document.getElementById('ftpSrvStatus') as HTMLElement | null;
+					if (ftpStatusEl) ftpStatusEl.textContent = res?.ok ? 'FTP Server: ON' : 'Error al iniciar';
+				}
+				const btn = document.getElementById('btnFtpSrvToggle') as HTMLButtonElement | null;
+				if (btn && res?.ok) { btn.textContent = 'Detener servidor FTP'; }
+			} else {
+				const res = await (window.api as any).ftpStop?.();
+				{
+					const ftpStatusEl2 = document.getElementById('ftpSrvStatus') as HTMLElement | null;
+					if (ftpStatusEl2) ftpStatusEl2.textContent = res?.ok ? 'FTP Server: OFF' : 'Error al detener';
+				}
+				const btn = document.getElementById('btnFtpSrvToggle') as HTMLButtonElement | null;
+				if (btn && res?.ok) { btn.textContent = 'Iniciar servidor FTP'; }
+			}
+		} catch (e: any) {
+			const ftpStatusEl3 = document.getElementById('ftpSrvStatus') as HTMLElement | null;
+			if (ftpStatusEl3) ftpStatusEl3.textContent = 'Error: ' + (e?.message || e);
+		}
+	});
 });

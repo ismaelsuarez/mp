@@ -8,6 +8,7 @@ import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
+import { startFtpServer, stopFtpServer, isFtpServerRunning } from './services/FtpServerService';
 import { generateFiles, getOutDir } from './services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
@@ -345,6 +346,20 @@ app.disableHardwareAcceleration();
 app.whenReady().then(() => {
     ensureLogsDir();
     ensureTodayLogExists();
+
+    // Autoarranque FTP Server si está habilitado
+    try {
+        const cfg: any = store.get('config') || {};
+        if (cfg.FTP_SRV_ENABLED) {
+            startFtpServer({
+                host: cfg.FTP_SRV_HOST || '0.0.0.0',
+                port: Number(cfg.FTP_SRV_PORT || 2121),
+                user: cfg.FTP_SRV_USER || 'user',
+                pass: cfg.FTP_SRV_PASS || 'pass',
+                root: cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share'
+            }).then((ok) => { if (ok) logInfo('FTP auto-start OK'); else logWarning('FTP auto-start failed'); }).catch(()=>{});
+        }
+    } catch {}
 
     // ===== AUTO-UPDATE (electron-updater) =====
     try {
@@ -1298,6 +1313,17 @@ app.whenReady().then(() => {
 
 	ipcMain.handle('license:status', async () => {
 		return { ok: licenciaExisteYValida() };
+	});
+
+	// ===== HANDLERS FTP SERVER =====
+	ipcMain.handle('ftp-server:start', async (_e, cfg: any) => {
+		try { const ok = await startFtpServer(cfg || {}); return { ok }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('ftp-server:stop', async () => {
+		try { const ok = await stopFtpServer(); return { ok }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('ftp-server:status', async () => {
+		return { running: isFtpServerRunning() };
 	});
 
 	ipcMain.handle('license:validate', async (_e, { nombreCliente, palabraSecreta, serial }: { nombreCliente: string; palabraSecreta: string; serial: string }) => {

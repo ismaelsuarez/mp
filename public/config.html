@@ -190,6 +190,28 @@
 					</div>
 				</details>
 
+				<!-- FTP SERVER -->
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						FTP Server
+					</summary>
+					<div class="p-3 space-y-3">
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label>Host <input id="FTP_SRV_HOST" placeholder="0.0.0.0" /></label>
+							<label>Puerto <input id="FTP_SRV_PORT" type="number" placeholder="2121" /></label>
+							<label>Usuario <input id="FTP_SRV_USER" placeholder="user" /></label>
+							<label>Contraseña <input id="FTP_SRV_PASS" type="password" placeholder="pass" /></label>
+							<label class="md:col-span-2">Carpeta raíz <input id="FTP_SRV_ROOT" placeholder="C:\\tmp\\ftp_share" /></label>
+						</div>
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_SRV_ENABLED" type="checkbox" /> Habilitado (autoarranque)</label>
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnFtpSrvToggle" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Iniciar servidor FTP</button>
+							<span id="ftpSrvStatus" class="text-xs text-slate-400"></span>
+						</div>
+						<p class="text-xs text-slate-400">El servidor FTP se ejecuta en paralelo, valida credenciales y expone la carpeta raíz configurada.</p>
+					</div>
+				</details>
+
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Automatización

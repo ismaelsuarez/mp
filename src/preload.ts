@@ -98,6 +98,10 @@ contextBridge.exposeInMainWorld('api', {
 	async getReleaseNotes() {
 		return await ipcRenderer.invoke('about:get-release-notes');
 	},
+	// FTP Server controls
+	async ftpStart(cfg: any) { return await ipcRenderer.invoke('ftp-server:start', cfg); },
+	async ftpStop() { return await ipcRenderer.invoke('ftp-server:stop'); },
+	async ftpStatus() { return await ipcRenderer.invoke('ftp-server:status'); },
 	// Image Mode functions
 	async testImageControl() {
 		return await ipcRenderer.invoke('image:test-control');
