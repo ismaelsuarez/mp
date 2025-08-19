@@ -888,6 +888,9 @@ app.whenReady().then(() => {
 		}
 	}
 
+	// Evitar reentradas/concurrencia entre remoto e imagen
+	let unifiedScanBusy = false;
+
 	function startCountdown(seconds: number) {
 		remainingSeconds = seconds;
 		if (countdownTimer) clearInterval(countdownTimer);
@@ -908,7 +911,11 @@ app.whenReady().then(() => {
 		}, 1000);
 	}
 
-	// Timer autónomo para modo "remoto"
+	function delay(ms: number): Promise<void> {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	// Timer unificado para "remoto" (prioridad) e "imagen"
 	function startRemoteTimer() {
 		stopRemoteTimer();
 		const cfg: any = store.get('config') || {};
@@ -922,7 +929,19 @@ app.whenReady().then(() => {
 		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
 		remoteTimer = setInterval(async () => {
 			if (!isDayEnabled()) return;
-			await processRemoteOnce();
+			if (unifiedScanBusy) return;
+			unifiedScanBusy = true;
+			try {
+				// Prioridad 1: procesar disparadores remotos mp*.txt (solo uno por ciclo)
+				const processedRemote = await processRemoteOnce();
+				// Prioridad 2: si no hubo remoto, procesar control de imagen
+				if (processedRemote === 0) {
+					await processImageControlOnce();
+				}
+				await cleanupImageArtifacts();
+			} finally {
+				unifiedScanBusy = false;
+			}
 		}, Math.max(10, intervalMs));
 		return true;
 	}
@@ -932,36 +951,31 @@ app.whenReady().then(() => {
 		startRemoteTimer();
 	}
 
-	// Timer dedicado para modo imagen
+	// Timer de imagen unificado en el remoto (no crear otro)
 	function startImageTimer() {
-		stopImageTimer();
-		const cfg: any = store.get('config') || {};
-		const imageEnabled = cfg.IMAGE_ENABLED !== false; // por defecto ON
-		if (!imageEnabled) return false;
-		const imageIntervalMs = Number(cfg.IMAGE_INTERVAL_MS || 0);
-		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
-		const intervalMs = Number.isFinite(imageIntervalMs) && imageIntervalMs > 0
-			? imageIntervalMs
-			: Math.max(1, globalIntervalSec) * 1000;
-		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
-		imageTimer = setInterval(async () => {
-			if (!isDayEnabled()) return;
-			await processImageControlOnce();
-			await cleanupImageArtifacts();
-		}, Math.max(10, intervalMs));
-		return true;
+		return false;
 	}
 
 	function restartImageTimerIfNeeded() {
-		stopImageTimer();
-		startImageTimer();
+		/* unificado: sin acción */
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
 	async function runReportFlowAndNotify(origin: 'manual' | 'auto' | 'remoto' = 'manual') {
 		const { payments, range } = await searchPaymentsWithConfig();
 		const tag = new Date().toISOString().slice(0, 10);
-		const result = await generateFiles(payments as any[], tag, range);
+		let result: any;
+		try {
+			result = await generateFiles(payments as any[], tag, range);
+		} catch (e: any) {
+			const code = String(e?.code || '').toUpperCase();
+			if (code === 'EPERM' || code === 'EACCES' || code === 'EBUSY' || code === 'EEXIST') {
+				try { await delay(750); } catch {}
+				result = await generateFiles(payments as any[], tag, range);
+			} else {
+				throw e;
+			}
+		}
 		logSuccess('Archivos generados exitosamente', { files: (result as any)?.files, count: (payments as any[])?.length, origin });
 
 		// Auto-enviar mp.dbf vía FTP si está configurado
@@ -1015,10 +1029,12 @@ app.whenReady().then(() => {
 			if (remoteDir && fs.existsSync(remoteDir)) {
 				const entries = fs.readdirSync(remoteDir);
 				const toProcess = entries.filter(name => /^mp.*\.txt$/i.test(name));
-				for (const name of toProcess) {
+				// Procesar solo el primero por ciclo para evitar contención de archivos
+				const first = toProcess[0];
+				if (first) {
 					await runReportFlowAndNotify('remoto');
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${name}` });
-					try { fs.unlinkSync(path.join(remoteDir, name)); } catch {}
+					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
+					try { fs.unlinkSync(path.join(remoteDir, first)); } catch {}
 					processed += 1;
 				}
 			}
