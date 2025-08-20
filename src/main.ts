@@ -161,6 +161,7 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 	// Asegurar que la ventana esté visible (fuera de bandeja) antes de cambiar la vista
 	showMainWindow();
 	if (view === 'config') {
+		currentViewName = 'config';
 		const target = path.join(app.getAppPath(), 'public', 'auth.html');
 		try {
 			mainWindow.setMinimumSize(500, 400);
@@ -173,20 +174,22 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 		return;
 	} else if (view === 'caja') {
 		// caja
+		currentViewName = 'caja';
 		const target = path.join(app.getAppPath(), 'public', 'caja.html');
 		try {
 			mainWindow.setMinimumSize(420, 320);
-			mainWindow.setSize(420, 320);
-			mainWindow.setMenuBarVisibility(false);
-			mainWindow.setAutoHideMenuBar(true);
-			// Restaurar posición previa; si no existe, centrar
+			// Restaurar posición previa; si no existe, usar tamaño mínimo y centrar
 			if (!restoreCajaWindowPosition(420, 320)) {
+				mainWindow.setSize(420, 320);
 				try { mainWindow.center(); } catch {}
 			}
+			mainWindow.setMenuBarVisibility(false);
+			mainWindow.setAutoHideMenuBar(true);
 		} catch {}
 		await mainWindow.loadFile(target);
 	} else if (view === 'imagen') {
 		// imagen
+		currentViewName = 'imagen';
 		const target = path.join(app.getAppPath(), 'public', 'imagen.html');
 		try {
 			mainWindow.setMinimumSize(420, 420);
@@ -242,9 +245,11 @@ function saveCajaWindowPosition() {
 		const bounds = mainWindow.getBounds();
 		const display = screen.getDisplayMatching(bounds);
 		const work = display.workArea || display.bounds;
-		store.set('cajaWindowPosition', {
+		store.set('cajaWindowBounds', {
 			x: bounds.x,
 			y: bounds.y,
+			width: bounds.width,
+			height: bounds.height,
 			workW: work.width,
 			workH: work.height
 		});
@@ -253,7 +258,7 @@ function saveCajaWindowPosition() {
 
 function restoreCajaWindowPosition(minWidth = 420, minHeight = 320) {
 	try {
-		const saved = store.get('cajaWindowPosition') as { x: number; y: number; workW?: number; workH?: number } | undefined;
+		const saved = store.get('cajaWindowBounds') as { x: number; y: number; width?: number; height?: number; workW?: number; workH?: number } | undefined;
 		if (!saved || saved.x === undefined || saved.y === undefined) return false;
 		const primary = screen.getPrimaryDisplay();
 		const { width, height } = primary.workAreaSize;
@@ -261,9 +266,11 @@ function restoreCajaWindowPosition(minWidth = 420, minHeight = 320) {
 		const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
 		let x = Math.round(saved.x * scaleX);
 		let y = Math.round(saved.y * scaleY);
+		let w = Math.max(minWidth, Math.round((saved.width || minWidth) * scaleX));
+		let h = Math.max(minHeight, Math.round((saved.height || minHeight) * scaleY));
 		x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
 		y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
-		if (mainWindow) mainWindow.setPosition(x, y);
+		if (mainWindow) mainWindow.setBounds({ x, y, width: w, height: h });
 		return true;
 	} catch { return false; }
 }
@@ -372,7 +379,7 @@ function createMainWindow() {
 		return 'caja';
 	})();
 	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'config.html');
-	let currentViewName: 'config' | 'caja' | 'imagen' = defaultView;
+	currentViewName = defaultView;
 
 	// Bypass de licencia en desarrollo si SKIP_LICENSE=true o flag --skip-license
 	const devBypass = (!app.isPackaged) && (String(process.env.SKIP_LICENSE).toLowerCase() === 'true' || process.argv.includes('--skip-license'));
@@ -382,12 +389,12 @@ function createMainWindow() {
 		if (defaultView === 'caja') {
 			// Tamaño compacto como la captura
 			mainWindow.setMinimumSize(420, 320);
-			mainWindow.setSize(420, 320);
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
 			
 			// Restaurar posición guardada para modo caja (escalando por resolución)
 			if (!restoreCajaWindowPosition(420, 320)) {
+				mainWindow.setSize(420, 320);
 				// Si no hay posición guardada, centrar
 				try { mainWindow.center(); } catch {}
 			}
@@ -857,7 +864,7 @@ app.whenReady().then(() => {
 					mainWindow.setAutoHideMenuBar(true);
 					
 					// Restaurar posición guardada para modo caja
-					const savedPosition = store.get('cajaWindowPosition') as { x: number; y: number } | undefined;
+					const savedPosition = store.get('cajaWindowBounds') as { x: number; y: number; width?: number; height?: number } | undefined;
 					if (savedPosition && savedPosition.x !== undefined && savedPosition.y !== undefined) {
 						// Verificar que la posición esté dentro de los límites de la pantalla
 						const { screen } = require('electron');
@@ -867,8 +874,9 @@ app.whenReady().then(() => {
 						// Asegurar que la ventana esté visible en la pantalla
 						const x = Math.max(0, Math.min(savedPosition.x, width - 420));
 						const y = Math.max(0, Math.min(savedPosition.y, height - 320));
-						
-						mainWindow.setPosition(x, y);
+						const w = Math.max(420, savedPosition.width || 420);
+						const h = Math.max(320, savedPosition.height || 320);
+						mainWindow.setBounds({ x, y, width: w, height: h });
 					} else {
 						// Si no hay posición guardada, centrar
 						try { mainWindow.center(); } catch {}
@@ -886,13 +894,16 @@ app.whenReady().then(() => {
 				currentViewName = 'imagen';
 				const target = path.join(app.getAppPath(), 'public', file);
 				console.log('[main] loading file:', target);
-				// Ajustar tamaño para modo imagen
+				// Ajustar tamaño/posición para modo imagen (restaurar bounds si existen)
 				try {
-					mainWindow.setMinimumSize(800, 600);
-					mainWindow.setSize(800, 600);
+					mainWindow.setMinimumSize(420, 420);
 					mainWindow.setMenuBarVisibility(false);
 					mainWindow.setAutoHideMenuBar(true);
-					try { mainWindow.center(); } catch {}
+					// Intentar restaurar tamaño/posición previa del modo imagen
+					if (!restoreImagenWindowBounds(420, 420)) {
+						mainWindow.setSize(420, 420);
+						try { mainWindow.center(); } catch {}
+					}
 				} catch {}
 				await mainWindow.loadFile(target);
 				console.log('[main] loadFile done');
