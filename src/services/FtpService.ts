@@ -192,3 +192,36 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 }
 
 
+// Enviar un archivo arbitrario por FTP (sin hash/skip)
+export async function sendArbitraryFile(localPath: string, remoteFileName?: string) {
+    const cfg = getConfig();
+    if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) {
+        recordError('FTP_CONFIG', 'Configuración FTP incompleta para envío', { config: { hasIp: !!cfg.FTP_IP, hasUser: !!cfg.FTP_USER, hasPass: !!cfg.FTP_PASS } });
+        throw new Error('Config FTP incompleta');
+    }
+    if (!fs.existsSync(localPath)) {
+        recordError('FTP_FILE', 'Archivo local no encontrado', { localPath });
+        throw new Error(`No existe archivo local: ${localPath}`);
+    }
+
+    const client = new Client();
+    try {
+        await client.access({
+            host: String(cfg.FTP_IP),
+            port: Number(cfg.FTP_PORT || 21),
+            user: String(cfg.FTP_USER),
+            password: String(cfg.FTP_PASS),
+            secure: !!cfg.FTP_SECURE,
+        });
+        const dir = normalizeDir(cfg.FTP_DIR);
+        if (dir) await client.ensureDir(dir);
+        const remoteName = String(remoteFileName || path.basename(localPath));
+        await client.uploadFrom(localPath, remoteName);
+        logSuccess('Archivo enviado por FTP', { localPath, remote: `${dir || '/'}${remoteName}` });
+        return { remoteDir: dir || '/', remoteFile: remoteName };
+    } finally {
+        client.close();
+    }
+}
+
+

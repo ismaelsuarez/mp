@@ -48,3 +48,49 @@ Transferir automáticamente `mp.dbf` y evitar reenvíos innecesarios.
 ### Referencias
 - Cliente: `src/services/FtpService.ts`
 - Server: `src/services/FtpServerService.ts`, IPC en `src/main.ts`, UI en `public/config.html` y `src/renderer.ts`
+
+### Prueba de disparadores (enviar cualquier archivo por FTP)
+Para probar el disparo inmediato del servidor FTP integrado (remoto/imagen), podés subir un archivo arbitrario al servidor local desde esta misma PC.
+
+- Objetivo: subir `mp.txt` (dispara Modo Remoto) o `direccion.txt` (dispara Modo Imagen) a la carpeta que expone el FTP Server.
+- Requisito: en la sección “FTP Server” tener activo el servidor y anotar Host/PUERTO/Usuario/Contraseña y la carpeta raíz.
+
+Opciones de envío:
+
+1) PowerShell (curl)
+
+```powershell
+# Variables de ejemplo (ajusta usuario/contraseña/puerto/ruta)
+$HOST = "127.0.0.1"   # si el servidor escucha en 0.0.0.0, para local usar 127.0.0.1
+$PORT = 21             # o 2121 según tu config
+$USER = "user"
+$PASS = "pass"
+
+# Subir mp.txt → dispara REMOTO (mp*.txt)
+curl -T C:\tmp\mp.txt ftp://$USER:`$PASS@$HOST:$PORT/
+
+# Subir direccion.txt → dispara IMAGEN
+curl -T C:\tmp\direccion.txt ftp://$USER:`$PASS@$HOST:$PORT/
+```
+
+2) Node.js (basic-ftp)
+
+```javascript
+// npm i basic-ftp
+const { Client } = require('basic-ftp');
+
+(async () => {
+  const c = new Client();
+  try {
+    await c.access({ host: '127.0.0.1', port: 21, user: 'user', password: 'pass', secure: false });
+    // Sube mp.txt o direccion.txt según el disparador que quieras probar
+    await c.uploadFrom('C:/tmp/mp.txt', 'mp.txt');
+    // await c.uploadFrom('C:/tmp/direccion.txt', 'direccion.txt');
+  } finally { c.close(); }
+})();
+```
+
+Notas:
+- Si el Host del servidor es `0.0.0.0`, para conectar desde la misma PC usá `127.0.0.1`.
+- Asegurate de que las carpetas de control en Configuración apunten a la raíz del FTP Server o subcarpeta donde estás subiendo los archivos.
+- Los disparos respetan días y horarios configurados.

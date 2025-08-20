@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
 	async saveConfig(cfg: any) {
 		return await ipcRenderer.invoke('save-config', cfg);
 	},
+	// Nota: no es necesario exponer nuevos IPC; se reutiliza save-config para activar watchers
 	async generateReport() {
 		return await ipcRenderer.invoke('generate-report');
 	},
@@ -21,6 +22,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	async sendDbfViaFtp() {
 		return await ipcRenderer.invoke('send-dbf-ftp');
+	},
+	async ftpSendFile(localPath: string, remoteName?: string) {
+		return await ipcRenderer.invoke('ftp:send-file', { localPath, remoteName });
 	},
 	async clearFtpHash() {
 		return await ipcRenderer.invoke('clear-ftp-hash');

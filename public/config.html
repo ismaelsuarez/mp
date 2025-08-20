@@ -187,6 +187,12 @@
 							<button type="button" id="btnTestFtp" class="bg-blue-600 text-white border-transparent">Probar FTP</button>
 							<span id="ftpTestStatus"></span>
 						</div>
+						<!-- Enviar archivo arbitrario por FTP -->
+						<div class="row">
+							<input id="FTP_SEND_FILE_PATH" type="text" placeholder="Selecciona archivo local..." class="flex-1" readonly />
+							<button type="button" id="btnPickLocalFile" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Elegir archivo</button>
+							<button type="button" id="btnSendLocalFile" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500">Enviar archivo por FTP</button>
+						</div>
 					</div>
 				</details>
 
@@ -314,9 +320,22 @@
 									<input id="AUTO_REMOTE_MS_INTERVAL" class="w-32 text-center" type="number" min="1" step="1" placeholder="60000" />
 								</label>
 							</div>
-							<label class="checkbox inline-flex items-center gap-2 mb-2">
-								<input id="AUTO_REMOTE_ENABLED" type="checkbox" checked /> <span class="text-sm">Habilitar remoto</span>
-							</label>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+								<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+									<input id="AUTO_REMOTE_ENABLED" type="checkbox" />
+									<span class="text-sm leading-5">
+										Activar Modo Remoto<br>
+										<span class="text-xs text-slate-400">Procesa archivos <code>mp*.txt</code> en la carpeta remota.</span>
+									</span>
+								</label>
+								<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+									<input id="AUTO_REMOTE_WATCH" type="checkbox" />
+									<span class="text-sm leading-5">
+										Disparo inmediato por FTP (sin intervalo)<br>
+										<span class="text-xs text-slate-400">Reacciona apenas llega el archivo. Deshabilita el uso de “Intervalo remoto”.</span>
+									</span>
+								</label>
+							</div>
 							<button type="button" id="btnTestRemote" class="ml-2 text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar remoto ahora</button>
 							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta los <strong>días</strong> y <strong>horarios</strong> configurados arriba. Si defines un <strong>intervalo remoto (ms)</strong>, usará ese valor (sugerido: 60000 ms).</div>
 						</div>
@@ -338,6 +357,13 @@
 									<input id="IMAGE_WINDOW_SEPARATE" type="checkbox" />
 								</label>
 							</div>
+							<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30 mb-2">
+								<input id="IMAGE_WATCH" type="checkbox" />
+								<span class="text-sm leading-5">
+									Disparo inmediato por FTP (sin intervalo)
+									<br><span class="text-xs text-slate-400">Muestra el contenido ni bien llega el <code>direccion.txt</code>.</span>
+								</span>
+							</label>
 							<button type="button" id="btnTestImage" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar lectura ahora</button>
 							<div class="text-xs text-slate-400 mt-2">El modo imagen respeta el intervalo, días y horarios configurados arriba. Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc.</div>
 						</div>

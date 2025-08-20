@@ -10,7 +10,7 @@ dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { startFtpServer, stopFtpServer, isFtpServerRunning } from './services/FtpServerService';
 import { generateFiles, getOutDir } from './services/ReportService';
-import { testFtp, sendTodayDbf, sendDbf } from './services/FtpService';
+import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
 import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
@@ -617,6 +617,7 @@ app.whenReady().then(() => {
 			// Reiniciar timers para aplicar cambios
 			restartRemoteTimerIfNeeded();
 			restartImageTimerIfNeeded();
+			restartWatchersIfNeeded();
 			return true;
 		}
 		return false;
@@ -724,6 +725,17 @@ app.whenReady().then(() => {
 	ipcMain.handle('send-dbf-ftp', async () => {
 		try {
 			const res = await sendTodayDbf();
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP: enviar archivo arbitrario seleccionado en disco
+	ipcMain.handle('ftp:send-file', async (_e, { localPath, remoteName }: { localPath: string; remoteName?: string }) => {
+		try {
+			if (!localPath) return { ok: false, error: 'Ruta local vacía' };
+			const res = await sendArbitraryFile(localPath, remoteName);
 			return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
@@ -918,6 +930,9 @@ app.whenReady().then(() => {
 	let remoteTimer: NodeJS.Timeout | null = null;
 	// Timer dedicado para "modo imagen"
 	let imageTimer: NodeJS.Timeout | null = null;
+	// Watchers en tiempo real (sin intervalo)
+	let remoteWatcher: fs.FSWatcher | null = null;
+	let imageWatcher: fs.FSWatcher | null = null;
 
 	function isDayEnabled(): boolean {
 		const cfg: any = store.get('config') || {};
@@ -1002,6 +1017,16 @@ app.whenReady().then(() => {
 		}
 	}
 
+	function stopRemoteWatcher() {
+		try { remoteWatcher?.close(); } catch {}
+		remoteWatcher = null;
+	}
+
+	function stopImageWatcher() {
+		try { imageWatcher?.close(); } catch {}
+		imageWatcher = null;
+	}
+
 	// Evitar reentradas/concurrencia entre remoto e imagen
 	let unifiedScanBusy = false;
 
@@ -1035,21 +1060,24 @@ app.whenReady().then(() => {
 		const cfg: any = store.get('config') || {};
 		const globalIntervalSec = Number(cfg.AUTO_INTERVAL_SECONDS || 0);
 		const remoteIntervalMs = Number(cfg.AUTO_REMOTE_MS_INTERVAL || 0);
+		const useRemoteWatch = cfg.AUTO_REMOTE_WATCH === true;
+		const useImageWatch = cfg.IMAGE_WATCH === true;
 		const intervalMs = Number.isFinite(remoteIntervalMs) && remoteIntervalMs > 0
 			? remoteIntervalMs
 			: Math.max(1, globalIntervalSec) * 1000;
 		const enabled = cfg.AUTO_REMOTE_ENABLED !== false;
 		if (!enabled) return false;
+		if (useRemoteWatch && useImageWatch) return false;
 		if (!Number.isFinite(intervalMs) || intervalMs <= 0) return false;
 		remoteTimer = setInterval(async () => {
 			if (!isDayEnabled()) return;
 			if (unifiedScanBusy) return;
 			unifiedScanBusy = true;
 			try {
-				// Prioridad 1: procesar disparadores remotos mp*.txt (solo uno por ciclo)
-				const processedRemote = await processRemoteOnce();
-				// Prioridad 2: si no hubo remoto, procesar control de imagen
-				if (processedRemote === 0) {
+				// Prioridad 1: remoto solo si no está en modo watch
+				const processedRemote = useRemoteWatch ? 0 : await processRemoteOnce();
+				// Prioridad 2: imagen solo si no está en modo watch
+				if (!useImageWatch && processedRemote === 0) {
 					await processImageControlOnce();
 				}
 				await cleanupImageArtifacts();
@@ -1072,6 +1100,69 @@ app.whenReady().then(() => {
 
 	function restartImageTimerIfNeeded() {
 		/* unificado: sin acción */
+	}
+
+	// Watchers en tiempo real (sin intervalo)
+	function startRemoteWatcher(): boolean {
+		stopRemoteWatcher();
+		const cfg: any = store.get('config') || {};
+		if (cfg.AUTO_REMOTE_WATCH !== true) return false;
+		const dir = String(cfg.AUTO_REMOTE_DIR || 'C\\tmp');
+		try {
+			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
+			remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
+				try {
+					const name = String(filename || '');
+					if (!name) return;
+					if (!/^mp.*\.txt$/i.test(name)) return;
+					if (unifiedScanBusy) return;
+					unifiedScanBusy = true;
+					setTimeout(async () => {
+						try { await processRemoteOnce(); await cleanupImageArtifacts(); }
+						finally { unifiedScanBusy = false; }
+					}, 150);
+				} catch {}
+			});
+			logInfo('Remote watcher started', { dir });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function startImageWatcher(): boolean {
+		stopImageWatcher();
+		const cfg: any = store.get('config') || {};
+		if (cfg.IMAGE_WATCH !== true) return false;
+		const dir = String(cfg.IMAGE_CONTROL_DIR || 'C\\tmp');
+		const controlFile = String(cfg.IMAGE_CONTROL_FILE || 'direccion.txt');
+		try {
+			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
+			imageWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
+				try {
+					const name = String(filename || '');
+					if (!name) return;
+					if (name.toLowerCase() !== controlFile.toLowerCase()) return;
+					if (unifiedScanBusy) return;
+					unifiedScanBusy = true;
+					setTimeout(async () => {
+						try { await processImageControlOnce(); await cleanupImageArtifacts(); }
+						finally { unifiedScanBusy = false; }
+					}, 150);
+				} catch {}
+			});
+			logInfo('Image watcher started', { dir, controlFile });
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function restartWatchersIfNeeded() {
+		stopRemoteWatcher();
+		stopImageWatcher();
+		startRemoteWatcher();
+		startImageWatcher();
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
@@ -1517,6 +1608,9 @@ app.whenReady().then(() => {
 	// Iniciar timers de remoto e imagen si hay configuración.
 	startRemoteTimer();
 	startImageTimer();
+	// Iniciar watchers en tiempo real si están habilitados
+	startRemoteWatcher();
+	startImageWatcher();
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====
 	
