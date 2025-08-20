@@ -63,7 +63,12 @@
     <div class="nav" id="nav">
       <h4>General</h4>
       <a href="#intro">Introducción</a>
-      <a href="RELEASE_NOTES.md" target="_blank">Notas de versión<span class="chip">docs</span></a>
+      <a href="#notes">Notas de versión</a>
+      <a href="#quickstart">Guía rápida</a>
+      <a href="#tests">Pruebas guiadas</a>
+      <a href="#glosario">Glosario</a>
+      <a href="#faq">FAQ / Troubleshooting</a>
+      <a href="#licencia">Licencia y activación</a>
 
       <h4>Modo Caja</h4>
       <div class="sub">
@@ -82,6 +87,7 @@
         <a href="#cfg-email">Email / SMTP</a>
         <a href="#cfg-ftp">FTP</a>
         <a href="#cfg-auto">Automatización</a>
+        <a href="#cfg-imagen">Modo Imagen</a>
         <a href="#cfg-seg">Seguridad</a>
         <a href="#cfg-err">Notificaciones de Error</a>
         <a href="#cfg-result">Resultados</a>
@@ -100,7 +106,54 @@
         <div class="btns">
           <a class="btn" href="#caja">Ir a Modo Caja</a>
           <a class="btn" href="#admin">Ir a Administración</a>
-          <a class="btn" href="RELEASE_NOTES.md" target="_blank">Notas de versión</a>
+          <a class="btn" href="#notes">Notas de versión</a>
+        </div>
+        <div style="margin-top:14px">
+          <div class="muted" style="margin:6px 0 8px">Arquitectura general</div>
+          <div class="card" style="overflow:auto">
+            <svg viewBox="0 0 900 280" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <style>
+                  .n{fill:#0b1220;stroke:#1f2937;stroke-width:1.2}
+                  .t{fill:#e2e8f0;font:13px system-ui}
+                  .s{fill:#94a3b8;font:11px system-ui}
+                  .a{stroke:#64748b;stroke-width:1.2;marker-end:url(#m)}
+                </style>
+                <marker id="m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+                </marker>
+              </defs>
+              <!-- Nodes -->
+              <rect class="n" x="40" y="30" width="180" height="60" rx="8"/>
+              <text class="t" x="130" y="60" text-anchor="middle">Electron – Main</text>
+              <text class="s" x="130" y="78" text-anchor="middle">Timers/Watchers, IPC, FTP Server</text>
+
+              <rect class="n" x="40" y="160" width="180" height="60" rx="8"/>
+              <text class="t" x="130" y="190" text-anchor="middle">Preload</text>
+              <text class="s" x="130" y="208" text-anchor="middle">Bridge seguro</text>
+
+              <rect class="n" x="300" y="30" width="220" height="60" rx="8"/>
+              <text class="t" x="410" y="60" text-anchor="middle">Renderer – Caja / Config</text>
+
+              <rect class="n" x="300" y="160" width="220" height="60" rx="8"/>
+              <text class="t" x="410" y="190" text-anchor="middle">Renderer – Imagen</text>
+
+              <rect class="n" x="600" y="30" width="240" height="60" rx="8"/>
+              <text class="t" x="720" y="57" text-anchor="middle">FTP Server (ftp-srv)</text>
+              <text class="s" x="720" y="75" text-anchor="middle">Raíz + PASV (opcional)</text>
+
+              <rect class="n" x="600" y="160" width="240" height="60" rx="8"/>
+              <text class="t" x="720" y="190" text-anchor="middle">Mercado Pago API</text>
+
+              <!-- Arrows -->
+              <line class="a" x1="220" y1="60" x2="300" y2="60"/>
+              <line class="a" x1="220" y1="190" x2="300" y2="190"/>
+              <line class="a" x1="130" y1="90" x2="130" y2="160"/>
+              <line class="a" x1="520" y1="60" x2="600" y2="60"/>
+              <line class="a" x1="520" y1="190" x2="600" y2="190"/>
+              <text class="s" x="560" y="50" text-anchor="middle">mp*.txt / direccion.txt</text>
+            </svg>
+          </div>
         </div>
       </section>
 
@@ -145,109 +198,339 @@
           <li>Archivos en <code>C:\2_mp\reportes</code> (o Documentos/MP-Reportes).</li>
         </ul>
         <div class="btns">
-          <a class="btn" target="_blank" href="doc_modo_caja/CAJA_DESCARGAR_MP.md">Más detalle técnico</a>
+          <a class="btn" href="#doc-caja-descargar">Más detalle técnico</a>
         </div>
       </section>
 
       <section id="caja-movimientos" class="card">
         <h2>Movimientos</h2>
         <p>Tabla con operaciones del día y totales. Permite paginação y filtros rápidos.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_MOVIMIENTOS.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-mov">Más detalle</a></div>
       </section>
 
       <section id="caja-auto" class="card">
         <h2>Indicador Automático</h2>
         <p>Muestra el estado del proceso automático. El modo <em>remoto</em> es autónomo y respeta intervalos/días/horas configurados.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_AUTO_INDICADOR.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-auto">Más detalle</a></div>
       </section>
 
       <section id="caja-logs" class="card">
         <h2>Logs</h2>
         <p>Acceso rápido al log del día para diagnóstico.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_LOGS.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-logs">Más detalle</a></div>
       </section>
 
       <section id="caja-config" class="card">
         <h2>Configuración rápida</h2>
         <p>Acceso directo a la vista de Administración para ajustar parámetros.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_CONFIGURACION.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-config">Más detalle</a></div>
       </section>
 
       <section id="caja-tabs" class="card">
         <h2>Navegación</h2>
         <p>Conmutación entre <strong>Caja</strong> y <strong>Configuración</strong> sin reiniciar la app.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_TABS.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-tabs">Más detalle</a></div>
       </section>
 
       <section id="caja-hoy" class="card">
         <h2>Badge “HOY”</h2>
         <p>Resalta el contenido más reciente para evitar confusiones de fecha.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_caja/CAJA_HOY_BADGE.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-caja-hoy">Más detalle</a></div>
       </section>
 
       <!-- ADMIN -->
       <section id="cfg-mp" class="card">
         <h2>Mercado Pago</h2>
         <p>Configura Access Token, ventana operativa y filtros de búsqueda. Soporta estado único y elección de campo de fecha en español.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_MERCADO_PAGO.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-mp">Más detalle</a></div>
       </section>
 
       <section id="cfg-email" class="card">
         <h2>Email / SMTP</h2>
         <p>Envía reportes por correo. Validación en vivo del email y control de visibilidad de contraseña.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_EMAIL_SMTP.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-email">Más detalle</a></div>
       </section>
 
       <section id="cfg-ftp" class="card">
         <h2>FTP</h2>
-        <p>Envío de <code>mp.dbf</code>. Campos proporcionados, toggle de contraseña con icono, alineación 1/3 + 1/3.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_FTP.md">Más detalle</a></div>
+        <p>Cliente y Servidor integrados. Envío de <code>mp.dbf</code> y pruebas rápidas con “Elegir archivo” + “Enviar archivo por FTP”. El servidor FTP puede disparar acciones en el acto al recibir <code>mp*.txt</code> (Remoto) o <code>direccion.txt</code> (Imagen).</p>
+        <ul class="list">
+          <li><strong>Cliente FTP</strong>: configura IP/puerto/credenciales y carpeta remota. Botón “Probar FTP” y envío manual de archivo.</li>
+          <li><strong>Servidor FTP integrado</strong>: configurable (Host/Puerto/Usuario/Contraseña/Raíz, PASV). Puede autoarrancar.</li>
+          <li><strong>Disparo inmediato</strong>: al subir <code>mp*.txt</code> o el archivo de control de Imagen a la carpeta configurada, se procesan sin intervalos.</li>
+        </ul>
+        <div class="btns"><a class="btn" href="#doc-ftp">Ver detalle en esta página</a></div>
       </section>
 
       <section id="cfg-auto" class="card">
         <h2>Automatización</h2>
-        <p>Intervalo, calendario semanal unificado y modo <strong>remoto</strong> autónomo con carpeta disparadora (<code>mp*.txt</code>).</p>
+        <p>Intervalo, calendario semanal unificado y modos con disparo inmediato por FTP. Remoto e Imagen pueden reaccionar al instante cuando llegan sus <code>.txt</code>, o funcionar por intervalo si el disparo inmediato está desactivado.</p>
         <div class="btns">
-          <a class="btn" target="_blank" href="doc_modo_admin/CONFIG_AUTOMATIZACION.md">Más detalle</a>
-          <a class="btn" target="_blank" href="doc_modo_admin/AUTOMATIZACION.md">Explicación extendida</a>
+          <a class="btn" href="#doc-auto">Ver detalle en esta página</a>
+        </div>
+      </section>
+
+      <section id="cfg-imagen" class="card">
+        <h2>Modo Imagen (visor) <span class="badge">Actualizado</span></h2>
+        <p>Visor responsive (420×420 inicial, redimensionable) para imágenes, PDF, audio y video. Control por <code>direccion.txt</code> con formato <code>URI@VENTANA@INFO</code>. Soporta <code>VENTANA=comun</code>, <code>nueva</code> (abre otra ventana) y <code>comun12</code> (principal + espejo persistente). Disparo inmediato por FTP opcional.</p>
+        <div class="btns">
+          <a class="btn" href="#doc-imagen">Detalle del visor</a>
+          <a class="btn" href="#doc-imagen-formato">Formato del control</a>
         </div>
       </section>
 
       <section id="cfg-seg" class="card">
         <h2>Seguridad</h2>
         <p>Cambio de contraseña/usuario/frase secreta con validaciones de calidad. Toggles de visibilidad.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_SEGURIDAD.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-seg">Más detalle</a></div>
       </section>
 
       <section id="cfg-err" class="card">
         <h2>Notificaciones de Error <span class="badge warn">Nuevo</span></h2>
         <p>Umbrales configurables, estado actual y acciones para limpiar/resetear. Campos se deshabilitan si el feature está apagado.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_NOTIFICACIONES_ERROR.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-err">Más detalle</a></div>
       </section>
 
       <section id="cfg-result" class="card">
         <h2>Resultados</h2>
         <p>Listado con filtros, exportación a CSV/XLSX/DBF/JSON y totales en tiempo real.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_RESULTADOS.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-result">Más detalle</a></div>
       </section>
 
       <section id="cfg-hist" class="card">
         <h2>Historial</h2>
         <p>Explora archivos generados por fecha. Acceso directo a la carpeta de reportes.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_HISTORIAL.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-hist">Más detalle</a></div>
       </section>
 
       <section id="cfg-acciones" class="card">
         <h2>Acciones principales</h2>
         <p>Barra de acciones global (cargar, guardar, generar, enviar DBF por FTP, limpiar hash) y vista previa con filtro, copiar, exportar e importar JSON.</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_ACCIONES_PRINCIPALES.md">Más detalle</a></div>
+        <div class="btns"><a class="btn" href="#doc-admin-acciones">Más detalle</a></div>
       </section>
 
       <section id="cfg-about" class="card">
         <h2>Acerca de</h2>
-        <p>Datos de contacto y “Notas de versión” agrupadas por versión, leídas desde <code>docs/RELEASE_NOTES.md</code> (solo lectura).</p>
-        <div class="btns"><a class="btn" target="_blank" href="doc_modo_admin/CONFIG_ACERCA_DE.md">Más detalle</a></div>
+        <p>Datos de contacto y “Notas de versión” agrupadas por versión, visibles más abajo en esta misma página.</p>
+        <div class="btns"><a class="btn" href="#notes">Ver notas</a></div>
       </section>
+
+      <!-- Detalles internos -->
+      <section id="doc-imagen" class="card">
+        <h2>Detalle – Modo Imagen</h2>
+        <p class="muted">Visor responsive (420×420 inicial, redimensionable) para imágenes, PDF, audio y video. El último contenido queda persistente hasta la próxima orden.</p>
+        <ul class="list">
+          <li><strong>Disparo inmediato</strong> (opcional): procesa el archivo de control apenas llega por FTP a la carpeta configurada.</li>
+          <li><strong>Escaneo por intervalo</strong> (fallback): si no usás disparo inmediato, se puede configurar un intervalo propio.</li>
+          <li><strong>Modos de ventana</strong>:
+            <ul>
+              <li><code>VENTANA=comun</code>: usa la ventana principal.</li>
+              <li><code>VENTANA=nueva</code>: abre un visor en otra ventana (primera vez centrada; luego recuerda tamaño/posición; cierra con ESC).</li>
+              <li><code>VENTANA=comun12</code>: muestra en principal y en una segunda ventana persistente (espejo) que se reutiliza.</li>
+            </ul>
+          </li>
+          <li><strong>Título</strong>: usa <code>INFO</code> o el nombre del archivo. Menú oculto para presentación limpia.</li>
+          <li><strong>Limpieza</strong>: el <code>.txt</code> de control se elimina tras procesarse; limpieza opcional de <code>.txt</code> antiguos.</li>
+          <li><strong>Rutas</strong>: local/UNC (recomendado). Web <code>http/https</code> se abre en el navegador si usás <code>VENTANA=nueva</code>.</li>
+        </ul>
+      </section>
+
+      <section id="doc-imagen-formato" class="card">
+        <h2>Formato del archivo de control</h2>
+        <p>Una sola línea con <code>URI@VENTANA@INFO</code> (los segmentos son opcionales; basta con la ruta).</p>
+        <pre class="card"><code>URI=\\servidor\\carpeta\\archivo.jpg@VENTANA=comun@INFO=Texto opcional para el título</code></pre>
+        <p>Ejemplos rápidos:</p>
+        <div class="grid cols-2">
+          <div class="card"><strong>Imagen</strong><pre><code>URI=\\correo\\Linksistema\\FOTOSWEB\\20\\W1TB1B.jpg@VENTANA=comun@INFO=(W1TB1B) WD BLUE 1TB</code></pre></div>
+          <div class="card"><strong>Audio MP3</strong><pre><code>URI=C:\\tmp\\demo.mp3@VENTANA=comun@INFO=Audio de prueba</code></pre></div>
+        </div>
+        <p class="muted">Si la ruta no existe o es inaccesible, se registra en el log y se muestra un fallback (Noimage/Logo).</p>
+      </section>
+
+      <section id="doc-ftp" class="card">
+        <h2>Detalle – FTP (Cliente y Servidor)</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>Cliente FTP</h3>
+            <ul class="list">
+              <li>Configura IP/puerto, FTPS (opcional), usuario/contraseña, carpeta y archivo remoto.</li>
+              <li>Botón “Probar FTP”.</li>
+              <li>Envío manual: “Elegir archivo” + “Enviar archivo por FTP”.</li>
+            </ul>
+            <h4>Prueba rápida (PowerShell)</h4>
+            <pre><code>$HOST = "127.0.0.1"; $PORT = 21; $USER = "user"; $PASS = "pass"
+# Subir mp.txt → dispara REMOTO
+curl -T C:\\tmp\\mp.txt ftp://$USER:`$PASS@$HOST:$PORT/
+# Subir direccion.txt → dispara IMAGEN
+curl -T C:\\tmp\\direccion.txt ftp://$USER:`$PASS@$HOST:$PORT/</code></pre>
+          </div>
+          <div class="card">
+            <h3>Servidor FTP integrado</h3>
+            <ul class="list">
+              <li>Configurable: Host/Puerto/Usuario/Contraseña/Raíz, autoarranque y PASV (Host y rango).</li>
+              <li>Disparo inmediato: al subir <code>mp*.txt</code> (Remoto) o el archivo de control (Imagen), se procesa sin intervalos.</li>
+              <li>Recomendado PASV con puertos abiertos en firewall/router para clientes externos.</li>
+              <li>Si el Host es <code>0.0.0.0</code>, conectar localmente con <code>127.0.0.1</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="doc-auto" class="card">
+        <h2>Detalle – Automatización</h2>
+        <ul class="list">
+          <li>Calendario semanal por días y rangos horarios.</li>
+          <li><strong>Remoto</strong>:
+            <ul>
+              <li>Activar Modo Remoto.</li>
+              <li>Disparo inmediato por FTP (sin intervalo) o intervalo propio en milisegundos.</li>
+            </ul>
+          </li>
+          <li><strong>Imagen</strong>:
+            <ul>
+              <li>Disparo inmediato por FTP (sin intervalo) y/o intervalo propio (<code>IMAGE_INTERVAL_MS</code>).</li>
+              <li>Limpieza de <code>.txt</code> antiguos (configurable en horas).</li>
+            </ul>
+          </li>
+          <li>Prioridades de intervalo (cuando aplica): primero el específico del modo, luego el global.</li>
+        </ul>
+        <div class="card" style="overflow:auto;margin-top:10px">
+          <svg viewBox="0 0 900 240" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <style>
+                .n{fill:#0b1220;stroke:#1f2937;stroke-width:1.2}
+                .t{fill:#e2e8f0;font:13px system-ui}
+                .s{fill:#94a3b8;font:11px system-ui}
+                .a{stroke:#64748b;stroke-width:1.2;marker-end:url(#m2)}
+              </style>
+              <marker id="m2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
+              </marker>
+            </defs>
+            <!-- Watch path -->
+            <rect class="n" x="30" y="20" width="180" height="50" rx="8"/>
+            <text class="t" x="120" y="50" text-anchor="middle">FTP Server</text>
+            <rect class="n" x="260" y="20" width="200" height="50" rx="8"/>
+            <text class="t" x="360" y="50" text-anchor="middle">Watchers (Remoto/Imagen)</text>
+            <rect class="n" x="500" y="20" width="180" height="50" rx="8"/>
+            <text class="t" x="590" y="50" text-anchor="middle">Main: procesar</text>
+            <rect class="n" x="710" y="20" width="160" height="50" rx="8"/>
+            <text class="t" x="790" y="50" text-anchor="middle">Renderer</text>
+            <line class="a" x1="210" y1="45" x2="260" y2="45"/>
+            <line class="a" x1="460" y1="45" x2="500" y2="45"/>
+            <line class="a" x1="680" y1="45" x2="710" y2="45"/>
+            <text class="s" x="360" y="15" text-anchor="middle">Disparo inmediato (sin intervalo)</text>
+            
+            <!-- Interval path -->
+            <rect class="n" x="260" y="140" width="200" height="50" rx="8"/>
+            <text class="t" x="360" y="170" text-anchor="middle">Timer (Remoto/Imagen)</text>
+            <rect class="n" x="500" y="140" width="180" height="50" rx="8"/>
+            <text class="t" x="590" y="170" text-anchor="middle">Main: procesar</text>
+            <rect class="n" x="710" y="140" width="160" height="50" rx="8"/>
+            <text class="t" x="790" y="170" text-anchor="middle">Renderer</text>
+            <line class="a" x1="460" y1="165" x2="500" y2="165"/>
+            <line class="a" x1="680" y1="165" x2="710" y2="165"/>
+            <text class="s" x="360" y="125" text-anchor="middle">Escaneo por intervalo</text>
+          </svg>
+        </div>
+      </section>
+
+      <section id="quickstart" class="card">
+        <h2>Guía rápida (5 pasos)</h2>
+        <ol class="list">
+          <li><strong>Instalar y abrir</strong> la app.</li>
+          <li><strong>Licencia</strong>: cargar serial/cliente (si se solicita).</li>
+          <li><strong>Configurar</strong> Mercado Pago (Access Token) y FTP (Cliente/Servidor).</li>
+          <li><strong>Automatización</strong>: activar Remoto/Imagen y, si querés inmediatez, tildar “Disparo inmediato por FTP”.</li>
+          <li><strong>Probar</strong>: subir <code>mp.txt</code> o <code>direccion.txt</code> con los botones del FTP o por PowerShell.</li>
+        </ol>
+      </section>
+
+      <section id="tests" class="card">
+        <h2>Pruebas guiadas</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>Probar Remoto (mp*.txt)</h3>
+            <ol class="list">
+              <li>En Automatización, activar <em>Remoto</em> y “Disparo inmediato”.</li>
+              <li>Confirmar que <code>AUTO_REMOTE_DIR</code> coincide con la raíz del FTP Server.</li>
+              <li>Enviar <code>mp.txt</code> con el panel FTP (Elegir→Enviar) o con PowerShell:</li>
+            </ol>
+            <pre><code>$HOST = "127.0.0.1"; $PORT = 21; $USER = "user"; $PASS = "pass"
+curl -T C:\\tmp\\mp.txt ftp://$USER:`$PASS@$HOST:$PORT/</code></pre>
+          </div>
+          <div class="card">
+            <h3>Probar Imagen (direccion.txt)</h3>
+            <ol class="list">
+              <li>En Automatización, activar “Disparo inmediato” de Imagen.</li>
+              <li>Confirmar <code>IMAGE_CONTROL_DIR</code> y <code>IMAGE_CONTROL_FILE</code> (p.ej. <code>direccion.txt</code>).</li>
+              <li>Enviar el control con contenido válido:</li>
+            </ol>
+            <pre><code>URI=C:\\tmp\\demo.mp3@VENTANA=comun@INFO=Audio de prueba</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="glosario" class="card">
+        <h2>Glosario</h2>
+        <ul class="list">
+          <li><strong>URI</strong>: cadena que identifica la ruta del recurso a mostrar.</li>
+          <li><strong>UNC</strong>: ruta de red Windows, p.ej. <code>\\\\servidor\\share\\carpeta</code>.</li>
+          <li><strong>PASV</strong>: modo pasivo FTP; el servidor anuncia IP/puertos para datos.</li>
+          <li><strong>Watcher</strong>: observador de cambios en carpeta; dispara acciones sin intervalos.</li>
+          <li><strong>Main / Preload / Renderer</strong>: procesos/roles dentro de Electron.</li>
+        </ul>
+      </section>
+
+      <section id="faq" class="card">
+        <h2>FAQ / Troubleshooting</h2>
+        <ul class="list">
+          <li><strong>Invalid credentials al subir por FTP</strong>: revisá usuario/contraseña del FTP Server y conecta a <code>127.0.0.1</code> o IP LAN; puerto 21/2121 libre.</li>
+          <li><strong>Remoto no se ejecuta con mp.txt</strong>: falta <code>MP_ACCESS_TOKEN</code> o Remoto no está activo.</li>
+          <li><strong>No se ve el medio en Imagen</strong>: la ruta <code>URI</code> no existe o no hay permisos UNC. Probalo en el Explorador.</li>
+          <li><strong>EPERM/EBUSY al leer .txt</strong>: otro proceso lo escribe; el sistema reintenta. Evitá antivirus sobre la carpeta de control.</li>
+          <li><strong>Clientes externos por Internet</strong>: definí PASV (Host y rango) y abrí puertos en el router/firewall.</li>
+          <li><strong>Ventana fuera de pantalla</strong>: borrar bounds guardados o re-centrar desde bandeja cambiando de vista.</li>
+        </ul>
+      </section>
+
+      <section id="licencia" class="card">
+        <h2>Licencia y activación</h2>
+        <p>La licencia (serial y cliente) se persiste localmente. Al actualizar la app, la activación se mantiene. Si reinstalás o cambiás de máquina, necesitás volver a cargar los datos de licencia.</p>
+      </section>
+
+      <section id="notes" class="card">
+        <h2>Notas de versión (resumen)</h2>
+        <h3>1.0.10</h3>
+        <ul class="list">
+          <li>Disparo inmediato por FTP para Remoto/Imagen (<code>AUTO_REMOTE_WATCH</code>, <code>IMAGE_WATCH</code>), desactiva polling cuando aplica.</li>
+          <li>UI de Configuración: tarjetas aclaratorias para Remoto e Imagen.</li>
+          <li>Envío manual de archivo por FTP desde Configuración.</li>
+          <li>Aclaraciones sobre rutas UNC en logs.</li>
+        </ul>
+        <h3>1.0.9</h3>
+        <ul class="list"><li>Modos de ventana avanzados: <code>nueva</code>, <code>comun12</code>, persistencia y espejo.</li></ul>
+        <h3>1.0.7–1.0.8</h3>
+        <ul class="list"><li>Visor responsive, fallback visual, FTP Server integrado, auto-update y mejoras de UI.</li></ul>
+      </section>
+
+      <!-- Secciones internas de detalle (Caja) -->
+      <section id="doc-caja-descargar" class="card"><h2>Detalle – Caja: Descargar MP</h2><p>Ejecuta la consulta a Mercado Pago y genera archivos del día: CSV, XLSX, DBF, JSON. Si FTP está configurado, envía <code>mp.dbf</code> automáticamente cuando hay cambios.</p></section>
+      <section id="doc-caja-mov" class="card"><h2>Detalle – Caja: Movimientos</h2><p>Listado con paginación y filtros por estado, búsqueda rápida y totales (ingresos/devoluciones/neto).</p></section>
+      <section id="doc-caja-auto" class="card"><h2>Detalle – Caja: Indicador Automático</h2><p>Muestra el estado y el tiempo restante cuando hay intervalo global. Informa eventos de ejecución y errores.</p></section>
+      <section id="doc-caja-logs" class="card"><h2>Detalle – Caja: Logs</h2><p>Acceso directo al log del día para diagnóstico (errores de FTP, remoto/imagen, auto-update, etc.).</p></section>
+      <section id="doc-caja-config" class="card"><h2>Detalle – Caja: Configuración rápida</h2><p>Acceso directo a la vista de Administración para modificar parámetros sin cerrar la app.</p></section>
+      <section id="doc-caja-tabs" class="card"><h2>Detalle – Caja: Navegación</h2><p>Conmutación entre Caja e Imagen/Config. La app recuerda la última vista usada.</p></section>
+      <section id="doc-caja-hoy" class="card"><h2>Detalle – Caja: Badge HOY</h2><p>Resalta el contenido del día para evitar confusiones.</p></section>
+
+      <!-- Secciones internas de detalle (Administración) -->
+      <section id="doc-admin-mp" class="card"><h2>Detalle – Administración: Mercado Pago</h2><p>Access Token, ventana operativa por HH:mm, rango opcional por fecha, estado único y campos de paginación.</p></section>
+      <section id="doc-admin-email" class="card"><h2>Detalle – Administración: Email/SMTP</h2><p>Configura servidor, puerto y credenciales. Validación y toggles de visibilidad de contraseña.</p></section>
+      <section id="doc-admin-seg" class="card"><h2>Detalle – Administración: Seguridad</h2><p>Cambio de usuario/contraseña/frase secreta con validaciones.</p></section>
+      <section id="doc-admin-err" class="card"><h2>Detalle – Administración: Notificaciones de Error</h2><p>Umbrales, frecuencia y acciones para limpiar/resetear. Se deshabilitan campos cuando está apagado.</p></section>
+      <section id="doc-admin-result" class="card"><h2>Detalle – Administración: Resultados</h2><p>Exportación a CSV/XLSX/DBF/JSON y totales. Ajuste de tamaño de página.</p></section>
+      <section id="doc-admin-hist" class="card"><h2>Detalle – Administración: Historial</h2><p>Agrupa por fecha y muestra archivos disponibles. Acceso directo a la carpeta.</p></section>
+      <section id="doc-admin-acciones" class="card"><h2>Detalle – Administración: Acciones principales</h2><p>Barra de acciones: cargar/guardar/generar, enviar DBF por FTP, limpiar hash y vista previa con copiar/descargar/restaurar.</p></section>
 
       <div class="footer">Manual generado para acompañar las funciones de la aplicación MP. Usa el buscador para encontrar temas rápido. Pulsa <span class="kbd">Ctrl</span>+<span class="kbd">F</span> para búsqueda del navegador.</div>
     </div>

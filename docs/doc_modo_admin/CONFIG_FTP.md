@@ -94,3 +94,33 @@ Notas:
 - Si el Host del servidor es `0.0.0.0`, para conectar desde la misma PC usá `127.0.0.1`.
 - Asegurate de que las carpetas de control en Configuración apunten a la raíz del FTP Server o subcarpeta donde estás subiendo los archivos.
 - Los disparos respetan días y horarios configurados.
+
+### Nuevas funcionalidades (integración con disparadores y pruebas)
+
+- Disparo inmediato por FTP (sin intervalo):
+  - En Configuración → Automatización:
+    - Modo Remoto: activar “Disparo inmediato por FTP (sin intervalo)” y “Activar Modo Remoto”. Al subir un `mp*.txt` a `AUTO_REMOTE_DIR`, se procesa al instante (requiere `MP_ACCESS_TOKEN`).
+    - Modo Imagen: activar “Disparo inmediato por FTP (sin intervalo)”. Al subir el archivo de control (por defecto `direccion.txt`) a `IMAGE_CONTROL_DIR`, se muestra de inmediato el contenido indicado en `URI`.
+  - Requisitos: las carpetas `AUTO_REMOTE_DIR` (remoto) y `IMAGE_CONTROL_DIR` (imagen) deben coincidir con la carpeta raíz del FTP Server (`FTP_SRV_ROOT`) o ser subcarpetas de la misma.
+  - Respeta días/horarios configurados en “Automatización”.
+  - Tras procesar, el `.txt` se elimina automáticamente. Si el archivo está ocupado (EBUSY/EPERM/EACCES), se reintenta en el siguiente evento/intervalo.
+
+- Envío manual de archivo por FTP (pruebas rápidas):
+  - En Configuración → FTP ahora hay:
+    - “Elegir archivo” para seleccionar un archivo local.
+    - “Enviar archivo por FTP” para subirlo a la carpeta remota configurada.
+  - Útil para probar disparadores: subir `mp.txt` o `direccion.txt` al servidor local e inmediatamente verificar que se ejecuten Remoto o Imagen.
+
+- Limpieza y persistencia:
+  - Control `.txt`: se borra tras procesarse. Además, si `IMAGE_CLEANUP_ENABLED` está activo, se limpian `.txt` antiguos de `IMAGE_CONTROL_DIR` con antigüedad mayor a `IMAGE_CLEANUP_HOURS` (por defecto 24 h).
+  - Medios (imágenes/pdf/audio/video) no se copian ni borran: se visualizan desde su ubicación (local o UNC) y permanecen visibles hasta la próxima orden.
+
+- Rutas UNC y visualización en logs:
+  - Las rutas de red tipo `\\servidor\share\carpeta\archivo.ext` están soportadas.
+  - En los logs JSON verás barras “dobles” por escape, pero la app usa la ruta exactamente como llegó en `URI` (no se normaliza ni modifica).
+  - Si la ruta de red solicita credenciales, mapeá acceso persistente (ej.: `net use \\servidor\share /user:USUARIO CONTRASEÑA /persistent:yes`).
+
+- Solución de problemas comunes:
+  - “Invalid credentials” al subir por FTP: verifica usuario/contraseña de “FTP Server” y conecta a `127.0.0.1` o IP LAN y al puerto configurado (21/2121). Si usas 21, asegurá que no haya otro servicio ocupándolo.
+  - Remoto no se ejecuta pese a `mp*.txt`: faltan credenciales de Mercado Pago (`MP_ACCESS_TOKEN`).
+  - No se ve el medio: confirma que la ruta `URI` existe y es accesible con la misma sesión del usuario que corre la app.

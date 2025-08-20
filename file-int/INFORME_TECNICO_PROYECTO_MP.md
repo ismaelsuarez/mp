@@ -3,11 +3,82 @@
 ## RESUMEN EJECUTIVO
 
 **Proyecto:** Sistema de Reportes de Pagos Mercado Pago  
-**Versión:** 1.0.5  
+**Versión:** 1.0.10  
 **Tecnologías:** TypeScript + Electron + Node.js  
 **Propósito:** Generación automatizada de reportes operativos de ventas desde Mercado Pago
 
 ---
+
+## NOVEDADES 1.0.10 (Estado actual)
+
+1) Disparo inmediato por FTP (sin intervalo)
+- Watchers en el proceso principal que reaccionan al instante cuando llegan archivos a la carpeta del Servidor FTP integrado.
+- Remoto: procesa `mp*.txt` (requiere `MP_ACCESS_TOKEN`).
+- Imagen: procesa el archivo de control (por defecto `direccion.txt`) con formato `URI@VENTANA@INFO`.
+- Si el “disparo inmediato” está activo en Remoto e Imagen, el polling por intervalo se desactiva para evitar trabajo duplicado.
+
+2) Modo Imagen (visor) ampliado
+- Formato de control flexible: `URI=RUTA@VENTANA=comun|nueva|comun12@INFO=texto`.
+- Modos de ventana: `comun`, `nueva` (nueva ventana con ESC para cerrar y bounds persistentes), `comun12` (principal + espejo persistente).
+- Fallback visual si el recurso no existe; limpieza automática de `.txt` antiguos configurable.
+- Soporta imágenes, PDF, audio y video. Rutas UNC y locales; web `http/https` se abre en el navegador si `VENTANA=nueva`.
+
+3) FTP – Cliente y Servidor
+- Servidor FTP integrado (ftp-srv): Host/Puerto/Usuario/Contraseña/Raíz y PASV opcional. Autoarranque.
+- Envío manual de archivo desde Configuración: “Elegir archivo” + “Enviar archivo por FTP” (nuevo método `sendArbitraryFile`).
+- Documentación y UI explicativa (tarjetas) para Remoto/Imagen con “Disparo inmediato”.
+
+4) Manual autosuficiente
+- `docs/manual.html` ahora contiene toda la documentación y diagramas embebidos (sin enlaces a archivos `.md`).
+- Diagramas SVG: arquitectura y flujos (disparo inmediato vs. intervalo).
+
+5) Notas
+- Rutas UNC se usan tal cual llegan en `URI`. En logs JSON pueden verse con barras escapadas, sin afectar la ejecución.
+- Los `.txt` de control se consumen y eliminan tras procesar; los medios no se copian ni se borran.
+
+### ARQUITECTURA ACTUALIZADA (1.0.10)
+
+- Proceso Principal (Electron Main)
+  - Timers de automatización (global y remoto) y watchers de carpeta cuando “Disparo inmediato” está activo (`AUTO_REMOTE_WATCH`, `IMAGE_WATCH`).
+  - FTP Server integrado (`ftp-srv`) con soporte PASV opcional; logging de login/conexiones/errores.
+  - IPC segura: handlers para auto (`auto-*`), FTP (`ftp-server:*`, `ftp:send-file`), Imagen (`image:*`), licencia/autenticación.
+  - Limpieza de artefactos: `.txt` de control tras procesar; limpieza programática de `.txt` antiguos en `IMAGE_CONTROL_DIR` según horas configuradas.
+
+- Preload
+  - Bridge expone funciones de lectura/escritura de configuración, auto, FTP (test y envío), Imagen (test control), utilidades (`open-path`), y autenticación (setup/login/cambio/OTP).
+
+- Renderers (Caja/Config/Imagen)
+  - Caja: UI operativa y feedback de auto-reporte.
+  - Config: formularios de MP/FTP/Automatización/Seguridad/Errores con validaciones; nuevos toggles y botones para pruebas.
+  - Imagen: visor minimalista y responsive; escucha `image:new-content` y ajusta título con `INFO`.
+
+- Rutas y recursos
+  - Rutas locales y UNC (no se normalizan). Web `http/https` se abre en navegador si `VENTANA=nueva`.
+  - Los medios se leen “in situ” (no se copian); sólo se consume/elimina el `.txt` de control.
+
+### DETALLE DE WATCHERS Y TIMERS
+
+- Watchers (cuando están activos):
+  - Remoto: observa `AUTO_REMOTE_DIR` y filtra `mp*.txt`; ejecuta flujo de reporte y elimina el disparador.
+  - Imagen: observa `IMAGE_CONTROL_DIR` y el archivo `IMAGE_CONTROL_FILE`; procesa y elimina el `.txt`.
+  - Mutex (`unifiedScanBusy`): evita carreras entre remoto e imagen.
+
+- Timers:
+  - Remoto unificado (prioridad): ejecuta remoto y, si no hay disparos, imagen; respeta días/horarios.
+  - Imagen dedicado: inhabilitado en 1.0.10 (unificado por remoto) para simplificar.
+
+### RIESGOS Y CONTROLES
+
+- EPERM/EBUSY/EACCES al leer/borrar `.txt`: se reintenta en el siguiente evento/intervalo (no falla la app).
+- Rutas UNC inaccesibles: fallback visual y logging; el `.txt` se consume para permitir nuevos disparos.
+- Credenciales FTP inválidas: logging y rechazo de login; guía PASV y firewall documentada.
+- MP sin Access Token: error amigable y guía al usuario; no aborta la app.
+
+### ESTADO DE DOCUMENTACIÓN
+
+- Manual (autosuficiente) con diagramas, glosario, FAQ y pruebas guiadas.
+- Notas de versión 1.0.10 publicadas.
+- Documentos internos actualizados: Configuración de FTP y Modo Imagen.
 
 ## ARQUITECTURA DEL SISTEMA
 

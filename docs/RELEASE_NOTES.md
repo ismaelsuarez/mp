@@ -1,5 +1,26 @@
 # Notas de versión
 
+## 1.0.10
+Fecha de publicación: 2025-08-20
+- Automatización – disparo inmediato por FTP (sin intervalo)
+  - Nuevas banderas de configuración: `AUTO_REMOTE_WATCH` (Remoto) y `IMAGE_WATCH` (Modo Imagen).
+  - Watchers de carpeta en el proceso principal: al finalizar una subida por FTP en las carpetas configuradas, se dispara en el acto.
+    - Remoto: procesa el primer `mp*.txt` detectado (requiere `MP_ACCESS_TOKEN`).
+    - Imagen: procesa `IMAGE_CONTROL_FILE` (por defecto `direccion.txt`) y muestra el contenido de `URI` inmediatamente.
+  - Si ambos “watch” están activos, se desactiva el polling por intervalo para evitar trabajo duplicado.
+  - Se mantiene la validación de días/horarios y la limpieza de `.txt` ocupados/antiguos.
+- UI/UX – Configuración
+  - Modo Remoto: controles reorganizados con texto explicativo y dos tarjetas: “Activar Modo Remoto” y “Disparo inmediato por FTP (sin intervalo)”.
+  - Modo Imagen: checkbox “Disparo inmediato por FTP (sin intervalo)” con aclaración de comportamiento.
+  - FTP (Cliente): agregado flujo de prueba “Elegir archivo” + “Enviar archivo por FTP” para subir cualquier archivo al servidor y validar disparadores.
+- FTP – Envío manual
+  - Nuevo método backend `sendArbitraryFile(localPath, remoteName?)` + IPC `ftp:send-file` y exposición en preload.
+  - Útil para probar `mp.txt`/`direccion.txt` contra el FTP Server local sin herramientas externas.
+- Rutas UNC y logs
+  - Aclaración: las rutas UNC se usan tal cual; en los logs aparecen con barras escapadas por formato JSON, sin afectar la ejecución.
+- Documentación
+  - Actualizada `docs/doc_modo_admin/CONFIG_FTP.md` con disparo inmediato, pruebas de envío, limpieza y notas sobre rutas UNC/PASV/credenciales.
+
 ## 1.0.9
 Fecha de publicación: 2025-08-19
 - Modo Imagen: manejo de múltiples ventanas según `VENTANA=`
