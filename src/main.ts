@@ -1370,21 +1370,45 @@ app.whenReady().then(() => {
 			}
 
 			// Verificar si el archivo de contenido existe (solo para rutas locales/UNC).
-			// Si no existe, usar logo por defecto como fallback visual.
+			// Si no existe, intentar variante .mp4 cuando la solicitud era .jpg; si tampoco existe, usar fallback visual por defecto.
 			let isFallback = false;
 			if (!isWebUrl(filePath) && !fs.existsSync(filePath)) {
 				logError('Archivo de contenido no encontrado', { filePath, originalContent: content });
 				try {
-					const noImage = path.join(app.getAppPath(), 'public', 'Noimage.jpg');
-					const logo = path.join(app.getAppPath(), 'public', 'nombre_tc.png');
-					const candidate = fs.existsSync(noImage) ? noImage : (fs.existsSync(logo) ? logo : '');
-					if (candidate) {
-						filePath = candidate;
-						isFallback = true;
-						infoText = infoText ? `${infoText} • (no encontrado)` : 'Contenido no encontrado';
+					// 1) Si el recurso pedido termina en .jpg, probar automáticamente la variante .mp4
+					const lower = String(filePath).toLowerCase();
+					if (lower.endsWith('.jpg')) {
+						const altVideoPath = filePath.slice(0, -4) + '.mp4';
+						if (fs.existsSync(altVideoPath)) {
+							logInfo('Alternativa encontrada: usando video .mp4 asociado a la imagen faltante', { altVideoPath });
+							filePath = altVideoPath; // usar el video y no marcar fallback visual
+						} else {
+							// 2) No hay .mp4 asociado: aplicar fallback visual por defecto
+							const noImage = path.join(app.getAppPath(), 'public', 'Noimage.jpg');
+							const logo = path.join(app.getAppPath(), 'public', 'nombre_tc.png');
+							const candidate = fs.existsSync(noImage) ? noImage : (fs.existsSync(logo) ? logo : '');
+							if (candidate) {
+								filePath = candidate;
+								isFallback = true;
+								infoText = infoText ? `${infoText} • (no encontrado)` : 'Contenido no encontrado';
+							} else {
+								try { fs.unlinkSync(controlPath); } catch {}
+								return 0;
+							}
+						}
 					} else {
-						try { fs.unlinkSync(controlPath); } catch {}
-						return 0;
+						// 3) No era .jpg: aplicar directamente el fallback visual por defecto
+						const noImage = path.join(app.getAppPath(), 'public', 'Noimage.jpg');
+						const logo = path.join(app.getAppPath(), 'public', 'nombre_tc.png');
+						const candidate = fs.existsSync(noImage) ? noImage : (fs.existsSync(logo) ? logo : '');
+						if (candidate) {
+							filePath = candidate;
+							isFallback = true;
+							infoText = infoText ? `${infoText} • (no encontrado)` : 'Contenido no encontrado';
+						} else {
+							try { fs.unlinkSync(controlPath); } catch {}
+							return 0;
+						}
 					}
 				} catch {
 					try { fs.unlinkSync(controlPath); } catch {}
