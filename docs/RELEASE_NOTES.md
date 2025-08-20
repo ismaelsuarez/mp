@@ -1,5 +1,21 @@
 # Notas de versión
 
+## 1.0.11
+Fecha de publicación: 2025-08-20
+- Automatización – disparadores inmediatos (comportamiento forzado)
+  - Remoto (`AUTO_REMOTE_WATCH=true`): al llegar `mp*.txt` se ejecuta en el acto e ignora días/horas. El envío de `mp.dbf` por FTP se hace en modo forzado (no se salta por “sin cambios”). Se elimina el `.txt` procesado y se serializa la ejecución para evitar solapamientos.
+  - Imagen (`IMAGE_WATCH=true`): al llegar `direccion.txt` se procesa en el acto e ignora días/horas. Se elimina el `.txt` procesado.
+  - UI: textos aclaratorios en Configuración → Automatización.
+  - Docs: actualizadas `docs/doc_modo_admin/CONFIG_AUTOMATIZACION.md` y `docs/doc_modo_admin/CONFIG_FTP.md`.
+- Modo Imagen
+  - Fallback inteligente: si falta `*.jpg`, se intenta automáticamente `*.mp4` antes de mostrar `Noimage.jpg`/`nombre_tc.png`.
+  - Multi‑monitor: todas las ventanas de imagen (principal, `VENTANA=nueva`, `comun12`) guardan `displayId` y área de trabajo y restauran tamaño/posición en el mismo monitor. Menú de bandeja con “Resetear posición/tamaño (ventana actual)”.
+- Modo Caja
+  - Persistencia multi‑monitor de tamaño/posición (bounds por monitor) y acción de reset desde la bandeja.
+- Inicio y navegación
+  - Se prioriza `lastView` (última vista usada) sobre `DEFAULT_VIEW` al iniciar.
+  - Administración: siempre entra por `auth.html` antes de abrir `config.html`.
+
 ## 1.0.10
 Fecha de publicación: 2025-08-20
 - Automatización – disparo inmediato por FTP (sin intervalo)

@@ -1322,7 +1322,7 @@ app.whenReady().then(() => {
 			const mpPath = (result as any)?.files?.mpDbfPath;
 			if (mpPath && fs.existsSync(mpPath)) {
 				ftpAttempted = true;
-				const ftpResult = await sendDbf(mpPath, 'mp.dbf');
+				const ftpResult = await sendDbf(mpPath, 'mp.dbf', { force: true });
 				if (ftpResult.skipped) {
 					ftpSkipped = true;
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
@@ -1354,7 +1354,7 @@ app.whenReady().then(() => {
 
 	// Escaneo remoto una vez (autónomo)
 	async function processRemoteOnce(): Promise<number> {
-		if (!isDayEnabled()) return 0;
+		// Disparador remoto: siempre procesar sin respetar días/horas (requisito)
 		try {
 			const cfgNow: any = store.get('config') || {};
 			const enabled = cfgNow.AUTO_REMOTE_ENABLED !== false;
@@ -1382,7 +1382,7 @@ app.whenReady().then(() => {
 
 	// Procesamiento de archivos de control de imagen
 	async function processImageControlOnce(): Promise<number> {
-		if (!isDayEnabled()) return 0;
+		// Disparador de imagen: siempre procesar sin respetar días/horas (requisito)
 		try {
 			const cfgNow: any = store.get('config') || {};
 			const enabled = cfgNow.IMAGE_ENABLED !== false; // propio enable para imagen

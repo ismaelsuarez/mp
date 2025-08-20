@@ -137,7 +137,7 @@ export async function sendTodayDbf() {
 	}
 }
 
-export async function sendDbf(localPath: string, remoteFileName: string = 'mp.dbf') {
+export async function sendDbf(localPath: string, remoteFileName: string = 'mp.dbf', options?: { force?: boolean }) {
 	const cfg = getConfig();
 	if (!cfg.FTP_IP || !cfg.FTP_USER || !cfg.FTP_PASS) {
 		recordError('FTP_CONFIG', 'Configuración FTP incompleta para envío', { config: { hasIp: !!cfg.FTP_IP, hasUser: !!cfg.FTP_USER, hasPass: !!cfg.FTP_PASS } });
@@ -148,16 +148,19 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 		throw new Error(`No existe archivo DBF local: ${localPath}`);
 	}
 	
-	// Verificar si el archivo ha cambiado antes de enviar
-	const fileChanged = hasFileChanged(localPath);
-	if (!fileChanged) {
-		    logFtp('Archivo mp.dbf sin cambios - omitiendo envío FTP');
-		return { 
-			remoteDir: normalizeDir(cfg.FTP_DIR) || '/', 
-			remoteFile: remoteFileName.toLowerCase(),
-			skipped: true,
-			reason: 'sin cambios - no se envía'
-		};
+	// Verificar si el archivo ha cambiado antes de enviar (a menos que se fuerce)
+	const forceSend = !!(options && options.force);
+	if (!forceSend) {
+		const fileChanged = hasFileChanged(localPath);
+		if (!fileChanged) {
+			logFtp('Archivo mp.dbf sin cambios - omitiendo envío FTP');
+			return { 
+				remoteDir: normalizeDir(cfg.FTP_DIR) || '/', 
+				remoteFile: remoteFileName.toLowerCase(),
+				skipped: true,
+				reason: 'sin cambios - no se envía'
+			};
+		}
 	}
 	
 	logFtp('Archivo mp.dbf con cambios - enviando por FTP...');

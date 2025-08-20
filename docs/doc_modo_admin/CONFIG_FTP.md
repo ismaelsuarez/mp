@@ -93,7 +93,7 @@ const { Client } = require('basic-ftp');
 Notas:
 - Si el Host del servidor es `0.0.0.0`, para conectar desde la misma PC usá `127.0.0.1`.
 - Asegurate de que las carpetas de control en Configuración apunten a la raíz del FTP Server o subcarpeta donde estás subiendo los archivos.
-- Los disparos respetan días y horarios configurados.
+- Disparadores (inmediatos): cuando está activo “Disparo inmediato por FTP (sin intervalo)”, al llegar `mp*.txt` (Remoto) o `direccion.txt` (Imagen) se procesan siempre (ignoran días/horas). En Remoto, el envío de `mp.dbf` se realiza en modo forzado (no se salta por “sin cambios”).
 
 ### Nuevas funcionalidades (integración con disparadores y pruebas)
 
