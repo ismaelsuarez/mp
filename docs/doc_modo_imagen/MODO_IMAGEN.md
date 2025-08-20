@@ -24,7 +24,7 @@ Mostrar en pantalla contenidos indicados por un archivo de control (imágenes, P
     - `URI`: ruta absoluta del contenido (local o UNC).
     - `VENTANA`: `comun` | `nueva` | `comun12` (ver Modos de ventana).
     - `INFO`: texto para el título de la ventana.
-- Si la ruta no existe, se registra el evento y el .txt se elimina igualmente; se muestra un fallback visual (`public/Noimage.jpg` o `nombre_tc.png`).
+- Si la ruta no existe, se registra el evento y el .txt se elimina igualmente. Antes de mostrar el fallback visual, si la `URI` terminaba en `.jpg` se prueba automáticamente la variante `.mp4` con el mismo nombre; si existe, se muestra el video. Si tampoco existe, se usa el fallback (`public/Noimage.jpg` o `nombre_tc.png`).
 
 ## Formatos soportados
 - Imágenes: jpg, jpeg, png, gif, bmp, tiff, webp
@@ -37,10 +37,10 @@ Rutas soportadas:
 - Web `http/https` con `VENTANA=nueva`: se abre en el navegador predeterminado del sistema.
 
 ## Modos de ventana y comportamiento
-- Responsive: abre inicialmente en 420×420 px; se puede redimensionar libremente y recuerda tamaño/posición (ajusta a la resolución del monitor). El visor ocupa el 100% del área con `object-fit: contain`.
+- Responsive: abre inicialmente en 420×420 px; se puede redimensionar libremente y recuerda tamaño/posición por monitor (guarda `displayId` y área de trabajo). Al restaurar, reescala y ubica en el mismo monitor si está disponible. El visor ocupa el 100% del área con `object-fit: contain`.
 - `VENTANA=comun`: muestra en la ventana principal de la app.
-- `VENTANA=nueva`: abre un visor en una nueva ventana; primera vez centrada en el mismo monitor, siguientes veces restaura tamaño/posición guardados. Cierra con tecla ESC. Menú oculto para presentación limpia.
-- `VENTANA=comun12`: muestra en la ventana principal y además en una segunda ventana persistente ("espejo") que se reutiliza y recuerda tamaño/posición.
+- `VENTANA=nueva`: abre un visor en una nueva ventana; primera vez centrada en el mismo monitor, siguientes veces restaura tamaño/posición guardados por monitor. Cierra con tecla ESC. Menú oculto para presentación limpia.
+- `VENTANA=comun12`: muestra en la ventana principal y además en una segunda ventana persistente ("espejo") que se reutiliza y recuerda tamaño/posición por monitor.
 - Título: usa `INFO` (o el nombre del archivo) y no tapa el contenido.
 
 ## Configuración (Administración → Automatización / Modo Imagen)
@@ -77,6 +77,11 @@ Rutas soportadas:
   - Revisar que el .txt tenga contenido válido y sin espacios invisibles al final. La limpieza automática borra .txt muy antiguos según `IMAGE_CLEANUP_HOURS`.
 - Rutas UNC: si solicita credenciales, mapeá acceso persistente (ej.: `net use \\servidor\share /user:USUARIO CONTRASEÑA /persistent:yes`).
 
+### Multi‑monitor y reset manual
+- La app recuerda el monitor donde se usó cada ventana (principal, `nueva`, `comun12`) y restaura allí cuando sea posible.
+- Si una pantalla ya no está conectada o cambió la geometría, se reubica automáticamente dentro del área visible del monitor disponible.
+- Menú de bandeja → “Resetear posición/tamaño (ventana actual)”: borra las coordenadas guardadas y centra con tamaño por defecto.
+
 ## Archivos y referencias
 - Lógica principal: `src/main.ts`
   - `processImageControlOnce` (lectura/consumo del .txt y notificación al renderer)
@@ -89,4 +94,4 @@ Rutas soportadas:
 - Configuración/UX administración: `public/config.html`, `src/renderer.ts`
 
 ---
-Última actualización: 2025-08-20
+Última actualización: 2025-08-20 (multi‑monitor, fallback jpg→mp4, reset de ventana)

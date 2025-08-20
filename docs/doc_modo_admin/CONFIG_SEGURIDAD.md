@@ -14,3 +14,7 @@ Administrar credenciales del administrador de forma segura.
 
 ### Referencias
 - `src/services/AuthService.ts`, `src/renderer.ts`
+
+### Cambio de comportamiento (v1.0.10)
+- Al iniciar la app con `DEFAULT_VIEW=config`, la primera pantalla es siempre `auth.html` para solicitar credenciales antes de abrir `config.html`.
+- Desde la bandeja o navegación, cuando se elige “Ir a Configuración”, también se abre `auth.html` previamente.

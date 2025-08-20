@@ -7,6 +7,7 @@
 
 ## Características
 - **Visor 400×400** centrado en pantalla (modo presentación, sin marcos ni barras).
+ - **Visor 400×400** centrado en pantalla (modo presentación, sin marcos ni barras) con persistencia por monitor (guarda `displayId` y reescala al restaurar).
 - **Botón Probar** (esquina superior derecha, tamaño reducido) para forzar una lectura manual durante pruebas.
 - **Mantener último contenido**: la proyección permanece hasta que aparezca una nueva instrucción.
 - **Soporte de formatos**:
@@ -22,6 +23,7 @@
   - Ruta directa: `\\servidor\\carpeta\\archivo.jpg`
   - Con prefijo: `URI=\\servidor\\carpeta\\archivo.jpg`
 - **Ciclo de vida**: luego de leerla, la app elimina `direccion.txt` (consumible). Si la ruta no existe, registra el evento y también limpia el archivo de control.
+ - **Ciclo de vida**: luego de leerla, la app elimina `direccion.txt` (consumible). Si la ruta no existe y terminaba en `.jpg`, se intenta `*.mp4`; si tampoco existe, se usa el fallback (`Noimage.jpg`).
 
 ## Configuración en Modo Administración
 - Campos en Configuración → Modo Imagen:

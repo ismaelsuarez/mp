@@ -20,6 +20,11 @@ Fecha de publicación: 2025-08-20
   - Aclaración: las rutas UNC se usan tal cual; en los logs aparecen con barras escapadas por formato JSON, sin afectar la ejecución.
 - Documentación
   - Actualizada `docs/doc_modo_admin/CONFIG_FTP.md` con disparo inmediato, pruebas de envío, limpieza y notas sobre rutas UNC/PASV/credenciales.
+  - Autenticación obligatoria al abrir Administración: inicio siempre en `auth.html` si la vista por defecto es `config`.
+  - Multi‑monitor: todas las ventanas (Caja, Imagen principal, `VENTANA=nueva`, `comun12`) guardan `displayId` y área de trabajo, y restauran posición/tamaño en el mismo monitor.
+  - Modo Imagen: antes de `Noimage.jpg` se intenta automáticamente `*.mp4` cuando falte `*.jpg`.
+  - Bandeja: nuevo ítem “Resetear posición/tamaño (ventana actual)”.
+  - Inicio: se prioriza `lastView` (última vista usada) sobre `DEFAULT_VIEW`.
 
 - Facturación (AFIP) – EN CONSTRUCCIÓN
   - Nueva sección en Configuración: “Facturación (AFIP) (en construcción)” con formularios de Empresa, Parámetros e integración AFIP; historial de PDFs locales.

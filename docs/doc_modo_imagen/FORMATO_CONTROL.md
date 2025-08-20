@@ -45,7 +45,9 @@ URI=\\correo\Linksistema\FOTOSWEB\06\16G515.jpg@VENTANA=comun12@INFO=(16G515) NT
 
 ## Consideraciones
 - La app consume (borra) el .txt tras procesarlo.
-- Si la `URI` no existe, se registra el evento y el .txt se elimina igualmente.
+- Si la `URI` no existe:
+  - Si terminaba en `.jpg`, se prueba automáticamente la variante `.mp4` con el mismo nombre. Si existe, se muestra el video.
+  - Si tampoco existe, se registra el evento y se muestra el fallback (`public/Noimage.jpg` o `nombre_tc.png`).
 - El contenido mostrado queda persistente hasta que llegue otro archivo de control.
 
 ---

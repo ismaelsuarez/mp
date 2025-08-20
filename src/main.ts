@@ -192,6 +192,7 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 	showMainWindow();
 	if (view === 'config') {
 		currentViewName = 'config';
+		(store as any).set('lastView', 'config');
 		const target = path.join(app.getAppPath(), 'public', 'auth.html');
 		try {
 			mainWindow.setMinimumSize(500, 400);
@@ -205,6 +206,7 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 	} else if (view === 'caja') {
 		// caja
 		currentViewName = 'caja';
+		(store as any).set('lastView', 'caja');
 		const target = path.join(app.getAppPath(), 'public', 'caja.html');
 		try {
 			mainWindow.setMinimumSize(420, 320);
@@ -220,6 +222,7 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 	} else if (view === 'imagen') {
 		// imagen
 		currentViewName = 'imagen';
+		(store as any).set('lastView', 'imagen');
 		const target = path.join(app.getAppPath(), 'public', 'imagen.html');
 		try {
 			mainWindow.setMinimumSize(420, 420);
@@ -447,7 +450,10 @@ function createMainWindow() {
 
 	// En build, __dirname apunta a dist/src; public queda al lado de dist
 	const cfg: any = store.get('config') || {};
+	// Elegir vista inicial: priorizar la última vista usada; si no existe, usar DEFAULT_VIEW y por defecto 'caja'
+	const lastView = (store.get('lastView') as any) as 'config' | 'caja' | 'imagen' | undefined;
 	let defaultView: 'config' | 'caja' | 'imagen' = ((): any => {
+		if (lastView === 'config' || lastView === 'caja' || lastView === 'imagen') return lastView;
 		const v = String(cfg?.DEFAULT_VIEW || '').toLowerCase();
 		if (v === 'config') return 'config';
 		if (v === 'imagen') return 'imagen';
@@ -931,6 +937,7 @@ app.whenReady().then(() => {
 			console.log('[main] caja requested → loading caja.html');
 			if (mainWindow) {
 				currentViewName = 'caja';
+				(store as any).set('lastView', 'caja');
 				const target = path.join(app.getAppPath(), 'public', file);
 				console.log('[main] loading file:', target);
 				// Ajustar tamaño según vista
@@ -969,6 +976,7 @@ app.whenReady().then(() => {
 			console.log('[main] imagen requested → loading imagen.html');
 			if (mainWindow) {
 				currentViewName = 'imagen';
+				(store as any).set('lastView', 'imagen');
 				const target = path.join(app.getAppPath(), 'public', file);
 				console.log('[main] loading file:', target);
 				// Ajustar tamaño/posición para modo imagen (restaurar bounds si existen)
