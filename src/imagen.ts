@@ -82,7 +82,10 @@ function createContentElement(filePath: string, _contentType: string): HTMLEleme
         const video = document.createElement('video');
         video.src = `file://${filePath}`;
         video.controls = true;
-        video.autoplay = false;
+        video.autoplay = true;
+        video.loop = true;
+        video.muted = true; // Autoplay suele requerir muted en Chromium/Electron
+        (video as any).playsInline = true;
         (video.style as any).width = '100%';
         (video.style as any).height = '100%';
         (video.style as any).objectFit = 'contain';
@@ -112,6 +115,20 @@ function showContent(filePath: string) {
     const viewer = document.getElementById('contentViewer');
     if (!viewer) return;
     
+    // Detener cualquier reproducción previa (evitar solapamientos)
+    try {
+        const prevVideo = (viewer as HTMLElement).querySelector('video') as HTMLVideoElement | null;
+        if (prevVideo) {
+            try { prevVideo.pause(); } catch {}
+            try { prevVideo.src = ''; } catch {}
+        }
+        const prevAudio = (viewer as HTMLElement).querySelector('audio') as HTMLAudioElement | null;
+        if (prevAudio) {
+            try { prevAudio.pause(); } catch {}
+            try { prevAudio.src = ''; } catch {}
+        }
+    } catch {}
+
     const filename = filePath.split('\\').pop() || filePath.split('/').pop() || '';
     let contentType = 'Archivo';
     
@@ -124,6 +141,35 @@ function showContent(filePath: string) {
     (viewer as HTMLElement).innerHTML = '';
     (viewer as HTMLElement).appendChild(contentElement);
     
+    // Si es video, asegurar inicio inmediato (algunas plataformas requieren play() explícito)
+    try {
+        if (contentElement instanceof HTMLVideoElement) {
+            const v = contentElement as HTMLVideoElement;
+            const tryPlay = async () => {
+                try { await v.play(); } catch {}
+            };
+            // Intento inmediato y después de 'canplay'
+            tryPlay();
+            v.addEventListener('canplay', () => { tryPlay(); }, { once: true });
+            // Activar also fullscreen + maximized video UI si se recibió bandera 'publicidad'
+            try {
+                const anyWindow: any = window as any;
+                const lastPayload = (anyWindow.__lastImagePayload || {}) as any;
+                if (lastPayload && lastPayload.publicidad === true) {
+                    // Asegurar fullscreen del elemento de video
+                    const el: any = v as any;
+                    const reqFs = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+                    if (typeof reqFs === 'function') { try { reqFs.call(el); } catch {} }
+                    // Forzar capa superior del contenedor
+                    const container = document.getElementById('contentViewer') as HTMLElement | null;
+                    if (container) { container.style.zIndex = '2147483647'; container.style.background = 'black'; }
+                    // Intentar mantener la ventana al frente desde renderer (mejora visual en algunos entornos)
+                    try { (window as any).api?.onNewImageContent && document.dispatchEvent(new Event('keep-front')); } catch {}
+                }
+            } catch {}
+        }
+    } catch {}
+
     appendLogImagen(`Mostrando ${contentType}: ${filename}`);
     // Controles: abrir externo y zoom básicos si están disponibles en contexto
     // Barra de botones deshabilitada en esta fase
@@ -167,6 +213,14 @@ window.addEventListener('DOMContentLoaded', () => {
 					document.body.classList.remove('mirror-mode');
 					if (barEl) (barEl as HTMLElement).style.background = '#10b981';
 				}
+			} catch {}
+
+			// Guardar último payload (para detectar bandera 'publicidad' en showContent)
+			try { (window as any).__lastImagePayload = payload; } catch {}
+			// Activar clase de publicidad para quitar marcos/bordes en HTML/CSS
+			try {
+				if (payload.publicidad === true) document.body.classList.add('publicidad');
+				else document.body.classList.remove('publicidad');
 			} catch {}
 			showContent(payload.filePath);
 			// Mostrar info (si existiera en el futuro una barra superior)

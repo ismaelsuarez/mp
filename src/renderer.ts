@@ -25,6 +25,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'AUTO_FROM_MONDAY','AUTO_TO_MONDAY','AUTO_FROM_TUESDAY','AUTO_TO_TUESDAY','AUTO_FROM_WEDNESDAY','AUTO_TO_WEDNESDAY','AUTO_FROM_THURSDAY','AUTO_TO_THURSDAY','AUTO_FROM_FRIDAY','AUTO_TO_FRIDAY','AUTO_FROM_SATURDAY','AUTO_TO_SATURDAY','AUTO_FROM_SUNDAY','AUTO_TO_SUNDAY',
 		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_WINDOW_SEPARATE',
 		'AUTO_REMOTE_WATCH','IMAGE_WATCH',
+		'IMAGE_PUBLICIDAD_ALLOWED',
 		'DEFAULT_VIEW',
 		// FTP Server (admin)
 		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
@@ -138,6 +139,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_CONTROL_FILE: (el.IMAGE_CONTROL_FILE as HTMLInputElement)?.value || undefined,
 			IMAGE_WINDOW_SEPARATE: (el.IMAGE_WINDOW_SEPARATE as HTMLInputElement)?.checked || false,
 			IMAGE_WATCH: (el.IMAGE_WATCH as HTMLInputElement)?.checked || false,
+			IMAGE_PUBLICIDAD_ALLOWED: (el.IMAGE_PUBLICIDAD_ALLOWED as HTMLInputElement)?.checked || false,
 			DEFAULT_VIEW: ((): 'config'|'caja'|'imagen' => {
 				try {
 					const href = String(window.location.pathname || '').toLowerCase();
@@ -218,6 +220,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		(el.IMAGE_WINDOW_SEPARATE as HTMLInputElement).checked = cfg.IMAGE_WINDOW_SEPARATE === true;
 		const elImageWatch = document.getElementById('IMAGE_WATCH') as HTMLInputElement | null;
 		if (elImageWatch) elImageWatch.checked = cfg.IMAGE_WATCH === true;
+		const elPubAllowed = document.getElementById('IMAGE_PUBLICIDAD_ALLOWED') as HTMLInputElement | null;
+		if (elPubAllowed) elPubAllowed.checked = cfg.IMAGE_PUBLICIDAD_ALLOWED === true;
 		// FTP Server
 		const ftpHostEl = document.getElementById('FTP_SRV_HOST') as HTMLInputElement | null;
 		const ftpPortEl = document.getElementById('FTP_SRV_PORT') as HTMLInputElement | null;

@@ -27,6 +27,40 @@ let currentViewName: 'config' | 'caja' | 'imagen' = 'caja';
 // Ventana persistente para presentaciones (comun12)
 let imageDualWindow: BrowserWindow | null = null;
 
+// Publicidad (presentación pantalla completa) para ventana espejo
+function isPublicidadAllowed(): boolean {
+    try {
+        const cfg: any = store.get('config') || {};
+        return cfg.IMAGE_PUBLICIDAD_ALLOWED === true;
+    } catch { return false; }
+}
+function isPublicidadActive(): boolean {
+    try { return isPublicidadAllowed() && ((store.get('publicidadOn') as any) === true); } catch { return false; }
+}
+function setPublicidadActive(on: boolean) {
+    try { (store as any).set('publicidadOn', !!on); } catch {}
+    try { refreshTrayMenu(); } catch {}
+    // Aplicar al vuelo sobre la ventana espejo si existe
+    try {
+        if (imageDualWindow && !imageDualWindow.isDestroyed()) {
+            const active = isPublicidadActive();
+            try { imageDualWindow.setFullScreenable(true); } catch {}
+            if (active) {
+                try { imageDualWindow.setKiosk(true); } catch {}
+                try { imageDualWindow.setAlwaysOnTop(true, 'screen-saver'); } catch {}
+                try { imageDualWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
+                try { imageDualWindow.setFullScreen(true); } catch {}
+            } else {
+                try { imageDualWindow.setKiosk(false); } catch {}
+                try { imageDualWindow.setAlwaysOnTop(false); } catch {}
+                try { imageDualWindow.setVisibleOnAllWorkspaces(false); } catch {}
+                try { imageDualWindow.setFullScreen(false); } catch {}
+            }
+            try { imageDualWindow.webContents.send('image:publicidad-mode', { on: active }); } catch {}
+        }
+    } catch {}
+}
+
 // Guardar tamaño/posición de la ventana secundaria (comun12)
 function saveImageDualWindowBounds() {
 	try {
@@ -45,6 +79,8 @@ function saveImageDualWindowBounds() {
 			workY: work.y,
 			displayId: display.id
 		});
+		// Guardar también si estaba maximizada
+		try { (store as any).set('imageDualWindowMaximized', !!imageDualWindow.isMaximized()); } catch {}
 	} catch {}
 }
 
@@ -75,6 +111,11 @@ function restoreImageDualWindowBounds(win: BrowserWindow, minWidth = 420, minHei
 		x = Math.max(work.x, Math.min(x, work.x + work.width - minWidth));
 		y = Math.max(work.y, Math.min(y, work.y + work.height - minHeight));
 		win.setBounds({ x, y, width: w, height: h });
+		// Aplicar estado maximizado previo si existía y no está en modo publicidad
+		try {
+			const wasMax = (store.get('imageDualWindowMaximized') as any) === true;
+			if (wasMax && !isPublicidadActive()) win.maximize();
+		} catch {}
 		return true;
 	} catch { return false; }
 }
@@ -251,6 +292,47 @@ function hideToTray() {
 	mainWindow.hide();
 }
 
+function buildTrayMenu() {
+    const publicidadAllowed = isPublicidadAllowed();
+    const publicidadChecked = isPublicidadActive();
+    const template: Electron.MenuItemConstructorOptions[] = [
+        { label: 'Mostrar', click: () => showMainWindow() },
+        { type: 'separator' },
+        { label: 'Ir a Caja', click: () => openViewFromTray('caja') },
+        { label: 'Ir a Imagen', click: () => openViewFromTray('imagen') },
+        { label: 'Ir a Configuración', click: () => openViewFromTray('config') },
+        { type: 'separator' },
+        { label: 'Publicidad', type: 'checkbox', enabled: publicidadAllowed, checked: publicidadChecked, click: (item) => {
+            setPublicidadActive((item as any).checked === true);
+        } },
+        { label: 'Resetear posición/tamaño (ventana actual)', click: async () => {
+            try {
+                if (!mainWindow) return;
+                if (currentViewName === 'imagen') {
+                    (store as any).delete('imagenWindowBounds');
+                    mainWindow.setSize(420, 420);
+                    try { mainWindow.center(); } catch {}
+                } else if (currentViewName === 'caja') {
+                    (store as any).delete('cajaWindowBounds');
+                    mainWindow.setSize(420, 320);
+                    try { mainWindow.center(); } catch {}
+                } else {
+                    // Administración/login
+                    mainWindow.setSize(500, 400);
+                    try { mainWindow.center(); } catch {}
+                }
+            } catch {}
+        }},
+        { type: 'separator' },
+        { label: 'Salir', click: () => { isQuitting = true; app.quit(); } }
+    ];
+    return Menu.buildFromTemplate(template);
+}
+
+function refreshTrayMenu() {
+    try { if (tray) tray.setContextMenu(buildTrayMenu()); } catch {}
+}
+
 function createTray() {
 	if (tray) return;
 	tray = new Tray(getTrayImage());
@@ -260,35 +342,7 @@ function createTray() {
 		if (mainWindow.isVisible()) hideToTray();
 		else showMainWindow();
 	});
-	const contextMenu = Menu.buildFromTemplate([
-		{ label: 'Mostrar', click: () => showMainWindow() },
-		{ type: 'separator' },
-		{ label: 'Ir a Caja', click: () => openViewFromTray('caja') },
-		{ label: 'Ir a Imagen', click: () => openViewFromTray('imagen') },
-		{ label: 'Ir a Configuración', click: () => openViewFromTray('config') },
-		{ type: 'separator' },
-		{ label: 'Resetear posición/tamaño (ventana actual)', click: async () => {
-			try {
-				if (!mainWindow) return;
-				if (currentViewName === 'imagen') {
-					(store as any).delete('imagenWindowBounds');
-					mainWindow.setSize(420, 420);
-					try { mainWindow.center(); } catch {}
-				} else if (currentViewName === 'caja') {
-					(store as any).delete('cajaWindowBounds');
-					mainWindow.setSize(420, 320);
-					try { mainWindow.center(); } catch {}
-				} else {
-					// Administración/login
-					mainWindow.setSize(500, 400);
-					try { mainWindow.center(); } catch {}
-				}
-			} catch {}
-		}},
-		{ type: 'separator' },
-		{ label: 'Salir', click: () => { isQuitting = true; app.quit(); } }
-	]);
-	try { tray.setContextMenu(contextMenu); } catch {}
+	refreshTrayMenu();
 }
 
 function saveCajaWindowPosition() {
@@ -704,6 +758,8 @@ app.whenReady().then(() => {
 	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
 			store.set('config', cfg);
+			// Refrescar menú de bandeja para reflejar cambios como IMAGE_PUBLICIDAD_ALLOWED
+			try { refreshTrayMenu(); } catch {}
 			// Reiniciar timers para aplicar cambios
 			restartRemoteTimerIfNeeded();
 			restartImageTimerIfNeeded();
@@ -1519,6 +1575,8 @@ app.whenReady().then(() => {
 						imageDualWindow.on('closed', () => { imageDualWindow = null; });
 						imageDualWindow.on('moved', () => saveImageDualWindowBounds());
 						imageDualWindow.on('resize', () => saveImageDualWindowBounds());
+						imageDualWindow.on('maximize', () => saveImageDualWindowBounds());
+						imageDualWindow.on('unmaximize', () => saveImageDualWindowBounds());
 						await imageDualWindow.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
 						// Intentar restaurar tamaño/posición previa
 						if (!restoreImageDualWindowBounds(imageDualWindow, 420, 420)) {
@@ -1536,9 +1594,25 @@ app.whenReady().then(() => {
 							} catch {}
 						}
 					}
+					// Aplicar modo publicidad (pantalla completa) si está activo
+					try {
+						const active = isPublicidadActive();
+						try { imageDualWindow.setFullScreenable(true); } catch {}
+						if (active) {
+							try { imageDualWindow.setKiosk(true); } catch {}
+							try { imageDualWindow.setAlwaysOnTop(true, 'screen-saver'); } catch {}
+							try { imageDualWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
+							try { imageDualWindow.setFullScreen(true); } catch {}
+						} else {
+							try { imageDualWindow.setKiosk(false); } catch {}
+							try { imageDualWindow.setAlwaysOnTop(false); } catch {}
+							try { imageDualWindow.setVisibleOnAllWorkspaces(false); } catch {}
+							try { imageDualWindow.setFullScreen(false); } catch {}
+						}
+					} catch {}
 					try { imageDualWindow?.focus(); } catch {}
 					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
-					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12', fallback: isFallback });
+					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12', fallback: isFallback, publicidad: isPublicidadActive() });
 				} catch {}
 			} else if (wantNewWindow) {
 				// 'nueva': crear una nueva ventana. Primera vez: centrar; siguientes: restaurar coordenadas guardadas
