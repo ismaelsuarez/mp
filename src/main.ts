@@ -40,25 +40,40 @@ function saveImageDualWindowBounds() {
 			width: bounds.width,
 			height: bounds.height,
 			workW: work.width,
-			workH: work.height
+			workH: work.height,
+			workX: work.x,
+			workY: work.y,
+			displayId: display.id
 		});
 	} catch {}
 }
 
 function restoreImageDualWindowBounds(win: BrowserWindow, minWidth = 420, minHeight = 420): boolean {
 	try {
-		const saved = store.get('imageDualWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+		const saved = store.get('imageDualWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
 		if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
-		const primary = screen.getPrimaryDisplay();
-		const { width, height } = primary.workAreaSize;
-		const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
-		const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
-		let x = Math.round(saved.x * scaleX);
-		let y = Math.round(saved.y * scaleY);
+		const displays = screen.getAllDisplays();
+		let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+		if (!target) {
+			// fallback: buscar por área donde estaba; si no, primario
+			target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }) || screen.getPrimaryDisplay();
+		}
+		const work = target.workArea || target.bounds;
+		const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+		const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+		const baseX = saved.workX !== undefined ? saved.workX : work.x;
+		const baseY = saved.workY !== undefined ? saved.workY : work.y;
+		const scaleX = baseW > 0 ? work.width / baseW : 1;
+		const scaleY = baseH > 0 ? work.height / baseH : 1;
+		const offsetX = saved.x - baseX;
+		const offsetY = saved.y - baseY;
+		let x = work.x + Math.round(offsetX * scaleX);
+		let y = work.y + Math.round(offsetY * scaleY);
 		let w = Math.max(minWidth, Math.round(saved.width * scaleX));
 		let h = Math.max(minHeight, Math.round(saved.height * scaleY));
-		x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
-		y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+		// Clamp dentro del workArea del monitor destino
+		x = Math.max(work.x, Math.min(x, work.x + work.width - minWidth));
+		y = Math.max(work.y, Math.min(y, work.y + work.height - minHeight));
 		win.setBounds({ x, y, width: w, height: h });
 		return true;
 	} catch { return false; }
@@ -77,25 +92,38 @@ function saveImageNewWindowBounds(win: BrowserWindow | null) {
             width: bounds.width,
             height: bounds.height,
             workW: work.width,
-            workH: work.height
+            workH: work.height,
+            workX: work.x,
+            workY: work.y,
+            displayId: display.id
         });
     } catch {}
 }
 
 function restoreImageNewWindowBounds(win: BrowserWindow, minWidth = 420, minHeight = 420): boolean {
     try {
-        const saved = store.get('imageNewWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+        const saved = store.get('imageNewWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
         if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
-        const primary = screen.getPrimaryDisplay();
-        const { width, height } = primary.workAreaSize;
-        const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
-        const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
-        let x = Math.round(saved.x * scaleX);
-        let y = Math.round(saved.y * scaleY);
+        const displays = screen.getAllDisplays();
+        let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+        if (!target) {
+            target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }) || screen.getPrimaryDisplay();
+        }
+        const work = target.workArea || target.bounds;
+        const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+        const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+        const baseX = saved.workX !== undefined ? saved.workX : work.x;
+        const baseY = saved.workY !== undefined ? saved.workY : work.y;
+        const scaleX = baseW > 0 ? work.width / baseW : 1;
+        const scaleY = baseH > 0 ? work.height / baseH : 1;
+        const offsetX = saved.x - baseX;
+        const offsetY = saved.y - baseY;
+        let x = work.x + Math.round(offsetX * scaleX);
+        let y = work.y + Math.round(offsetY * scaleY);
         let w = Math.max(minWidth, Math.round(saved.width * scaleX));
         let h = Math.max(minHeight, Math.round(saved.height * scaleY));
-        x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
-        y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+        x = Math.max(work.x, Math.min(x, work.x + work.width - minWidth));
+        y = Math.max(work.y, Math.min(y, work.y + work.height - minHeight));
         win.setBounds({ x, y, width: w, height: h });
         return true;
     } catch { return false; }
@@ -236,6 +264,25 @@ function createTray() {
 		{ label: 'Ir a Imagen', click: () => openViewFromTray('imagen') },
 		{ label: 'Ir a Configuración', click: () => openViewFromTray('config') },
 		{ type: 'separator' },
+		{ label: 'Resetear posición/tamaño (ventana actual)', click: async () => {
+			try {
+				if (!mainWindow) return;
+				if (currentViewName === 'imagen') {
+					(store as any).delete('imagenWindowBounds');
+					mainWindow.setSize(420, 420);
+					try { mainWindow.center(); } catch {}
+				} else if (currentViewName === 'caja') {
+					(store as any).delete('cajaWindowBounds');
+					mainWindow.setSize(420, 320);
+					try { mainWindow.center(); } catch {}
+				} else {
+					// Administración/login
+					mainWindow.setSize(500, 400);
+					try { mainWindow.center(); } catch {}
+				}
+			} catch {}
+		}},
+		{ type: 'separator' },
 		{ label: 'Salir', click: () => { isQuitting = true; app.quit(); } }
 	]);
 	try { tray.setContextMenu(contextMenu); } catch {}
@@ -253,25 +300,38 @@ function saveCajaWindowPosition() {
 			width: bounds.width,
 			height: bounds.height,
 			workW: work.width,
-			workH: work.height
+			workH: work.height,
+			workX: work.x,
+			workY: work.y,
+			displayId: display.id
 		});
 	} catch {}
 }
 
 function restoreCajaWindowPosition(minWidth = 420, minHeight = 320) {
 	try {
-		const saved = store.get('cajaWindowBounds') as { x: number; y: number; width?: number; height?: number; workW?: number; workH?: number } | undefined;
+		const saved = store.get('cajaWindowBounds') as { x: number; y: number; width?: number; height?: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
 		if (!saved || saved.x === undefined || saved.y === undefined) return false;
-		const primary = screen.getPrimaryDisplay();
-		const { width, height } = primary.workAreaSize;
-		const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
-		const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
-		let x = Math.round(saved.x * scaleX);
-		let y = Math.round(saved.y * scaleY);
+		const displays = screen.getAllDisplays();
+		let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+		if (!target) {
+			target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width || minWidth, height: saved.height || minHeight }) || screen.getPrimaryDisplay();
+		}
+		const work = target.workArea || target.bounds;
+		const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+		const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+		const baseX = saved.workX !== undefined ? saved.workX : work.x;
+		const baseY = saved.workY !== undefined ? saved.workY : work.y;
+		const scaleX = baseW > 0 ? work.width / baseW : 1;
+		const scaleY = baseH > 0 ? work.height / baseH : 1;
+		const offsetX = saved.x - baseX;
+		const offsetY = saved.y - baseY;
+		let x = work.x + Math.round(offsetX * scaleX);
+		let y = work.y + Math.round(offsetY * scaleY);
 		let w = Math.max(minWidth, Math.round((saved.width || minWidth) * scaleX));
 		let h = Math.max(minHeight, Math.round((saved.height || minHeight) * scaleY));
-		x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
-		y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+		x = Math.max(work.x, Math.min(x, work.x + work.width - minWidth));
+		y = Math.max(work.y, Math.min(y, work.y + work.height - minHeight));
 		if (mainWindow) mainWindow.setBounds({ x, y, width: w, height: h });
 		return true;
 	} catch { return false; }
@@ -290,25 +350,38 @@ function saveImagenWindowBounds() {
             width: bounds.width,
             height: bounds.height,
             workW: work.width,
-            workH: work.height
+            workH: work.height,
+            workX: work.x,
+            workY: work.y,
+            displayId: display.id
         });
     } catch {}
 }
 
 function restoreImagenWindowBounds(minWidth = 420, minHeight = 420) {
     try {
-        const saved = store.get('imagenWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number } | undefined;
+        const saved = store.get('imagenWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
         if (!saved || saved.x === undefined || saved.y === undefined || !saved.width || !saved.height) return false;
-        const primary = screen.getPrimaryDisplay();
-        const { width, height } = primary.workAreaSize;
-        const scaleX = saved.workW && saved.workW > 0 ? width / saved.workW : 1;
-        const scaleY = saved.workH && saved.workH > 0 ? height / saved.workH : 1;
-        let x = Math.round(saved.x * scaleX);
-        let y = Math.round(saved.y * scaleY);
+        const displays = screen.getAllDisplays();
+        let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+        if (!target) {
+            target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }) || screen.getPrimaryDisplay();
+        }
+        const work = target.workArea || target.bounds;
+        const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+        const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+        const baseX = saved.workX !== undefined ? saved.workX : work.x;
+        const baseY = saved.workY !== undefined ? saved.workY : work.y;
+        const scaleX = baseW > 0 ? work.width / baseW : 1;
+        const scaleY = baseH > 0 ? work.height / baseH : 1;
+        const offsetX = saved.x - baseX;
+        const offsetY = saved.y - baseY;
+        let x = work.x + Math.round(offsetX * scaleX);
+        let y = work.y + Math.round(offsetY * scaleY);
         let w = Math.max(minWidth, Math.round(saved.width * scaleX));
         let h = Math.max(minHeight, Math.round(saved.height * scaleY));
-        x = Math.max(0, Math.min(x, Math.max(0, width - minWidth)));
-        y = Math.max(0, Math.min(y, Math.max(0, height - minHeight)));
+        x = Math.max(work.x, Math.min(x, work.x + work.width - minWidth));
+        y = Math.max(work.y, Math.min(y, work.y + work.height - minHeight));
         if (mainWindow) {
             mainWindow.setBounds({ x, y, width: w, height: h });
         }
@@ -380,7 +453,8 @@ function createMainWindow() {
 		if (v === 'imagen') return 'imagen';
 		return 'caja';
 	})();
-	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'config.html');
+	// Si la vista por defecto es administración (config), forzar autenticación previa
+	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'auth.html');
 	currentViewName = defaultView;
 
 	// Inicializar DB de facturación al inicio
@@ -412,13 +486,11 @@ function createMainWindow() {
 				try { mainWindow.center(); } catch {}
 			}
 		} else {
-			// Modo Configuración: tamaño amplio como en la captura
-			mainWindow.setMinimumSize(900, 600);
-			mainWindow.setSize(1200, 768);
-			// Ocultar menú también en Configuración
+			// Administración: iniciar siempre en pantalla de autenticación
+			mainWindow.setMinimumSize(500, 400);
+			mainWindow.setSize(500, 400);
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
-			// Centrar la ventana cuando se abre Configuración
 			try { mainWindow.center(); } catch {}
 		}
 	} catch {}
