@@ -236,6 +236,127 @@
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						📄 Facturación (AFIP) (en construcción)
+					</summary>
+					<div class="p-3 space-y-4">
+						<!-- Empresa -->
+						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
+							<div class="text-sm font-semibold mb-2">Datos de la empresa</div>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<label>Razón social
+									<input id="EMP_RAZON" placeholder="Mi Empresa S.A." />
+								</label>
+								<label>CUIT
+									<input id="EMP_CUIT" placeholder="20123456789" />
+								</label>
+								<label class="md:col-span-2">Domicilio
+									<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
+								</label>
+								<label>Condición IVA
+									<select id="EMP_IVA">
+										<option value="RI">Responsable Inscripto</option>
+										<option value="MT">Monotributo</option>
+										<option value="EX">Exento</option>
+										<option value="CF">Consumidor Final</option>
+									</select>
+								</label>
+								<label>Logo (ruta)
+									<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
+								</label>
+							</div>
+							<div class="flex items-center gap-2 mt-2">
+								<button type="button" id="btnEmpresaGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar empresa</button>
+								<span id="empresaStatus" class="text-xs text-slate-400"></span>
+							</div>
+						</div>
+
+						<!-- Parámetros de Facturación -->
+						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
+							<div class="text-sm font-semibold mb-2">Parámetros</div>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+								<label>Tipo por defecto
+									<select id="FAC_TIPO_DEF">
+										<option value="FA">Factura A</option>
+										<option value="FB">Factura B</option>
+										<option value="NC">Nota de crédito</option>
+										<option value="RECIBO">Recibo</option>
+									</select>
+								</label>
+								<label>Punto de venta
+									<input id="FAC_PTO_VTA_DEF" type="number" placeholder="1" />
+								</label>
+								<label>Numeración
+									<input id="FAC_NUM_DEF" type="number" placeholder="1" />
+								</label>
+							</div>
+							<div class="flex items-center gap-2 mt-2">
+								<button type="button" id="btnParamGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar parámetros</button>
+								<span id="paramStatus" class="text-xs text-slate-400"></span>
+							</div>
+						</div>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label>CUIT Emisor
+								<input id="AFIP_CUIT" placeholder="20123456789" />
+							</label>
+							<label>Punto de Venta
+								<input id="AFIP_PTO_VTA" type="number" placeholder="1" />
+							</label>
+							<label>Certificado (.crt/.pem)
+								<input id="AFIP_CERT_PATH" placeholder="C:\\ruta\\cert.pem" />
+							</label>
+							<label>Clave privada (.key)
+								<input id="AFIP_KEY_PATH" placeholder="C:\\ruta\\key.pem" />
+							</label>
+							<label>Entorno
+								<select id="AFIP_ENTORNO">
+									<option value="homologacion">Homologación</option>
+									<option value="produccion">Producción</option>
+								</select>
+							</label>
+						</div>
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
+							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
+						</div>
+						<div class="border-t border-slate-700 pt-3">
+							<div class="flex items-center justify-between mb-2">
+								<h4 class="text-sm font-semibold">Facturas emitidas</h4>
+								<div class="flex items-center gap-2 text-xs">
+									<input id="AFIP_FILTRO_DESDE" placeholder="Desde (YYYY-MM-DD)" class="w-40" />
+									<input id="AFIP_FILTRO_HASTA" placeholder="Hasta (YYYY-MM-DD)" class="w-40" />
+									<button type="button" id="btnAfipBuscar" class="px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Buscar</button>
+								</div>
+							</div>
+							<table id="tablaFacturasAfip" class="w-full text-xs">
+								<thead>
+									<tr class="text-left text-slate-400">
+										<th class="py-1">Fecha</th>
+										<th class="py-1">Pto Vta</th>
+										<th class="py-1">Tipo</th>
+										<th class="py-1">Número</th>
+										<th class="py-1">Receptor</th>
+										<th class="py-1">Total</th>
+										<th class="py-1">CAE</th>
+										<th class="py-1">PDF</th>
+									</tr>
+								</thead>
+								<tbody></tbody>
+							</table>
+						</div>
+
+						<!-- Historial de PDFs en Documentos/facturas -->
+						<div class="border-t border-slate-700 pt-3">
+							<div class="flex items-center justify-between mb-2">
+								<h4 class="text-sm font-semibold">Historial local de PDFs</h4>
+								<button type="button" id="btnPdfsRefresh" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">Refrescar</button>
+							</div>
+							<ul id="listaPdfsAfip" class="text-xs space-y-1"></ul>
+						</div>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Automatización
 					</summary>
 					<div class="p-3 space-y-2">

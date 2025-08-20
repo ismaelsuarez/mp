@@ -43,6 +43,13 @@ declare global {
 			testImageControl?(): Promise<{ success: boolean; filePath?: string; error?: string }>;
 			onNewImageContent?(callback: (payload: { filePath: string }) => void): void;
 			openExternalPath?(fullPath: string): Promise<boolean>;
+			// Facturación
+			facturacion: {
+				guardarConfig(cfg: any): Promise<any>;
+				emitir(payload: any): Promise<any>;
+				listar(filtros?: { desde?: string; hasta?: string }): Promise<any>;
+				abrirPdf(filePath: string): Promise<any>;
+			};
 		};
 		auth: {
 			isInitialized(): Promise<boolean>;

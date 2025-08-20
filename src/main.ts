@@ -17,6 +17,8 @@ import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig,
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
 import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
+import { getDb } from './services/DbService';
+import { getFacturacionService } from './services/FacturacionService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -380,6 +382,9 @@ function createMainWindow() {
 	})();
 	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'config.html');
 	currentViewName = defaultView;
+
+	// Inicializar DB de facturación al inicio
+	try { getDb(); } catch (e) { console.warn('DB init error', e); }
 
 	// Bypass de licencia en desarrollo si SKIP_LICENSE=true o flag --skip-license
 	const devBypass = (!app.isPackaged) && (String(process.env.SKIP_LICENSE).toLowerCase() === 'true' || process.argv.includes('--skip-license'));
@@ -925,6 +930,40 @@ app.whenReady().then(() => {
 			return { ok: true };
 		}
 		return { ok: false };
+	});
+
+	// IPC Facturación
+	ipcMain.handle('facturacion:guardar-config', async (_e, cfg: any) => {
+		try { getDb().saveAfipConfig(cfg); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
+		try {
+			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+	ipcMain.handle('facturacion:listar', async (_e, filtros: { desde?: string; hasta?: string }) => {
+		try { const rows = getDb().listFacturas(filtros?.desde, filtros?.hasta); return { ok: true, rows }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:abrir-pdf', async (_e, filePath: string) => {
+		try { await getFacturacionService().abrirPdf(filePath); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:empresa:get', async () => {
+		try { return { ok: true, data: getDb().getEmpresaConfig() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:empresa:save', async (_e, data: any) => {
+		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:param:get', async () => {
+		try { return { ok: true, data: getDb().getParametrosFacturacion() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:param:save', async (_e, data: any) => {
+		try { getDb().saveParametrosFacturacion(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:pdfs', async () => {
+		try { return { ok: true, rows: getDb().listPdfsEnDocumentos() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
 
 	createMainWindow();

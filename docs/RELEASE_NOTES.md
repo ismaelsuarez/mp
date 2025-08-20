@@ -21,6 +21,14 @@ Fecha de publicación: 2025-08-20
 - Documentación
   - Actualizada `docs/doc_modo_admin/CONFIG_FTP.md` con disparo inmediato, pruebas de envío, limpieza y notas sobre rutas UNC/PASV/credenciales.
 
+- Facturación (AFIP) – EN CONSTRUCCIÓN
+  - Nueva sección en Configuración: “Facturación (AFIP) (en construcción)” con formularios de Empresa, Parámetros e integración AFIP; historial de PDFs locales.
+  - Backend: módulo base en `src/modules/facturacion/` (tipos, `afipService` con carga diferida, `facturaGenerator` con Handlebars + Puppeteer, plantillas iniciales A/B/NC/Recibo).
+  - Base de datos: tablas `empresa_config`, `parametros_facturacion` y utilidades para listar PDFs en `Documentos/facturas/`.
+  - Modo Caja: botón de emisión demo oculto hasta la versión estable (flujo listo para integrar al confirmar venta).
+  - Documentación: agregado `docs/doc_afip/` (README, CONFIG_AFIP, PLANTILLAS_Y_PDF, FLUJO_CAJA_ADMIN, TROUBLESHOOTING).
+  - Nota: el módulo de facturación se habilitará completamente en la próxima versión; no afecta los modos existentes.
+
 ## 1.0.9
 Fecha de publicación: 2025-08-19
 - Modo Imagen: manejo de múltiples ventanas según `VENTANA=`

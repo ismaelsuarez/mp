@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -45,6 +45,7 @@
       "mp-sdk/**/*",
       "dist/**/*",
       "docs/**/*",
+      "templates/**/*",
       "build/icon.ico",
       "package.json"
     ],
@@ -85,16 +86,21 @@
     "argon2": "^0.44.0",
     "axios": "^1.10.0",
     "basic-ftp": "^5.0.5",
+    "better-sqlite3": "^9.6.0",
     "dayjs": "^1.11.13",
     "dbffile": "^1.12.0",
     "dotenv": "^17.2.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2",
     "exceljs": "^4.4.0",
+    "ftp-srv": "^4.6.3",
+    "handlebars": "^4.7.8",
     "mercadopago": "^2.8.0",
     "nodemailer": "^7.0.5",
     "papaparse": "^5.5.3",
-    "ftp-srv": "^4.6.3"
+    "pdfkit": "^0.15.2",
+    "puppeteer": "^22.15.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@types/node": "^24.2.1",

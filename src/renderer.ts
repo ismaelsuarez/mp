@@ -1221,4 +1221,127 @@ window.addEventListener('DOMContentLoaded', () => {
 			} catch { showToast('No se pudo abrir la carpeta'); }
 		});
 	})();
+
+	// Facturación – Configuración AFIP y listado
+	const btnAfipGuardar = document.getElementById('btnAfipGuardar') as HTMLButtonElement | null;
+	const afipCfgStatus = document.getElementById('afipCfgStatus');
+	btnAfipGuardar?.addEventListener('click', async () => {
+		const cfg = {
+			cuit: (document.getElementById('AFIP_CUIT') as HTMLInputElement)?.value?.trim(),
+			pto_vta: Number((document.getElementById('AFIP_PTO_VTA') as HTMLInputElement)?.value || 0),
+			cert_path: (document.getElementById('AFIP_CERT_PATH') as HTMLInputElement)?.value?.trim(),
+			key_path: (document.getElementById('AFIP_KEY_PATH') as HTMLInputElement)?.value?.trim(),
+			entorno: (document.getElementById('AFIP_ENTORNO') as HTMLSelectElement)?.value as any
+		};
+		const res = await (window.api as any).facturacion?.guardarConfig(cfg);
+		if (afipCfgStatus) afipCfgStatus.textContent = res?.ok ? 'Configuración guardada' : `Error: ${res?.error || ''}`;
+	});
+
+	async function cargarListadoFacturas() {
+		const desde = (document.getElementById('AFIP_FILTRO_DESDE') as HTMLInputElement)?.value?.trim();
+		const hasta = (document.getElementById('AFIP_FILTRO_HASTA') as HTMLInputElement)?.value?.trim();
+		const res = await (window.api as any).facturacion?.listar({ desde: desde || undefined, hasta: hasta || undefined });
+		const tbody = document.querySelector('#tablaFacturasAfip tbody');
+		if (!tbody) return;
+		(tbody as HTMLElement).innerHTML = '';
+		if (res?.ok && Array.isArray(res.rows)) {
+			for (const r of res.rows) {
+				const tr = document.createElement('tr');
+				tr.innerHTML = `
+					<td class="py-1">${r.fecha || ''}</td>
+					<td class="py-1">${r.pto_vta}</td>
+					<td class="py-1">${r.tipo_cbte}</td>
+					<td class="py-1">${String(r.numero).padStart(8, '0')}</td>
+					<td class="py-1">${r.razon_social_receptor || r.cuit_receptor || ''}</td>
+					<td class="py-1">$${Number(r.total).toFixed(2)}</td>
+					<td class="py-1">${r.cae}</td>
+					<td class="py-1"><button data-pdf="${r.pdf_path}" class="btnVerPdf px-2 py-0.5 text-xs rounded border border-slate-600 hover:bg-slate-700">Abrir</button></td>
+				`;
+				(tbody as HTMLElement).appendChild(tr);
+			}
+			// Bind abrir PDF
+			(tbody as HTMLElement).querySelectorAll('button.btnVerPdf')?.forEach((btn) => {
+				btn.addEventListener('click', async () => {
+					const fp = (btn as HTMLButtonElement).getAttribute('data-pdf') || '';
+					if (fp) await (window.api as any).facturacion?.abrirPdf(fp);
+				});
+			});
+		}
+	}
+	(document.getElementById('btnAfipBuscar') as HTMLButtonElement | null)?.addEventListener('click', cargarListadoFacturas);
+	setTimeout(() => cargarListadoFacturas(), 1000);
+
+	// Empresa – cargar/guardar
+	(async () => {
+		try {
+			const r = await (window.api as any).facturacion?.empresaGet();
+			const d = r?.data || {};
+			const empR = document.getElementById('EMP_RAZON') as HTMLInputElement | null;
+			const empC = document.getElementById('EMP_CUIT') as HTMLInputElement | null;
+			const empD = document.getElementById('EMP_DOM') as HTMLInputElement | null;
+			const empI = document.getElementById('EMP_IVA') as HTMLSelectElement | null;
+			const empL = document.getElementById('EMP_LOGO') as HTMLInputElement | null;
+			if (empR) empR.value = d.razon_social || '';
+			if (empC) empC.value = d.cuit || '';
+			if (empD) empD.value = d.domicilio || '';
+			if (empI) empI.value = d.condicion_iva || 'RI';
+			if (empL) empL.value = d.logo_path || '';
+		} catch {}
+	})();
+	(document.getElementById('btnEmpresaGuardar') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const payload = {
+			razon_social: (document.getElementById('EMP_RAZON') as HTMLInputElement)?.value?.trim(),
+			cuit: (document.getElementById('EMP_CUIT') as HTMLInputElement)?.value?.trim(),
+			domicilio: (document.getElementById('EMP_DOM') as HTMLInputElement)?.value?.trim(),
+			condicion_iva: (document.getElementById('EMP_IVA') as HTMLSelectElement)?.value,
+			logo_path: (document.getElementById('EMP_LOGO') as HTMLInputElement)?.value?.trim()
+		};
+		const res = await (window.api as any).facturacion?.empresaSave(payload);
+		const el = document.getElementById('empresaStatus');
+		if (el) el.textContent = res?.ok ? 'Guardado' : `Error: ${res?.error || ''}`;
+	});
+
+	// Parámetros – cargar/guardar
+	(async () => {
+		try {
+			const r = await (window.api as any).facturacion?.paramGet();
+			const p = r?.data || {};
+			(document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement | null)!.value = p.tipo_defecto || 'FA';
+			(document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement | null)!.value = p.pto_vta || '';
+			(document.getElementById('FAC_NUM_DEF') as HTMLInputElement | null)!.value = p.numeracion || '';
+		} catch {}
+	})();
+	(document.getElementById('btnParamGuardar') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const payload = {
+			tipo_defecto: (document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement)?.value,
+			pto_vta: Number((document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement)?.value || 0),
+			numeracion: Number((document.getElementById('FAC_NUM_DEF') as HTMLInputElement)?.value || 0)
+		};
+		const res = await (window.api as any).facturacion?.paramSave(payload);
+		const el = document.getElementById('paramStatus');
+		if (el) el.textContent = res?.ok ? 'Guardado' : `Error: ${res?.error || ''}`;
+	});
+
+	// Historial local de PDFs
+	async function renderPdfs() {
+		const list = document.getElementById('listaPdfsAfip');
+		if (!list) return;
+		list.innerHTML = '';
+		const res = await (window.api as any).facturacion?.listarPdfs();
+		if (res?.ok && Array.isArray(res.rows)) {
+			for (const f of res.rows) {
+				const li = document.createElement('li');
+				li.innerHTML = `<button data-path="${f.path}" class="px-2 py-0.5 text-xs rounded border border-slate-600 hover:bg-slate-700">Abrir</button> <span>${f.name}</span>`;
+				list.appendChild(li);
+			}
+			list.querySelectorAll('button[data-path]')?.forEach(btn => {
+				btn.addEventListener('click', async () => {
+					const fp = (btn as HTMLButtonElement).getAttribute('data-path') || '';
+					await (window.api as any).facturacion?.abrirPdf(fp);
+				});
+			});
+		}
+	}
+	(document.getElementById('btnPdfsRefresh') as HTMLButtonElement | null)?.addEventListener('click', renderPdfs);
+	setTimeout(() => renderPdfs(), 1000);
 });

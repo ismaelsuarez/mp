@@ -225,6 +225,43 @@ window.addEventListener('DOMContentLoaded', () => {
 		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
 	});
 
+	// Botón de ejemplo para emitir factura con plantilla (demo)
+	const btnEmitDemo = document.getElementById('btnEmitDemo');
+	btnEmitDemo?.addEventListener('click', async () => {
+		try {
+			appendLog('Emitiendo factura...');
+			const hoy = new Date();
+			const yyyy = hoy.getFullYear();
+			const mm = String(hoy.getMonth()+1).padStart(2,'0');
+			const dd = String(hoy.getDate()).padStart(2,'0');
+			const res = await (window.api as any).facturacion?.emitir({
+				pto_vta: 1,
+				tipo_cbte: 1, // A
+				fecha: `${yyyy}${mm}${dd}`,
+				cuit_emisor: '20123456789',
+				cuit_receptor: '20300123456',
+				razon_social_receptor: 'Cliente Demo',
+				condicion_iva_receptor: 'RI',
+				neto: 1000,
+				iva: 210,
+				total: 1210,
+				detalle: [
+					{ descripcion: 'Producto X', cantidad: 1, precioUnitario: 1000, alicuotaIva: 21 }
+				],
+				empresa: { nombre: 'Mi Empresa', cuit: '20123456789' },
+				plantilla: 'factura_a'
+			});
+			if (res?.ok) {
+				appendLog(`Factura emitida Nº ${res.numero}`);
+				await (window.api as any).facturacion?.abrirPdf(res.pdf_path);
+			} else {
+				appendLog(`Error: ${res?.error || 'falló emisión'}`);
+			}
+		} catch (e) {
+			appendLog('Error al emitir');
+		}
+	});
+
 	// Botón automático
 	document.getElementById('autoIndicatorCaja')?.addEventListener('click', handleAutoButtonClick);
 

@@ -116,6 +116,18 @@ contextBridge.exposeInMainWorld('api', {
 	// Utils
 	async openPath(fullPath: string) {
 		return await ipcRenderer.invoke('open-path', fullPath);
+	},
+	// Facturación
+	facturacion: {
+		guardarConfig: (cfg: any) => ipcRenderer.invoke('facturacion:guardar-config', cfg),
+		emitir: (payload: any) => ipcRenderer.invoke('facturacion:emitir', payload),
+		listar: (filtros?: { desde?: string; hasta?: string }) => ipcRenderer.invoke('facturacion:listar', filtros || {}),
+		abrirPdf: (filePath: string) => ipcRenderer.invoke('facturacion:abrir-pdf', filePath),
+		empresaGet: () => ipcRenderer.invoke('facturacion:empresa:get'),
+		empresaSave: (data: any) => ipcRenderer.invoke('facturacion:empresa:save', data),
+		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
+		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
+		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs')
 	}
 });
 

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Factura A</title>
+  <style>
+    body{ font-family: Arial, sans-serif; color:#111; }
+    .header{ display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #333; padding-bottom:8px; }
+    .logo{ height:64px; }
+    .title{ font-size:20px; font-weight:bold; }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
+    table{ width:100%; border-collapse:collapse; margin-top:12px; }
+    th, td{ border:1px solid #999; padding:6px; font-size:12px; }
+    th{ background:#f2f2f2; }
+    .totales{ margin-top:12px; display:flex; justify-content:flex-end; }
+    .totales table{ width:auto; }
+    .qr{ position:fixed; right:24px; bottom:24px; text-align:center; font-size:10px; color:#444; }
+  </style>
+  <!-- Handlebars placeholders: {{emisor.nombre}}, {{receptor.nombre}}, etc. -->
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">Factura A</div>
+      <div><strong>{{emisor.nombre}}</strong></div>
+      <div>CUIT: {{emisor.cuit}}</div>
+      {{#if emisor.domicilio}}<div>{{emisor.domicilio}}</div>{{/if}}
+      {{#if emisor.iibb}}<div>IIBB: {{emisor.iibb}}</div>{{/if}}
+      {{#if emisor.inicio}}<div>Inicio actividades: {{emisor.inicio}}</div>{{/if}}
+    </div>
+    <div>
+      {{#if emisor.logoPath}}<img class="logo" src="file://{{emisor.logoPath}}" />{{/if}}
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:10px;">
+    <div>
+      <div><strong>Receptor</strong></div>
+      <div>{{receptor.nombre}}</div>
+      <div>CUIT/DNI: {{receptor.cuit}}</div>
+      <div>IVA: {{receptor.condicionIva}}</div>
+      {{#if receptor.domicilio}}<div>{{receptor.domicilio}}</div>{{/if}}
+    </div>
+    <div>
+      <div><strong>Comprobante</strong></div>
+      <div>Tipo: {{cbte.tipo}}</div>
+      <div>Pto Vta: {{cbte.pto_vta}} - Número: {{nro_formateado}}</div>
+      <div>Fecha: {{fecha_larga}}</div>
+      {{#if afip.cae}}<div>CAE: {{afip.cae}} - Vto: {{afip.cae_vto}}</div>{{/if}}
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Descripción</th>
+        <th>Cant.</th>
+        <th>P. Unit.</th>
+        <th>IVA %</th>
+        <th>Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each detalle}}
+      <tr>
+        <td>{{this.descripcion}}</td>
+        <td style="text-align:right;">{{this.cantidad}}</td>
+        <td style="text-align:right;">{{this.precioUnitario}}</td>
+        <td style="text-align:right;">{{this.alicuotaIva}}</td>
+        <td style="text-align:right;">{{this.importe}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="totales">
+    <table>
+      <tr><th>Neto</th><td style="text-align:right;">{{totales.neto}}</td></tr>
+      <tr><th>IVA</th><td style="text-align:right;">{{totales.iva}}</td></tr>
+      <tr><th>Total</th><td style="text-align:right; font-weight:bold;">{{totales.total}}</td></tr>
+    </table>
+  </div>
+
+  {{#if qr_data_url}}
+  <div class="qr">
+    <img src="{{qr_data_url}}" style="height:120px;" />
+    <div>QR AFIP</div>
+  </div>
+  {{/if}}
+</body>
+</html>
+
+
