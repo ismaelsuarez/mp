@@ -2093,6 +2093,124 @@ app.whenReady().then(() => {
 		return { running: isFtpServerRunning() };
 	});
 
+	// ===== HANDLERS DE CONTROL REMOTO =====
+	ipcMain.handle('remote:saveConfig', async (_e, config: any) => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const success = await getRemoteService().saveConfig(config);
+			return { ok: success };
+		} catch (e: any) {
+			logError('Error guardando configuración remota', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:getConfig', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const config = getRemoteService().getConfig();
+			return { ok: true, data: config };
+		} catch (e: any) {
+			logError('Error obteniendo configuración remota', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:startHost', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const success = await getRemoteService().startHost();
+			return { ok: success };
+		} catch (e: any) {
+			logError('Error iniciando Host remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:startViewer', async (_e, hostId: string) => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const success = await getRemoteService().startViewer(hostId);
+			return { ok: success };
+		} catch (e: any) {
+			logError('Error iniciando Viewer remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:getOnlineHosts', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const hosts = await getRemoteService().getOnlineHosts();
+			return { ok: true, hosts };
+		} catch (e: any) {
+			logError('Error obteniendo hosts online', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:stopHost', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			await getRemoteService().stopHost();
+			return { ok: true };
+		} catch (e: any) {
+			logError('Error deteniendo Host remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:stopViewer', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			await getRemoteService().stopViewer();
+			return { ok: true };
+		} catch (e: any) {
+			logError('Error deteniendo Viewer remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:stopAll', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			await getRemoteService().stopAll();
+			return { ok: true };
+		} catch (e: any) {
+			logError('Error deteniendo todos los procesos remotos', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:pingServer', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const isOnline = await getRemoteService().pingServer();
+			return { ok: true, online: isOnline };
+		} catch (e: any) {
+			logError('Error haciendo ping al servidor remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('remote:getStatus', async () => {
+		try {
+			const { getRemoteService } = await import('./services/RemoteService');
+			const service = getRemoteService();
+			return {
+				ok: true,
+				config: service.getConfig(),
+				hostId: service.getHostId(),
+				isHostRunning: service.isHostRunning(),
+				isViewerRunning: service.isViewerRunning(),
+				activeProcesses: service.getActiveProcesses()
+			};
+		} catch (e: any) {
+			logError('Error obteniendo estado remoto', { error: e?.message || e });
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	ipcMain.handle('license:validate', async (_e, { nombreCliente, palabraSecreta, serial }: { nombreCliente: string; palabraSecreta: string; serial: string }) => {
 		return { ok: validarSerial(nombreCliente || '', palabraSecreta || '', serial || '') };
 	});

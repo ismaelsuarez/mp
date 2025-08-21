@@ -595,6 +595,106 @@
 					</div>
 				</details>
 
+				<!-- CONTROL REMOTO (RUSTDESK) -->
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						🖥️ Control Remoto (RustDesk)
+					</summary>
+					<div class="p-3 space-y-3">
+						<!-- Configuración de Servidor -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">📡 Configuración del Servidor</h4>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<label class="text-sm">
+									Servidor ID
+									<input id="remote-id-server" type="text" placeholder="tu-servidor.com:21115" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								</label>
+								<label class="text-sm">
+									Servidor Relay
+									<input id="remote-relay-server" type="text" placeholder="tu-servidor.com:21116" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								</label>
+							</div>
+							<div class="flex items-center space-x-2 mt-2">
+								<button type="button" id="btnTestRemoteServer" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">🔗 Probar Conexión</button>
+								<span id="remote-server-status" class="text-sm"></span>
+							</div>
+						</div>
+
+						<!-- Selección de Rol -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">⚙️ Configuración de Rol</h4>
+							<div class="flex space-x-4 mb-3">
+								<label class="flex items-center space-x-2">
+									<input type="radio" name="remote-role" value="host" id="remote-role-host" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+									<span class="text-sm">🖥️ Host (Puesto)</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input type="radio" name="remote-role" value="viewer" id="remote-role-viewer" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+									<span class="text-sm">👁️ Viewer (Jefe)</span>
+								</label>
+							</div>
+
+							<!-- Configuración para Host -->
+							<div id="remote-host-config" class="space-y-3 hidden">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label class="text-sm">
+										Usuario Remoto
+										<input id="remote-username" type="text" placeholder="usuario1" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+									</label>
+									<label class="text-sm">
+										Contraseña Remota
+										<input id="remote-password" type="password" placeholder="contraseña123" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+									</label>
+								</div>
+								<div class="flex items-center space-x-2">
+									<input type="checkbox" id="remote-auto-start" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+									<label for="remote-auto-start" class="text-sm">Iniciar automáticamente al arrancar</label>
+								</div>
+								<div class="flex space-x-2">
+									<button type="button" id="btnStartRemoteHost" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded">▶️ Iniciar Host</button>
+									<button type="button" id="btnStopRemoteHost" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">⏹️ Detener Host</button>
+									<span id="remote-host-status" class="text-sm flex items-center"></span>
+								</div>
+							</div>
+
+							<!-- Configuración para Viewer -->
+							<div id="remote-viewer-config" class="space-y-3 hidden">
+								<div class="bg-gray-900 p-3 rounded">
+									<div class="flex items-center justify-between mb-2">
+										<h5 class="text-sm font-semibold">📋 Sucursales Disponibles</h5>
+										<button type="button" id="btnRefreshRemoteHosts" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">🔄 Actualizar</button>
+									</div>
+									<div id="remote-hosts-list" class="space-y-2">
+										<!-- Lista dinámica de hosts -->
+									</div>
+									<div id="remote-hosts-empty" class="text-center text-gray-400 text-sm py-4 hidden">
+										No hay sucursales disponibles
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Estado General -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">📊 Estado del Sistema</h4>
+							<div id="remote-status-info" class="space-y-1 text-sm">
+								<div>• Estado del servidor: <span id="remote-server-connectivity">Desconocido</span></div>
+								<div>• ID de este equipo: <span id="remote-host-id">-</span></div>
+								<div>• Procesos activos: <span id="remote-active-processes">0</span></div>
+							</div>
+						</div>
+
+						<!-- Acciones -->
+						<div class="flex space-x-2">
+							<button type="button" id="btnSaveRemoteConfig" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">💾 Guardar Configuración</button>
+							<button type="button" id="btnStopAllRemote" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">⏹️ Detener Todo</button>
+							<button type="button" id="btnRemoteHelp" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded">❓ Ayuda</button>
+						</div>
+						
+						<div id="remote-config-status" class="text-sm"></div>
+					</div>
+				</details>
+
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						🚨 Notificaciones de Error
