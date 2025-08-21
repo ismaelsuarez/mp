@@ -459,6 +459,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	window.api.getConfig().then((cfg) => {
 		setFormFromConfig(cfg);
 		renderPreview(cfg || {});
+		applyPermsFromConfig(cfg);
 		if (cfg && (cfg as any).THEME) applyTheme((cfg as any).THEME);
 		enhanceUI();
 		if (cfg && (cfg as any).LAST_ACTIVE_TAB) activateTabByName((cfg as any).LAST_ACTIVE_TAB);
@@ -1397,9 +1398,10 @@ window.addEventListener('DOMContentLoaded', () => {
 		const res = await (window.api as any).perfiles?.get?.(id);
 		if (res?.row) {
 			const cfg = await window.api.getConfig();
-			const merged = { ...(cfg||{}), ...(res.row?.parametros || {}) };
+			const merged = { ...(cfg||{}), ...(res.row?.parametros || {}), ACTIVE_PERFIL_ID: res.row.id, ACTIVE_PERFIL_NOMBRE: res.row.nombre, ACTIVE_PERFIL_PERMISOS: res.row.permisos };
 			await window.api.saveConfig(merged);
 			setFormFromConfig(merged);
+			perfilesApplyUiPermissions(res.row.permisos || {});
 			showToast('Perfil aplicado');
 		}
 	}
@@ -1544,6 +1546,58 @@ window.addEventListener('DOMContentLoaded', () => {
 		(document.getElementById('btnPerfilAplicar') as HTMLButtonElement | null)?.removeEventListener('click', perfilesAplicarSeleccionado as any);
 		(document.getElementById('btnPerfilAplicar') as HTMLButtonElement | null)?.addEventListener('click', wrapped as any);
 	})();
+
+	function applyPermsFromConfig(cfg: any) {
+		try {
+			const permisos = (cfg && (cfg as any).ACTIVE_PERFIL_PERMISOS) || null;
+			if (!permisos) return;
+			perfilesApplyUiPermissions(permisos);
+			const btnCaja = document.getElementById('btnOpenCaja') as HTMLButtonElement | null;
+			if (btnCaja) { btnCaja.disabled = permisos.caja === false; btnCaja.style.opacity = permisos.caja === false ? '0.5' : '1'; }
+			const btnImg = document.getElementById('btnOpenImagen') as HTMLButtonElement | null;
+			if (btnImg) { btnImg.disabled = false; btnImg.style.opacity = '1'; }
+			// Etiqueta de perfil activo
+			const tag = document.getElementById('activePerfilTag') as HTMLSpanElement | null;
+			if (tag) {
+				const name = (cfg as any).ACTIVE_PERFIL_NOMBRE || '';
+				tag.textContent = name ? `Perfil activo: ${name}` : '';
+				if (name) tag.classList.remove('hidden'); else tag.classList.add('hidden');
+				// Color segun nombre
+				const base = ['border-slate-600','bg-slate-800','text-slate-200','border-emerald-700','bg-emerald-900/40','text-emerald-200','border-sky-700','bg-sky-900/40','text-sky-200','border-amber-700','bg-amber-900/40','text-amber-200'];
+				(tag.classList as any).remove(...base);
+				if (/admin/i.test(name)) { tag.classList.add('border-emerald-700','bg-emerald-900/40','text-emerald-200'); }
+				else if (/cajero/i.test(name)) { tag.classList.add('border-sky-700','bg-sky-900/40','text-sky-200'); }
+				else { tag.classList.add('border-amber-700','bg-amber-900/40','text-amber-200'); }
+			}
+			// Panel administración (config): si administracion=false, mostrar aviso y bloquear acciones críticas
+			const warn = document.getElementById('perfilPermWarning') as HTMLDivElement | null;
+			if (warn) {
+				if (permisos.administracion === false || permisos.configuracion === false) {
+					warn.classList.remove('hidden');
+					warn.textContent = 'Este perfil limita acciones de administración/configuración. Algunas opciones pueden estar deshabilitadas.';
+				} else {
+					warn.classList.add('hidden');
+					warn.textContent = '';
+				}
+			}
+			// Deshabilitar guardar si configuracion=false
+			const btnSave = document.getElementById('btnSave') as HTMLButtonElement | null;
+			if (btnSave) { btnSave.disabled = permisos.configuracion === false; btnSave.style.opacity = permisos.configuracion === false ? '0.5' : '1'; }
+			// Sólo lectura básica: inputs deshabilitados si configuracion=false
+			if (permisos.configuracion === false) {
+				Array.from(document.querySelectorAll('#configForm input, #configForm select, #configForm button'))
+					.forEach((el) => {
+						const id = (el as HTMLElement).id || '';
+						// Permitir navegación básica, abrir visor, botones Perfiles
+						const allowIds = new Set(['btnOpenCaja','btnOpenImagen','btnOpenLogs','btnPerfilAplicar','btnPerfilExportar','btnPerfilImportar','perfilSelect']);
+						if (!allowIds.has(id)) (el as HTMLInputElement | HTMLButtonElement).disabled = true;
+					});
+			} else {
+				Array.from(document.querySelectorAll('#configForm input, #configForm select, #configForm button'))
+					.forEach((el) => { (el as HTMLInputElement | HTMLButtonElement).disabled = false; });
+			}
+		} catch {}
+	}
 
 	perfilesLoadList();
 });

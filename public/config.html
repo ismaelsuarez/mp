@@ -11,7 +11,10 @@
 <body class="text-slate-200">
     <div class="container">
         <div class="flex items-center justify-between mb-2">
-            <img id="brandLogo" src="nombre_tc.png" alt="TODO-COMPUTACION" class="h-10 select-none" />
+            <div class="flex items-center gap-3">
+                <img id="brandLogo" src="nombre_tc.png" alt="TODO-COMPUTACION" class="h-12 select-none" />
+                <span id="activePerfilTag" class="hidden ml-8 px-2 py-0.5 rounded text-xs border border-slate-600 bg-slate-800 text-slate-200"></span>
+            </div>
             <div class="flex items-center gap-2">
                 <button id="btnOpenLogs" class="px-3 py-1.5 rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Abrir log de hoy</button>
                 <button id="btnOpenCaja" class="px-4 py-2 rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Modo Caja</button>
@@ -26,6 +29,7 @@
         </div>
 
         <section id="tab-config" class="tab-pane active">
+            <div id="perfilPermWarning" class="hidden mb-3 px-3 py-2 rounded-md border border-amber-600 bg-amber-900/40 text-amber-200 text-sm"></div>
 			<form id="configForm" class="form-grid">
 				<!-- Perfiles de Configuración (prioridad visual) -->
 				<details id="perfiles-config-primary" class="group mb-4 border border-sky-700 rounded-md">

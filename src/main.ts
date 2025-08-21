@@ -298,10 +298,17 @@ function hideToTray() {
 function buildTrayMenu() {
     const publicidadAllowed = isPublicidadAllowed();
     const publicidadChecked = isPublicidadActive();
+    const cfg: any = store.get('config') || {};
+    const activePerms: any = (cfg as any).ACTIVE_PERFIL_PERMISOS || {};
+    const perfilNombre: string = String((cfg as any).ACTIVE_PERFIL_NOMBRE || '');
+    const cajaDisabled = activePerms && activePerms.caja === false;
+    const estadoLabel = perfilNombre ? `Perfil: ${perfilNombre}` : 'Perfil: (sin aplicar)';
     const template: Electron.MenuItemConstructorOptions[] = [
+        { label: estadoLabel, enabled: false },
+        { type: 'separator' },
         { label: 'Mostrar', click: () => showMainWindow() },
         { type: 'separator' },
-        { label: 'Ir a Caja', click: () => openViewFromTray('caja') },
+        { label: perfilNombre ? `Ir a Caja${cajaDisabled ? ' (bloqueado por perfil)' : ''}` : 'Ir a Caja', enabled: !cajaDisabled, click: () => openViewFromTray('caja') },
         { label: 'Ir a Imagen', click: () => openViewFromTray('imagen') },
         { label: 'Ir a Configuración', click: () => openViewFromTray('config') },
         { type: 'separator' },
