@@ -1355,4 +1355,195 @@ window.addEventListener('DOMContentLoaded', () => {
 	}
 	(document.getElementById('btnPdfsRefresh') as HTMLButtonElement | null)?.addEventListener('click', renderPdfs);
 	setTimeout(() => renderPdfs(), 1000);
+
+	// ====== Perfiles de Configuración (UI wiring) ======
+	async function perfilesLoadList() {
+		try {
+			const res = await (window.api as any).perfiles?.list?.();
+			const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+			if (!sel || !res?.ok) return;
+			sel.innerHTML = '';
+			(res.rows || []).forEach((p: any) => {
+				const opt = document.createElement('option');
+				opt.value = String(p.id);
+				opt.textContent = p.nombre;
+				sel.appendChild(opt);
+			});
+			if (sel.options.length > 0) sel.selectedIndex = 0;
+			perfilesRenderPreview();
+		} catch {}
+	}
+
+	async function perfilesRenderPreview() {
+		try {
+			const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+			if (!sel) return;
+			const id = Number(sel.value || 0);
+			if (!id) return;
+			const res = await (window.api as any).perfiles?.get?.(id);
+			const pre = document.getElementById('perfilPreview') as HTMLPreElement | null;
+			if (pre) pre.textContent = res?.row ? JSON.stringify(res.row, null, 2) : '';
+			const tag = document.getElementById('perfilSelectedTag') as HTMLElement | null;
+			if (tag) tag.textContent = res?.row ? `Seleccionado: ${res.row.nombre} (id ${res.row.id})` : '';
+		} catch {}
+	}
+
+	async function perfilesAplicarSeleccionado() {
+		const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+		if (!sel) return;
+		const id = Number(sel.value || 0);
+		if (!id) return;
+		if (!confirm('¿Aplicar este perfil y sobrescribir la configuración actual?')) return;
+		const res = await (window.api as any).perfiles?.get?.(id);
+		if (res?.row) {
+			const cfg = await window.api.getConfig();
+			const merged = { ...(cfg||{}), ...(res.row?.parametros || {}) };
+			await window.api.saveConfig(merged);
+			setFormFromConfig(merged);
+			showToast('Perfil aplicado');
+		}
+	}
+
+	async function perfilesGuardarComoNuevo() {
+		const nombre = prompt('Nombre del nuevo perfil:');
+		if (!nombre) return;
+		const cfg = await window.api.getConfig();
+		const payload = { nombre, permisos: { facturacion: true, caja: true, administracion: true, configuracion: true }, parametros: cfg };
+		const res = await (window.api as any).perfiles?.save?.(payload);
+		if (res?.ok) { await perfilesLoadList(); showToast('Perfil guardado'); }
+	}
+
+	async function perfilesExportar() {
+		const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+		if (!sel) return;
+		const id = Number(sel.value || 0);
+		const res = await (window.api as any).perfiles?.get?.(id);
+		if (res?.row) {
+			const blob = new Blob([JSON.stringify(res.row, null, 2)], { type: 'application/json' });
+			const a = document.createElement('a');
+			const url = URL.createObjectURL(blob);
+			a.href = url; a.download = `perfil-${res.row.nombre.replace(/\s+/g,'_')}.json`;
+			document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
+		}
+	}
+
+	async function perfilesImportar() {
+		const input = document.getElementById('perfilImportFile') as HTMLInputElement | null;
+		if (!input) return;
+		input.onchange = async () => {
+			try {
+				const f = (input.files && input.files[0]) || null;
+				if (!f) return;
+				const text = await f.text();
+				const obj = JSON.parse(text);
+				await (window.api as any).perfiles?.save?.({ nombre: obj.nombre || ('Perfil '+Date.now()), permisos: obj.permisos||{}, parametros: obj.parametros||{} });
+				await perfilesLoadList();
+				showToast('Perfil importado');
+			} catch (e:any) { showToast('Error al importar'); }
+			finally { input.value=''; }
+		};
+		input.click();
+	}
+
+	(document.getElementById('perfilSelect') as HTMLSelectElement | null)?.addEventListener('change', perfilesRenderPreview);
+	(document.getElementById('btnPerfilAplicar') as HTMLButtonElement | null)?.addEventListener('click', perfilesAplicarSeleccionado);
+	(document.getElementById('btnPerfilGuardarNuevo') as HTMLButtonElement | null)?.addEventListener('click', perfilesGuardarComoNuevo);
+	(document.getElementById('btnPerfilExportar') as HTMLButtonElement | null)?.addEventListener('click', perfilesExportar);
+	(document.getElementById('btnPerfilImportar') as HTMLButtonElement | null)?.addEventListener('click', perfilesImportar);
+
+	// ====== Perfiles: Editar (modal) ======
+	function perfilesApplyUiPermissions(permisos: any) {
+		try {
+			const secMp = document.getElementById('sec-mercado-pago') as HTMLDetailsElement | null;
+			const secFac = document.getElementById('sec-facturacion') as HTMLDetailsElement | null;
+			if (secMp) secMp.style.display = permisos?.facturacion === false ? 'none' : '';
+			if (secFac) secFac.style.display = permisos?.facturacion === false ? 'none' : '';
+		} catch {}
+	}
+
+	async function perfilesOpenEdit() {
+		const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+		if (!sel) return;
+		const id = Number(sel.value || 0);
+		if (!id) return;
+		const res = await (window.api as any).perfiles?.get?.(id);
+		if (!res?.row) return;
+		const p = res.row;
+		const modal = document.getElementById('perfilEditorModal') as HTMLDivElement | null;
+		(modal as any).classList.remove('hidden');
+		(modal as any).classList.add('flex');
+		const title = document.getElementById('perfilEditTitle') as HTMLElement | null;
+		if (title) title.textContent = `Editar perfil: ${p.nombre}`;
+		(document.getElementById('perfilEditNombre') as HTMLInputElement | null)!.value = p.nombre || '';
+		(document.getElementById('perm_facturacion') as HTMLInputElement | null)!.checked = !!p.permisos?.facturacion;
+		(document.getElementById('perm_caja') as HTMLInputElement | null)!.checked = !!p.permisos?.caja;
+		(document.getElementById('perm_administracion') as HTMLInputElement | null)!.checked = !!p.permisos?.administracion;
+		(document.getElementById('perm_configuracion') as HTMLInputElement | null)!.checked = !!p.permisos?.configuracion;
+		(document.getElementById('perm_consulta') as HTMLInputElement | null)!.checked = !!p.permisos?.consulta;
+		(document.getElementById('perfilEditParams') as HTMLTextAreaElement | null)!.value = JSON.stringify(p.parametros || {}, null, 2);
+
+		// helpers del modal
+		(document.getElementById('perfilParamsFromConfig') as HTMLButtonElement | null)!.onclick = async () => {
+			const cfg = await window.api.getConfig();
+			// Solo tomar claves relevantes a Imagen + FTP Server
+			const keys = [
+				'IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_WINDOW_SEPARATE','IMAGE_WATCH','IMAGE_PUBLICIDAD_ALLOWED',
+				'IMAGE_PRODUCTO_NUEVO_ENABLED','IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS',
+				'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED','FTP_SRV_PASV_HOST','FTP_SRV_PASV_MIN','FTP_SRV_PASV_MAX'
+			];
+			const subset: any = {};
+			keys.forEach((k) => { if (k in (cfg||{})) (subset as any)[k] = (cfg as any)[k]; });
+			(document.getElementById('perfilEditParams') as HTMLTextAreaElement | null)!.value = JSON.stringify(subset, null, 2);
+		};
+		(document.getElementById('perfilParamsClear') as HTMLButtonElement | null)!.onclick = () => {
+			(document.getElementById('perfilEditParams') as HTMLTextAreaElement | null)!.value = '{}';
+		};
+
+		function close() {
+			if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+		}
+		(document.getElementById('perfilEditClose') as HTMLButtonElement | null)!.onclick = close;
+		(document.getElementById('perfilEditCancel') as HTMLButtonElement | null)!.onclick = close;
+
+		(document.getElementById('perfilEditSave') as HTMLButtonElement | null)!.onclick = async () => {
+			try {
+				const nombre = (document.getElementById('perfilEditNombre') as HTMLInputElement | null)!.value?.trim() || p.nombre;
+				const permisos = {
+					facturacion: (document.getElementById('perm_facturacion') as HTMLInputElement | null)!.checked,
+					caja: (document.getElementById('perm_caja') as HTMLInputElement | null)!.checked,
+					administracion: (document.getElementById('perm_administracion') as HTMLInputElement | null)!.checked,
+					configuracion: (document.getElementById('perm_configuracion') as HTMLInputElement | null)!.checked,
+					consulta: (document.getElementById('perm_consulta') as HTMLInputElement | null)!.checked
+				};
+				let parametros: any = {};
+				try { parametros = JSON.parse((document.getElementById('perfilEditParams') as HTMLTextAreaElement | null)!.value || '{}'); }
+				catch (e:any) { showToast('JSON de parámetros inválido'); return; }
+				await (window.api as any).perfiles?.save?.({ id, nombre, permisos, parametros });
+				await perfilesLoadList();
+				perfilesApplyUiPermissions(permisos);
+				close();
+				showToast('Perfil actualizado');
+			} catch (e:any) { showToast('Error al guardar perfil'); }
+		};
+	}
+
+	(document.getElementById('btnPerfilEditar') as HTMLButtonElement | null)?.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); perfilesOpenEdit(); });
+
+	// Aplicar permisos a la UI cuando se aplica un perfil
+	(async function hookApplyPermsOnApply(){
+		const orig = perfilesAplicarSeleccionado;
+		async function wrapped() {
+			const sel = document.getElementById('perfilSelect') as HTMLSelectElement | null;
+			if (sel) {
+				const id = Number(sel.value || 0);
+				const res = await (window.api as any).perfiles?.get?.(id);
+				if (res?.row) perfilesApplyUiPermissions(res.row.permisos || {});
+			}
+			await orig();
+		}
+		(document.getElementById('btnPerfilAplicar') as HTMLButtonElement | null)?.removeEventListener('click', perfilesAplicarSeleccionado as any);
+		(document.getElementById('btnPerfilAplicar') as HTMLButtonElement | null)?.addEventListener('click', wrapped as any);
+	})();
+
+	perfilesLoadList();
 });

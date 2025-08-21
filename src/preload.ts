@@ -128,6 +128,13 @@ contextBridge.exposeInMainWorld('api', {
 		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
 		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
 		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs')
+	},
+	// Perfiles de configuración
+	perfiles: {
+		list: () => ipcRenderer.invoke('perfiles:list'),
+		get: (id: number) => ipcRenderer.invoke('perfiles:get', id),
+		save: (perfil: any) => ipcRenderer.invoke('perfiles:save', perfil),
+		remove: (id: number) => ipcRenderer.invoke('perfiles:delete', id)
 	}
 });
 

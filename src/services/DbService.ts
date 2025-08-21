@@ -129,6 +129,14 @@ class DbService {
 			numeracion INTEGER,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS perfiles_config (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			nombre TEXT NOT NULL,
+			permisos TEXT NOT NULL,
+			parametros TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
 		`);
 	}
 
@@ -266,6 +274,82 @@ class DbService {
 			const files = fs.readdirSync(docs).filter(f => f.toLowerCase().endsWith('.pdf'));
 			return files.map(f => ({ name: f, path: path.join(docs, f), mtime: fs.statSync(path.join(docs, f)).mtimeMs })).sort((a,b)=>b.mtime-a.mtime);
 		} catch { return []; }
+	}
+
+	// ===== Perfiles =====
+	listPerfiles(): Array<{ id: number; nombre: string; permisos: any; parametros: any; created_at?: string }> {
+		if (this.enabled && this.db) {
+			let rows = this.db.prepare('SELECT * FROM perfiles_config ORDER BY id ASC').all();
+			if (!rows || rows.length === 0) {
+				// Seed perfiles base
+				const seeds = [
+					{ nombre: 'Administrador', permisos: { facturacion: true, caja: true, administracion: true, configuracion: true }, parametros: {} },
+					{ nombre: 'Cajero', permisos: { facturacion: true, caja: true, administracion: false, configuracion: false }, parametros: {} },
+					{ nombre: 'Vendedor', permisos: { facturacion: false, caja: true, administracion: false, configuracion: false, consulta: true }, parametros: {} }
+				];
+				const ins = this.db.prepare('INSERT INTO perfiles_config (nombre, permisos, parametros) VALUES (@nombre, @permisos, @parametros)');
+				for (const s of seeds) ins.run({ nombre: s.nombre, permisos: JSON.stringify(s.permisos), parametros: JSON.stringify(s.parametros) });
+				rows = this.db.prepare('SELECT * FROM perfiles_config ORDER BY id ASC').all();
+			}
+			return rows.map((r: any) => ({ id: r.id, nombre: r.nombre, permisos: JSON.parse(r.permisos||'{}'), parametros: JSON.parse(r.parametros||'{}'), created_at: r.created_at }));
+		}
+		const data = this.readFallback();
+		if (!Array.isArray((data as any).perfiles) || (data as any).perfiles.length === 0) {
+			(data as any).perfiles = [
+				{ id: Date.now()-2, nombre: 'Administrador', permisos: { facturacion: true, caja: true, administracion: true, configuracion: true }, parametros: {} },
+				{ id: Date.now()-1, nombre: 'Cajero', permisos: { facturacion: true, caja: true, administracion: false, configuracion: false }, parametros: {} },
+				{ id: Date.now(), nombre: 'Vendedor', permisos: { facturacion: false, caja: true, administracion: false, configuracion: false, consulta: true }, parametros: {} }
+			];
+			this.writeFallback(data);
+		}
+		return (data as any).perfiles;
+	}
+
+	getPerfil(id: number) {
+		if (this.enabled && this.db) {
+			const r = this.db.prepare('SELECT * FROM perfiles_config WHERE id=?').get(id);
+			return r ? { id: r.id, nombre: r.nombre, permisos: JSON.parse(r.permisos||'{}'), parametros: JSON.parse(r.parametros||'{}'), created_at: r.created_at } : null;
+		}
+		const data = this.readFallback();
+		const found = (Array.isArray(data.perfiles) ? data.perfiles : []).find((p: any) => Number(p.id) === Number(id));
+		return found || null;
+	}
+
+	savePerfil(perfil: { id?: number; nombre: string; permisos: any; parametros: any }): number {
+		if (this.enabled && this.db) {
+			if (perfil.id) {
+				this.db.prepare('UPDATE perfiles_config SET nombre=@nombre, permisos=@permisos, parametros=@parametros WHERE id=@id')
+					.run({ id: perfil.id, nombre: perfil.nombre, permisos: JSON.stringify(perfil.permisos||{}), parametros: JSON.stringify(perfil.parametros||{}) });
+				return Number(perfil.id);
+			}
+			const info = this.db.prepare('INSERT INTO perfiles_config (nombre, permisos, parametros) VALUES (@nombre, @permisos, @parametros)')
+				.run({ nombre: perfil.nombre, permisos: JSON.stringify(perfil.permisos||{}), parametros: JSON.stringify(perfil.parametros||{}) });
+			return Number(info.lastInsertRowid || 0);
+		}
+		const data = this.readFallback();
+		data.perfiles = Array.isArray(data.perfiles) ? data.perfiles : [];
+		if (perfil.id) {
+			const idx = data.perfiles.findIndex((p: any) => Number(p.id) === Number(perfil.id));
+			if (idx >= 0) data.perfiles[idx] = perfil; else data.perfiles.push(perfil);
+			this.writeFallback(data);
+			return Number(perfil.id);
+		}
+		const id = Date.now();
+		data.perfiles.push({ ...perfil, id });
+		this.writeFallback(data);
+		return id;
+	}
+
+	deletePerfil(id: number): boolean {
+		if (this.enabled && this.db) {
+			this.db.prepare('DELETE FROM perfiles_config WHERE id=?').run(id);
+			return true;
+		}
+		const data = this.readFallback();
+		const before = (Array.isArray(data.perfiles) ? data.perfiles : []).length;
+		data.perfiles = (Array.isArray(data.perfiles) ? data.perfiles : []).filter((p: any) => Number(p.id) !== Number(id));
+		this.writeFallback(data);
+		return (Array.isArray(data.perfiles) ? data.perfiles : []).length < before;
 	}
 }
 

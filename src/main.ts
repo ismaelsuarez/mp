@@ -1970,6 +1970,20 @@ app.whenReady().then(() => {
 		return getErrorNotificationConfig();
 	});
 
+	// ===== HANDLERS DE PERFILES =====
+	ipcMain.handle('perfiles:list', async () => {
+		try { const rows = getDb().listPerfiles(); return { ok: true, rows }; } catch (e:any) { return { ok: false, error: String(e?.message||e) }; }
+	});
+	ipcMain.handle('perfiles:get', async (_e, id: number) => {
+		try { const row = getDb().getPerfil(Number(id)); return { ok: true, row }; } catch (e:any) { return { ok: false, error: String(e?.message||e) }; }
+	});
+	ipcMain.handle('perfiles:save', async (_e, perfil: any) => {
+		try { const id = getDb().savePerfil(perfil); return { ok: true, id }; } catch (e:any) { return { ok: false, error: String(e?.message||e) }; }
+	});
+	ipcMain.handle('perfiles:delete', async (_e, id: number) => {
+		try { const ok = getDb().deletePerfil(Number(id)); return { ok }; } catch (e:any) { return { ok: false, error: String(e?.message||e) }; }
+	});
+
 	// Actualizar configuración de notificaciones de error
 	ipcMain.handle('error-notifications:update-config', async (_e, config) => {
 		try {
