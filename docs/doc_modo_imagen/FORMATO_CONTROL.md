@@ -21,8 +21,10 @@ URI=RUTA@VENTANA=OPCION@INFO=DESCRIPCION
   - Usa el visor normal dentro de la ventana actual.
 - `VENTANA=nueva`
   - Abre el visor en una ventana separada (modal/independiente).
+  - Política “Producto nuevo” (opcional): si está habilitada en Admin y la siguiente solicitud llega dentro del intervalo configurado, se reutiliza la última ventana `nueva` y solo se refresca el contenido (evita abrir múltiples ventanas en ráfaga).
 - `VENTANA=comun12`
   - Variante “común” con ajuste extra (por ejemplo, un layout específico o fin/transición). Reservado para integraciones que lo requieran.
+  - Con “Publicidad” activo (habilitado + tildado en bandeja), la ventana espejo se muestra en kiosco + pantalla completa + siempre‑al‑frente; el HTML del visor quita marcos/bordes.
 
 > Nota: si `VENTANA` no está presente, la app usa el modo por defecto configurado en administración (`IMAGE_WINDOW_SEPARATE` o la vista actual).
 

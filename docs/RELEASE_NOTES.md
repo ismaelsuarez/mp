@@ -1,5 +1,16 @@
 # Notas de versión
 
+## 1.0.12
+Fecha de publicación: 2025-08-21
+- Modo Imagen
+  - Publicidad (mejorado): ventana espejo (`comun12`) ahora opera en modo kiosco + pantalla completa + siempre‑al‑frente y visible en todos los escritorios; el elemento `<video>` solicita fullscreen y el CSS (`body.publicidad`) elimina marcos/bordes y fuerza fondo negro.
+  - `VENTANA=nueva` – Producto nuevo: nueva política de enfriamiento para evitar saturación de ventanas. Si llegan múltiples solicitudes dentro del intervalo, se reutiliza la última ventana y solo se refresca el contenido. Configuración en Admin → Modo Imagen (`IMAGE_PRODUCTO_NUEVO_ENABLED`, `IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS`).
+  - Reproductor: videos con `autoplay + loop + muted + playsInline`; al cambiar contenido se detiene cualquier audio/video previo.
+- Bandeja/Configuración
+  - Guardar configuración refresca el menú de bandeja para habilitar el ítem “Publicidad” en el acto cuando `IMAGE_PUBLICIDAD_ALLOWED=true`.
+- Documentación
+  - Actualizados `docs/MODO_IMAGEN.md`, `docs/doc_modo_imagen/FORMATO_CONTROL.md` e informe técnico con Publicidad y Producto nuevo.
+
 ## 1.0.11
 Fecha de publicación: 2025-08-20
 - Automatización – disparadores inmediatos (comportamiento forzado)
@@ -10,6 +21,9 @@ Fecha de publicación: 2025-08-20
 - Modo Imagen
   - Fallback inteligente: si falta `*.jpg`, se intenta automáticamente `*.mp4` antes de mostrar `Noimage.jpg`/`nombre_tc.png`.
   - Multi‑monitor: todas las ventanas de imagen (principal, `VENTANA=nueva`, `comun12`) guardan `displayId` y área de trabajo y restauran tamaño/posición en el mismo monitor. Menú de bandeja con “Resetear posición/tamaño (ventana actual)”.
+  - Publicidad (pantalla completa): añadido modo de proyección “full full” para la ventana espejo (`comun12`). Al activar “Publicidad” (bandeja) y habilitarlo en Config, la ventana entra en modo kiosco + pantalla completa + siempre‑al‑frente y el video fuerza fullscreen del elemento; CSS específico quita marcos/bordes.
+  - `VENTANA=nueva` – Producto nuevo: nueva política de enfriamiento para evitar saturación de ventanas. Si llegan múltiples solicitudes dentro del intervalo configurado, se reutiliza la última ventana `nueva` y solo se refresca el contenido. Configurable en Admin → Modo Imagen (checkbox + segundos).
+  - Reproductor: videos con `autoplay + loop + muted`; al cambiar contenido, se detiene cualquier audio/video previo para evitar solapamientos.
 - Modo Caja
   - Persistencia multi‑monitor de tamaño/posición (bounds por monitor) y acción de reset desde la bandeja.
 - Inicio y navegación

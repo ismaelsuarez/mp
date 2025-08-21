@@ -3,13 +3,38 @@
 ## RESUMEN EJECUTIVO
 
 **Proyecto:** Sistema de Reportes de Pagos Mercado Pago  
-**Versión:** 1.0.10  
+**Versión:** 1.0.11  
 **Tecnologías:** TypeScript + Electron + Node.js  
 **Propósito:** Generación automatizada de reportes operativos de ventas desde Mercado Pago
 
 ---
 
-## NOVEDADES 1.0.10 (Estado actual)
+## NOVEDADES 1.0.11 (Estado actual)
+
+1) Modo Imagen – Publicidad (pantalla completa/kiosco)
+- Ventana espejo (`VENTANA=comun12`) ahora soporta un modo de proyección “full full”.
+- Implementación (Main): `setKiosk(true) + setFullScreen(true) + setAlwaysOnTop('screen-saver') + setVisibleOnAllWorkspaces(true)` cuando la opción “Publicidad” está activa (toggle en bandeja) y habilitada en Config (`IMAGE_PUBLICIDAD_ALLOWED`).
+- Implementación (Renderer): si `publicidad=true`, el `<video>` solicita `requestFullscreen()`; CSS (`body.publicidad`) elimina marco/bordes y fuerza fondo negro.
+- Menú de bandeja: item “Publicidad” con estado persistente; se refresca al guardar Config para reflejar `IMAGE_PUBLICIDAD_ALLOWED`.
+
+2) `VENTANA=nueva` – Política “Producto nuevo” (anti‑saturación)
+- Objetivo: evitar apertura masiva de ventanas cuando llegan muchos contenidos en ráfaga.
+- Configuración en Admin → Modo Imagen: `IMAGE_PRODUCTO_NUEVO_ENABLED` (on/off) y `IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS` (segundos de enfriamiento).
+- Implementación (Main): se mantiene `lastImageNewWindow` y `lastImageNewWindowAt`. Si una nueva solicitud `VENTANA=nueva` llega dentro del intervalo, se reutiliza la última ventana y solo se envía `image:new-content` (no se crea otra).
+- Persiste/restaura bounds; cierre con `ESC` permanece igual.
+
+3) Reproductor y estabilidad del visor
+- Videos: `autoplay + loop + muted + playsInline` por defecto.
+- Al cambiar de contenido, se detiene/limpia cualquier `<video>/<audio>` previo para evitar solapamientos.
+- Fallback: si falta `*.jpg` se intenta `*.mp4` y, si no existe, se usa `Noimage.jpg`/`nombre_tc.png`.
+
+4) Integración de Configuración y UI
+- `public/config.html`: agregado “Modo Publicidad” y controles de “Producto nuevo (enfriamiento VENTANA=nueva)”.
+- Guardar Config ahora refresca el menú de bandeja para habilitar de inmediato el ítem “Publicidad”.
+
+---
+
+## NOVEDADES 1.0.10 (histórico)
 
 1) Disparo inmediato por FTP (sin intervalo)
 - Watchers en el proceso principal que reaccionan al instante cuando llegan archivos a la carpeta del Servidor FTP integrado.

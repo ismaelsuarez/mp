@@ -461,46 +461,68 @@
 							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta los <strong>días</strong> y <strong>horarios</strong> configurados arriba. Si defines un <strong>intervalo remoto (ms)</strong>, usará ese valor (sugerido: 60000 ms).<br><span class="text-amber-300">Cuando está activado “Disparo inmediato por FTP (sin intervalo)”, al llegar <code>mp*.txt</code> se procesa <strong>siempre</strong> (ignora días/horas) y el envío de <code>mp.dbf</code> por FTP se realiza en <strong>modo forzado</strong> (no se salta por “sin cambios”).</span></div>
 						</div>
 
-						<!-- Modo Imagen para visualización remota -->
-						<div class="mb-3 p-3 rounded-md border border-slate-700 bg-slate-800/40">
-							<div class="text-sm font-semibold mb-2">📷 Modo Imagen (visualización remota)</div>
-							<p class="text-xs text-slate-400 mb-2">El modo imagen permite visualizar automáticamente contenido (imágenes, PDFs, audio, video) cuando se detecta un archivo de control. El archivo de control debe contener la ruta completa al archivo a mostrar.</p>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
-								<label class="block">Carpeta de control
-									<input id="IMAGE_CONTROL_DIR" placeholder="C:\tmp" />
-								</label>
-								<label class="block">Archivo de control
-									<input id="IMAGE_CONTROL_FILE" placeholder="direccion.txt" />
-								</label>
 
-								<label class="block">
-									<span class="text-sm">Abrir visor en ventana separada</span>
-									<input id="IMAGE_WINDOW_SEPARATE" type="checkbox" />
-								</label>
-							</div>
-							<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30 mb-2">
-								<input id="IMAGE_WATCH" type="checkbox" />
-								<span class="text-sm leading-5">
-									Disparo inmediato por FTP (sin intervalo)
-									<br><span class="text-xs text-slate-400">Muestra el contenido ni bien llega el <code>direccion.txt</code>.</span>
-								</span>
-							</label>
-							<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30 mb-2">
-								<input id="IMAGE_PUBLICIDAD_ALLOWED" type="checkbox" />
-								<span class="text-sm leading-5">
-									Modo Publicidad (pantalla completa para ventana espejo)
-									<br><span class="text-xs text-slate-400">Habilita el control “Publicidad” en el menú del icono de bandeja. Si está tildado allí, la ventana espejo abrirá en <strong>pantalla completa</strong> (estilo F11). Si no, usará su tamaño/posición guardados y, si estaba maximizada, se restaurará en ese estado.</span>
-								</span>
-							</label>
-							<button type="button" id="btnTestImage" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar lectura ahora</button>
-							<div class="text-xs text-slate-400 mt-2">El modo imagen respeta el intervalo, días y horarios configurados arriba. Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc.<br><span class="text-amber-300">Cuando está activado “Disparo inmediato por FTP (sin intervalo)”, al llegar <code>direccion.txt</code> se procesa <strong>siempre</strong> (ignora días/horas).</span></div>
-						</div>
 						
 						<div class="row">
 							<button type="button" id="btnAutoStart">Activar</button>
 							<button type="button" id="btnAutoStop">Desactivar</button>
 							<span id="autoStatus"></span>
 						</div>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						📷 Modo Imagen
+					</summary>
+					<div class="p-3 space-y-3">
+						<p class="text-xs text-slate-400">El modo imagen permite visualizar automáticamente contenido (imágenes, PDFs, audio, video) cuando se detecta un archivo de control.</p>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+							<label class="block">Carpeta de control
+								<input id="IMAGE_CONTROL_DIR" placeholder="C:\\tmp" />
+							</label>
+							<label class="block">Archivo de control
+								<input id="IMAGE_CONTROL_FILE" placeholder="direccion.txt" />
+							</label>
+							<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+								<input id="IMAGE_WINDOW_SEPARATE" type="checkbox" />
+								<span class="text-sm leading-5">
+									Abrir visor en ventana separada
+									<br><span class="text-xs text-slate-400">Si está tildado, aun sin <code>VENTANA=nueva</code> el contenido se abrirá en una <strong>ventana independiente</strong> con tamaño/posición persistentes. Si no, usa la ventana actual (modo <code>comun</code>).</span>
+								</span>
+							</label>
+						</div>
+						<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+							<input id="IMAGE_WATCH" type="checkbox" />
+							<span class="text-sm leading-5">
+								Disparo inmediato por FTP (sin intervalo)
+								<br><span class="text-xs text-slate-400">Muestra el contenido ni bien llega el <code>direccion.txt</code>.</span>
+							</span>
+						</label>
+						<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+							<input id="IMAGE_PUBLICIDAD_ALLOWED" type="checkbox" />
+							<span class="text-sm leading-5">
+								Modo Publicidad (pantalla completa para ventana espejo)
+								<br><span class="text-xs text-slate-400">Habilita el control “Publicidad” en el menú del icono de bandeja. Si está tildado allí, la ventana espejo abrirá en <strong>pantalla completa</strong> (estilo F11).</span>
+							</span>
+						</label>
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+							<label class="checkbox inline-flex items-start gap-2 p-2 rounded border border-slate-700 bg-slate-900/30">
+								<input id="IMAGE_PRODUCTO_NUEVO_ENABLED" type="checkbox" />
+								<span class="text-sm leading-5">
+									Producto nuevo (enfriamiento VENTANA=nueva)
+									<br><span class="text-xs text-slate-400">Si llegan muchas solicitudes seguidas de <code>VENTANA=nueva</code>, reutiliza la última ventana y solo refresca el contenido.</span>
+								</span>
+							</label>
+							<div class="flex items-center gap-3 flex-wrap">
+								<label class="inline-flex items-center gap-2 text-sm whitespace-nowrap">
+									<span>Intervalo de enfriamiento (seg)</span>
+									<input id="IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS" type="number" class="w-24 text-center" placeholder="10" min="1" step="1" />
+								</label>
+								<button type="button" id="btnTestImage" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Probar lectura ahora</button>
+							</div>
+						</div>
+						<p class="text-xs text-slate-400">Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc. Con “Disparo inmediato” activo se procesa siempre (ignora días/horas).</p>
 					</div>
 				</details>
 

@@ -272,7 +272,7 @@
 
       <section id="cfg-imagen" class="card">
         <h2>Modo Imagen (visor) <span class="badge">Actualizado</span></h2>
-        <p>Visor responsive (420×420 inicial, redimensionable) para imágenes, PDF, audio y video. Control por <code>direccion.txt</code> con formato <code>URI@VENTANA@INFO</code>. Soporta <code>VENTANA=comun</code>, <code>nueva</code> (abre otra ventana) y <code>comun12</code> (principal + espejo persistente). Disparo inmediato por FTP opcional.</p>
+        <p>Visor responsive (420×420 inicial, redimensionable) para imágenes, PDF, audio y video. Control por <code>direccion.txt</code> con formato <code>URI@VENTANA@INFO</code>. Soporta <code>VENTANA=comun</code>, <code>nueva</code> (abre otra ventana) y <code>comun12</code> (principal + espejo persistente). Incluye <strong>Disparo inmediato por FTP</strong>, modo <strong>Publicidad</strong> (pantalla completa para espejo) y política <strong>Producto nuevo</strong> (enfriamiento de <code>VENTANA=nueva</code>).</p>
         <div class="btns">
           <a class="btn" href="#doc-imagen">Detalle del visor</a>
           <a class="btn" href="#doc-imagen-formato">Formato del control</a>
@@ -326,9 +326,11 @@
             <ul>
               <li><code>VENTANA=comun</code>: usa la ventana principal.</li>
               <li><code>VENTANA=nueva</code>: abre un visor en otra ventana (primera vez centrada; luego recuerda tamaño/posición; cierra con ESC).</li>
-              <li><code>VENTANA=comun12</code>: muestra en principal y en una segunda ventana persistente (espejo) que se reutiliza.</li>
+              <li><code>VENTANA=comun12</code>: muestra en principal y en una segunda ventana persistente (espejo). Con <em>Publicidad</em> activo, la ventana espejo opera en modo kiosco + pantalla completa + siempre‑al‑frente, sin marcos; el elemento <code>&lt;video&gt;</code> solicita fullscreen.</li>
             </ul>
           </li>
+          <li><strong>Producto nuevo</strong>: si llegan múltiples solicitudes <code>VENTANA=nueva</code> dentro del intervalo de enfriamiento configurado, se reutiliza la última ventana y sólo se refresca el contenido (evita saturar con muchas ventanas).</li>
+          <li><strong>Reproductor</strong>: los videos se reproducen <em>autoplay + loop + muted</em>; al cambiar de contenido se detiene cualquier video/audio previo.</li>
           <li><strong>Título</strong>: usa <code>INFO</code> o el nombre del archivo. Menú oculto para presentación limpia.</li>
           <li><strong>Limpieza</strong>: el <code>.txt</code> de control se elimina tras procesarse; limpieza opcional de <code>.txt</code> antiguos.</li>
           <li><strong>Rutas</strong>: local/UNC (recomendado). Web <code>http/https</code> se abre en el navegador si usás <code>VENTANA=nueva</code>.</li>
@@ -501,6 +503,18 @@ curl -T C:\\tmp\\mp.txt ftp://$USER:`$PASS@$HOST:$PORT/</code></pre>
 
       <section id="notes" class="card">
         <h2>Notas de versión (resumen)</h2>
+        <h3>1.0.12</h3>
+        <ul class="list">
+          <li><strong>Publicidad</strong> mejorada: kiosco + pantalla completa + siempre‑al‑frente; video en fullscreen y CSS sin marcos.</li>
+          <li><strong>Producto nuevo</strong> para <code>VENTANA=nueva</code>: reutiliza la última ventana dentro del intervalo de enfriamiento.</li>
+          <li>Guardar configuración refresca el menú de bandeja para habilitar “Publicidad” cuando corresponde.</li>
+        </ul>
+        <h3>1.0.11</h3>
+        <ul class="list">
+          <li>Disparadores inmediatos: Remoto e Imagen procesan en el acto e ignoran días/horas cuando están en modo “watch”.</li>
+          <li>Fallback inteligente: si falta <code>*.jpg</code>, intenta <code>*.mp4</code> antes del placeholder.</li>
+          <li>Persistencia multi‑monitor y reset rápido desde la bandeja.</li>
+        </ul>
         <h3>1.0.10</h3>
         <ul class="list">
           <li>Disparo inmediato por FTP para Remoto/Imagen (<code>AUTO_REMOTE_WATCH</code>, <code>IMAGE_WATCH</code>), desactiva polling cuando aplica.</li>

@@ -26,6 +26,9 @@ let isQuitting = false;
 let currentViewName: 'config' | 'caja' | 'imagen' = 'caja';
 // Ventana persistente para presentaciones (comun12)
 let imageDualWindow: BrowserWindow | null = null;
+// Ventana 'nueva' (reutilizable bajo política de Producto Nuevo)
+let lastImageNewWindow: BrowserWindow | null = null;
+let lastImageNewWindowAt = 0; // epoch ms
 
 // Publicidad (presentación pantalla completa) para ventana espejo
 function isPublicidadAllowed(): boolean {
@@ -1617,6 +1620,20 @@ app.whenReady().then(() => {
 			} else if (wantNewWindow) {
 				// 'nueva': crear una nueva ventana. Primera vez: centrar; siguientes: restaurar coordenadas guardadas
 				try {
+					// Política Producto Nuevo: reutilizar la última ventana si llegan muchas solicitudes seguidas
+					const pnEnabled = cfgNow.IMAGE_PRODUCTO_NUEVO_ENABLED === true;
+					const pnWaitSec = Number(cfgNow.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || 0);
+					const reuseWindow = pnEnabled && Number.isFinite(pnWaitSec) && pnWaitSec > 0 && (Date.now() - lastImageNewWindowAt) < pnWaitSec * 1000;
+					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
+						try { lastImageNewWindow.focus(); } catch {}
+						try { lastImageNewWindow.setTitle(infoText || path.basename(filePath)); } catch {}
+						lastImageNewWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
+						lastImageNewWindowAt = Date.now();
+						logInfo('VENTANA=nueva reutilizada por Producto Nuevo', { withinSeconds: pnWaitSec });
+						// Ya refrescamos el contenido en la misma ventana
+						try { fs.unlinkSync(controlPath); } catch {}
+						return 1;
+					}
 					const win = new BrowserWindow({
 						width: 420,
 						height: 420,
@@ -1652,9 +1669,13 @@ app.whenReady().then(() => {
 					}
 					win.on('moved', () => saveImageNewWindowBounds(win));
 					win.on('resize', () => saveImageNewWindowBounds(win));
+					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
 					try { win.focus(); } catch {}
 					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
 					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
+					// Registrar como última ventana 'nueva'
+					lastImageNewWindow = win;
+					lastImageNewWindowAt = Date.now();
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}

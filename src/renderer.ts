@@ -26,6 +26,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		'AUTO_REMOTE_DIR','AUTO_REMOTE_MS_INTERVAL','AUTO_REMOTE_ENABLED','IMAGE_CONTROL_DIR','IMAGE_CONTROL_FILE','IMAGE_WINDOW_SEPARATE',
 		'AUTO_REMOTE_WATCH','IMAGE_WATCH',
 		'IMAGE_PUBLICIDAD_ALLOWED',
+		'IMAGE_PRODUCTO_NUEVO_ENABLED','IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS',
 		'DEFAULT_VIEW',
 		// FTP Server (admin)
 		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
@@ -140,6 +141,8 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_WINDOW_SEPARATE: (el.IMAGE_WINDOW_SEPARATE as HTMLInputElement)?.checked || false,
 			IMAGE_WATCH: (el.IMAGE_WATCH as HTMLInputElement)?.checked || false,
 			IMAGE_PUBLICIDAD_ALLOWED: (el.IMAGE_PUBLICIDAD_ALLOWED as HTMLInputElement)?.checked || false,
+			IMAGE_PRODUCTO_NUEVO_ENABLED: (el.IMAGE_PRODUCTO_NUEVO_ENABLED as HTMLInputElement)?.checked || false,
+			IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS: (el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement)?.value ? Number((el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement).value) : undefined,
 			DEFAULT_VIEW: ((): 'config'|'caja'|'imagen' => {
 				try {
 					const href = String(window.location.pathname || '').toLowerCase();
@@ -222,6 +225,10 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (elImageWatch) elImageWatch.checked = cfg.IMAGE_WATCH === true;
 		const elPubAllowed = document.getElementById('IMAGE_PUBLICIDAD_ALLOWED') as HTMLInputElement | null;
 		if (elPubAllowed) elPubAllowed.checked = cfg.IMAGE_PUBLICIDAD_ALLOWED === true;
+		const elPnEnabled = document.getElementById('IMAGE_PRODUCTO_NUEVO_ENABLED') as HTMLInputElement | null;
+		if (elPnEnabled) elPnEnabled.checked = cfg.IMAGE_PRODUCTO_NUEVO_ENABLED === true;
+		const elPnWait = document.getElementById('IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS') as HTMLInputElement | null;
+		if (elPnWait) elPnWait.value = cfg.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || '';
 		// FTP Server
 		const ftpHostEl = document.getElementById('FTP_SRV_HOST') as HTMLInputElement | null;
 		const ftpPortEl = document.getElementById('FTP_SRV_PORT') as HTMLInputElement | null;
