@@ -1838,7 +1838,7 @@ El **Módulo de Facturación AFIP** establece un nuevo estándar en la integraci
 
 **Documento generado:** `docs/DOCUMENTACION_TECNICA_FACTURACION_CENTRALIZADA.md`  
 **Versión:** 1.0  
-**Fecha:** 2024-01-15  
+**Fecha:** 2025-08-22  
 **Autor:** Sistema de Documentación Automatizada  
 **Estado:** COMPLETO Y ACTUALIZADO  
 
