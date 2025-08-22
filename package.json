@@ -23,7 +23,8 @@
     "mp:payments:report:dist": "npm run build:ts && node dist/mp-sdk/report.js",
     "mp:account:process": "node mp-sdk/account-money-process.js",
     "mp:account:process:dist": "npm run build:ts && node dist/mp-sdk/account-money-process.js",
-    "clean:credentials": "node scripts/clean-credentials.js"
+    "clean:credentials": "node scripts/clean-credentials.js",
+    "verificar:remoto": "node verificar_remoto.js"
   },
   "build": {
     "appId": "com.ismael.miapp",
@@ -49,13 +50,7 @@
       "build/icon.ico",
       "package.json"
     ],
-    "extraResources": [
-      {
-        "from": "resources/rustdesk",
-        "to": "resources/rustdesk",
-        "filter": ["**/*"]
-      }
-    ],
+    "extraResources": [],
     "directories": {
       "buildResources": "build"
     },
