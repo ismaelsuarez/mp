@@ -162,7 +162,7 @@ function showContent(filePath: string) {
                     if (typeof reqFs === 'function') { try { reqFs.call(el); } catch {} }
                     // Forzar capa superior del contenedor
                     const container = document.getElementById('contentViewer') as HTMLElement | null;
-                    if (container) { container.style.zIndex = '2147483647'; container.style.background = 'black'; }
+                    if (container) { container.style.zIndex = '2147483647'; container.style.background = 'white'; }
                     // Intentar mantener la ventana al frente desde renderer (mejora visual en algunos entornos)
                     try { (window as any).api?.onNewImageContent && document.dispatchEvent(new Event('keep-front')); } catch {}
                 }
