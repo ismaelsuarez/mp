@@ -1,6 +1,8 @@
-import { DatosAFIP, Comprobante, TipoComprobante } from './types';
-import dayjs from 'dayjs';
+import { DatosAFIP, Comprobante, TipoComprobante, ServerStatus, CertificadoInfo } from './types';
 import { getDb } from '../../services/DbService';
+import { AfipLogger } from './afip/AfipLogger';
+import { CertificateValidator } from './afip/CertificateValidator';
+import { AfipHelpers } from './afip/helpers';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -12,96 +14,218 @@ function loadAfip() {
   }
 }
 
-function mapTipoCbte(tipo: TipoComprobante): number {
-  switch (tipo) {
-    case 'FA': return 1; // Factura A
-    case 'FB': return 6; // Factura B
-    case 'NC': return 3; // Nota de Crédito A (simplificado)
-    case 'RECIBO': return 4; // Recibo A (referencia; ajustar según uso)
-    default: return 6;
-  }
-}
+class AfipService {
+  private afipInstance: any = null;
+  private logger: AfipLogger;
 
-export async function solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
-  const cfg = getDb().getAfipConfig();
-  if (!cfg) throw new Error('Falta configurar AFIP en Administración');
-  const Afip = loadAfip();
-  const afip = new Afip({ CUIT: Number(cfg.cuit), production: cfg.entorno === 'produccion', cert: cfg.cert_path, key: cfg.key_path });
-
-  const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
-  const tipoCbte = mapTipoCbte(comprobante.tipo);
-  const last = await afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte);
-  const numero = Number(last) + 1;
-
-  const neto = comprobante.totales.neto;
-  const iva = comprobante.totales.iva;
-  const total = comprobante.totales.total;
-
-  const ivaArray = [] as any[];
-  const mapId = (p: number) => (p === 10.5 ? 4 : p === 27 ? 6 : 5);
-  // Sumar bases por alícuota
-  const bases = new Map<number, number>();
-  for (const it of comprobante.items) {
-    const base = it.cantidad * it.precioUnitario;
-    bases.set(it.iva, (bases.get(it.iva) || 0) + base);
-  }
-  for (const [alic, base] of bases) {
-    ivaArray.push({ Id: mapId(alic), BaseImp: base, Importe: (base * alic) / 100 });
+  constructor() {
+    this.logger = new AfipLogger();
   }
 
-  const req = {
-    CantReg: 1,
-    PtoVta: ptoVta,
-    CbteTipo: tipoCbte,
-    Concepto: 1,
-    DocTipo: 99,
-    DocNro: 0,
-    CbteDesde: numero,
-    CbteHasta: numero,
-    CbteFch: comprobante.fecha,
-    ImpTotal: total,
-    ImpTotConc: 0,
-    ImpNeto: neto,
-    ImpOpEx: 0,
-    ImpIVA: iva,
-    ImpTrib: 0,
-    MonId: 'PES',
-    MonCotiz: 1,
-    Iva: ivaArray
-  };
+  /**
+   * Obtiene una instancia de AFIP configurada
+   */
+  private async getAfipInstance(): Promise<any> {
+    if (this.afipInstance) {
+      return this.afipInstance;
+    }
 
-  try {
-    const res = await afip.ElectronicBilling.createVoucher(req);
-    const cae: string = res.CAE;
-    const caeVto: string = res.CAEFchVto;
+    const cfg = getDb().getAfipConfig();
+    if (!cfg) {
+      throw new Error('Falta configurar AFIP en Administración');
+    }
 
-    const qrData = buildQrUrl({
-      ver: 1,
-      fecha: dayjs(comprobante.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
-      cuit: Number(cfg.cuit),
-      ptoVta,
-      tipoCmp: tipoCbte,
-      nroCmp: numero,
-      importe: Number(total.toFixed(2)),
-      moneda: 'PES',
-      ctz: 1,
-      tipoDocRec: 99,
-      nroDocRec: 0,
-      tipoCodAut: 'E',
-      codAut: Number(cae)
+    // Validar certificado antes de crear instancia
+    const certInfo = CertificateValidator.validateCertificate(cfg.cert_path);
+    if (!certInfo.valido) {
+      throw new Error(`Certificado inválido: ${certInfo.error}`);
+    }
+
+    const Afip = loadAfip();
+    this.afipInstance = new Afip({
+      CUIT: Number(cfg.cuit),
+      production: cfg.entorno === 'produccion',
+      cert: cfg.cert_path,
+      key: cfg.key_path
     });
 
-    return { cae, vencimientoCAE: caeVto, qrData };
-  } catch (e: any) {
-    const msg = e?.message || 'AFIP rechazó la solicitud de CAE';
-    throw new Error(String(msg));
+    return this.afipInstance;
+  }
+
+  /**
+   * Solicita CAE para un comprobante
+   */
+  async solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
+    try {
+      // Validar comprobante
+      const errors = AfipHelpers.validateComprobante(comprobante);
+      if (errors.length > 0) {
+        throw new Error(`Errores de validación: ${errors.join(', ')}`);
+      }
+
+      const afip = await this.getAfipInstance();
+      const cfg = getDb().getAfipConfig()!;
+      
+      const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
+      const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+
+      // Obtener último número autorizado
+      this.logger.logRequest('getLastVoucher', { ptoVta, tipoCbte });
+      const last = await afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte);
+      this.logger.logResponse('getLastVoucher', { last });
+      
+      const numero = Number(last) + 1;
+
+      // Construir array de IVA
+      const ivaArray = AfipHelpers.buildIvaArray(comprobante.items);
+
+      // Construir request para AFIP
+      const request = {
+        CantReg: 1,
+        PtoVta: ptoVta,
+        CbteTipo: tipoCbte,
+        Concepto: 1,
+        DocTipo: 99,
+        DocNro: 0,
+        CbteDesde: numero,
+        CbteHasta: numero,
+        CbteFch: comprobante.fecha,
+        ImpTotal: AfipHelpers.formatNumber(comprobante.totales.total),
+        ImpTotConc: 0,
+        ImpNeto: AfipHelpers.formatNumber(comprobante.totales.neto),
+        ImpOpEx: 0,
+        ImpIVA: AfipHelpers.formatNumber(comprobante.totales.iva),
+        ImpTrib: 0,
+        MonId: 'PES',
+        MonCotiz: 1,
+        Iva: ivaArray
+      };
+
+      // Log request
+      this.logger.logRequest('createVoucher', request);
+
+      // Solicitar CAE
+      const response = await afip.ElectronicBilling.createVoucher(request);
+      
+      // Log response
+      this.logger.logResponse('createVoucher', response);
+
+      const cae: string = response.CAE;
+      const caeVto: string = response.CAEFchVto;
+
+      // Construir QR
+      const qrData = AfipHelpers.buildQrUrl({
+        cuit: Number(cfg.cuit),
+        ptoVta,
+        tipoCmp: tipoCbte,
+        nroCmp: numero,
+        importe: comprobante.totales.total,
+        fecha: comprobante.fecha,
+        cae
+      });
+
+      return { cae, vencimientoCAE: caeVto, qrData };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.logError('solicitarCAE', error instanceof Error ? error : new Error(errorMessage), { comprobante });
+      throw new Error(`Error solicitando CAE: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Verifica el estado de los servidores de AFIP
+   */
+  async checkServerStatus(): Promise<ServerStatus> {
+    try {
+      const afip = await this.getAfipInstance();
+      
+      this.logger.logRequest('getServerStatus', {});
+      const status = await afip.ElectronicBilling.getServerStatus();
+      this.logger.logResponse('getServerStatus', status);
+
+      return {
+        appserver: status.AppServer,
+        dbserver: status.DbServer,
+        authserver: status.AuthServer
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.logError('checkServerStatus', error instanceof Error ? error : new Error(errorMessage));
+      throw new Error(`Error verificando estado de servidores: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Valida el certificado configurado
+   */
+  validarCertificado(): CertificadoInfo {
+    try {
+      const cfg = getDb().getAfipConfig();
+      if (!cfg) {
+        return {
+          valido: false,
+          fechaExpiracion: new Date(),
+          diasRestantes: 0,
+          error: 'No hay configuración AFIP'
+        };
+      }
+
+      return CertificateValidator.validateCertificate(cfg.cert_path);
+
+    } catch (error) {
+      return {
+        valido: false,
+        fechaExpiracion: new Date(),
+        diasRestantes: 0,
+        error: `Error validando certificado: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
+   * Obtiene el último número autorizado para un punto de venta y tipo
+   */
+  async getUltimoAutorizado(puntoVenta: number, tipoComprobante: TipoComprobante): Promise<number> {
+    try {
+      const afip = await this.getAfipInstance();
+      const tipoCbte = AfipHelpers.mapTipoCbte(tipoComprobante);
+
+      this.logger.logRequest('getLastVoucher', { puntoVenta, tipoCbte });
+      const last = await afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte);
+      this.logger.logResponse('getLastVoucher', { last });
+
+      return Number(last);
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.logError('getUltimoAutorizado', error instanceof Error ? error : new Error(errorMessage), { puntoVenta, tipoComprobante });
+      throw new Error(`Error obteniendo último autorizado: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Obtiene los logs de AFIP para una fecha específica
+   */
+  getLogs(date?: string) {
+    return this.logger.getLogs(date);
+  }
+
+  /**
+   * Limpia la instancia de AFIP (útil para testing)
+   */
+  clearInstance(): void {
+    this.afipInstance = null;
   }
 }
 
-function buildQrUrl(data: any): string {
-  const base = 'https://www.afip.gob.ar/fe/qr/?p=';
-  const payload = Buffer.from(JSON.stringify(data)).toString('base64');
-  return base + payload;
+// Exportar instancia singleton
+export const afipService = new AfipService();
+
+// Exportar función legacy para compatibilidad
+export async function solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
+  return afipService.solicitarCAE(comprobante);
 }
 
 

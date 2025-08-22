@@ -225,42 +225,44 @@ window.addEventListener('DOMContentLoaded', () => {
 		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
 	});
 
-	// Botón de ejemplo para emitir factura con plantilla (demo)
-	const btnEmitDemo = document.getElementById('btnEmitDemo');
-	btnEmitDemo?.addEventListener('click', async () => {
+	// Función para procesar facturación automática desde archivo
+	window.processAutomaticBilling = async function(data: any) {
 		try {
-			appendLog('Emitiendo factura...');
+			appendLog('📄 Procesando facturación automática...');
+			
 			const hoy = new Date();
 			const yyyy = hoy.getFullYear();
 			const mm = String(hoy.getMonth()+1).padStart(2,'0');
 			const dd = String(hoy.getDate()).padStart(2,'0');
+			
 			const res = await (window.api as any).facturacion?.emitir({
-				pto_vta: 1,
-				tipo_cbte: 1, // A
-				fecha: `${yyyy}${mm}${dd}`,
-				cuit_emisor: '20123456789',
-				cuit_receptor: '20300123456',
-				razon_social_receptor: 'Cliente Demo',
-				condicion_iva_receptor: 'RI',
-				neto: 1000,
-				iva: 210,
-				total: 1210,
-				detalle: [
-					{ descripcion: 'Producto X', cantidad: 1, precioUnitario: 1000, alicuotaIva: 21 }
-				],
-				empresa: { nombre: 'Mi Empresa', cuit: '20123456789' },
-				plantilla: 'factura_a'
+				pto_vta: data.pto_vta || 1,
+				tipo_cbte: data.tipo_cbte || 1,
+				fecha: data.fecha || `${yyyy}${mm}${dd}`,
+				cuit_emisor: data.cuit_emisor || '20123456789',
+				cuit_receptor: data.cuit_receptor,
+				razon_social_receptor: data.razon_social_receptor,
+				condicion_iva_receptor: data.condicion_iva_receptor || 'RI',
+				neto: data.neto,
+				iva: data.iva,
+				total: data.total,
+				detalle: data.detalle,
+				empresa: data.empresa || { nombre: 'TODO-COMPUTACIÓN', cuit: '20123456789' },
+				plantilla: data.plantilla || 'factura_a'
 			});
+			
 			if (res?.ok) {
-				appendLog(`Factura emitida Nº ${res.numero}`);
-				await (window.api as any).facturacion?.abrirPdf(res.pdf_path);
+				appendLog(`✅ Factura automática emitida Nº ${res.numero} - CAE: ${res.cae}`);
+				return res;
 			} else {
-				appendLog(`Error: ${res?.error || 'falló emisión'}`);
+				appendLog(`❌ Error en facturación automática: ${res?.error || 'falló emisión'}`);
+				throw new Error(res?.error || 'Error en facturación automática');
 			}
 		} catch (e) {
-			appendLog('Error al emitir');
+			appendLog(`❌ Error procesando facturación automática: ${e}`);
+			throw e;
 		}
-	});
+	};
 
 	// Botón automático
 	document.getElementById('autoIndicatorCaja')?.addEventListener('click', handleAutoButtonClick);

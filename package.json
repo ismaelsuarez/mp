@@ -49,6 +49,13 @@
       "build/icon.ico",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "resources/rustdesk",
+        "to": "resources/rustdesk",
+        "filter": ["**/*"]
+      }
+    ],
     "directories": {
       "buildResources": "build"
     },

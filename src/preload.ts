@@ -135,6 +135,19 @@ contextBridge.exposeInMainWorld('api', {
 		get: (id: number) => ipcRenderer.invoke('perfiles:get', id),
 		save: (perfil: any) => ipcRenderer.invoke('perfiles:save', perfil),
 		remove: (id: number) => ipcRenderer.invoke('perfiles:delete', id)
+	},
+	// Control Remoto
+	remote: {
+		saveConfig: (config: any) => ipcRenderer.invoke('remote:saveConfig', config),
+		getConfig: () => ipcRenderer.invoke('remote:getConfig'),
+		startHost: () => ipcRenderer.invoke('remote:startHost'),
+		startViewer: (hostId: string) => ipcRenderer.invoke('remote:startViewer', hostId),
+		getOnlineHosts: () => ipcRenderer.invoke('remote:getOnlineHosts'),
+		stopHost: () => ipcRenderer.invoke('remote:stopHost'),
+		stopViewer: () => ipcRenderer.invoke('remote:stopViewer'),
+		stopAll: () => ipcRenderer.invoke('remote:stopAll'),
+		pingServer: () => ipcRenderer.invoke('remote:pingServer'),
+		getStatus: () => ipcRenderer.invoke('remote:getStatus')
 	}
 });
 

@@ -373,6 +373,80 @@
 							</table>
 						</div>
 
+						<!-- Pruebas de Facturación -->
+						<div class="border-t border-slate-700 pt-3">
+							<div class="mb-2">
+								<h4 class="text-sm font-semibold text-blue-300">🧪 Pruebas de Facturación</h4>
+								<p class="text-xs text-slate-400">Sección para realizar pruebas de emisión de facturas en modo homologación</p>
+							</div>
+							
+							<div class="bg-slate-800/40 border border-slate-700 rounded-md p-3 mb-3">
+								<!-- Datos del Cliente -->
+								<div class="grid grid-cols-2 gap-2 mb-3">
+									<label class="text-xs">
+										CUIT Cliente:
+										<input type="text" id="pruebaFacturaCuit" placeholder="20300123456" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
+									</label>
+									<label class="text-xs">
+										Razón Social:
+										<input type="text" id="pruebaFacturaRazon" placeholder="Cliente Demo S.A." class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
+									</label>
+								</div>
+								
+								<!-- Tabla de Items -->
+								<div class="mb-3">
+									<div class="flex items-center justify-between mb-2">
+										<span class="text-xs font-semibold">Items de la Factura:</span>
+										<button type="button" id="btnAgregarItem" class="px-2 py-1 text-xs rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">+ Agregar Item</button>
+									</div>
+									
+									<div class="overflow-x-auto">
+										<table id="tablaItemsPrueba" class="w-full text-xs">
+											<thead class="bg-slate-700">
+												<tr>
+													<th class="px-2 py-1 text-left">Descripción</th>
+													<th class="px-2 py-1 text-left">Cantidad</th>
+													<th class="px-2 py-1 text-left">Precio Unit.</th>
+													<th class="px-2 py-1 text-left">IVA %</th>
+													<th class="px-2 py-1 text-left">Subtotal</th>
+													<th class="px-2 py-1 text-left">Acción</th>
+												</tr>
+											</thead>
+											<tbody id="tbodyItemsPrueba">
+												<!-- Items se agregarán dinámicamente -->
+											</tbody>
+											<tfoot class="bg-slate-700/50">
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold">Total Neto:</td>
+													<td id="totalNetoPrueba" class="px-2 py-1 font-semibold">$0.00</td>
+													<td></td>
+												</tr>
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold">Total IVA:</td>
+													<td id="totalIvaPrueba" class="px-2 py-1 font-semibold">$0.00</td>
+													<td></td>
+												</tr>
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold text-blue-300">Total Final:</td>
+													<td id="totalFinalPrueba" class="px-2 py-1 font-semibold text-blue-300">$0.00</td>
+													<td></td>
+												</tr>
+											</tfoot>
+										</table>
+									</div>
+								</div>
+								
+								<!-- Botones de Acción -->
+								<div class="flex items-center gap-2">
+									<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">Emitir Factura de Prueba</button>
+									<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">Verificar Estado AFIP</button>
+									<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">Validar Certificado</button>
+									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
+								</div>
+								<div id="pruebaStatus" class="mt-2 text-xs"></div>
+							</div>
+						</div>
+
 						<!-- Historial de PDFs en Documentos/facturas -->
 						<div class="border-t border-slate-700 pt-3">
 							<div class="flex items-center justify-between mb-2">
@@ -592,6 +666,106 @@
 							<button type="button" id="btnChangePassword">Cambiar contraseña</button>
 							<span id="passwordChangeStatus"></span>
 						</div>
+					</div>
+				</details>
+
+				<!-- CONTROL REMOTO (RUSTDESK) -->
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						🖥️ Control Remoto (RustDesk)
+					</summary>
+					<div class="p-3 space-y-3">
+						<!-- Configuración de Servidor -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">📡 Configuración del Servidor</h4>
+							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+								<label class="text-sm">
+									Servidor ID
+									<input id="remote-id-server" type="text" placeholder="tu-servidor.com:21115" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								</label>
+								<label class="text-sm">
+									Servidor Relay
+									<input id="remote-relay-server" type="text" placeholder="tu-servidor.com:21116" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+								</label>
+							</div>
+							<div class="flex items-center space-x-2 mt-2">
+								<button type="button" id="btnTestRemoteServer" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">🔗 Probar Conexión</button>
+								<span id="remote-server-status" class="text-sm"></span>
+							</div>
+						</div>
+
+						<!-- Selección de Rol -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">⚙️ Configuración de Rol</h4>
+							<div class="flex space-x-4 mb-3">
+								<label class="flex items-center space-x-2">
+									<input type="radio" name="remote-role" value="host" id="remote-role-host" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+									<span class="text-sm">🖥️ Host (Puesto)</span>
+								</label>
+								<label class="flex items-center space-x-2">
+									<input type="radio" name="remote-role" value="viewer" id="remote-role-viewer" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+									<span class="text-sm">👁️ Viewer (Jefe)</span>
+								</label>
+							</div>
+
+							<!-- Configuración para Host -->
+							<div id="remote-host-config" class="space-y-3 hidden">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label class="text-sm">
+										Usuario Remoto
+										<input id="remote-username" type="text" placeholder="usuario1" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+									</label>
+									<label class="text-sm">
+										Contraseña Remota
+										<input id="remote-password" type="password" placeholder="contraseña123" class="w-full px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm" />
+									</label>
+								</div>
+								<div class="flex items-center space-x-2">
+									<input type="checkbox" id="remote-auto-start" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+									<label for="remote-auto-start" class="text-sm">Iniciar automáticamente al arrancar</label>
+								</div>
+								<div class="flex space-x-2">
+									<button type="button" id="btnStartRemoteHost" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded">▶️ Iniciar Host</button>
+									<button type="button" id="btnStopRemoteHost" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">⏹️ Detener Host</button>
+									<span id="remote-host-status" class="text-sm flex items-center"></span>
+								</div>
+							</div>
+
+							<!-- Configuración para Viewer -->
+							<div id="remote-viewer-config" class="space-y-3 hidden">
+								<div class="bg-gray-900 p-3 rounded">
+									<div class="flex items-center justify-between mb-2">
+										<h5 class="text-sm font-semibold">📋 Sucursales Disponibles</h5>
+										<button type="button" id="btnRefreshRemoteHosts" class="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">🔄 Actualizar</button>
+									</div>
+									<div id="remote-hosts-list" class="space-y-2">
+										<!-- Lista dinámica de hosts -->
+									</div>
+									<div id="remote-hosts-empty" class="text-center text-gray-400 text-sm py-4 hidden">
+										No hay sucursales disponibles
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Estado General -->
+						<div class="bg-gray-800 p-3 rounded">
+							<h4 class="text-sm font-semibold mb-2">📊 Estado del Sistema</h4>
+							<div id="remote-status-info" class="space-y-1 text-sm">
+								<div>• Estado del servidor: <span id="remote-server-connectivity">Desconocido</span></div>
+								<div>• ID de este equipo: <span id="remote-host-id">-</span></div>
+								<div>• Procesos activos: <span id="remote-active-processes">0</span></div>
+							</div>
+						</div>
+
+						<!-- Acciones -->
+						<div class="flex space-x-2">
+							<button type="button" id="btnSaveRemoteConfig" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded">💾 Guardar Configuración</button>
+							<button type="button" id="btnStopAllRemote" class="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded">⏹️ Detener Todo</button>
+							<button type="button" id="btnRemoteHelp" class="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded">❓ Ayuda</button>
+						</div>
+						
+						<div id="remote-config-status" class="text-sm"></div>
 					</div>
 				</details>
 

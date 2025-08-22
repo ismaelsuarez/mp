@@ -53,4 +53,27 @@ export interface FacturaData {
   afip?: DatosAFIP;
 }
 
+// Nuevos tipos para AFIP
+export interface ServerStatus {
+  appserver: string;
+  dbserver: string;
+  authserver: string;
+}
+
+export interface CertificadoInfo {
+  valido: boolean;
+  fechaExpiracion: Date;
+  diasRestantes: number;
+  error?: string;
+}
+
+export interface AfipLogEntry {
+  timestamp: string;
+  operation: string;
+  request?: any;
+  response?: any;
+  error?: string;
+  stack?: string;
+}
+
 

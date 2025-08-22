@@ -137,6 +137,17 @@ class DbService {
 			parametros TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
+
+		CREATE TABLE IF NOT EXISTS remote_config (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			role TEXT NOT NULL,
+			id_server TEXT NOT NULL,
+			relay_server TEXT NOT NULL,
+			username TEXT,
+			password TEXT,
+			auto_start BOOLEAN DEFAULT 0,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
 		`);
 	}
 
@@ -350,6 +361,35 @@ class DbService {
 		data.perfiles = (Array.isArray(data.perfiles) ? data.perfiles : []).filter((p: any) => Number(p.id) !== Number(id));
 		this.writeFallback(data);
 		return (Array.isArray(data.perfiles) ? data.perfiles : []).length < before;
+	}
+
+	// ===== Control Remoto =====
+	getRemoteConfig() {
+		if (this.enabled && this.db) {
+			const row = this.db.prepare('SELECT * FROM remote_config ORDER BY id DESC LIMIT 1').get();
+			return row ? {
+				role: row.role,
+				idServer: row.id_server,
+				relayServer: row.relay_server,
+				username: row.username,
+				password: row.password,
+				autoStart: Boolean(row.auto_start)
+			} : null;
+		}
+		const data = this.readFallback();
+		return data.remote_config || null;
+	}
+
+	saveRemoteConfig(config: { role: string; idServer: string; relayServer: string; username?: string; password?: string; autoStart: boolean }) {
+		if (this.enabled && this.db) {
+			this.db.prepare('DELETE FROM remote_config').run();
+			this.db.prepare(`INSERT INTO remote_config (role, id_server, relay_server, username, password, auto_start) 
+				VALUES (@role, @idServer, @relayServer, @username, @password, @autoStart)`).run(config);
+			return;
+		}
+		const data = this.readFallback();
+		data.remote_config = config;
+		this.writeFallback(data);
 	}
 }
 
