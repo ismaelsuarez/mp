@@ -8,9 +8,9 @@ import { AfipHelpers } from './afip/helpers';
 function loadAfip() {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('afip.js');
+    return require('@afipsdk/afip.js');
   } catch (e) {
-    throw new Error('SDK AFIP no instalado. Instala "afip.js" o indica el SDK a usar.');
+    throw new Error('SDK AFIP no instalado. Instala "@afipsdk/afip.js" o indica el SDK a usar.');
   }
 }
 

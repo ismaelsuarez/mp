@@ -34,9 +34,9 @@ export class AfipService {
 		try {
 			// Carga diferida para no crashear si falta el SDK
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			AfipLib = require('afip.js');
+			AfipLib = require('@afipsdk/afip.js');
 		} catch (e) {
-			throw new Error('SDK de AFIP no instalado. Instala el paquete correspondiente (p. ej., afip.js desde GitHub) o indica el SDK a utilizar.');
+			throw new Error('SDK de AFIP no instalado. Instala el paquete correspondiente (@afipsdk/afip.js) o indica el SDK a utilizar.');
 		}
 		this.afip = new AfipLib({
 			CUIT: Number(cfg.cuit),
