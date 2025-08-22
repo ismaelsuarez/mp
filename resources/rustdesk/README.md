@@ -1,73 +1,63 @@
-# Binarios RustDesk
+# RustDesk Binary Setup
 
-Este directorio debe contener los binarios de RustDesk necesarios para el módulo de Control Remoto.
+## 📋 Instrucciones para Configurar RustDesk
 
-## Archivos Requeridos
+### 🔧 Paso 1: Descargar RustDesk
 
-- `rustdesk.exe` - Binario principal de RustDesk para Windows
+1. **Visitar la página oficial**: https://rustdesk.com/
+2. **Descargar la versión Windows**: Buscar "Download for Windows"
+3. **Obtener el instalador**: Descargar `rustdesk-1.2.3-x86_64.exe` (o la versión más reciente)
 
-## Instrucciones de Instalación
+### 🔧 Paso 2: Instalar RustDesk
 
-1. **Descargar RustDesk**:
-   - Ve a [RustDesk Releases](https://github.com/rustdesk/rustdesk/releases)
-   - Descarga la versión más reciente para Windows (rustdesk-X.X.X-x86_64.exe)
+1. **Ejecutar el instalador** descargado
+2. **Seguir las instrucciones** del instalador
+3. **Completar la instalación** en la ubicación por defecto
 
-2. **Instalar en este directorio**:
-   ```bash
-   # Renombrar el archivo descargado
-   mv rustdesk-X.X.X-x86_64.exe resources/rustdesk/rustdesk.exe
-   ```
+### 🔧 Paso 3: Localizar el Binario
 
-3. **Verificar instalación**:
-   ```bash
-   # El directorio debe contener
-   resources/rustdesk/
-   ├── rustdesk.exe        # Binario principal
-   └── README.md          # Este archivo
-   ```
-
-## Configuración de Build
-
-Los binarios en este directorio serán automáticamente incluidos en el instalador de MP Reports gracias a la configuración `extraResources` en `package.json`.
-
-## Permisos
-
-Asegúrate de que `rustdesk.exe` tenga permisos de ejecución:
-
-```bash
-chmod +x resources/rustdesk/rustdesk.exe
+Después de la instalación, el archivo `rustdesk.exe` se encuentra en:
+```
+C:\Users\[TuUsuario]\AppData\Local\Programs\RustDesk\rustdesk.exe
 ```
 
-## Verificación
+### 🔧 Paso 4: Copiar el Binario
 
-Para verificar que el binario funciona correctamente:
+1. **Copiar** el archivo `rustdesk.exe` desde la ubicación de instalación
+2. **Pegar** en esta carpeta: `resources/rustdesk/rustdesk.exe`
 
-```bash
-# Probar ejecución básica
-./resources/rustdesk/rustdesk.exe --help
+### 🔧 Paso 5: Verificar
+
+El archivo debe estar en:
+```
+resources/rustdesk/rustdesk.exe
 ```
 
-## Notas Importantes
+## 🚨 Solución Rápida
 
-- **Tamaño**: RustDesk es un binario relativamente grande (~15-20MB)
-- **Versión**: Usar siempre la versión estable más reciente
-- **Arquitectura**: Solo se soporta x64 (64-bit)
-- **Sistema**: Solo Windows está configurado actualmente
+Si no tienes RustDesk instalado, puedes:
 
-## Troubleshooting
+1. **Descargar directamente**: https://github.com/rustdesk/rustdesk/releases
+2. **Buscar**: `rustdesk-1.2.3-x86_64.exe` (o versión más reciente)
+3. **Extraer** el archivo `rustdesk.exe` del instalador
+4. **Copiar** a esta carpeta
 
-### Error: "rustdesk.exe no encontrado"
-- Verificar que el archivo existe en `resources/rustdesk/rustdesk.exe`
-- Verificar permisos de lectura/ejecución
+## 📝 Notas Importantes
 
-### Error: "Acceso denegado"
-- Ejecutar como administrador si es necesario
-- Verificar antivirus (puede bloquear ejecutables externos)
+- **Versión**: Usar la versión más reciente de RustDesk
+- **Arquitectura**: Asegurarse de descargar la versión x64 (64-bit)
+- **Permisos**: El archivo debe tener permisos de ejecución
+- **Antivirus**: Algunos antivirus pueden bloquear el archivo, añadir excepción si es necesario
 
-### Error de dependencias
-- Instalar Visual C++ Redistributable si es requerido
-- Verificar que Windows está actualizado
+## 🔍 Verificación
+
+Para verificar que todo funciona:
+
+1. **Reiniciar** la aplicación MP Reports
+2. **Ir a** Configuración → Control Remoto
+3. **Probar** la funcionalidad de Host/Viewer
 
 ---
 
-**Nota**: Los binarios de RustDesk están sujetos a sus propios términos de licencia. Ver [RustDesk License](https://github.com/rustdesk/rustdesk/blob/master/LICENSE) para más información.
+**Estado**: ⏳ Pendiente de configuración
+**Última actualización**: $(date)

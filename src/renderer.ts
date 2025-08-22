@@ -1683,10 +1683,21 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Guardar configuración remota
 	async function saveRemoteConfig() {
 		try {
+			let idServer = remoteElements.idServer.value.trim();
+			let relayServer = remoteElements.relayServer.value.trim();
+			
+			// Añadir puertos por defecto si no están especificados
+			if (idServer && !idServer.includes(':')) {
+				idServer += ':21115';
+			}
+			if (relayServer && !relayServer.includes(':')) {
+				relayServer += ':21116';
+			}
+			
 			const config = {
 				role: remoteElements.roleHost.checked ? 'host' : 'viewer',
-				idServer: remoteElements.idServer.value.trim(),
-				relayServer: remoteElements.relayServer.value.trim(),
+				idServer: idServer,
+				relayServer: relayServer,
 				username: remoteElements.username.value.trim(),
 				password: remoteElements.password.value.trim(),
 				autoStart: remoteElements.autoStart.checked
@@ -1702,9 +1713,17 @@ window.addEventListener('DOMContentLoaded', () => {
 				return;
 			}
 
+			console.log('Guardando configuración remota:', {
+				...config,
+				password: config.password ? '***' : 'no configurada'
+			});
+
 			const result = await (window.api as any).remote?.saveConfig?.(config);
 			if (result?.ok) {
 				remoteConfig = config;
+				// Actualizar los campos del formulario con los puertos añadidos
+				remoteElements.idServer.value = config.idServer;
+				remoteElements.relayServer.value = config.relayServer;
 				showRemoteStatus(remoteElements.configStatus, 'Configuración guardada exitosamente', 'success');
 				updateRemoteStatus();
 			} else {
@@ -1782,15 +1801,39 @@ window.addEventListener('DOMContentLoaded', () => {
 	async function testRemoteServer() {
 		try {
 			showRemoteStatus(remoteElements.serverStatus, 'Probando conexión...', 'info');
+			
+			// Verificar si hay configuración
+			const configResult = await (window.api as any).remote?.getConfig?.();
+			if (!configResult?.ok || !configResult.data) {
+				showRemoteStatus(remoteElements.serverStatus, 'Error: No hay configuración guardada', 'error');
+				return;
+			}
+			
+			const config = configResult.data;
+			if (!config.idServer) {
+				showRemoteStatus(remoteElements.serverStatus, 'Error: Servidor ID no configurado', 'error');
+				return;
+			}
+			
+			console.log('Probando conexión al servidor:', config.idServer);
 			const result = await (window.api as any).remote?.pingServer?.();
+			
 			if (result?.ok) {
-				showRemoteStatus(remoteElements.serverStatus, result.online ? 'Servidor conectado ✅' : 'Servidor no responde ❌', result.online ? 'success' : 'error');
+				if (result.online) {
+					showRemoteStatus(remoteElements.serverStatus, 'Servidor conectado ✅', 'success');
+					console.log('✅ Servidor responde correctamente');
+				} else {
+					showRemoteStatus(remoteElements.serverStatus, 'Servidor no responde ❌', 'error');
+					console.log('❌ Servidor no responde');
+				}
 			} else {
-				showRemoteStatus(remoteElements.serverStatus, `Error: ${result?.error || 'Desconocido'}`, 'error');
+				const errorMsg = result?.error || 'Desconocido';
+				showRemoteStatus(remoteElements.serverStatus, `Error: ${errorMsg}`, 'error');
+				console.error('Error en pingServer:', errorMsg);
 			}
 		} catch (error) {
 			console.error('Error probando servidor remoto:', error);
-			showRemoteStatus(remoteElements.serverStatus, 'Error interno', 'error');
+			showRemoteStatus(remoteElements.serverStatus, 'Error interno al probar conexión', 'error');
 		}
 	}
 

@@ -2108,8 +2108,22 @@ app.whenReady().then(() => {
 	ipcMain.handle('remote:getConfig', async () => {
 		try {
 			const { getRemoteService } = await import('./services/RemoteService');
-			const config = getRemoteService().getConfig();
-			return { ok: true, data: config };
+			const config = await getRemoteService().getConfig();
+			
+			// Asegurar que el objeto sea completamente serializable
+			if (config) {
+				// Crear un objeto plano con solo las propiedades necesarias
+				const serializedConfig = {
+					idServer: config.idServer || '',
+					relayServer: config.relayServer || '',
+					username: config.username || '',
+					password: config.password || '',
+					role: config.role || 'host',
+					autoStart: config.autoStart || false
+				};
+				return { ok: true, data: serializedConfig };
+			}
+			return { ok: true, data: null };
 		} catch (e: any) {
 			logError('Error obteniendo configuración remota', { error: e?.message || e });
 			return { ok: false, error: String(e?.message || e) };
@@ -2197,13 +2211,29 @@ app.whenReady().then(() => {
 		try {
 			const { getRemoteService } = await import('./services/RemoteService');
 			const service = getRemoteService();
+			const status = await service.getStatus();
+			
+			// Asegurar que el objeto sea completamente serializable
+			const serializedStatus = {
+				config: status.config ? {
+					idServer: status.config.idServer || '',
+					relayServer: status.config.relayServer || '',
+					username: status.config.username || '',
+					password: status.config.password || '',
+					role: status.config.role || 'host',
+					autoStart: status.config.autoStart || false
+				} : null,
+				serverOnline: Boolean(status.serverOnline),
+				hostsCount: Number(status.hostsCount) || 0,
+				hostRunning: Boolean(status.hostRunning),
+				viewerRunning: Boolean(status.viewerRunning),
+				activeProcesses: Array.isArray(status.activeProcesses) ? status.activeProcesses : [],
+				hostId: status.hostId || null
+			};
+			
 			return {
 				ok: true,
-				config: service.getConfig(),
-				hostId: service.getHostId(),
-				isHostRunning: service.isHostRunning(),
-				isViewerRunning: service.isViewerRunning(),
-				activeProcesses: service.getActiveProcesses()
+				...serializedStatus
 			};
 		} catch (e: any) {
 			logError('Error obteniendo estado remoto', { error: e?.message || e });
