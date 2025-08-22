@@ -1910,4 +1910,323 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	// ===== FIN CONTROL REMOTO =====
 
+	// ===== PRUEBAS DE FACTURACIÓN AFIP =====
+	
+	// Variables para manejo de items
+	let itemsPrueba: Array<{
+		id: number;
+		descripcion: string;
+		cantidad: number;
+		precioUnitario: number;
+		alicuotaIva: number;
+		subtotal: number;
+	}> = [];
+	let nextItemId = 1;
+	
+	// Función para agregar item a la tabla
+	function agregarItemPrueba() {
+		const item = {
+			id: nextItemId++,
+			descripcion: '',
+			cantidad: 1,
+			precioUnitario: 0,
+			alicuotaIva: 21,
+			subtotal: 0
+		};
+		itemsPrueba.push(item);
+		renderizarItemsPrueba();
+	}
+	
+	// Función para eliminar item
+	function eliminarItemPrueba(id: number) {
+		itemsPrueba = itemsPrueba.filter(item => item.id !== id);
+		renderizarItemsPrueba();
+	}
+	
+	// Función para actualizar item
+	function actualizarItemPrueba(id: number, campo: string, valor: any) {
+		const item = itemsPrueba.find(i => i.id === id);
+		if (item) {
+			(item as any)[campo] = valor;
+			// Recalcular subtotal
+			item.subtotal = item.cantidad * item.precioUnitario;
+			renderizarItemsPrueba();
+		}
+	}
+	
+	// Función para renderizar tabla de items
+	function renderizarItemsPrueba() {
+		const tbody = document.getElementById('tbodyItemsPrueba');
+		if (!tbody) return;
+		
+		tbody.innerHTML = '';
+		
+		itemsPrueba.forEach(item => {
+			const tr = document.createElement('tr');
+			tr.className = 'border-b border-slate-600';
+			tr.innerHTML = `
+				<td class="px-2 py-1">
+					<input type="text" 
+						value="${item.descripcion}" 
+						placeholder="Descripción del item"
+						class="w-full px-1 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+						onchange="actualizarItemPrueba(${item.id}, 'descripcion', this.value)">
+				</td>
+				<td class="px-2 py-1">
+					<input type="number" 
+						value="${item.cantidad}" 
+						min="1" step="1"
+						class="w-16 px-1 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+						onchange="actualizarItemPrueba(${item.id}, 'cantidad', Number(this.value))">
+				</td>
+				<td class="px-2 py-1">
+					<input type="number" 
+						value="${item.precioUnitario}" 
+						min="0" step="0.01"
+						class="w-20 px-1 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+						onchange="actualizarItemPrueba(${item.id}, 'precioUnitario', Number(this.value))">
+				</td>
+				<td class="px-2 py-1">
+					<select class="w-16 px-1 py-0.5 text-xs bg-slate-700 border border-slate-600 rounded text-white"
+						onchange="actualizarItemPrueba(${item.id}, 'alicuotaIva', Number(this.value))">
+						<option value="21" ${item.alicuotaIva === 21 ? 'selected' : ''}>21%</option>
+						<option value="10.5" ${item.alicuotaIva === 10.5 ? 'selected' : ''}>10.5%</option>
+						<option value="27" ${item.alicuotaIva === 27 ? 'selected' : ''}>27%</option>
+						<option value="0" ${item.alicuotaIva === 0 ? 'selected' : ''}>0%</option>
+						<option value="-1" ${item.alicuotaIva === -1 ? 'selected' : ''}>Exento</option>
+					</select>
+				</td>
+				<td class="px-2 py-1 font-semibold">$${item.subtotal.toFixed(2)}</td>
+				<td class="px-2 py-1">
+					<button type="button" 
+						onclick="eliminarItemPrueba(${item.id})"
+						class="px-2 py-0.5 text-xs rounded bg-red-600 text-white hover:bg-red-500">
+						❌
+					</button>
+				</td>
+			`;
+			tbody.appendChild(tr);
+		});
+		
+		actualizarTotalesPrueba();
+	}
+	
+	// Función para actualizar totales
+	function actualizarTotalesPrueba() {
+		const totalNeto = itemsPrueba.reduce((sum, item) => sum + item.subtotal, 0);
+		const totalIva = itemsPrueba.reduce((sum, item) => {
+			if (item.alicuotaIva > 0) {
+				return sum + (item.subtotal * (item.alicuotaIva / 100));
+			}
+			return sum;
+		}, 0);
+		const totalFinal = totalNeto + totalIva;
+		
+		(document.getElementById('totalNetoPrueba') as HTMLElement).textContent = `$${totalNeto.toFixed(2)}`;
+		(document.getElementById('totalIvaPrueba') as HTMLElement).textContent = `$${totalIva.toFixed(2)}`;
+		(document.getElementById('totalFinalPrueba') as HTMLElement).textContent = `$${totalFinal.toFixed(2)}`;
+	}
+	
+	// Función para limpiar items
+	function limpiarItemsPrueba() {
+		itemsPrueba = [];
+		nextItemId = 1;
+		renderizarItemsPrueba();
+	}
+	
+	// Exponer funciones globalmente para los onclick
+	(window as any).actualizarItemPrueba = actualizarItemPrueba;
+	(window as any).eliminarItemPrueba = eliminarItemPrueba;
+	
+	// Botón agregar item
+	(document.getElementById('btnAgregarItem') as HTMLButtonElement | null)?.addEventListener('click', agregarItemPrueba);
+	
+	// Botón limpiar items
+	(document.getElementById('btnLimpiarItems') as HTMLButtonElement | null)?.addEventListener('click', limpiarItemsPrueba);
+	
+	// Emitir factura de prueba
+	(document.getElementById('btnPruebaEmitir') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		try {
+			// Obtener datos del cliente
+			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim() || '20300123456';
+			const razonSocial = (document.getElementById('pruebaFacturaRazon') as HTMLInputElement)?.value?.trim() || 'Cliente Demo S.A.';
+			
+			// Validar datos
+			if (!cuitCliente || !razonSocial) {
+				const status = document.getElementById('pruebaStatus');
+				if (status) status.innerHTML = '<span class="text-red-400">Error: Complete los datos del cliente</span>';
+				return;
+			}
+			
+			// Validar items
+			if (itemsPrueba.length === 0) {
+				const status = document.getElementById('pruebaStatus');
+				if (status) status.innerHTML = '<span class="text-red-400">Error: Agregue al menos un item</span>';
+				return;
+			}
+			
+			// Validar items completos
+			const itemsIncompletos = itemsPrueba.filter(item => 
+				!item.descripcion || item.cantidad <= 0 || item.precioUnitario <= 0
+			);
+			
+			if (itemsIncompletos.length > 0) {
+				const status = document.getElementById('pruebaStatus');
+				if (status) status.innerHTML = '<span class="text-red-400">Error: Complete todos los items (descripción, cantidad y precio)</span>';
+				return;
+			}
+			
+			// Calcular totales
+			const totalNeto = itemsPrueba.reduce((sum, item) => sum + item.subtotal, 0);
+			const totalIva = itemsPrueba.reduce((sum, item) => {
+				if (item.alicuotaIva > 0) {
+					return sum + (item.subtotal * (item.alicuotaIva / 100));
+				}
+				return sum;
+			}, 0);
+			const totalFinal = totalNeto + totalIva;
+			
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Emitiendo factura de prueba...</span>';
+			
+			const hoy = new Date();
+			const yyyy = hoy.getFullYear();
+			const mm = String(hoy.getMonth()+1).padStart(2,'0');
+			const dd = String(hoy.getDate()).padStart(2,'0');
+			
+			// Preparar detalle para AFIP
+			const detalle = itemsPrueba.map(item => ({
+				descripcion: item.descripcion,
+				cantidad: item.cantidad,
+				precioUnitario: item.precioUnitario,
+				alicuotaIva: item.alicuotaIva === -1 ? 0 : item.alicuotaIva // -1 = Exento se convierte a 0
+			}));
+			
+			const res = await (window.api as any).facturacion?.emitir({
+				pto_vta: 1,
+				tipo_cbte: 1, // Factura A
+				fecha: `${yyyy}${mm}${dd}`,
+				cuit_emisor: '20123456789',
+				cuit_receptor: cuitCliente,
+				razon_social_receptor: razonSocial,
+				condicion_iva_receptor: 'RI',
+				neto: totalNeto,
+				iva: totalIva,
+				total: totalFinal,
+				detalle: detalle,
+				empresa: { nombre: 'TODO-COMPUTACIÓN', cuit: '20123456789' },
+				plantilla: 'factura_a'
+			});
+			
+			if (res?.ok) {
+				if (status) status.innerHTML = `<span class="text-green-400">✅ Factura emitida Nº ${res.numero} - CAE: ${res.cae}</span>`;
+				showToast(`Factura de prueba emitida exitosamente - CAE: ${res.cae}`);
+				
+				// Abrir PDF
+				if (res.pdf_path) {
+					await (window.api as any).facturacion?.abrirPdf(res.pdf_path);
+				}
+				
+				// Limpiar formulario
+				(document.getElementById('pruebaFacturaCuit') as HTMLInputElement).value = '';
+				(document.getElementById('pruebaFacturaRazon') as HTMLInputElement).value = '';
+				limpiarItemsPrueba();
+				
+				// Recargar listado
+				cargarListadoFacturas();
+			} else {
+				if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${res?.error || 'falló emisión'}</span>`;
+				showToast(`Error en factura de prueba: ${res?.error || 'Error desconocido'}`);
+			}
+		} catch (e: any) {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+	
+	// Verificar estado de servidores AFIP
+	(document.getElementById('btnVerificarEstado') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		try {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Verificando estado de servidores AFIP...</span>';
+			
+			const res = await (window.api as any).afip?.checkServerStatus?.();
+			if (res?.ok) {
+				const { appserver, dbserver, authserver } = res;
+				if (status) {
+					status.innerHTML = `
+						<span class="text-green-400">✅ Estado de servidores AFIP:</span><br>
+						<span class="text-xs">AppServer: ${appserver} | DbServer: ${dbserver} | AuthServer: ${authserver}</span>
+					`;
+				}
+				showToast('Servidores AFIP: OK');
+			} else {
+				if (status) status.innerHTML = `<span class="text-red-400">❌ Error verificando estado: ${res?.error || 'Error desconocido'}</span>`;
+				showToast(`Error: ${res?.error || 'Error verificando servidores'}`);
+			}
+		} catch (e: any) {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+	
+	// Validar certificado
+	(document.getElementById('btnValidarCertificado') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		try {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Validando certificado AFIP...</span>';
+			
+			const res = await (window.api as any).afip?.validarCertificado?.();
+			if (res?.valido) {
+				if (status) {
+					status.innerHTML = `
+						<span class="text-green-400">✅ Certificado válido</span><br>
+						<span class="text-xs">Expira: ${res.fechaExpiracion} | Días restantes: ${res.diasRestantes}</span>
+					`;
+				}
+				showToast(`Certificado válido - ${res.diasRestantes} días restantes`);
+			} else {
+				if (status) status.innerHTML = `<span class="text-red-400">❌ Certificado inválido: ${res?.error || 'Error desconocido'}</span>`;
+				showToast(`Certificado inválido: ${res?.error || 'Error'}`);
+			}
+		} catch (e: any) {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+
+	// ===== FIN PRUEBAS DE FACTURACIÓN =====
+
+	// Inicializar con items de ejemplo para pruebas
+	setTimeout(() => {
+		// Agregar algunos items de ejemplo
+		agregarItemPrueba();
+		agregarItemPrueba();
+		agregarItemPrueba();
+		
+		// Configurar items de ejemplo
+		if (itemsPrueba.length >= 3) {
+			// Item 1: Producto con IVA 21%
+			actualizarItemPrueba(itemsPrueba[0].id, 'descripcion', 'Mouse inalámbrico Logitech');
+			actualizarItemPrueba(itemsPrueba[0].id, 'cantidad', 2);
+			actualizarItemPrueba(itemsPrueba[0].id, 'precioUnitario', 1500);
+			actualizarItemPrueba(itemsPrueba[0].id, 'alicuotaIva', 21);
+			
+			// Item 2: Servicio con IVA 21%
+			actualizarItemPrueba(itemsPrueba[1].id, 'descripcion', 'Servicio de reparación PC');
+			actualizarItemPrueba(itemsPrueba[1].id, 'cantidad', 1);
+			actualizarItemPrueba(itemsPrueba[1].id, 'precioUnitario', 2500);
+			actualizarItemPrueba(itemsPrueba[1].id, 'alicuotaIva', 21);
+			
+			// Item 3: Producto con IVA 10.5%
+			actualizarItemPrueba(itemsPrueba[2].id, 'descripcion', 'Libro técnico informática');
+			actualizarItemPrueba(itemsPrueba[2].id, 'cantidad', 1);
+			actualizarItemPrueba(itemsPrueba[2].id, 'precioUnitario', 800);
+			actualizarItemPrueba(itemsPrueba[2].id, 'alicuotaIva', 10.5);
+		}
+	}, 1000);
+
 });

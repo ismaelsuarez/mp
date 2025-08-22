@@ -373,6 +373,80 @@
 							</table>
 						</div>
 
+						<!-- Pruebas de Facturación -->
+						<div class="border-t border-slate-700 pt-3">
+							<div class="mb-2">
+								<h4 class="text-sm font-semibold text-blue-300">🧪 Pruebas de Facturación</h4>
+								<p class="text-xs text-slate-400">Sección para realizar pruebas de emisión de facturas en modo homologación</p>
+							</div>
+							
+							<div class="bg-slate-800/40 border border-slate-700 rounded-md p-3 mb-3">
+								<!-- Datos del Cliente -->
+								<div class="grid grid-cols-2 gap-2 mb-3">
+									<label class="text-xs">
+										CUIT Cliente:
+										<input type="text" id="pruebaFacturaCuit" placeholder="20300123456" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
+									</label>
+									<label class="text-xs">
+										Razón Social:
+										<input type="text" id="pruebaFacturaRazon" placeholder="Cliente Demo S.A." class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
+									</label>
+								</div>
+								
+								<!-- Tabla de Items -->
+								<div class="mb-3">
+									<div class="flex items-center justify-between mb-2">
+										<span class="text-xs font-semibold">Items de la Factura:</span>
+										<button type="button" id="btnAgregarItem" class="px-2 py-1 text-xs rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">+ Agregar Item</button>
+									</div>
+									
+									<div class="overflow-x-auto">
+										<table id="tablaItemsPrueba" class="w-full text-xs">
+											<thead class="bg-slate-700">
+												<tr>
+													<th class="px-2 py-1 text-left">Descripción</th>
+													<th class="px-2 py-1 text-left">Cantidad</th>
+													<th class="px-2 py-1 text-left">Precio Unit.</th>
+													<th class="px-2 py-1 text-left">IVA %</th>
+													<th class="px-2 py-1 text-left">Subtotal</th>
+													<th class="px-2 py-1 text-left">Acción</th>
+												</tr>
+											</thead>
+											<tbody id="tbodyItemsPrueba">
+												<!-- Items se agregarán dinámicamente -->
+											</tbody>
+											<tfoot class="bg-slate-700/50">
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold">Total Neto:</td>
+													<td id="totalNetoPrueba" class="px-2 py-1 font-semibold">$0.00</td>
+													<td></td>
+												</tr>
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold">Total IVA:</td>
+													<td id="totalIvaPrueba" class="px-2 py-1 font-semibold">$0.00</td>
+													<td></td>
+												</tr>
+												<tr>
+													<td colspan="4" class="px-2 py-1 text-right font-semibold text-blue-300">Total Final:</td>
+													<td id="totalFinalPrueba" class="px-2 py-1 font-semibold text-blue-300">$0.00</td>
+													<td></td>
+												</tr>
+											</tfoot>
+										</table>
+									</div>
+								</div>
+								
+								<!-- Botones de Acción -->
+								<div class="flex items-center gap-2">
+									<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">Emitir Factura de Prueba</button>
+									<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">Verificar Estado AFIP</button>
+									<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">Validar Certificado</button>
+									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
+								</div>
+								<div id="pruebaStatus" class="mt-2 text-xs"></div>
+							</div>
+						</div>
+
 						<!-- Historial de PDFs en Documentos/facturas -->
 						<div class="border-t border-slate-700 pt-3">
 							<div class="flex items-center justify-between mb-2">

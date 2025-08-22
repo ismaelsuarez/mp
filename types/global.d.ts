@@ -70,6 +70,7 @@ declare global {
 			recover(nombreCliente: string, palabraSecreta: string): Promise<{ ok: boolean; serial?: string; error?: string }>;
 			openHome(): Promise<{ ok: boolean; error?: string }>;
 		};
+		processAutomaticBilling?: (data: any) => Promise<any>;
 	}
 }
 
