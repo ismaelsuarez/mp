@@ -3,6 +3,7 @@ import { getDb } from '../../services/DbService';
 import { AfipLogger } from './afip/AfipLogger';
 import { CertificateValidator } from './afip/CertificateValidator';
 import { AfipHelpers } from './afip/helpers';
+import { AfipValidator, ValidationParams } from './afip/AfipValidator';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -57,7 +58,7 @@ class AfipService {
    */
   async solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
     try {
-      // Validar comprobante
+      // Validar comprobante básico
       const errors = AfipHelpers.validateComprobante(comprobante);
       if (errors.length > 0) {
         throw new Error(`Errores de validación: ${errors.join(', ')}`);
@@ -68,6 +69,34 @@ class AfipService {
       
       const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
       const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+
+      // VALIDACIÓN CON FEParamGet* - NUEVA FUNCIONALIDAD
+      const validator = new AfipValidator(afip);
+      const validationParams: ValidationParams = {
+        cbteTipo: tipoCbte,
+        concepto: 1, // Concepto fijo por ahora
+        docTipo: 99, // 99=Consumidor Final (consistente con el request)
+        monId: 'PES', // Moneda fija por ahora
+        ptoVta: ptoVta,
+        cuit: cfg.cuit
+      };
+
+      // Ejecutar validación con AFIP
+      const validationResult = await validator.validateComprobante(validationParams);
+      
+      if (!validationResult.isValid) {
+        const errorMessage = `Validación AFIP falló: ${validationResult.errors.join('; ')}`;
+        this.logger.logError('solicitarCAE', new Error(errorMessage), { 
+          comprobante, 
+          validationResult 
+        });
+        throw new Error(errorMessage);
+      }
+
+      // Log warnings si existen
+      if (validationResult.warnings.length > 0) {
+        this.logger.logRequest('validationWarnings', { warnings: validationResult.warnings });
+      }
 
       // Obtener último número autorizado
       this.logger.logRequest('getLastVoucher', { ptoVta, tipoCbte });
@@ -210,6 +239,21 @@ class AfipService {
    */
   getLogs(date?: string) {
     return this.logger.getLogs(date);
+  }
+
+  /**
+   * Obtiene información de validación de AFIP para debugging
+   */
+  async getValidationInfo(): Promise<any> {
+    try {
+      const afip = await this.getAfipInstance();
+      const validator = new AfipValidator(afip);
+      return await validator.getValidationInfo();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.logError('getValidationInfo', error instanceof Error ? error : new Error(errorMessage));
+      throw new Error(`Error obteniendo información de validación: ${errorMessage}`);
+    }
   }
 
   /**
