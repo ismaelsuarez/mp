@@ -3,7 +3,7 @@
 *Solo se implementa FECompUltimoAutorizado. 
 *Faltan FEParamGetTiposCbte, FEParamGetTiposIva, FEParamGetConcepto, etc. 
 👉 Recomendación: Implementarlos para validar en runtime los tipos autorizados y reducir riesgo de rechazo. 
-2-Idempotencia y concurrencia 
+2-Idempotencia y concurrencia (Falta auditoria del informe realizado)
 *No está protegida la reemisión ante fallos → riesgo de duplicados. 
 👉 Recomendación: usar combinación ptoVta + tipoCbte + nroComprobante como llave única y validar antes de emitir. 
 3-Timeouts, reintentos y circuit breaker 

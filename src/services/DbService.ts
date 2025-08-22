@@ -37,6 +37,20 @@ export type FacturaPendiente = Omit<FacturaRecord, 'cae' | 'cae_vencimiento' | '
 	error_msg?: string | null;
 };
 
+export type ComprobanteControl = {
+	id?: number;
+	pto_vta: number;
+	tipo_cbte: number;
+	nro_comprobante: number;
+	estado: 'PENDING' | 'APPROVED' | 'FAILED';
+	cae?: string;
+	cae_vencimiento?: string;
+	payload?: string;
+	error_msg?: string;
+	created_at?: string;
+	updated_at?: string;
+};
+
 class DbService {
 	private dbPath: string;
 	private db: any | null = null;
@@ -110,6 +124,21 @@ class DbService {
 			error_msg TEXT,
 			payload TEXT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS comprobantes_control (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			pto_vta INTEGER NOT NULL,
+			tipo_cbte INTEGER NOT NULL,
+			nro_comprobante INTEGER NOT NULL,
+			estado TEXT NOT NULL CHECK (estado IN ('PENDING', 'APPROVED', 'FAILED')),
+			cae TEXT,
+			cae_vencimiento TEXT,
+			payload TEXT,
+			error_msg TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(pto_vta, tipo_cbte, nro_comprobante)
 		);
 
 		CREATE TABLE IF NOT EXISTS empresa_config (
@@ -352,6 +381,154 @@ class DbService {
 		data.perfiles = (Array.isArray(data.perfiles) ? data.perfiles : []).filter((p: any) => Number(p.id) !== Number(id));
 		this.writeFallback(data);
 		return (Array.isArray(data.perfiles) ? data.perfiles : []).length < before;
+	}
+
+	// ===== Control de Idempotencia =====
+	
+	/**
+	 * Busca un comprobante existente por clave única
+	 */
+	getComprobanteControl(ptoVta: number, tipoCbte: number, nroComprobante: number): ComprobanteControl | null {
+		if (this.enabled && this.db) {
+			const row = this.db.prepare(`
+				SELECT * FROM comprobantes_control 
+				WHERE pto_vta = ? AND tipo_cbte = ? AND nro_comprobante = ?
+			`).get(ptoVta, tipoCbte, nroComprobante);
+			return row || null;
+		}
+		// Fallback: buscar en JSON
+		const data = this.readFallback();
+		const comprobantes = Array.isArray(data.comprobantes_control) ? data.comprobantes_control : [];
+		const found = comprobantes.find((c: any) => 
+			c.pto_vta === ptoVta && c.tipo_cbte === tipoCbte && c.nro_comprobante === nroComprobante
+		);
+		return found || null;
+	}
+
+	/**
+	 * Inserta un nuevo comprobante en estado PENDING
+	 */
+	insertComprobanteControl(comprobante: Omit<ComprobanteControl, 'id' | 'created_at' | 'updated_at'>): number {
+		if (this.enabled && this.db) {
+			const info = this.db.prepare(`
+				INSERT INTO comprobantes_control 
+				(pto_vta, tipo_cbte, nro_comprobante, estado, payload) 
+				VALUES (?, ?, ?, ?, ?)
+			`).run(
+				comprobante.pto_vta,
+				comprobante.tipo_cbte,
+				comprobante.nro_comprobante,
+				comprobante.estado,
+				comprobante.payload || null
+			);
+			return Number(info.lastInsertRowid || 0);
+		}
+		// Fallback: guardar en JSON
+		const data = this.readFallback();
+		data.comprobantes_control = Array.isArray(data.comprobantes_control) ? data.comprobantes_control : [];
+		const id = Date.now();
+		data.comprobantes_control.push({
+			id,
+			...comprobante,
+			created_at: new Date().toISOString(),
+			updated_at: new Date().toISOString()
+		});
+		this.writeFallback(data);
+		return id;
+	}
+
+	/**
+	 * Actualiza el estado de un comprobante
+	 */
+	updateComprobanteControl(ptoVta: number, tipoCbte: number, nroComprobante: number, updates: Partial<ComprobanteControl>): boolean {
+		if (this.enabled && this.db) {
+			const setClause = Object.keys(updates)
+				.filter(key => key !== 'id' && key !== 'created_at')
+				.map(key => `${key} = ?`)
+				.join(', ');
+			
+			if (setClause.length === 0) return false;
+			
+			const values = Object.keys(updates)
+				.filter(key => key !== 'id' && key !== 'created_at')
+				.map(key => (updates as any)[key]);
+			
+			values.push(new Date().toISOString()); // updated_at
+			values.push(ptoVta, tipoCbte, nroComprobante);
+			
+			const result = this.db.prepare(`
+				UPDATE comprobantes_control 
+				SET ${setClause}, updated_at = ? 
+				WHERE pto_vta = ? AND tipo_cbte = ? AND nro_comprobante = ?
+			`).run(...values);
+			
+			return result.changes > 0;
+		}
+		// Fallback: actualizar en JSON
+		const data = this.readFallback();
+		data.comprobantes_control = Array.isArray(data.comprobantes_control) ? data.comprobantes_control : [];
+		const idx = data.comprobantes_control.findIndex((c: any) => 
+			c.pto_vta === ptoVta && c.tipo_cbte === tipoCbte && c.nro_comprobante === nroComprobante
+		);
+		if (idx >= 0) {
+			data.comprobantes_control[idx] = {
+				...data.comprobantes_control[idx],
+				...updates,
+				updated_at: new Date().toISOString()
+			};
+			this.writeFallback(data);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Obtiene comprobantes por estado
+	 */
+	getComprobantesByEstado(estado: 'PENDING' | 'APPROVED' | 'FAILED'): ComprobanteControl[] {
+		if (this.enabled && this.db) {
+			const rows = this.db.prepare(`
+				SELECT * FROM comprobantes_control 
+				WHERE estado = ? 
+				ORDER BY created_at DESC
+			`).all(estado);
+			return rows || [];
+		}
+		// Fallback: filtrar en JSON
+		const data = this.readFallback();
+		const comprobantes = Array.isArray(data.comprobantes_control) ? data.comprobantes_control : [];
+		return comprobantes.filter((c: any) => c.estado === estado);
+	}
+
+	/**
+	 * Limpia comprobantes antiguos (más de 30 días)
+	 */
+	cleanupComprobantesAntiguos(): number {
+		if (this.enabled && this.db) {
+			const thirtyDaysAgo = new Date();
+			thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+			
+			const result = this.db.prepare(`
+				DELETE FROM comprobantes_control 
+				WHERE created_at < ? AND estado IN ('APPROVED', 'FAILED')
+			`).run(thirtyDaysAgo.toISOString());
+			
+			return result.changes || 0;
+		}
+		// Fallback: limpiar en JSON
+		const data = this.readFallback();
+		const comprobantes = Array.isArray(data.comprobantes_control) ? data.comprobantes_control : [];
+		const thirtyDaysAgo = new Date();
+		thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+		
+		const before = comprobantes.length;
+		data.comprobantes_control = comprobantes.filter((c: any) => {
+			if (c.estado === 'PENDING') return true; // Mantener pendientes
+			const created = new Date(c.created_at);
+			return created >= thirtyDaysAgo;
+		});
+		this.writeFallback(data);
+		return before - data.comprobantes_control.length;
 	}
 
 

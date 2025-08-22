@@ -4,6 +4,7 @@ import { AfipLogger } from './afip/AfipLogger';
 import { CertificateValidator } from './afip/CertificateValidator';
 import { AfipHelpers } from './afip/helpers';
 import { AfipValidator, ValidationParams } from './afip/AfipValidator';
+import { IdempotencyManager } from './afip/IdempotencyManager';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -18,9 +19,11 @@ function loadAfip() {
 class AfipService {
   private afipInstance: any = null;
   private logger: AfipLogger;
+  private idempotencyManager: IdempotencyManager;
 
   constructor() {
     this.logger = new AfipLogger();
+    this.idempotencyManager = new IdempotencyManager();
   }
 
   /**
@@ -54,7 +57,7 @@ class AfipService {
   }
 
   /**
-   * Solicita CAE para un comprobante
+   * Solicita CAE para un comprobante con control de idempotencia
    */
   async solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
     try {
@@ -105,6 +108,49 @@ class AfipService {
       
       const numero = Number(last) + 1;
 
+      // CONTROL DE IDEMPOTENCIA - NUEVA FUNCIONALIDAD
+      const idempotencyResult = await this.idempotencyManager.checkIdempotency(
+        ptoVta, 
+        tipoCbte, 
+        numero,
+        { comprobante, validationParams }
+      );
+
+      // Si es un duplicado exitoso, retornar CAE existente
+      if (idempotencyResult.isDuplicate && !idempotencyResult.shouldProceed && idempotencyResult.existingCae) {
+        this.logger.logRequest('idempotency_hit', { 
+          ptoVta, tipoCbte, numero, 
+          existingCae: idempotencyResult.existingCae 
+        });
+
+        // Construir QR con CAE existente
+        const qrData = AfipHelpers.buildQrUrl({
+          cuit: Number(cfg.cuit),
+          ptoVta,
+          tipoCmp: tipoCbte,
+          nroCmp: numero,
+          importe: comprobante.totales.total,
+          fecha: comprobante.fecha,
+          cae: idempotencyResult.existingCae
+        });
+
+        return { 
+          cae: idempotencyResult.existingCae, 
+          vencimientoCAE: idempotencyResult.existingCaeVto || '', 
+          qrData 
+        };
+      }
+
+      // Si hay error en idempotencia, fallar
+      if (idempotencyResult.error) {
+        throw new Error(`Error de idempotencia: ${idempotencyResult.error}`);
+      }
+
+      // Si no debe proceder, fallar
+      if (!idempotencyResult.shouldProceed) {
+        throw new Error('Comprobante en proceso, intente nuevamente en unos momentos');
+      }
+
       // Construir array de IVA
       const ivaArray = AfipHelpers.buildIvaArray(comprobante.items);
 
@@ -142,6 +188,9 @@ class AfipService {
       const cae: string = response.CAE;
       const caeVto: string = response.CAEFchVto;
 
+      // Marcar como exitoso en control de idempotencia
+      await this.idempotencyManager.markAsApproved(ptoVta, tipoCbte, numero, cae, caeVto);
+
       // Construir QR
       const qrData = AfipHelpers.buildQrUrl({
         cuit: Number(cfg.cuit),
@@ -157,6 +206,25 @@ class AfipService {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Marcar como fallido en control de idempotencia si tenemos los datos
+      try {
+        const cfg = getDb().getAfipConfig();
+        if (cfg) {
+          const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
+          const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+          
+          // Solo intentar marcar como fallido si ya tenemos el número
+          // Si el error ocurrió antes de obtener el número, no podemos marcarlo
+          if (comprobante.numero) {
+            await this.idempotencyManager.markAsFailed(ptoVta, tipoCbte, comprobante.numero, errorMessage);
+          }
+        }
+      } catch (markError) {
+        // Si falla el marcado, solo logear
+        this.logger.logError('markAsFailed_error', markError instanceof Error ? markError : new Error(String(markError)));
+      }
+
       this.logger.logError('solicitarCAE', error instanceof Error ? error : new Error(errorMessage), { comprobante });
       throw new Error(`Error solicitando CAE: ${errorMessage}`);
     }
@@ -254,6 +322,27 @@ class AfipService {
       this.logger.logError('getValidationInfo', error instanceof Error ? error : new Error(errorMessage));
       throw new Error(`Error obteniendo información de validación: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Obtiene estadísticas de idempotencia
+   */
+  getIdempotencyStats(): { pending: number; approved: number; failed: number } {
+    return this.idempotencyManager.getStats();
+  }
+
+  /**
+   * Limpia comprobantes antiguos
+   */
+  cleanupIdempotency(): number {
+    return this.idempotencyManager.cleanup();
+  }
+
+  /**
+   * Obtiene comprobantes por estado para debugging
+   */
+  getComprobantesByEstado(estado: 'PENDING' | 'APPROVED' | 'FAILED'): any[] {
+    return this.idempotencyManager.getComprobantesByEstado(estado);
   }
 
   /**
