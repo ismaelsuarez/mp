@@ -127,7 +127,14 @@ contextBridge.exposeInMainWorld('api', {
 		empresaSave: (data: any) => ipcRenderer.invoke('facturacion:empresa:save', data),
 		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
 		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
-		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs')
+		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs'),
+		// Validación de CAE
+		validateCAE: (facturaId: number, operation: string) => ipcRenderer.invoke('facturacion:validate-cae', { facturaId, operation }),
+		validateCAEComprobante: (numero: number, ptoVta: number, tipoCbte: number, operation: string) => ipcRenderer.invoke('facturacion:validate-cae-comprobante', { numero, ptoVta, tipoCbte, operation }),
+		getCAEStatus: (facturaId: number) => ipcRenderer.invoke('facturacion:get-cae-status', { facturaId }),
+		getCAEStatusComprobante: (numero: number, ptoVta: number, tipoCbte: number) => ipcRenderer.invoke('facturacion:get-cae-status-comprobante', { numero, ptoVta, tipoCbte }),
+		findExpiringCAE: (warningThresholdHours?: number) => ipcRenderer.invoke('facturacion:find-expiring-cae', { warningThresholdHours }),
+		findExpiredCAE: () => ipcRenderer.invoke('facturacion:find-expired-cae')
 	},
 	// Perfiles de configuración
 	perfiles: {

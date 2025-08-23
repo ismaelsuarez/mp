@@ -19,6 +19,7 @@ import { OtpService } from './services/OtpService';
 import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 import { getDb } from './services/DbService';
 import { getFacturacionService } from './services/FacturacionService';
+import { afipService } from './modules/facturacion/afipService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -1110,6 +1111,61 @@ app.whenReady().then(() => {
 	});
 	ipcMain.handle('facturacion:pdfs', async () => {
 		try { return { ok: true, rows: getDb().listPdfsEnDocumentos() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+
+	// ===== Validación de CAE =====
+	ipcMain.handle('facturacion:validate-cae', async (_e, { facturaId, operation }: { facturaId: number; operation: string }) => {
+		try { 
+			afipService.validateCAEBeforeOperation(facturaId, operation);
+			return { ok: true }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	ipcMain.handle('facturacion:validate-cae-comprobante', async (_e, { numero, ptoVta, tipoCbte, operation }: { numero: number; ptoVta: number; tipoCbte: number; operation: string }) => {
+		try { 
+			afipService.validateCAEBeforeOperationByComprobante(numero, ptoVta, tipoCbte, operation);
+			return { ok: true }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	ipcMain.handle('facturacion:get-cae-status', async (_e, { facturaId }: { facturaId: number }) => {
+		try { 
+			const status = afipService.getCAEStatus(facturaId);
+			return { ok: true, status }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	ipcMain.handle('facturacion:get-cae-status-comprobante', async (_e, { numero, ptoVta, tipoCbte }: { numero: number; ptoVta: number; tipoCbte: number }) => {
+		try { 
+			const status = afipService.getCAEStatusByComprobante(numero, ptoVta, tipoCbte);
+			return { ok: true, status }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	ipcMain.handle('facturacion:find-expiring-cae', async (_e, { warningThresholdHours }: { warningThresholdHours?: number } = {}) => {
+		try { 
+			const facturas = afipService.findFacturasWithExpiringCAE(warningThresholdHours);
+			return { ok: true, facturas }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	ipcMain.handle('facturacion:find-expired-cae', async () => {
+		try { 
+			const facturas = afipService.findFacturasWithExpiredCAE();
+			return { ok: true, facturas }; 
+		} catch (e: any) { 
+			return { ok: false, error: String(e?.message || e) }; 
+		}
 	});
 
 	createMainWindow();

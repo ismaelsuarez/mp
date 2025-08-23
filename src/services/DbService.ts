@@ -258,6 +258,41 @@ class DbService {
 		return rows.sort((a: any, b: any) => (b.id || 0) - (a.id || 0)).slice(0, 200);
 	}
 
+	/**
+	 * Obtiene una factura específica por número, punto de venta y tipo de comprobante
+	 */
+	getFactura(numero: number, ptoVta: number, tipoCbte: number): FacturaRecord | null {
+		if (this.enabled && this.db) {
+			const row = this.db.prepare(`
+				SELECT * FROM facturas_afip 
+				WHERE numero = ? AND pto_vta = ? AND tipo_cbte = ?
+			`).get(numero, ptoVta, tipoCbte);
+			return row || null;
+		}
+		// Fallback: buscar en JSON
+		const data = this.readFallback();
+		const facturas = Array.isArray(data.facturas_afip) ? data.facturas_afip : [];
+		const found = facturas.find((f: any) => 
+			f.numero === numero && f.pto_vta === ptoVta && f.tipo_cbte === tipoCbte
+		);
+		return found || null;
+	}
+
+	/**
+	 * Obtiene una factura por ID
+	 */
+	getFacturaById(id: number): FacturaRecord | null {
+		if (this.enabled && this.db) {
+			const row = this.db.prepare('SELECT * FROM facturas_afip WHERE id = ?').get(id);
+			return row || null;
+		}
+		// Fallback: buscar en JSON
+		const data = this.readFallback();
+		const facturas = Array.isArray(data.facturas_afip) ? data.facturas_afip : [];
+		const found = facturas.find((f: any) => f.id === id);
+		return found || null;
+	}
+
 	getEmpresaConfig() {
 		if (this.enabled && this.db) {
 			const row = this.db.prepare('SELECT * FROM empresa_config ORDER BY id DESC LIMIT 1').get();

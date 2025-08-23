@@ -6,10 +6,10 @@
 2-Idempotencia y concurrencia (falta Prueba)
 *No está protegida la reemisión ante fallos → riesgo de duplicados. 
 👉 Recomendación: usar combinación ptoVta + tipoCbte + nroComprobante como llave única y validar antes de emitir. 
-3-Timeouts, reintentos y circuit breaker 
+3-Timeouts, reintentos y circuit breaker (falta prueba)
 *Actualmente depende del default de afip.js. 
 👉 Recomendación: configurar AFIP_TIMEOUT y aplicar retries con backoff + logs de incidentes. 
-4-CAE vencidos 
+4-CAE vencidos(falta prueba) 
 *Se guarda la fecha pero no hay validación previa al usarlo. 
 👉 Recomendación: implementar chequeo automático y alerta de vencimientos. 
 5-ARCA / administración provincial 

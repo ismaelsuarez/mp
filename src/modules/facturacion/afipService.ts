@@ -7,6 +7,7 @@ import { AfipValidator, ValidationParams } from './afip/AfipValidator';
 import { IdempotencyManager } from './afip/IdempotencyManager';
 import { ResilienceWrapper } from './afip/ResilienceWrapper';
 import { getResilienceConfig } from './afip/config';
+import { caeValidator } from './afip/CAEValidator';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -403,6 +404,60 @@ class AfipService {
    */
   isReadyForHalfOpen(): boolean {
     return this.resilienceWrapper.isReadyForHalfOpen();
+  }
+
+  /**
+   * Valida el CAE de una factura antes de una operación
+   */
+  validateCAEBeforeOperation(
+    facturaId: number,
+    operation: string
+  ): void {
+    caeValidator.validateBeforeOperation(facturaId, operation);
+  }
+
+  /**
+   * Valida el CAE de un comprobante antes de una operación
+   */
+  validateCAEBeforeOperationByComprobante(
+    numero: number,
+    ptoVta: number,
+    tipoCbte: number,
+    operation: string
+  ): void {
+    caeValidator.validateBeforeOperationByComprobante(numero, ptoVta, tipoCbte, operation);
+  }
+
+  /**
+   * Obtiene el estado del CAE de una factura
+   */
+  getCAEStatus(facturaId: number): any {
+    return caeValidator.getCAEStatusFromFactura(facturaId);
+  }
+
+  /**
+   * Obtiene el estado del CAE de un comprobante
+   */
+  getCAEStatusByComprobante(
+    numero: number,
+    ptoVta: number,
+    tipoCbte: number
+  ): any {
+    return caeValidator.getCAEStatusFromComprobante(numero, ptoVta, tipoCbte);
+  }
+
+  /**
+   * Busca facturas con CAE próximo a vencer
+   */
+  findFacturasWithExpiringCAE(warningThresholdHours: number = 48): any[] {
+    return caeValidator.findFacturasWithExpiringCAE(warningThresholdHours);
+  }
+
+  /**
+   * Busca facturas con CAE vencido
+   */
+  findFacturasWithExpiredCAE(): any[] {
+    return caeValidator.findFacturasWithExpiredCAE();
   }
 
   /**
