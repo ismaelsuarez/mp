@@ -14,5 +14,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*", "mp-sdk/**/*", "types/**/*"],
-  "exclude": ["node_modules", "out", "dist"]
+  "exclude": ["node_modules", "out", "dist", "src/**/__tests__/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
 }
