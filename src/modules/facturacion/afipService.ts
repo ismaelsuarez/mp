@@ -5,6 +5,8 @@ import { CertificateValidator } from './afip/CertificateValidator';
 import { AfipHelpers } from './afip/helpers';
 import { AfipValidator, ValidationParams } from './afip/AfipValidator';
 import { IdempotencyManager } from './afip/IdempotencyManager';
+import { ResilienceWrapper } from './afip/ResilienceWrapper';
+import { getResilienceConfig } from './afip/config';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -20,10 +22,12 @@ class AfipService {
   private afipInstance: any = null;
   private logger: AfipLogger;
   private idempotencyManager: IdempotencyManager;
+  private resilienceWrapper: ResilienceWrapper;
 
   constructor() {
     this.logger = new AfipLogger();
     this.idempotencyManager = new IdempotencyManager();
+    this.resilienceWrapper = new ResilienceWrapper(getResilienceConfig(), this.logger);
   }
 
   /**
@@ -101,10 +105,11 @@ class AfipService {
         this.logger.logRequest('validationWarnings', { warnings: validationResult.warnings });
       }
 
-      // Obtener último número autorizado
-      this.logger.logRequest('getLastVoucher', { ptoVta, tipoCbte });
-      const last = await afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte);
-      this.logger.logResponse('getLastVoucher', { last });
+      // Obtener último número autorizado con resiliencia
+      const last = await this.resilienceWrapper.execute(
+        () => afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte),
+        'getLastVoucher'
+      ) as any;
       
       const numero = Number(last) + 1;
 
@@ -176,14 +181,11 @@ class AfipService {
         Iva: ivaArray
       };
 
-      // Log request
-      this.logger.logRequest('createVoucher', request);
-
-      // Solicitar CAE
-      const response = await afip.ElectronicBilling.createVoucher(request);
-      
-      // Log response
-      this.logger.logResponse('createVoucher', response);
+      // Solicitar CAE con resiliencia
+      const response = await this.resilienceWrapper.execute(
+        () => afip.ElectronicBilling.createVoucher(request),
+        'createVoucher'
+      ) as any;
 
       const cae: string = response.CAE;
       const caeVto: string = response.CAEFchVto;
@@ -237,9 +239,10 @@ class AfipService {
     try {
       const afip = await this.getAfipInstance();
       
-      this.logger.logRequest('getServerStatus', {});
-      const status = await afip.ElectronicBilling.getServerStatus();
-      this.logger.logResponse('getServerStatus', status);
+      const status = await this.resilienceWrapper.execute(
+        () => afip.ElectronicBilling.getServerStatus(),
+        'getServerStatus'
+      ) as any;
 
       return {
         appserver: status.AppServer,
@@ -289,9 +292,10 @@ class AfipService {
       const afip = await this.getAfipInstance();
       const tipoCbte = AfipHelpers.mapTipoCbte(tipoComprobante);
 
-      this.logger.logRequest('getLastVoucher', { puntoVenta, tipoCbte });
-      const last = await afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte);
-      this.logger.logResponse('getLastVoucher', { last });
+      const last = await this.resilienceWrapper.execute(
+        () => afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte),
+        'getLastVoucher'
+      ) as any;
 
       return Number(last);
 
@@ -343,6 +347,62 @@ class AfipService {
    */
   getComprobantesByEstado(estado: 'PENDING' | 'APPROVED' | 'FAILED'): any[] {
     return this.idempotencyManager.getComprobantesByEstado(estado);
+  }
+
+  /**
+   * Obtiene estadísticas de resiliencia
+   */
+  getResilienceStats(): any {
+    return this.resilienceWrapper.getStats();
+  }
+
+  /**
+   * Obtiene el estado del circuit breaker
+   */
+  getCircuitBreakerState(): any {
+    return this.resilienceWrapper.getCircuitBreakerState();
+  }
+
+  /**
+   * Obtiene estadísticas del circuit breaker
+   */
+  getCircuitBreakerStats(): any {
+    return this.resilienceWrapper.getCircuitBreakerStats();
+  }
+
+  /**
+   * Fuerza el cierre del circuit breaker
+   */
+  forceCloseCircuitBreaker(): void {
+    this.resilienceWrapper.forceCloseCircuitBreaker();
+  }
+
+  /**
+   * Fuerza la apertura del circuit breaker
+   */
+  forceOpenCircuitBreaker(): void {
+    this.resilienceWrapper.forceOpenCircuitBreaker();
+  }
+
+  /**
+   * Resetea las estadísticas de resiliencia
+   */
+  resetResilienceStats(): void {
+    this.resilienceWrapper.resetStats();
+  }
+
+  /**
+   * Obtiene el tiempo restante antes del próximo intento del circuit breaker
+   */
+  getTimeUntilNextAttempt(): number {
+    return this.resilienceWrapper.getTimeUntilNextAttempt();
+  }
+
+  /**
+   * Verifica si el circuit breaker está listo para half-open
+   */
+  isReadyForHalfOpen(): boolean {
+    return this.resilienceWrapper.isReadyForHalfOpen();
   }
 
   /**
