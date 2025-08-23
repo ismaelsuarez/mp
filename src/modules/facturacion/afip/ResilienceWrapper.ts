@@ -1,6 +1,8 @@
-import pRetry from 'p-retry';
 import { CircuitBreaker, CircuitBreakerConfig } from './CircuitBreaker';
 import { AfipLogger } from './AfipLogger';
+
+// Importación dinámica para p-retry (módulo ES)
+let pRetry: any;
 
 export interface ResilienceConfig {
   timeout: number;           // Timeout en ms para cada llamada
@@ -92,6 +94,12 @@ export class ResilienceWrapper {
     };
 
     const executeWithRetry = async (): Promise<T> => {
+      // Importación dinámica de p-retry
+      if (!pRetry) {
+        const pRetryModule = await import('p-retry');
+        pRetry = pRetryModule.default;
+      }
+
       return pRetry(
         async (attempt) => {
           if (attempt > 1) {
