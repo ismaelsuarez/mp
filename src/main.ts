@@ -20,6 +20,7 @@ import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, 
 import { getDb } from './services/DbService';
 import { getFacturacionService } from './services/FacturacionService';
 import { afipService } from './modules/facturacion/afipService';
+import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -1165,6 +1166,56 @@ app.whenReady().then(() => {
 			return { ok: true, facturas }; 
 		} catch (e: any) { 
 			return { ok: false, error: String(e?.message || e) }; 
+		}
+	});
+
+	// ===== Gestión Provincial =====
+	ipcMain.handle('facturacion:emitir-con-provincias', async (_e, payload: any) => {
+		try {
+			const resultado = await getFacturacionService().emitirFacturaConProvincias(payload);
+			return { ok: true, resultado };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('provincia:get-configuracion', async () => {
+		try {
+			const provinciaManager = getProvinciaManager();
+			const configuracion = provinciaManager.getConfiguracion();
+			return { ok: true, configuracion };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('provincia:actualizar-configuracion', async (_e, { jurisdiccion, config }: { jurisdiccion: string; config: any }) => {
+		try {
+			const provinciaManager = getProvinciaManager();
+			provinciaManager.actualizarConfiguracion(jurisdiccion, config);
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('provincia:get-estadisticas', async () => {
+		try {
+			const provinciaManager = getProvinciaManager();
+			const estadisticas = await provinciaManager.getEstadisticas();
+			return { ok: true, estadisticas };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('provincia:recargar-configuracion', async () => {
+		try {
+			const provinciaManager = getProvinciaManager();
+			provinciaManager.recargarConfiguracion();
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
 		}
 	});
 

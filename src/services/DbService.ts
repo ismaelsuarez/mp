@@ -29,6 +29,14 @@ export type FacturaRecord = {
 	cae_vencimiento: string;
 	qr_url: string;
 	pdf_path: string;
+	// Campos para integración provincial
+	provincia?: string | null;
+	provincia_estado?: 'AFIP_OK' | 'AFIP_OK_PROV_OK' | 'AFIP_OK_PROV_FAIL' | 'AFIP_FAIL' | null;
+	provincia_servicio?: string | null;
+	provincia_numero?: string | null;
+	provincia_codigo?: string | null;
+	provincia_respuesta?: string | null; // JSON con respuesta completa
+	provincia_error?: string | null;
 	created_at?: string;
 };
 
@@ -112,6 +120,13 @@ class DbService {
 			cae_vencimiento TEXT NOT NULL,
 			qr_url TEXT NOT NULL,
 			pdf_path TEXT NOT NULL,
+			provincia TEXT,
+			provincia_estado TEXT,
+			provincia_servicio TEXT,
+			provincia_numero TEXT,
+			provincia_codigo TEXT,
+			provincia_respuesta TEXT,
+			provincia_error TEXT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
 
@@ -204,9 +219,9 @@ class DbService {
 	insertFacturaEmitida(rec: FacturaRecord) {
 		if (this.enabled && this.db) {
 			this.db.prepare(`INSERT INTO facturas_afip (
-			numero, pto_vta, tipo_cbte, fecha, cuit_emisor, cuit_receptor, razon_social_receptor, condicion_iva_receptor, neto, iva, total, cae, cae_vencimiento, qr_url, pdf_path
+			numero, pto_vta, tipo_cbte, fecha, cuit_emisor, cuit_receptor, razon_social_receptor, condicion_iva_receptor, neto, iva, total, cae, cae_vencimiento, qr_url, pdf_path, provincia, provincia_estado, provincia_servicio, provincia_numero, provincia_codigo, provincia_respuesta, provincia_error
 		) VALUES (
-			@numero, @pto_vta, @tipo_cbte, @fecha, @cuit_emisor, @cuit_receptor, @razon_social_receptor, @condicion_iva_receptor, @neto, @iva, @total, @cae, @cae_vencimiento, @qr_url, @pdf_path
+			@numero, @pto_vta, @tipo_cbte, @fecha, @cuit_emisor, @cuit_receptor, @razon_social_receptor, @condicion_iva_receptor, @neto, @iva, @total, @cae, @cae_vencimiento, @qr_url, @pdf_path, @provincia, @provincia_estado, @provincia_servicio, @provincia_numero, @provincia_codigo, @provincia_respuesta, @provincia_error
 		)`).run(rec);
 			return;
 		}
@@ -214,6 +229,30 @@ class DbService {
 		data.facturas_afip = data.facturas_afip || [];
 		data.facturas_afip.unshift({ ...rec, id: (Date.now()) });
 		this.writeFallback(data);
+	}
+
+	updateFacturaProvincial(id: number, provincialData: {
+		provincia?: string;
+		provincia_estado?: string;
+		provincia_servicio?: string;
+		provincia_numero?: string;
+		provincia_codigo?: string;
+		provincia_respuesta?: string;
+		provincia_error?: string;
+	}) {
+		if (this.enabled && this.db) {
+			const setParts = Object.keys(provincialData).map(key => `${key} = @${key}`);
+			const sql = `UPDATE facturas_afip SET ${setParts.join(', ')} WHERE id = @id`;
+			this.db.prepare(sql).run({ ...provincialData, id });
+			return;
+		}
+		const data = this.readFallback();
+		data.facturas_afip = data.facturas_afip || [];
+		const factura = data.facturas_afip.find((f: any) => f.id === id);
+		if (factura) {
+			Object.assign(factura, provincialData);
+			this.writeFallback(data);
+		}
 	}
 
 	insertFacturaEstadoPendiente(p: Omit<FacturaPendiente, 'estado'> & { estado?: 'pendiente' }) {

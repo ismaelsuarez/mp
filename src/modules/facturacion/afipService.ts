@@ -8,6 +8,8 @@ import { IdempotencyManager } from './afip/IdempotencyManager';
 import { ResilienceWrapper } from './afip/ResilienceWrapper';
 import { getResilienceConfig } from './afip/config';
 import { caeValidator } from './afip/CAEValidator';
+import { getProvinciaManager } from './provincia/ProvinciaManager';
+import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IProvinciaService';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -230,6 +232,103 @@ class AfipService {
 
       this.logger.logError('solicitarCAE', error instanceof Error ? error : new Error(errorMessage), { comprobante });
       throw new Error(`Error solicitando CAE: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Solicita CAE para un comprobante y lo procesa con administraciones provinciales
+   */
+  async solicitarCAEConProvincias(comprobante: Comprobante): Promise<ResultadoProvincial> {
+    const startTime = Date.now();
+    
+    this.logger.logRequest('solicitarCAE_con_provincias_inicio', {
+      tipo: comprobante.tipo,
+      puntoVenta: comprobante.puntoVenta,
+      total: comprobante.totales.total,
+      cuitEmisor: comprobante.empresa.cuit
+    });
+
+    try {
+      // 1. Solicitar CAE a AFIP primero
+      const afipResult = await this.solicitarCAE(comprobante);
+      
+      this.logger.logRequest('afip_cae_obtenido', {
+        cae: afipResult.cae,
+        vencimiento: afipResult.vencimientoCAE,
+        numero: comprobante.numero
+      });
+
+      // 2. Preparar datos para servicios provinciales
+      const cfg = getDb().getAfipConfig()!;
+      const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
+      const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+      
+      // Obtener número del comprobante (calculado en solicitarCAE)
+      const last = await this.resilienceWrapper.execute(
+        () => this.getAfipInstance().then(afip => afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte)),
+        'getLastVoucher'
+      ) as any;
+      const numero = Number(last);
+
+      const provincialParams: ComprobanteProvincialParams = {
+        cae: afipResult.cae,
+        caeVencimiento: afipResult.vencimientoCAE,
+        numero,
+        puntoVenta: ptoVta,
+        tipoComprobante: tipoCbte,
+        fecha: comprobante.fecha,
+        cuitEmisor: comprobante.empresa.cuit,
+        razonSocialEmisor: comprobante.empresa.razonSocial,
+        cuitReceptor: comprobante.cliente?.cuit,
+        razonSocialReceptor: comprobante.cliente?.razonSocial,
+        condicionIvaReceptor: comprobante.cliente?.condicionIva,
+        neto: comprobante.totales.neto,
+        iva: comprobante.totales.iva,
+        total: comprobante.totales.total,
+        detalle: comprobante.items.map(item => ({
+          descripcion: item.descripcion,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+          alicuotaIva: item.alicuotaIva
+        })),
+        observaciones: comprobante.observaciones,
+        codigoOperacion: comprobante.codigoOperacion
+      };
+
+      // 3. Procesar con administraciones provinciales
+      const provinciaManager = getProvinciaManager();
+      const resultado = await provinciaManager.procesarComprobante(provincialParams);
+
+      this.logger.logRequest('procesamiento_provincial_completado', {
+        cae: afipResult.cae,
+        estadoFinal: resultado.estado,
+        servicioProvincial: resultado.provincial?.servicio,
+        duracion: Date.now() - startTime
+      });
+
+      return resultado;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      this.logger.logError('solicitarCAE_con_provincias_error', error instanceof Error ? error : new Error(errorMessage), {
+        comprobante: {
+          tipo: comprobante.tipo,
+          puntoVenta: comprobante.puntoVenta,
+          total: comprobante.totales.total
+        },
+        duracion: Date.now() - startTime
+      });
+
+      // Si el error es de AFIP, devolver resultado de fallo completo
+      return {
+        afip: {
+          success: false,
+          error: errorMessage
+        },
+        provincial: null,
+        estado: 'AFIP_FAIL'
+      };
     }
   }
 

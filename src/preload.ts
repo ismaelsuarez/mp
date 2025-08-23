@@ -134,7 +134,16 @@ contextBridge.exposeInMainWorld('api', {
 		getCAEStatus: (facturaId: number) => ipcRenderer.invoke('facturacion:get-cae-status', { facturaId }),
 		getCAEStatusComprobante: (numero: number, ptoVta: number, tipoCbte: number) => ipcRenderer.invoke('facturacion:get-cae-status-comprobante', { numero, ptoVta, tipoCbte }),
 		findExpiringCAE: (warningThresholdHours?: number) => ipcRenderer.invoke('facturacion:find-expiring-cae', { warningThresholdHours }),
-		findExpiredCAE: () => ipcRenderer.invoke('facturacion:find-expired-cae')
+		findExpiredCAE: () => ipcRenderer.invoke('facturacion:find-expired-cae'),
+		// Emisión con provincias
+		emitirConProvincias: (payload: any) => ipcRenderer.invoke('facturacion:emitir-con-provincias', payload)
+	},
+	// Gestión Provincial
+	provincia: {
+		getConfiguracion: () => ipcRenderer.invoke('provincia:get-configuracion'),
+		actualizarConfiguracion: (jurisdiccion: string, config: any) => ipcRenderer.invoke('provincia:actualizar-configuracion', { jurisdiccion, config }),
+		getEstadisticas: () => ipcRenderer.invoke('provincia:get-estadisticas'),
+		recargarConfiguracion: () => ipcRenderer.invoke('provincia:recargar-configuracion')
 	},
 	// Perfiles de configuración
 	perfiles: {

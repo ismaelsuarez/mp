@@ -1,0 +1,51 @@
+{
+  "mendoza": {
+    "enabled": true,
+    "service": "ATMService",
+    "endpoint": "https://atm.mendoza.gov.ar/ws",
+    "timeout": 30000,
+    "retries": 3,
+    "credentials": {
+      "usuario": "",
+      "password": "",
+      "token": ""
+    },
+    "configuracion": {
+      "entorno": "homologacion",
+      "version": "1.0",
+      "codigoActividad": "541100"
+    }
+  },
+  "caba": {
+    "enabled": false,
+    "service": "AGIPService",
+    "endpoint": "https://agip.buenosaires.gob.ar/ws",
+    "timeout": 30000,
+    "retries": 3,
+    "credentials": {
+      "usuario": "",
+      "password": "",
+      "token": ""
+    },
+    "configuracion": {
+      "entorno": "homologacion",
+      "version": "1.0"
+    }
+  },
+  "buenos_aires": {
+    "enabled": false,
+    "service": "ARBAService",
+    "endpoint": "https://arba.gba.gob.ar/ws",
+    "timeout": 30000,
+    "retries": 3,
+    "credentials": {
+      "usuario": "",
+      "password": "",
+      "token": ""
+    },
+    "configuracion": {
+      "entorno": "homologacion",
+      "version": "1.0"
+    }
+  }
+}

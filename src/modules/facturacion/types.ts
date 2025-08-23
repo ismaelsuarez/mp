@@ -20,9 +20,25 @@ export interface Item {
   cantidad: number;
   precioUnitario: number;
   iva: number; // porcentaje (10.5, 21, 27)
+  alicuotaIva: number; // alias para iva
 }
 
-export type TipoComprobante = 'FA' | 'FB' | 'NC' | 'RECIBO';
+export type TipoComprobante = 'A' | 'B' | 'C' | 'E' | 'FA' | 'FB' | 'NC' | 'RECIBO';
+
+export interface Empresa {
+  cuit: string;
+  razonSocial: string;
+  domicilio: string;
+  condicionIva: CondicionIva;
+  logoPath?: string;
+}
+
+export interface Cliente {
+  cuit?: string;
+  razonSocial: string;
+  condicionIva: CondicionIva;
+  domicilio?: string;
+}
 
 export interface Totales {
   neto: number;
@@ -33,11 +49,15 @@ export interface Totales {
 export interface Comprobante {
   tipo: TipoComprobante;
   puntoVenta: number;
-  numero: number;
+  numero?: number;
   fecha: string; // YYYYMMDD
+  empresa: Empresa;
+  cliente?: Cliente;
   condicionVenta?: string; // contado/cta cte/…
   items: Item[];
   totales: Totales;
+  observaciones?: string;
+  codigoOperacion?: string;
 }
 
 export interface DatosAFIP {
