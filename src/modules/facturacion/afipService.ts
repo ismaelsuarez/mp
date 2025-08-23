@@ -10,6 +10,7 @@ import { getResilienceConfig } from './afip/config';
 import { caeValidator } from './afip/CAEValidator';
 import { getProvinciaManager } from './provincia/ProvinciaManager';
 import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IProvinciaService';
+import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -44,6 +45,18 @@ class AfipService {
     const cfg = getDb().getAfipConfig();
     if (!cfg) {
       throw new Error('Falta configurar AFIP en Administración');
+    }
+
+    // VALIDACIÓN DE TIEMPO NTP - NUEVA FUNCIONALIDAD
+    try {
+      await validateSystemTimeAndThrow();
+      this.logger.logRequest('timeValidation', { status: 'passed', message: 'Sistema sincronizado con NTP' });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.logError('timeValidation', error instanceof Error ? error : new Error(errorMessage), {
+        message: 'Validación de tiempo falló antes de crear instancia AFIP'
+      });
+      throw new Error(`Error de sincronización de tiempo: ${errorMessage}`);
     }
 
     // Validar certificado antes de crear instancia
@@ -557,6 +570,27 @@ class AfipService {
    */
   findFacturasWithExpiredCAE(): any[] {
     return caeValidator.findFacturasWithExpiredCAE();
+  }
+
+  /**
+   * Obtiene estadísticas de validación de tiempo
+   */
+  getTimeValidationStats(): any {
+    return timeValidator.getStats();
+  }
+
+  /**
+   * Obtiene el estado de validación de tiempo
+   */
+  getTimeValidationStatus(): any {
+    return timeValidator.getStatus();
+  }
+
+  /**
+   * Fuerza una validación de tiempo inmediata
+   */
+  async forceTimeValidation(): Promise<any> {
+    return timeValidator.validateSystemTime();
   }
 
   /**
