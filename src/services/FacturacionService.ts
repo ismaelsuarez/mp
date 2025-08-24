@@ -53,7 +53,11 @@ export class FacturacionService {
 					neto: params.neto,
 					iva: params.iva,
 					total: params.total
-				}
+				},
+				// Nuevos campos de configuración AFIP
+				concepto: params.concepto,
+				docTipo: params.doc_tipo,
+				monId: params.mon_id
 			};
 
 			const out = await afipService.solicitarCAE(comprobante);

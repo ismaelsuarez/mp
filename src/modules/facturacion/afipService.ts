@@ -97,9 +97,9 @@ class AfipService {
       const validator = new AfipValidator(afip);
       const validationParams: ValidationParams = {
         cbteTipo: tipoCbte,
-        concepto: 1, // Concepto fijo por ahora
-        docTipo: 99, // 99=Consumidor Final (consistente con el request)
-        monId: 'PES', // Moneda fija por ahora
+        concepto: comprobante.concepto || 1,
+        docTipo: comprobante.docTipo || 99,
+        monId: comprobante.monId || 'PES',
         ptoVta: ptoVta,
         cuit: cfg.cuit
       };
@@ -180,9 +180,9 @@ class AfipService {
         CantReg: 1,
         PtoVta: ptoVta,
         CbteTipo: tipoCbte,
-        Concepto: 1,
-        DocTipo: 99,
-        DocNro: 0,
+        Concepto: comprobante.concepto || 1,
+        DocTipo: comprobante.docTipo || 99,
+        DocNro: comprobante.cliente?.cuit ? Number(comprobante.cliente.cuit) : 0,
         CbteDesde: numero,
         CbteHasta: numero,
         CbteFch: comprobante.fecha,
@@ -192,7 +192,7 @@ class AfipService {
         ImpOpEx: 0,
         ImpIVA: AfipHelpers.formatNumber(comprobante.totales.iva),
         ImpTrib: 0,
-        MonId: 'PES',
+        MonId: comprobante.monId || 'PES',
         MonCotiz: 1,
         Iva: ivaArray
       };

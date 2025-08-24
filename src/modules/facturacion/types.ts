@@ -58,6 +58,10 @@ export interface Comprobante {
   totales: Totales;
   observaciones?: string;
   codigoOperacion?: string;
+  // Nuevos campos para configuración AFIP
+  concepto?: number; // 1=Productos, 2=Servicios, 3=Productos y Servicios
+  docTipo?: number; // 80=CUIT, 86=CUIL, 96=DNI, 99=Consumidor Final
+  monId?: string; // PES, DOL, EUR
 }
 
 export interface DatosAFIP {

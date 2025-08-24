@@ -1725,6 +1725,12 @@ window.addEventListener('DOMContentLoaded', () => {
 		itemsPrueba = [];
 		nextItemId = 1;
 		renderizarItemsPrueba();
+		
+		// Resetear configuración AFIP a valores por defecto
+		(document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement).value = '11';
+		(document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement).value = '1';
+		(document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement).value = '80';
+		(document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement).value = 'PES';
 	}
 	
 	// Exponer funciones globalmente para los onclick
@@ -1740,6 +1746,12 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Emitir factura de prueba
 	(document.getElementById('btnPruebaEmitir') as HTMLButtonElement | null)?.addEventListener('click', async () => {
 		try {
+			// Obtener configuración AFIP
+			const tipoCbte = parseInt((document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement)?.value || '11');
+			const concepto = parseInt((document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement)?.value || '1');
+			const docTipo = parseInt((document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement)?.value || '80');
+			const moneda = (document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement)?.value || 'PES';
+			
 			// Obtener datos del cliente
 			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim() || '20300123456';
 			const razonSocial = (document.getElementById('pruebaFacturaRazon') as HTMLInputElement)?.value?.trim() || 'Cliente Demo S.A.';
@@ -1797,7 +1809,10 @@ window.addEventListener('DOMContentLoaded', () => {
 			
 			const res = await (window.api as any).facturacion?.emitir({
 				pto_vta: 1,
-				tipo_cbte: 1, // Factura A
+				tipo_cbte: tipoCbte,
+				concepto: concepto,
+				doc_tipo: docTipo,
+				mon_id: moneda,
 				fecha: `${yyyy}${mm}${dd}`,
 				cuit_emisor: '20123456789',
 				cuit_receptor: cuitCliente,
@@ -1808,7 +1823,7 @@ window.addEventListener('DOMContentLoaded', () => {
 				total: totalFinal,
 				detalle: detalle,
 				empresa: { nombre: 'TODO-COMPUTACIÓN', cuit: '20123456789' },
-				plantilla: 'factura_a'
+				plantilla: tipoCbte === 11 ? 'factura_c' : 'factura_a'
 			});
 			
 			if (res?.ok) {
@@ -1823,6 +1838,11 @@ window.addEventListener('DOMContentLoaded', () => {
 				// Limpiar formulario
 				(document.getElementById('pruebaFacturaCuit') as HTMLInputElement).value = '';
 				(document.getElementById('pruebaFacturaRazon') as HTMLInputElement).value = '';
+				// Resetear configuración AFIP a valores por defecto
+				(document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement).value = '11';
+				(document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement).value = '1';
+				(document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement).value = '80';
+				(document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement).value = 'PES';
 				limpiarItemsPrueba();
 				
 				// Recargar listado
@@ -1893,8 +1913,25 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	// ===== FIN PRUEBAS DE FACTURACIÓN =====
 
+	// Inicializar valores por defecto de la configuración AFIP
+	function inicializarValoresPorDefectoAFIP() {
+		// Asegurar que los valores por defecto estén seleccionados
+		const tipoCbteSelect = document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement;
+		const conceptoSelect = document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement;
+		const docTipoSelect = document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement;
+		const monedaSelect = document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement;
+		
+		if (tipoCbteSelect) tipoCbteSelect.value = '11';
+		if (conceptoSelect) conceptoSelect.value = '1';
+		if (docTipoSelect) docTipoSelect.value = '80';
+		if (monedaSelect) monedaSelect.value = 'PES';
+	}
+
 	// Inicializar con items de ejemplo para pruebas
 	setTimeout(() => {
+		// Inicializar valores por defecto AFIP
+		inicializarValoresPorDefectoAFIP();
+		
 		// Agregar algunos items de ejemplo
 		agregarItemPrueba();
 		agregarItemPrueba();

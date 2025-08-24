@@ -3,7 +3,10 @@ import { getDb } from './DbService';
 
 export type ComprobanteInput = {
 	pto_vta: number;
-	tipo_cbte: number; // 1=A, 6=B, 3=NC A, 8=NC B, etc.
+	tipo_cbte: number; // 1=A, 6=B, 11=C, 3=NC A, 8=NC B, etc.
+	concepto?: number; // 1=Productos, 2=Servicios, 3=Productos y Servicios
+	doc_tipo?: number; // 80=CUIT, 86=CUIL, 96=DNI, 99=Consumidor Final
+	mon_id?: string; // PES, DOL, EUR
 	fecha: string; // YYYYMMDD
 	cuit_emisor: string;
 	cuit_receptor?: string;
@@ -74,8 +77,8 @@ export class AfipService {
 			CantReg: 1,
 			PtoVta: ptoVta,
 			CbteTipo: tipoCbte,
-			Concepto: 1,
-			DocTipo: input.cuit_receptor ? 80 : 99,
+			Concepto: input.concepto || 1,
+			DocTipo: input.doc_tipo || (input.cuit_receptor ? 80 : 99),
 			DocNro: input.cuit_receptor ? Number(input.cuit_receptor) : 0,
 			CbteDesde: nuevoNumero,
 			CbteHasta: nuevoNumero,
@@ -86,7 +89,7 @@ export class AfipService {
 			ImpOpEx: 0,
 			ImpIVA: input.iva,
 			ImpTrib: 0,
-			MonId: 'PES',
+			MonId: input.mon_id || 'PES',
 			MonCotiz: 1,
 			Iva: ivaArray
 		};
