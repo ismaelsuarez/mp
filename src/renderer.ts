@@ -1844,7 +1844,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			const status = document.getElementById('pruebaStatus');
 			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Verificando estado de servidores AFIP...</span>';
 			
-			const res = await (window.api as any).afip?.checkServerStatus?.();
+			const res = await window.api['afip:check-server-status']();
 			if (res?.ok) {
 				const { appserver, dbserver, authserver } = res;
 				if (status) {
@@ -1871,8 +1871,8 @@ window.addEventListener('DOMContentLoaded', () => {
 			const status = document.getElementById('pruebaStatus');
 			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Validando certificado AFIP...</span>';
 			
-			const res = await (window.api as any).afip?.validarCertificado?.();
-			if (res?.valido) {
+			const res = await window.api['afip:validar-certificado']();
+			if (res?.ok && res?.valido) {
 				if (status) {
 					status.innerHTML = `
 						<span class="text-green-400">✅ Certificado válido</span><br>

@@ -1,9 +1,6 @@
 import { CircuitBreaker, CircuitBreakerConfig } from './CircuitBreaker';
 import { AfipLogger } from './AfipLogger';
 
-// Importación dinámica para p-retry (módulo ES)
-let pRetry: any;
-
 export interface ResilienceConfig {
   timeout: number;           // Timeout en ms para cada llamada
   retries: number;           // Número de reintentos
@@ -94,14 +91,10 @@ export class ResilienceWrapper {
     };
 
     const executeWithRetry = async (): Promise<T> => {
-      // Importación dinámica de p-retry
-      if (!pRetry) {
-        const pRetryModule = await import('p-retry');
-        pRetry = pRetryModule.default;
-      }
-
-      return pRetry(
-        async (attempt) => {
+      let lastError: Error;
+      
+      for (let attempt = 1; attempt <= finalConfig.retries + 1; attempt++) {
+        try {
           if (attempt > 1) {
             this.stats.retryAttempts++;
             this.logger.logRequest('resilience_retry', { 
@@ -109,24 +102,30 @@ export class ResilienceWrapper {
               attempt, 
               maxRetries: finalConfig.retries 
             });
+            
+            // Backoff exponencial
+            const delay = finalConfig.retryDelay * Math.pow(2, attempt - 2);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
 
-          return executeWithTimeout();
-        },
-        {
-          retries: finalConfig.retries,
-          factor: 2, // Backoff exponencial: 1s, 2s, 4s
-          minTimeout: finalConfig.retryDelay,
-          maxTimeout: finalConfig.retryDelay * Math.pow(2, finalConfig.retries - 1),
-          onFailedAttempt: (error) => {
-            this.logger.logError('resilience_retry_failed', new Error(`Retry attempt ${error.attemptNumber} failed`), {
+          return await executeWithTimeout();
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          
+          if (attempt <= finalConfig.retries) {
+            this.logger.logError('resilience_retry_failed', lastError, {
               operation,
-              attempt: error.attemptNumber,
+              attempt,
               maxRetries: finalConfig.retries
             });
+          } else {
+            // Último intento falló
+            throw lastError;
           }
         }
-      );
+      }
+      
+      throw lastError!;
     };
 
     try {

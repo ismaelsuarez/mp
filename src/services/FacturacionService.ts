@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import { getDb } from './DbService';
 import { getAfipService, ComprobanteInput } from './AfipService';
 import { afipService } from '../modules/facturacion/afipService';
-import { Comprobante } from '../modules/facturacion/types';
+import { Comprobante, TipoComprobante } from '../modules/facturacion/types';
 import { ResultadoProvincial } from '../modules/facturacion/provincia/IProvinciaService';
 import { getFacturaGenerator, PlantillaTipo } from './FacturaGenerator';
 
@@ -26,8 +26,48 @@ export class FacturacionService {
 		// Intentar emitir
 		let numero = 0; let cae = ''; let cae_venc = '';
 		try {
-			const out = await getAfipService().emitirComprobante(params);
-			numero = out.numero; cae = out.cae; cae_venc = out.cae_vencimiento;
+			// Convertir parámetros al formato Comprobante
+			const comprobante: Comprobante = {
+				tipo: this.mapTipoComprobante(params.tipo_cbte),
+				puntoVenta: params.pto_vta,
+				fecha: params.fecha,
+				empresa: {
+					cuit: params.cuit_emisor,
+					razonSocial: params.empresa?.nombre || 'Empresa',
+					domicilio: params.empresa?.domicilio || '',
+					condicionIva: 'RI'
+				},
+				cliente: params.cuit_receptor ? {
+					cuit: params.cuit_receptor,
+					razonSocial: params.razon_social_receptor || 'Cliente',
+					condicionIva: params.condicion_iva_receptor as any || 'CF'
+				} : undefined,
+				items: (params.detalle || []).map(item => ({
+					descripcion: item.descripcion,
+					cantidad: item.cantidad,
+					precioUnitario: item.precioUnitario,
+					iva: item.alicuotaIva,
+					alicuotaIva: item.alicuotaIva
+				})),
+				totales: {
+					neto: params.neto,
+					iva: params.iva,
+					total: params.total
+				}
+			};
+
+			const out = await afipService.solicitarCAE(comprobante);
+			cae = out.cae; 
+			cae_venc = out.vencimientoCAE;
+			
+			// Obtener número del último autorizado + 1
+			const cfg = db.getAfipConfig();
+			if (cfg) {
+				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, comprobante.tipo);
+				numero = ultimo + 1;
+			} else {
+				numero = Math.floor(Date.now() / 1000); // Fallback
+			}
 		} catch (e: any) {
 			const fallbackNumero = Math.floor(Date.now() / 1000);
 			db.insertFacturaEstadoPendiente({
@@ -305,13 +345,16 @@ export class FacturacionService {
 	/**
 	 * Mapea tipo de comprobante numérico a string
 	 */
-	private mapTipoComprobante(tipoCbte: number): 'A' | 'B' | 'C' | 'E' {
+	private mapTipoComprobante(tipoCbte: number): TipoComprobante {
 		switch (tipoCbte) {
 			case 1: return 'A';
 			case 6: return 'B';
 			case 11: return 'C';
-			case 19: return 'E';
-			default: return 'B';
+			case 2: return 'E';
+			case 3: return 'FA';
+			case 8: return 'FB';
+			case 13: return 'NC';
+			default: return 'A';
 		}
 	}
 

@@ -138,6 +138,9 @@ contextBridge.exposeInMainWorld('api', {
 		// Emisión con provincias
 		emitirConProvincias: (payload: any) => ipcRenderer.invoke('facturacion:emitir-con-provincias', payload)
 	},
+	// AFIP
+	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),
+	'afip:validar-certificado': () => ipcRenderer.invoke('afip:validar-certificado'),
 	// Gestión Provincial
 	provincia: {
 		getConfiguracion: () => ipcRenderer.invoke('provincia:get-configuracion'),

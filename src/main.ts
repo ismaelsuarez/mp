@@ -1219,6 +1219,25 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// ===== Handlers AFIP =====
+	ipcMain.handle('afip:check-server-status', async () => {
+		try {
+			const status = await afipService.checkServerStatus();
+			return { ok: true, ...status };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('afip:validar-certificado', async () => {
+		try {
+			const certInfo = afipService.validarCertificado();
+			return { ok: true, ...certInfo };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	createMainWindow();
 	createTray();
 	app.on('before-quit', () => { isQuitting = true; });
