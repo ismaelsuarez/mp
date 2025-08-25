@@ -6,6 +6,7 @@ export interface TimeValidationResult {
   drift: number;
   systemTime: Date;
   ntpTime: Date;
+  duration?: number; // Duración de la validación en ms
   error?: string;
   warning?: string;
 }

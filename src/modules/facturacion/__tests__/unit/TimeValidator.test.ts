@@ -1,8 +1,11 @@
-import { TimeValidator } from '../../utils/TimeValidator';
-import { mockNtpClient } from '../fixtures/mocks';
-
 // Mock de ntp-client
+const mockNtpClient = {
+  getNetworkTime: jest.fn()
+};
+
 jest.mock('ntp-client', () => mockNtpClient);
+
+import { TimeValidator } from '../../utils/TimeValidator';
 
 describe('TimeValidator', () => {
   let timeValidator: TimeValidator;

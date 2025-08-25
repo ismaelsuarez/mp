@@ -1,17 +1,24 @@
 import { IdempotencyManager } from '../../afip/IdempotencyManager';
-import { mockDatabase } from '../fixtures/mocks';
 
 // Mock de la base de datos
-jest.mock('../../../services/DbService', () => ({
-  getDb: jest.fn(() => mockDatabase)
+const mockDb = {
+  prepare: jest.fn(() => ({
+    get: jest.fn(),
+    run: jest.fn(),
+    all: jest.fn()
+  })),
+  transaction: jest.fn((callback) => callback(mockDb))
+};
+
+jest.mock('../../../../services/DbService', () => ({
+  getDb: jest.fn(() => mockDb)
 }));
 
 describe('IdempotencyManager', () => {
   let idempotencyManager: IdempotencyManager;
-  let mockDb: any;
 
   beforeEach(() => {
-    mockDb = { ...mockDatabase };
+    jest.clearAllMocks();
     idempotencyManager = new IdempotencyManager();
   });
 

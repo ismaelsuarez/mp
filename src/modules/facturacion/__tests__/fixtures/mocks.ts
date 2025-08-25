@@ -29,6 +29,14 @@ export const mockAfipInstance = {
       { Nro: 2, Desc: 'Punto de Venta 2' }
     ]),
     
+    // ✅ AGREGADO: Mock de tipos de IVA
+    getTaxTypes: jest.fn().mockResolvedValue([
+      { Id: 5, Desc: '21%' },
+      { Id: 10.5, Desc: '10.5%' },
+      { Id: 27, Desc: '27%' },
+      { Id: 0, Desc: '0%' }
+    ]),
+    
     getCurrencyQuotation: jest.fn().mockResolvedValue({
       MonId: 'USD',
       MonCotiz: 1000,
