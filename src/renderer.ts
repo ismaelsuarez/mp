@@ -1762,14 +1762,14 @@ window.addEventListener('DOMContentLoaded', () => {
 				if (status) status.innerHTML = '<span class="text-red-400">Error: Complete los datos del cliente</span>';
 				return;
 			}
-			
+
 			// Validar items
 			if (itemsPrueba.length === 0) {
 				const status = document.getElementById('pruebaStatus');
 				if (status) status.innerHTML = '<span class="text-red-400">Error: Agregue al menos un item</span>';
 				return;
 			}
-			
+
 			// Validar items completos
 			const itemsIncompletos = itemsPrueba.filter(item => 
 				!item.descripcion || item.cantidad <= 0 || item.precioUnitario <= 0

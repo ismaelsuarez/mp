@@ -3,8 +3,8 @@
  * Genera una factura con ítem de servicio por $0.10 pesos
  */
 
-const { AFIPService } = require('./src/modules/facturacion/afip/AFIPService');
-const { FacturaService } = require('./src/modules/facturacion/FacturaService');
+const { afipService } = require('../dist/src/modules/facturacion/afipService');
+const { FacturacionService } = require('../dist/src/services/FacturacionService');
 require('dotenv').config();
 
 async function testFacturaHomologacion() {
