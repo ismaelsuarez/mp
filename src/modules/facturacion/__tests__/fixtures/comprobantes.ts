@@ -2,26 +2,27 @@ import { Comprobante } from '../../types';
 
 // Comprobante válido - Factura B
 export const comprobanteValido: Comprobante = {
-  tipo: 'FACTURA_B',
+  tipo: 'B',
   puntoVenta: 1,
   fecha: '20241219',
   empresa: {
     cuit: '20123456789',
     razonSocial: 'EMPRESA TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    domicilio: 'Calle Test 123',
+    condicionIva: 'RI'
   },
   cliente: {
     cuit: '20123456789',
     razonSocial: 'CLIENTE TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    condicionIva: 'RI'
   },
   items: [
     {
       descripcion: 'Producto de prueba',
       cantidad: 1,
       precioUnitario: 1000,
-      alicuotaIva: 21,
-      subtotal: 1000
+      iva: 21,
+      alicuotaIva: 21
     }
   ],
   totales: {
@@ -35,26 +36,27 @@ export const comprobanteValido: Comprobante = {
 
 // Comprobante válido - Factura C
 export const comprobanteValidoC: Comprobante = {
-  tipo: 'FACTURA_C',
+  tipo: 'C',
   puntoVenta: 1,
   fecha: '20241219',
   empresa: {
     cuit: '20123456789',
     razonSocial: 'EMPRESA TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    domicilio: 'Calle Test 123',
+    condicionIva: 'RI'
   },
   cliente: {
     cuit: '20123456789',
     razonSocial: 'CLIENTE TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    condicionIva: 'RI'
   },
   items: [
     {
       descripcion: 'Producto de prueba C',
       cantidad: 2,
       precioUnitario: 500,
-      alicuotaIva: 21,
-      subtotal: 1000
+      iva: 21,
+      alicuotaIva: 21
     }
   ],
   totales: {
@@ -68,18 +70,19 @@ export const comprobanteValidoC: Comprobante = {
 
 // Comprobante inválido - sin items
 export const comprobanteSinItems: Comprobante = {
-  tipo: 'FACTURA_B',
+  tipo: 'B',
   puntoVenta: 1,
   fecha: '20241219',
   empresa: {
     cuit: '20123456789',
     razonSocial: 'EMPRESA TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    domicilio: 'Calle Test 123',
+    condicionIva: 'RI'
   },
   cliente: {
     cuit: '20123456789',
     razonSocial: 'CLIENTE TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    condicionIva: 'RI'
   },
   items: [],
   totales: {
@@ -93,26 +96,27 @@ export const comprobanteSinItems: Comprobante = {
 
 // Comprobante inválido - totales incorrectos
 export const comprobanteTotalesIncorrectos: Comprobante = {
-  tipo: 'FACTURA_B',
+  tipo: 'B',
   puntoVenta: 1,
   fecha: '20241219',
   empresa: {
     cuit: '20123456789',
     razonSocial: 'EMPRESA TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    domicilio: 'Calle Test 123',
+    condicionIva: 'RI'
   },
   cliente: {
     cuit: '20123456789',
     razonSocial: 'CLIENTE TEST S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    condicionIva: 'RI'
   },
   items: [
     {
       descripcion: 'Producto de prueba',
       cantidad: 1,
       precioUnitario: 1000,
-      alicuotaIva: 21,
-      subtotal: 1000
+      iva: 21,
+      alicuotaIva: 21
     }
   ],
   totales: {
@@ -133,33 +137,33 @@ export const comprobanteDuplicado: Comprobante = {
 // Comprobante con moneda extranjera
 export const comprobanteMonedaExtranjera: Comprobante = {
   ...comprobanteValido,
-  moneda: 'USD',
-  cotizacion: 1000,
+  monId: 'USD',
   observaciones: 'Comprobante en dólares'
 };
 
 // Comprobante para tests de homologación
 export const comprobanteHomologacion: Comprobante = {
-  tipo: 'FACTURA_B',
+  tipo: 'B',
   puntoVenta: 1,
   fecha: '20241219',
   empresa: {
     cuit: process.env.AFIP_CUIT_HOMOLOGACION || '20123456789',
     razonSocial: 'EMPRESA HOMOLOGACION S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    domicilio: 'Calle Homologacion 456',
+    condicionIva: 'RI'
   },
   cliente: {
     cuit: '20123456789',
     razonSocial: 'CLIENTE HOMOLOGACION S.A.',
-    condicionIva: 'RESPONSABLE_INSCRIPTO'
+    condicionIva: 'RI'
   },
   items: [
     {
       descripcion: 'Servicio de homologación',
       cantidad: 1,
       precioUnitario: 100,
-      alicuotaIva: 21,
-      subtotal: 100
+      iva: 21,
+      alicuotaIva: 21
     }
   ],
   totales: {

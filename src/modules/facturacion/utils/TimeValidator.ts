@@ -51,17 +51,18 @@ export class TimeValidator {
 
       const result = await this.queryNTP();
       
+      // Agregar duración al resultado
+      result.duration = Date.now() - startTime;
+      
       // Calcular estadísticas
       this.validationCount++;
       this.totalDrift += result.drift;
       this.lastValidation = result;
-
-      const duration = Date.now() - startTime;
       
       this.logger.logResponse('validateSystemTime', {
         isValid: result.isValid,
         drift: result.drift,
-        duration,
+        duration: result.duration,
         averageDrift: this.getAverageDrift()
       });
 
@@ -82,9 +83,13 @@ export class TimeValidator {
         drift: 0,
         systemTime,
         ntpTime: systemTime,
-        warning: `No se pudo validar con NTP: ${errorMessage}`
+        warning: `No se pudo validar con NTP: ${errorMessage}`,
+        duration: Date.now() - startTime
       };
 
+      // Actualizar estadísticas incluso en caso de error
+      this.validationCount++;
+      this.totalDrift += result.drift;
       this.lastValidation = result;
       return result;
     }
@@ -94,6 +99,7 @@ export class TimeValidator {
    * Consulta el servidor NTP y compara con el tiempo local
    */
   private queryNTP(): Promise<TimeValidationResult> {
+    const startTime = Date.now();
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Timeout consultando servidor NTP'));
@@ -115,7 +121,8 @@ export class TimeValidator {
           isValid: drift <= this.config.allowedDrift,
           drift,
           systemTime,
-          ntpTime
+          ntpTime,
+          duration: Date.now() - startTime
         };
 
         if (!result.isValid) {

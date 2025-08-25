@@ -1694,6 +1694,17 @@ app.whenReady().then(() => {
 			if (windowMode === 'comun12') {
 				if (mainWindow) {
 					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
+					// Activar ventana principal y llevarla al frente cuando recibe nuevo contenido
+					try { 
+						mainWindow.show(); // Asegurar que esté visible
+						mainWindow.focus(); 
+						mainWindow.moveTop(); 
+						// Métodos adicionales para Windows
+						try { mainWindow.setAlwaysOnTop(true); } catch {}
+						setTimeout(() => {
+							try { mainWindow?.setAlwaysOnTop(false); } catch {}
+						}, 100); // Quitar alwaysOnTop después de 100ms
+					} catch {}
 					mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'comun' });
 				}
 				// Reutilizar o crear la ventana persistente para presentación
@@ -1812,6 +1823,17 @@ app.whenReady().then(() => {
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
+				// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+				try { 
+					mainWindow.show(); // Asegurar que esté visible
+					mainWindow.focus(); 
+					mainWindow.moveTop(); 
+					// Métodos adicionales para Windows
+					try { mainWindow.setAlwaysOnTop(true); } catch {}
+					setTimeout(() => {
+						try { mainWindow?.setAlwaysOnTop(false); } catch {}
+					}, 100); // Quitar alwaysOnTop después de 100ms
+				} catch {}
 				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun', fallback: isFallback });
 			}
 			

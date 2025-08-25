@@ -220,7 +220,7 @@ describe('AFIP Homologación', () => {
         return;
       }
 
-      const ultimo = await afipService.getUltimoAutorizado(1, 'FACTURA_B');
+      const ultimo = await afipService.getUltimoAutorizado(1, 'B');
 
       expect(typeof ultimo).toBe('number');
       expect(ultimo).toBeGreaterThanOrEqual(0);

@@ -182,7 +182,7 @@ describe('AfipService - Integración', () => {
 
   describe('getUltimoAutorizado', () => {
     it('debería obtener último número autorizado', async () => {
-      const ultimo = await afipService.getUltimoAutorizado(1, 'FACTURA_B');
+      const ultimo = await afipService.getUltimoAutorizado(1, 'B');
 
       expect(ultimo).toBe(1000);
       expect(mockAfipInstance.ElectronicBilling.getLastVoucher).toHaveBeenCalledWith(1, 6);
