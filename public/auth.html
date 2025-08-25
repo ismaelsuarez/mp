@@ -9,6 +9,16 @@
 
 <div id="app" class="w-full max-w-md p-6 bg-gray-800 rounded-xl shadow-lg space-y-4">
 
+  <!-- MODAL PERSONALIZADO -->
+  <div id="custom-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
+      <div id="modal-content" class="text-white text-center">
+        <p id="modal-message" class="mb-4"></p>
+        <button id="modal-ok" class="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- HEADER -->
   <div class="text-center">
     <h1 id="form-title" class="text-xl font-bold">Modo Administrador</h1>
@@ -92,6 +102,34 @@
   const title = document.getElementById('form-title');
   const subtitle = document.getElementById('form-subtitle');
 
+  // Funciones para modal personalizado
+  function showCustomModal(message, callback = null) {
+    const modal = document.getElementById('custom-modal');
+    const modalMessage = document.getElementById('modal-message');
+    const modalOk = document.getElementById('modal-ok');
+    
+    // Convertir saltos de línea en <br> para HTML
+    modalMessage.innerHTML = message.replace(/\n/g, '<br>');
+    modal.classList.remove('hidden');
+    
+    const handleOk = () => {
+      modal.classList.add('hidden');
+      modalOk.removeEventListener('click', handleOk);
+      if (callback) callback();
+    };
+    
+    modalOk.addEventListener('click', handleOk);
+    
+    // También cerrar con Escape
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        handleOk();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+  }
+
   // Cargar usuario recordado al iniciar
   // Volver a Modo Caja
   document.getElementById('btnBackToCaja')?.addEventListener('click', async () => {
@@ -135,7 +173,45 @@
     if (res.ok) {
       await window.auth.openConfig();
     } else {
-      alert('Error: ' + res.reason);
+      let errorMessage = '';
+      let shouldFocusUser = true;
+      
+      // Mensajes personalizados según el tipo de error
+      switch (res.reason) {
+        case 'locked':
+          if (res.unlockAt) {
+            const unlockTime = new Date(res.unlockAt);
+            const now = new Date();
+            const minutesLeft = Math.ceil((unlockTime.getTime() - now.getTime()) / (1000 * 60));
+            errorMessage = `🔒 Cuenta bloqueada temporalmente\n\n⏰ Se desbloqueará en ${minutesLeft} minutos\n\n💡 Alternativas:\n• Esperar el desbloqueo automático\n• Usar recuperación de contraseña\n• Contactar al administrador`;
+          } else {
+            errorMessage = '🔒 Cuenta bloqueada temporalmente\n\n⏰ Intente nuevamente en unos minutos';
+          }
+          break;
+          
+        case 'invalid':
+          errorMessage = '❌ Usuario o contraseña incorrectos\n\n💡 Verifique:\n• El nombre de usuario\n• La contraseña (mayúsculas/minúsculas)\n• Que no haya espacios extra\n\n🔑 Si olvidó su contraseña, use la recuperación';
+          break;
+          
+        case 'not_initialized':
+          errorMessage = '⚠️ Sistema no configurado\n\n👤 Primero debe crear un usuario administrador\n\n📝 Complete el formulario de configuración inicial';
+          shouldFocusUser = false;
+          break;
+          
+        default:
+          errorMessage = `❌ Error de autenticación\n\n🔍 Detalle: ${res.reason}\n\n💡 Intente nuevamente o contacte soporte`;
+      }
+      
+      showCustomModal(errorMessage, () => {
+        // Restaurar foco después del modal
+        if (shouldFocusUser) {
+          const userField = document.getElementById('login-user');
+          if (userField) {
+            userField.focus();
+            userField.select();
+          }
+        }
+      });
     }
   });
 
@@ -153,24 +229,43 @@
     const s = document.getElementById('setup-secret').value.trim();
     try {
       await window.auth.setup({ username: u, password: p, secretPhrase: s });
-      alert('Administrador creado. Ahora puede iniciar sesión.');
-      
-      // En lugar de recargar, cambiar directamente al formulario de login
-      setupForm.classList.add('hidden');
-      loginForm.classList.remove('hidden');
-      title.textContent = 'Modo Administrador';
-      subtitle.textContent = 'Ingrese sus credenciales';
-      
-      // Limpiar el formulario de setup
-      document.getElementById('setup-user').value = '';
-      document.getElementById('setup-pass').value = '';
-      document.getElementById('setup-secret').value = '';
-      
-      // Enfocar el campo de usuario
-      document.getElementById('login-user').focus();
+      showCustomModal('Administrador creado. Ahora puede iniciar sesión.', () => {
+        // En lugar de recargar, cambiar directamente al formulario de login
+        setupForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        title.textContent = 'Modo Administrador';
+        subtitle.textContent = 'Ingrese sus credenciales';
+        
+        // Limpiar el formulario de setup
+        document.getElementById('setup-user').value = '';
+        document.getElementById('setup-pass').value = '';
+        document.getElementById('setup-secret').value = '';
+        
+        // Enfocar el campo de usuario
+        document.getElementById('login-user').focus();
+      });
       
     } catch (err) {
-      alert('Error: ' + err.message);
+      let errorMessage = '';
+      
+      // Mensajes personalizados para setup
+      switch (err.message) {
+        case 'weak_password':
+          errorMessage = '🔒 Contraseña débil\n\n📋 Requisitos mínimos:\n• Al menos 8 caracteres\n• Una letra mayúscula\n• Un número\n\n💡 Ejemplo: Admin1234';
+          break;
+          
+        default:
+          errorMessage = `❌ Error de configuración\n\n🔍 Detalle: ${err.message}\n\n💡 Verifique los datos e intente nuevamente`;
+      }
+      
+      showCustomModal(errorMessage, () => {
+        // Restaurar foco después del modal
+        const userField = document.getElementById('setup-user');
+        if (userField) {
+          userField.focus();
+          userField.select();
+        }
+      });
     }
   });
 
@@ -207,22 +302,45 @@
     const np = document.getElementById('rec-secret-newpass').value.trim();
     try {
       await window.auth.resetBySecret({ secretPhrase: s, newPw: np });
-      alert('Contraseña cambiada.');
-      
-      // Volver al formulario de login
-      recoveryForm.classList.add('hidden');
-      loginForm.classList.remove('hidden');
-      title.textContent = 'Modo Administrador';
-      subtitle.textContent = 'Ingrese sus credenciales';
-      
-      // Limpiar formularios
-      document.getElementById('rec-secret-input').value = '';
-      document.getElementById('rec-secret-newpass').value = '';
-      document.getElementById('rec-email-otp').value = '';
-      document.getElementById('rec-email-newpass').value = '';
+      showCustomModal('Contraseña cambiada.', () => {
+        // Volver al formulario de login
+        recoveryForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        title.textContent = 'Modo Administrador';
+        subtitle.textContent = 'Ingrese sus credenciales';
+        
+        // Limpiar formularios
+        document.getElementById('rec-secret-input').value = '';
+        document.getElementById('rec-secret-newpass').value = '';
+        document.getElementById('rec-email-otp').value = '';
+        document.getElementById('rec-email-newpass').value = '';
+      });
       
     } catch (err) {
-      alert('Error: ' + err.message);
+      let errorMessage = '';
+      
+      // Mensajes personalizados para recuperación
+      switch (err.message) {
+        case 'invalid_secret':
+          errorMessage = '🔑 Frase secreta incorrecta\n\n💡 Verifique:\n• La frase secreta exacta\n• Mayúsculas y minúsculas\n• Espacios adicionales\n\n📝 Esta frase se configuró al crear el administrador';
+          break;
+          
+        case 'weak_password':
+          errorMessage = '🔒 Nueva contraseña débil\n\n📋 Requisitos mínimos:\n• Al menos 8 caracteres\n• Una letra mayúscula\n• Un número\n\n💡 Ejemplo: Admin1234';
+          break;
+          
+        default:
+          errorMessage = `❌ Error de recuperación\n\n🔍 Detalle: ${err.message}\n\n💡 Verifique los datos e intente nuevamente`;
+      }
+      
+      showCustomModal(errorMessage, () => {
+        // Restaurar foco después del modal
+        const secretField = document.getElementById('rec-secret-input');
+        if (secretField) {
+          secretField.focus();
+          secretField.select();
+        }
+      });
     }
   });
 
@@ -230,9 +348,28 @@
   document.getElementById('btn-send-otp').addEventListener('click', async () => {
     try {
       const res = await window.auth.requestOtp();
-      alert('Código enviado a: ' + res.masked);
+      showCustomModal('Código enviado a: ' + res.masked);
     } catch (err) {
-      alert('Error: ' + err.message);
+      let errorMessage = '';
+      
+      // Mensajes personalizados para OTP
+      switch (err.message) {
+        case 'no_email':
+          errorMessage = '📧 Email no configurado\n\n⚙️ Para usar recuperación por email:\n• Configure el email SMTP en Configuración\n• O use recuperación por frase secreta\n\n🔑 Alternativa: Use "Frase Secreta"';
+          break;
+          
+        default:
+          errorMessage = `❌ Error al enviar código\n\n🔍 Detalle: ${err.message}\n\n💡 Verifique la configuración de email o use frase secreta`;
+      }
+      
+      showCustomModal(errorMessage, () => {
+        // Restaurar foco después del modal
+        const otpField = document.getElementById('rec-email-otp');
+        if (otpField) {
+          otpField.focus();
+          otpField.select();
+        }
+      });
     }
   });
 
@@ -241,22 +378,45 @@
     const np = document.getElementById('rec-email-newpass').value.trim();
     try {
       await window.auth.resetByOtp({ otp, newPw: np });
-      alert('Contraseña cambiada.');
-      
-      // Volver al formulario de login
-      recoveryForm.classList.add('hidden');
-      loginForm.classList.remove('hidden');
-      title.textContent = 'Modo Administrador';
-      subtitle.textContent = 'Ingrese sus credenciales';
-      
-      // Limpiar formularios
-      document.getElementById('rec-secret-input').value = '';
-      document.getElementById('rec-secret-newpass').value = '';
-      document.getElementById('rec-email-otp').value = '';
-      document.getElementById('rec-email-newpass').value = '';
+      showCustomModal('Contraseña cambiada.', () => {
+        // Volver al formulario de login
+        recoveryForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        title.textContent = 'Modo Administrador';
+        subtitle.textContent = 'Ingrese sus credenciales';
+        
+        // Limpiar formularios
+        document.getElementById('rec-secret-input').value = '';
+        document.getElementById('rec-secret-newpass').value = '';
+        document.getElementById('rec-email-otp').value = '';
+        document.getElementById('rec-email-newpass').value = '';
+      });
       
     } catch (err) {
-      alert('Error: ' + err.message);
+      let errorMessage = '';
+      
+      // Mensajes personalizados para reset por email
+      switch (err.message) {
+        case 'invalid_otp':
+          errorMessage = '🔢 Código OTP inválido\n\n💡 Verifique:\n• El código de 6 dígitos\n• Que no haya expirado (10 minutos)\n• Que no haya espacios extra\n\n📧 Si no recibió el código, solicítelo nuevamente';
+          break;
+          
+        case 'weak_password':
+          errorMessage = '🔒 Nueva contraseña débil\n\n📋 Requisitos mínimos:\n• Al menos 8 caracteres\n• Una letra mayúscula\n• Un número\n\n💡 Ejemplo: Admin1234';
+          break;
+          
+        default:
+          errorMessage = `❌ Error de recuperación\n\n🔍 Detalle: ${err.message}\n\n💡 Verifique los datos e intente nuevamente`;
+      }
+      
+      showCustomModal(errorMessage, () => {
+        // Restaurar foco después del modal
+        const otpField = document.getElementById('rec-email-otp');
+        if (otpField) {
+          otpField.focus();
+          otpField.select();
+        }
+      });
     }
   });
 
