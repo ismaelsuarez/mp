@@ -1757,7 +1757,17 @@ app.whenReady().then(() => {
 							try { imageDualWindow.setFullScreen(false); } catch {}
 						}
 					} catch {}
-					try { imageDualWindow?.focus(); } catch {}
+					// Activar ventana secundaria y llevarla al frente cuando recibe nuevo contenido
+					try {
+						imageDualWindow.show(); // Asegurar que esté visible
+						imageDualWindow.focus();
+						imageDualWindow.moveTop();
+						// Métodos adicionales para Windows
+						try { imageDualWindow.setAlwaysOnTop(true); } catch {}
+						setTimeout(() => {
+							try { imageDualWindow?.setAlwaysOnTop(false); } catch {}
+						}, 100); // Quitar alwaysOnTop después de 100ms
+					} catch {}
 					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
 					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12', fallback: isFallback, publicidad: isPublicidadActive() });
 				} catch {}
@@ -1769,7 +1779,17 @@ app.whenReady().then(() => {
 					const pnWaitSec = Number(cfgNow.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || 0);
 					const reuseWindow = pnEnabled && Number.isFinite(pnWaitSec) && pnWaitSec > 0 && (Date.now() - lastImageNewWindowAt) < pnWaitSec * 1000;
 					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
-						try { lastImageNewWindow.focus(); } catch {}
+						// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+						try { 
+							lastImageNewWindow.show(); // Asegurar que esté visible
+							lastImageNewWindow.focus(); 
+							lastImageNewWindow.moveTop(); 
+							// Métodos adicionales para Windows
+							try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
+							setTimeout(() => {
+								try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
+							}, 100); // Quitar alwaysOnTop después de 100ms
+						} catch {}
 						try { lastImageNewWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 						lastImageNewWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
 						lastImageNewWindowAt = Date.now();
@@ -1814,7 +1834,17 @@ app.whenReady().then(() => {
 					win.on('moved', () => saveImageNewWindowBounds(win));
 					win.on('resize', () => saveImageNewWindowBounds(win));
 					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
-					try { win.focus(); } catch {}
+					// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+					try { 
+						win.show(); // Asegurar que esté visible
+						win.focus(); 
+						win.moveTop(); 
+						// Métodos adicionales para Windows
+						try { win.setAlwaysOnTop(true); } catch {}
+						setTimeout(() => {
+							try { win?.setAlwaysOnTop(false); } catch {}
+						}, 100); // Quitar alwaysOnTop después de 100ms
+					} catch {}
 					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
 					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
 					// Registrar como última ventana 'nueva'

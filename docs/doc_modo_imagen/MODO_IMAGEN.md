@@ -38,9 +38,9 @@ Rutas soportadas:
 
 ## Modos de ventana y comportamiento
 - Responsive: abre inicialmente en 420×420 px; se puede redimensionar libremente y recuerda tamaño/posición por monitor (guarda `displayId` y área de trabajo). Al restaurar, reescala y ubica en el mismo monitor si está disponible. El visor ocupa el 100% del área con `object-fit: contain`.
-- `VENTANA=comun`: muestra en la ventana principal de la app.
-- `VENTANA=nueva`: abre un visor en una nueva ventana; primera vez centrada en el mismo monitor, siguientes veces restaura tamaño/posición guardados por monitor. Cierra con tecla ESC. Menú oculto para presentación limpia.
-- `VENTANA=comun12`: muestra en la ventana principal y además en una segunda ventana persistente ("espejo") que se reutiliza y recuerda tamaño/posición por monitor.
+- `VENTANA=comun`: muestra en la ventana principal de la app. La ventana va automáticamente al frente cuando recibe nuevo contenido.
+- `VENTANA=nueva`: abre un visor en una nueva ventana; primera vez centrada en el mismo monitor, siguientes veces restaura tamaño/posición guardados por monitor. Cierra con tecla ESC. Menú oculto para presentación limpia. La ventana va automáticamente al frente cuando recibe nuevo contenido.
+- `VENTANA=comun12`: muestra en la ventana principal y además en una segunda ventana persistente ("espejo") que se reutiliza y recuerda tamaño/posición por monitor. Ambas ventanas van automáticamente al frente cuando reciben nuevo contenido.
 - Título: usa `INFO` (o el nombre del archivo) y no tapa el contenido.
 
 ## Configuración (Administración → Automatización / Modo Imagen)
