@@ -1,5 +1,31 @@
 # Notas de versión
 
+
+## 1.0.14
+Fecha de publicación: 2025-01-27
+- Modo Caja
+  - **UI Limpia**: Eliminada la sección de información de automatización que mostraba "🤖 Facturación Automática" y detalles sobre recepción automática de datos. La interfaz ahora es más minimalista, mostrando solo el botón "DESCARGAR MP" y el área de logs.
+  - **Funcionalidad Preservada**: La función `window.processAutomaticBilling(data)` sigue disponible para automatización, pero sin información visual al usuario.
+- Modo Imagen - "Ir al Frente Automáticamente"
+  - **VENTANA=comun**: La ventana principal ahora va automáticamente al frente cuando recibe nuevo contenido (imagen, video, etc.), sin molestar al usuario en su trabajo diario.
+  - **VENTANA=nueva**: Ventanas independientes también van al frente automáticamente al recibir nuevo contenido, tanto cuando se reutiliza una ventana existente (política "Producto Nuevo") como cuando se crea una nueva.
+  - **VENTANA=comun12**: Ambas ventanas (principal y espejo) van al frente simultáneamente cuando reciben nuevo contenido.
+  - **Implementación Técnica**: Secuencia agresiva de activación con `show()`, `focus()`, `moveTop()` y temporal `setAlwaysOnTop(true/false)` para compatibilidad con Windows.
+  - **Comportamiento**: Solo se activa cuando llega nuevo contenido, no permanentemente, manteniendo la experiencia de usuario no intrusiva.
+- Autenticación (Modo Administrador)
+  - **Modal Personalizado**: Reemplazados todos los `alert()` nativos con un modal personalizado más amigable y funcional.
+  - **Mensajes Mejorados**: Errores de login, setup, recuperación de frase secreta y OTP ahora incluyen emojis, descripciones claras y sugerencias específicas para el usuario.
+  - **Manejo de Cuenta Bloqueada**: Cuando la cuenta está temporalmente suspendida por múltiples intentos fallidos, el modal muestra claramente el tiempo de desbloqueo y opciones de recuperación.
+  - **UX Mejorada**: Los mensajes de error son más descriptivos y útiles, incluyendo sugerencias como "Verificar que la contraseña tenga al menos 8 caracteres" o "Revisar que el email esté correctamente escrito".
+- Documentación
+  - **Actualizada**: `docs/doc_modo_imagen/MODO_IMAGEN.md` con descripción de la funcionalidad "Ir al Frente Automáticamente" para todas las ventanas.
+  - **Nueva**: `docs/doc_modo_imagen/IR_AL_FRENTE_AUTOMATICAMENTE.md` con documentación técnica completa de la implementación, casos de uso y compatibilidad.
+
+## 1.0.13
+Fecha de publicación: 2025-08-21
+- Modo Imagen
+  -Modo espejo, se saco fondo negro y se dejo fondo blanco.
+
 ## 1.0.12
 Fecha de publicación: 2025-08-21
 - Modo Imagen
