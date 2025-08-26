@@ -1694,12 +1694,11 @@ app.whenReady().then(() => {
 			if (windowMode === 'comun12') {
 				if (mainWindow) {
 					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
-					// Activar ventana principal y llevarla al frente cuando recibe nuevo contenido
+					// Llevar ventana principal al frente sin activarla (sin focus)
 					try { 
 						mainWindow.show(); // Asegurar que esté visible
-						mainWindow.focus(); 
-						mainWindow.moveTop(); 
-						// Métodos adicionales para Windows
+						mainWindow.moveTop(); // Mover al frente sin activar
+						// Métodos adicionales para Windows (sin focus)
 						try { mainWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { mainWindow?.setAlwaysOnTop(false); } catch {}
@@ -1757,12 +1756,11 @@ app.whenReady().then(() => {
 							try { imageDualWindow.setFullScreen(false); } catch {}
 						}
 					} catch {}
-					// Activar ventana secundaria y llevarla al frente cuando recibe nuevo contenido
+					// Llevar ventana secundaria al frente sin activarla (sin focus)
 					try {
 						imageDualWindow.show(); // Asegurar que esté visible
-						imageDualWindow.focus();
-						imageDualWindow.moveTop();
-						// Métodos adicionales para Windows
+						imageDualWindow.moveTop(); // Mover al frente sin activar
+						// Métodos adicionales para Windows (sin focus)
 						try { imageDualWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { imageDualWindow?.setAlwaysOnTop(false); } catch {}
@@ -1779,12 +1777,11 @@ app.whenReady().then(() => {
 					const pnWaitSec = Number(cfgNow.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || 0);
 					const reuseWindow = pnEnabled && Number.isFinite(pnWaitSec) && pnWaitSec > 0 && (Date.now() - lastImageNewWindowAt) < pnWaitSec * 1000;
 					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
-						// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+						// Llevar ventana al frente sin activarla (sin focus)
 						try { 
 							lastImageNewWindow.show(); // Asegurar que esté visible
-							lastImageNewWindow.focus(); 
-							lastImageNewWindow.moveTop(); 
-							// Métodos adicionales para Windows
+							lastImageNewWindow.moveTop(); // Mover al frente sin activar
+							// Métodos adicionales para Windows (sin focus)
 							try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
 							setTimeout(() => {
 								try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
@@ -1834,12 +1831,11 @@ app.whenReady().then(() => {
 					win.on('moved', () => saveImageNewWindowBounds(win));
 					win.on('resize', () => saveImageNewWindowBounds(win));
 					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
-					// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+					// Llevar ventana al frente sin activarla (sin focus)
 					try { 
 						win.show(); // Asegurar que esté visible
-						win.focus(); 
-						win.moveTop(); 
-						// Métodos adicionales para Windows
+						win.moveTop(); // Mover al frente sin activar
+						// Métodos adicionales para Windows (sin focus)
 						try { win.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { win?.setAlwaysOnTop(false); } catch {}
@@ -1853,12 +1849,11 @@ app.whenReady().then(() => {
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
-				// Activar ventana y llevarla al frente cuando recibe nuevo contenido
+				// Llevar ventana al frente sin activarla (sin focus)
 				try { 
 					mainWindow.show(); // Asegurar que esté visible
-					mainWindow.focus(); 
-					mainWindow.moveTop(); 
-					// Métodos adicionales para Windows
+					mainWindow.moveTop(); // Mover al frente sin activar
+					// Métodos adicionales para Windows (sin focus)
 					try { mainWindow.setAlwaysOnTop(true); } catch {}
 					setTimeout(() => {
 						try { mainWindow?.setAlwaysOnTop(false); } catch {}
