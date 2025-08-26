@@ -13,6 +13,7 @@ Fecha de publicación: 2025-01-27
   - **Implementación Técnica**: Secuencia agresiva de activación con `show()`, `moveTop()` y temporal `setAlwaysOnTop(true/false)` para compatibilidad con Windows (sin `focus()` para no interrumpir programas externos).
   - **Comportamiento**: Solo se activa cuando llega nuevo contenido, no permanentemente, manteniendo la experiencia de usuario no intrusiva.
               - **Optimización de Apertura**: Eliminación del flickering/parpadeo en todas las ventanas del modo imagen (`VENTANA=comun`, `VENTANA=nueva`, `VENTANA=comun12`) mediante configuración inicial optimizada, posicionamiento previo al mostrar y secuencia de carga mejorada.
+              - **Solución Definitiva para Ventanas al Frente**: Basada en la función original, se removió `window.focus()` que causaba interrupciones en programas externos, manteniendo `window.show()` y `window.moveTop()` para garantizar visibilidad y actualización de imágenes.
 - Autenticación (Modo Administrador)
   - **Modal Personalizado**: Reemplazados todos los `alert()` nativos con un modal personalizado más amigable y funcional.
   - **Mensajes Mejorados**: Errores de login, setup, recuperación de frase secreta y OTP ahora incluyen emojis, descripciones claras y sugerencias específicas para el usuario.

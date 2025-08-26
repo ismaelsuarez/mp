@@ -1697,9 +1697,10 @@ app.whenReady().then(() => {
 					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 					// Llevar ventana principal al frente sin activarla (sin focus)
 					try { 
-						mainWindow.show(); // Asegurar que esté visible
-						mainWindow.moveTop(); // Mover al frente sin activar
-						// Métodos adicionales para Windows (sin focus)
+						mainWindow.moveTop(); // Primero mover al frente
+						mainWindow.focus();   // Luego dar focus
+						mainWindow.show();    // Finalmente hacer visible
+						// Métodos adicionales para Windows
 						try { mainWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { mainWindow?.setAlwaysOnTop(false); } catch {}
@@ -1796,10 +1797,12 @@ app.whenReady().then(() => {
 							try { imageDualWindow.setFullScreen(false); } catch {}
 						}
 					} catch {}
-					// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
-					try {
-						imageDualWindow.moveTop(); // Mover al frente sin activar
-						// Métodos adicionales para Windows (sin focus)
+							// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
+							try { 
+						imageDualWindow.moveTop(); // Primero mover al frente
+						imageDualWindow.focus();   // Luego dar focus
+						imageDualWindow.show();    // Finalmente hacer visible
+						// Métodos adicionales para Windows
 						try { imageDualWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { imageDualWindow?.setAlwaysOnTop(false); } catch {}
@@ -1816,16 +1819,17 @@ app.whenReady().then(() => {
 					const pnWaitSec = Number(cfgNow.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || 0);
 					const reuseWindow = pnEnabled && Number.isFinite(pnWaitSec) && pnWaitSec > 0 && (Date.now() - lastImageNewWindowAt) < pnWaitSec * 1000;
 					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
-						// Llevar ventana al frente sin activarla (sin focus)
-						try { 
-							lastImageNewWindow.show(); // Asegurar que esté visible
-							lastImageNewWindow.moveTop(); // Mover al frente sin activar
-							// Métodos adicionales para Windows (sin focus)
-							try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
-							setTimeout(() => {
-								try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
-							}, 100); // Quitar alwaysOnTop después de 100ms
-						} catch {}
+								// Llevar ventana al frente sin activarla (sin focus)
+							try { 
+						lastImageNewWindow.moveTop(); // Primero mover al frente
+						lastImageNewWindow.focus();   // Luego dar focus
+						lastImageNewWindow.show();    // Finalmente hacer visible
+						// Métodos adicionales para Windows
+						try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
+						setTimeout(() => {
+							try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
+						}, 100); // Quitar alwaysOnTop después de 100ms
+					} catch {}
 						try { lastImageNewWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 						lastImageNewWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
 						lastImageNewWindowAt = Date.now();
@@ -1913,10 +1917,12 @@ app.whenReady().then(() => {
 					win.on('moved', () => saveImageNewWindowBounds(win));
 					win.on('resize', () => saveImageNewWindowBounds(win));
 					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
-					// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
-					try { 
-						win.moveTop(); // Mover al frente sin activar
-						// Métodos adicionales para Windows (sin focus)
+							// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
+							try { 
+						win.moveTop(); // Primero mover al frente
+						win.focus();   // Luego dar focus
+						win.show();    // Finalmente hacer visible
+						// Métodos adicionales para Windows
 						try { win.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { win?.setAlwaysOnTop(false); } catch {}
@@ -1930,11 +1936,12 @@ app.whenReady().then(() => {
 				} catch {}
 			} else if (mainWindow) {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
-				// Llevar ventana al frente sin activarla (sin focus)
-				try { 
-					mainWindow.show(); // Asegurar que esté visible
-					mainWindow.moveTop(); // Mover al frente sin activar
-					// Métodos adicionales para Windows (sin focus)
+				// Llevar ventana al frente con secuencia completa
+				try {
+					mainWindow.moveTop(); // Primero mover al frente
+					mainWindow.focus();   // Luego dar focus
+					mainWindow.show();    // Finalmente hacer visible
+					// Métodos adicionales para Windows
 					try { mainWindow.setAlwaysOnTop(true); } catch {}
 					setTimeout(() => {
 						try { mainWindow?.setAlwaysOnTop(false); } catch {}
