@@ -1,6 +1,6 @@
 # Notas de versión
 
-
+## 1.0.15
 ## 1.0.14
 Fecha de publicación: 2025-01-27
 - Modo Caja
@@ -10,8 +10,9 @@ Fecha de publicación: 2025-01-27
   - **VENTANA=comun**: La ventana principal ahora va automáticamente al frente cuando recibe nuevo contenido (imagen, video, etc.), sin molestar al usuario en su trabajo diario.
   - **VENTANA=nueva**: Ventanas independientes también van al frente automáticamente al recibir nuevo contenido, tanto cuando se reutiliza una ventana existente (política "Producto Nuevo") como cuando se crea una nueva.
   - **VENTANA=comun12**: Ambas ventanas (principal y espejo) van al frente simultáneamente cuando reciben nuevo contenido.
-  - **Implementación Técnica**: Secuencia agresiva de activación con `show()`, `focus()`, `moveTop()` y temporal `setAlwaysOnTop(true/false)` para compatibilidad con Windows.
+  - **Implementación Técnica**: Secuencia agresiva de activación con `show()`, `moveTop()` y temporal `setAlwaysOnTop(true/false)` para compatibilidad con Windows (sin `focus()` para no interrumpir programas externos).
   - **Comportamiento**: Solo se activa cuando llega nuevo contenido, no permanentemente, manteniendo la experiencia de usuario no intrusiva.
+              - **Optimización de Apertura**: Eliminación del flickering/parpadeo en todas las ventanas del modo imagen (`VENTANA=comun`, `VENTANA=nueva`, `VENTANA=comun12`) mediante configuración inicial optimizada, posicionamiento previo al mostrar y secuencia de carga mejorada.
 - Autenticación (Modo Administrador)
   - **Modal Personalizado**: Reemplazados todos los `alert()` nativos con un modal personalizado más amigable y funcional.
   - **Mensajes Mejorados**: Errores de login, setup, recuperación de frase secreta y OTP ahora incluyen emojis, descripciones claras y sugerencias específicas para el usuario.

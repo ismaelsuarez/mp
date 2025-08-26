@@ -280,6 +280,7 @@ async function openViewFromTray(view: 'config' | 'caja' | 'imagen') {
 			mainWindow.setMenuBarVisibility(false);
 			mainWindow.setAutoHideMenuBar(true);
 		} catch {}
+		// Cargar contenido y mostrar cuando esté listo (optimización para evitar flickering)
 		await mainWindow.loadFile(target);
 	}
 }
@@ -1709,36 +1710,75 @@ app.whenReady().then(() => {
 				// Reutilizar o crear la ventana persistente para presentación
 				try {
 					if (!imageDualWindow || imageDualWindow.isDestroyed()) {
+						// Preparar configuración inicial optimizada para evitar flickering
+						const base = mainWindow?.getBounds();
+						let initialBounds = { x: 0, y: 0, width: 420, height: 420 };
+						
+						// Intentar restaurar coordenadas guardadas primero
+						const saved = store.get('imageDualWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
+						if (saved && saved.x !== undefined && saved.y !== undefined && saved.width && saved.height) {
+							// Validar que los bounds guardados sean válidos
+							try {
+								const displays = screen.getAllDisplays();
+								let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+								if (!target) {
+									target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }) || screen.getPrimaryDisplay();
+								}
+								const work = target.workArea || target.bounds;
+								const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+								const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+								const baseX = saved.workX !== undefined ? saved.workX : work.x;
+								const baseY = saved.workY !== undefined ? saved.workY : work.y;
+								const scaleX = baseW > 0 ? work.width / baseW : 1;
+								const scaleY = baseH > 0 ? work.height / baseH : 1;
+								const offsetX = saved.x - baseX;
+								const offsetY = saved.y - baseY;
+								let x = work.x + Math.round(offsetX * scaleX);
+								let y = work.y + Math.round(offsetY * scaleY);
+								let w = Math.max(420, Math.round(saved.width * scaleX));
+								let h = Math.max(420, Math.round(saved.height * scaleY));
+								x = Math.max(work.x, Math.min(x, work.x + work.width - 420));
+								y = Math.max(work.y, Math.min(y, work.y + work.height - 420));
+								initialBounds = { x, y, width: w, height: h };
+							} catch {}
+						} else if (base) {
+							// Si no hay bounds guardados, calcular posición centrada
+							try {
+								const display = screen.getDisplayMatching(base);
+								const work = display.workArea || display.bounds;
+								const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - 420) / 2), work.x + work.width - 420));
+								const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - 420) / 2), work.y + work.height - 420));
+								initialBounds = { x, y, width: 420, height: 420 };
+							} catch {}
+						}
+						
 						imageDualWindow = new BrowserWindow({
-							width: 420,
-							height: 420,
+							...initialBounds,
 							title: infoText || path.basename(filePath),
 							backgroundColor: '#0f172a',
+							show: false, // No mostrar hasta estar listo
+							skipTaskbar: false, // Mostrar en la barra de tareas
+							alwaysOnTop: false, // No siempre al frente por defecto
+							focusable: true, // Permitir focus
 							webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
 						});
+						
+						// Configurar ventana antes de mostrar
 						try { imageDualWindow.setMenuBarVisibility(false); } catch {}
 						try { imageDualWindow.setAutoHideMenuBar(true); } catch {}
+						
+						// Configurar eventos de persistencia
 						imageDualWindow.on('closed', () => { imageDualWindow = null; });
 						imageDualWindow.on('moved', () => saveImageDualWindowBounds());
 						imageDualWindow.on('resize', () => saveImageDualWindowBounds());
 						imageDualWindow.on('maximize', () => saveImageDualWindowBounds());
 						imageDualWindow.on('unmaximize', () => saveImageDualWindowBounds());
+						
+						// Cargar contenido y mostrar cuando esté listo
 						await imageDualWindow.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
-						// Intentar restaurar tamaño/posición previa
-						if (!restoreImageDualWindowBounds(imageDualWindow, 420, 420)) {
-							// Si no hay bounds guardados, centrar en el mismo monitor que la "comun"
-							try {
-								const base = mainWindow?.getBounds();
-								if (base) {
-									const display = screen.getDisplayMatching(base);
-									const work = display.workArea || display.bounds;
-									const [w, h] = [imageDualWindow.getBounds().width, imageDualWindow.getBounds().height];
-									const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - w) / 2), work.x + work.width - w));
-									const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - h) / 2), work.y + work.height - h));
-									imageDualWindow.setBounds({ x, y, width: w, height: h });
-								}
-							} catch {}
-						}
+						
+						// Mostrar ventana una sola vez cuando esté completamente lista
+						imageDualWindow.show();
 					}
 					// Aplicar modo publicidad (pantalla completa) si está activo
 					try {
@@ -1756,9 +1796,8 @@ app.whenReady().then(() => {
 							try { imageDualWindow.setFullScreen(false); } catch {}
 						}
 					} catch {}
-					// Llevar ventana secundaria al frente sin activarla (sin focus)
+					// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
 					try {
-						imageDualWindow.show(); // Asegurar que esté visible
 						imageDualWindow.moveTop(); // Mover al frente sin activar
 						// Métodos adicionales para Windows (sin focus)
 						try { imageDualWindow.setAlwaysOnTop(true); } catch {}
@@ -1795,15 +1834,67 @@ app.whenReady().then(() => {
 						try { fs.unlinkSync(controlPath); } catch {}
 						return 1;
 					}
+					// Preparar configuración inicial optimizada para evitar flickering
+					const base = mainWindow?.getBounds();
+					let initialBounds = { x: 0, y: 0, width: 420, height: 420 };
+					
+					// Intentar restaurar coordenadas guardadas primero
+					const saved = store.get('imageNewWindowBounds') as { x: number; y: number; width: number; height: number; workW?: number; workH?: number; workX?: number; workY?: number; displayId?: number } | undefined;
+					if (saved && saved.x !== undefined && saved.y !== undefined && saved.width && saved.height) {
+						// Validar que los bounds guardados sean válidos
+						try {
+							const displays = screen.getAllDisplays();
+							let target = saved.displayId !== undefined ? displays.find(d => d.id === saved.displayId) : undefined;
+							if (!target) {
+								target = screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height }) || screen.getPrimaryDisplay();
+							}
+							const work = target.workArea || target.bounds;
+							const baseW = saved.workW && saved.workW > 0 ? saved.workW : work.width;
+							const baseH = saved.workH && saved.workH > 0 ? saved.workH : work.height;
+							const baseX = saved.workX !== undefined ? saved.workX : work.x;
+							const baseY = saved.workY !== undefined ? saved.workY : work.y;
+							const scaleX = baseW > 0 ? work.width / baseW : 1;
+							const scaleY = baseH > 0 ? work.height / baseH : 1;
+							const offsetX = saved.x - baseX;
+							const offsetY = saved.y - baseY;
+							let x = work.x + Math.round(offsetX * scaleX);
+							let y = work.y + Math.round(offsetY * scaleY);
+							let w = Math.max(420, Math.round(saved.width * scaleX));
+							let h = Math.max(420, Math.round(saved.height * scaleY));
+							x = Math.max(work.x, Math.min(x, work.x + work.width - 420));
+							y = Math.max(work.y, Math.min(y, work.y + work.height - 420));
+							initialBounds = { x, y, width: w, height: h };
+						} catch {}
+					} else if (base) {
+						// Si no hay bounds guardados, calcular posición centrada
+						try {
+							const display = screen.getDisplayMatching(base);
+							const work = display.workArea || display.bounds;
+							const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - 420) / 2), work.x + work.width - 420));
+							const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - 420) / 2), work.y + work.height - 420));
+							initialBounds = { x, y, width: 420, height: 420 };
+						} catch {}
+					}
+					
 					const win = new BrowserWindow({
-						width: 420,
-						height: 420,
+						...initialBounds,
 						title: infoText || path.basename(filePath),
 						backgroundColor: '#0f172a',
-						webPreferences: { preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), contextIsolation: true, nodeIntegration: false }
+						show: false, // No mostrar hasta estar listo
+						skipTaskbar: false, // Mostrar en la barra de tareas
+						alwaysOnTop: false, // No siempre al frente por defecto
+						focusable: true, // Permitir focus
+						webPreferences: { 
+							preload: path.join(app.getAppPath(), 'dist', 'src', 'preload.js'), 
+							contextIsolation: true, 
+							nodeIntegration: false 
+						}
 					});
+					
+					// Configurar ventana antes de mostrar
 					try { win.setMenuBarVisibility(false); } catch {}
 					try { win.setAutoHideMenuBar(true); } catch {}
+					
 					// Cerrar con ESC
 					try {
 						win.webContents.on('before-input-event', (event, input) => {
@@ -1813,27 +1904,17 @@ app.whenReady().then(() => {
 							}
 						});
 					} catch {}
+					
+					// Cargar contenido y mostrar cuando esté listo
 					await win.loadFile(path.join(app.getAppPath(), 'public', 'imagen.html'));
-					// Restaurar coordenadas guardadas; si no hay, centrar en el mismo monitor que la "comun"
-					if (!restoreImageNewWindowBounds(win, 420, 420)) {
-						try {
-							const base = mainWindow?.getBounds();
-							if (base) {
-								const display = screen.getDisplayMatching(base);
-								const work = display.workArea || display.bounds;
-								const [w, h] = [win.getBounds().width, win.getBounds().height];
-								const x = Math.max(work.x, Math.min(base.x + Math.floor((base.width - w) / 2), work.x + work.width - w));
-								const y = Math.max(work.y, Math.min(base.y + Math.floor((base.height - h) / 2), work.y + work.height - h));
-								win.setBounds({ x, y, width: w, height: h });
-							}
-						} catch {}
-					}
+					
+					// Mostrar ventana una sola vez cuando esté completamente lista
+					win.show();
 					win.on('moved', () => saveImageNewWindowBounds(win));
 					win.on('resize', () => saveImageNewWindowBounds(win));
 					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
-					// Llevar ventana al frente sin activarla (sin focus)
+					// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
 					try { 
-						win.show(); // Asegurar que esté visible
 						win.moveTop(); // Mover al frente sin activar
 						// Métodos adicionales para Windows (sin focus)
 						try { win.setAlwaysOnTop(true); } catch {}
