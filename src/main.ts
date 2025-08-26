@@ -1799,9 +1799,8 @@ app.whenReady().then(() => {
 					} catch {}
 							// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
 							try { 
-						imageDualWindow.moveTop(); // Primero mover al frente
-						imageDualWindow.focus();   // Luego dar focus
-						imageDualWindow.show();    // Finalmente hacer visible
+						imageDualWindow.showInactive();  // ← Muestra sin activar (no roba foco)
+						imageDualWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
 						// Métodos adicionales para Windows
 						try { imageDualWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
@@ -1821,9 +1820,8 @@ app.whenReady().then(() => {
 					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
 								// Llevar ventana al frente sin activarla (sin focus)
 							try { 
-						lastImageNewWindow.moveTop(); // Primero mover al frente
-						lastImageNewWindow.focus();   // Luego dar focus
-						lastImageNewWindow.show();    // Finalmente hacer visible
+						lastImageNewWindow.showInactive();  // ← Muestra sin activar (no roba foco)
+						lastImageNewWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
 						// Métodos adicionales para Windows
 						try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
@@ -1919,9 +1917,8 @@ app.whenReady().then(() => {
 					win.on('closed', () => { if (lastImageNewWindow === win) lastImageNewWindow = null; });
 							// La ventana ya se mostró arriba, solo aplicar "bring to front" suave
 							try { 
-						win.moveTop(); // Primero mover al frente
-						win.focus();   // Luego dar focus
-						win.show();    // Finalmente hacer visible
+						win.showInactive();  // ← Muestra sin activar (no roba foco)
+						win.moveTop();       // ← Mueve al frente de la pila de ventanas
 						// Métodos adicionales para Windows
 						try { win.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
@@ -1938,9 +1935,8 @@ app.whenReady().then(() => {
 				try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 				// Llevar ventana al frente con secuencia completa
 				try {
-					mainWindow.moveTop(); // Primero mover al frente
-					mainWindow.focus();   // Luego dar focus
-					mainWindow.show();    // Finalmente hacer visible
+					mainWindow.showInactive();  // ← Muestra sin activar (no roba foco)
+					mainWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
 					// Métodos adicionales para Windows
 					try { mainWindow.setAlwaysOnTop(true); } catch {}
 					setTimeout(() => {
