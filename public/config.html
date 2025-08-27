@@ -265,6 +265,61 @@
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						🏦 Banco Galicia
+					</summary>
+					<div class="p-3 space-y-3">
+						<p class="text-xs text-slate-400">Configura las credenciales para conectarte a la API de Banco Galicia. Puedes <strong>probar la conexión</strong> para verificar que todo esté correcto.</p>
+
+						<!-- Credenciales -->
+						<div>
+							<label class="block text-sm mb-1">App ID (Galicia)</label>
+							<input id="GALICIA_APP_ID" type="text" class="w-full" placeholder="tu_app_id" />
+							<p class="text-xs text-slate-500 mt-1">ID de aplicación proporcionado por Banco Galicia.</p>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">App Key (Galicia)</label>
+							<div class="flex items-center gap-2">
+								<input id="GALICIA_APP_KEY" type="password" class="flex-1" placeholder="tu_app_key" />
+								<button type="button" id="btnToggleGaliciaKey" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">👁 Mostrar</button>
+							</div>
+							<p class="text-xs text-slate-500 mt-1">Clave de aplicación proporcionada por Banco Galicia.</p>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">Certificado (.pem)</label>
+							<input id="GALICIA_CERT_PATH" type="text" class="w-full" placeholder="C:\\ruta\\cert.pem" />
+							<p class="text-xs text-slate-500 mt-1">Ruta al archivo de certificado público.</p>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">Clave privada (.pem)</label>
+							<input id="GALICIA_KEY_PATH" type="text" class="w-full" placeholder="C:\\ruta\\key.pem" />
+							<p class="text-xs text-slate-500 mt-1">Ruta al archivo de clave privada.</p>
+						</div>
+
+						<div>
+							<label class="block text-sm mb-1">Entorno</label>
+							<select id="GALICIA_ENVIRONMENT" class="w-full">
+								<option value="sandbox">Sandbox (Pruebas)</option>
+								<option value="production">Producción</option>
+							</select>
+							<p class="text-xs text-slate-500 mt-1">Selecciona el entorno de la API de Galicia.</p>
+						</div>
+
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnTestGalicia" class="bg-blue-600 text-white border-transparent">Probar conexión Galicia</button>
+							<span id="galiciaTestStatus"></span>
+						</div>
+
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnOpenGalicia" class="bg-emerald-600 text-white border-transparent">Abrir módulo Galicia</button>
+						</div>
+					</div>
+				</details>
+
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						📄 Facturación (AFIP) (en construcción)
 					</summary>
 					<div class="p-3 space-y-4">
@@ -969,6 +1024,67 @@
     document.getElementById('btnOpenLogs')?.addEventListener('click', async () => {
         if (window.api && typeof window.api.openTodayLog === 'function') {
             await window.api.openTodayLog();
+        }
+    });
+
+    // ===== HANDLERS GALICIA =====
+    
+    // Toggle mostrar/ocultar clave Galicia
+    document.getElementById('btnToggleGaliciaKey')?.addEventListener('click', () => {
+        const input = document.getElementById('GALICIA_APP_KEY');
+        const button = document.getElementById('btnToggleGaliciaKey');
+        if (input.type === 'password') {
+            input.type = 'text';
+            button.textContent = '🙈 Ocultar';
+        } else {
+            input.type = 'password';
+            button.textContent = '👁 Mostrar';
+        }
+    });
+
+    // Probar conexión Galicia
+    document.getElementById('btnTestGalicia')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('galiciaTestStatus');
+        const button = document.getElementById('btnTestGalicia');
+        
+        if (statusEl) statusEl.textContent = 'Probando...';
+        if (button) button.disabled = true;
+        
+        try {
+            const result = await window.api.galicia.testConnection();
+            if (statusEl) {
+                statusEl.textContent = result.success ? '✅ Conexión exitosa' : `❌ ${result.message}`;
+                statusEl.className = result.success ? 'text-green-400' : 'text-red-400';
+            }
+        } catch (error) {
+            if (statusEl) {
+                statusEl.textContent = `❌ Error: ${error.message}`;
+                statusEl.className = 'text-red-400';
+            }
+        } finally {
+            if (button) button.disabled = false;
+        }
+    });
+
+    // Abrir módulo Galicia
+    document.getElementById('btnOpenGalicia')?.addEventListener('click', async () => {
+        try {
+            const toast = document.getElementById('toast');
+            if (toast) { 
+                toast.textContent = 'Abriendo módulo Galicia...'; 
+                toast.classList.remove('hidden'); 
+                setTimeout(()=>toast.classList.add('hidden'), 1500); 
+            }
+            
+            // Cargar galicia.html en la ventana principal
+            if (window.api && typeof window.api.openView === 'function') {
+                await window.api.openView('galicia');
+            } else {
+                // Fallback directo
+                window.location.href = 'galicia.html';
+            }
+        } catch (error) {
+            console.error('Error al abrir módulo Galicia:', error);
         }
     });
     // Mostrar versión instalada

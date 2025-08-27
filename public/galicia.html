@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="es">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>MP – Banco Galicia</title>
+	<link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="text-slate-200">
+    <div class="container">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+                <img id="brandLogo" src="nombre_tc.png" alt="TODO-COMPUTACION" class="h-12 select-none" />
+                <h1 class="text-2xl font-bold">🏦 Banco Galicia</h1>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="btnBackToConfig" class="px-4 py-2 rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">
+                    <i class="fas fa-arrow-left"></i> Volver a Configuración
+                </button>
+            </div>
+        </div>
+
+        <!-- Estado de Conexión -->
+        <div id="estado" class="mb-4 p-3 rounded-md bg-slate-800 border border-slate-700">
+            <div class="flex items-center gap-2">
+                <div id="estadoIcon" class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <span id="estadoText">Verificando conexión con Banco Galicia...</span>
+            </div>
+        </div>
+
+        <!-- Card de Saldos -->
+        <div class="card mb-4 border border-slate-700 rounded-md">
+            <div class="card-header px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold">
+                <i class="fas fa-wallet"></i> Saldos de Cuenta
+            </div>
+            <div class="card-body p-3">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-700">
+                            <tr>
+                                <th class="px-3 py-2 text-left">N° Cuenta</th>
+                                <th class="px-3 py-2 text-left">Moneda</th>
+                                <th class="px-3 py-2 text-right">Saldo Disponible</th>
+                                <th class="px-3 py-2 text-right">Saldo Contable</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-saldos">
+                            <tr>
+                                <td colspan="4" class="px-3 py-4 text-center text-slate-400">Cargando saldos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card de Movimientos -->
+        <div class="card mb-4 border border-slate-700 rounded-md">
+            <div class="card-header px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold">
+                <i class="fas fa-list"></i> Movimientos de Cuenta
+            </div>
+            <div class="card-body p-3">
+                <div class="overflow-x-auto" style="max-height: 300px;">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-700 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left">Fecha</th>
+                                <th class="px-3 py-2 text-left">Descripción</th>
+                                <th class="px-3 py-2 text-right">Importe</th>
+                                <th class="px-3 py-2 text-right">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-movimientos">
+                            <tr>
+                                <td colspan="4" class="px-3 py-4 text-center text-slate-400">Cargando movimientos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card de Cobranzas -->
+        <div class="card mb-4 border border-slate-700 rounded-md">
+            <div class="card-header px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold">
+                <i class="fas fa-receipt"></i> Gestión de Cobranzas
+            </div>
+            <div class="card-body p-3">
+                <!-- Formulario de Cobranza -->
+                <form id="form-cobranza" class="mb-4 p-3 bg-slate-800/40 rounded-md">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm mb-1">Cliente</label>
+                            <input type="text" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white" id="cliente" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">Monto</label>
+                            <input type="number" step="0.01" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white" id="monto" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm mb-1">Vencimiento</label>
+                            <input type="date" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded text-white" id="vencimiento" required />
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="px-4 py-2 bg-emerald-600 text-white border-0 rounded hover:bg-emerald-500">
+                            <i class="fas fa-plus"></i> Publicar Cobranza
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Listado de Cobranzas -->
+                <div>
+                    <h6 class="text-sm font-semibold mb-2">Listado de Cobranzas</h6>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-700">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">ID</th>
+                                    <th class="px-3 py-2 text-left">Cliente</th>
+                                    <th class="px-3 py-2 text-right">Monto</th>
+                                    <th class="px-3 py-2 text-center">Vencimiento</th>
+                                    <th class="px-3 py-2 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-cobranzas">
+                                <tr>
+                                    <td colspan="5" class="px-3 py-4 text-center text-slate-400">Cargando cobranzas...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let isConnected = false;
+
+        // Función para actualizar estado de conexión
+        function updateConnectionStatus(connected, message) {
+            const estadoIcon = document.getElementById('estadoIcon');
+            const estadoText = document.getElementById('estadoText');
+            
+            if (connected) {
+                estadoIcon.className = 'w-3 h-3 rounded-full bg-green-500';
+                estadoText.textContent = message || 'Conectado a Banco Galicia';
+                isConnected = true;
+            } else {
+                estadoIcon.className = 'w-3 h-3 rounded-full bg-red-500';
+                estadoText.textContent = message || 'Error de conexión con Banco Galicia';
+                isConnected = false;
+            }
+        }
+
+        // Función para cargar saldos
+        async function cargarSaldos() {
+            try {
+                const result = await window.api.galicia.getSaldos();
+                const tbody = document.getElementById('tabla-saldos');
+                
+                if (result.success && result.data.length > 0) {
+                    tbody.innerHTML = result.data.map(s => `
+                        <tr class="border-b border-slate-700">
+                            <td class="px-3 py-2">${s.cuenta}</td>
+                            <td class="px-3 py-2">${s.moneda}</td>
+                            <td class="px-3 py-2 text-right font-mono">${s.saldoDisponible}</td>
+                            <td class="px-3 py-2 text-right font-mono">${s.saldoContable}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="px-3 py-4 text-center text-slate-400">
+                                ${result.error || 'No se encontraron saldos'}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('tabla-saldos').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="px-3 py-4 text-center text-red-400">
+                            Error al cargar saldos: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Función para cargar movimientos
+        async function cargarMovimientos() {
+            try {
+                const result = await window.api.galicia.getMovimientos();
+                const tbody = document.getElementById('tabla-movimientos');
+                
+                if (result.success && result.data.length > 0) {
+                    tbody.innerHTML = result.data.map(m => `
+                        <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                            <td class="px-3 py-2">${m.fecha}</td>
+                            <td class="px-3 py-2">${m.descripcion}</td>
+                            <td class="px-3 py-2 text-right font-mono">${m.importe}</td>
+                            <td class="px-3 py-2 text-right font-mono">${m.saldo}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="px-3 py-4 text-center text-slate-400">
+                                ${result.error || 'No se encontraron movimientos'}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('tabla-movimientos').innerHTML = `
+                    <tr>
+                        <td colspan="4" class="px-3 py-4 text-center text-red-400">
+                            Error al cargar movimientos: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Función para cargar cobranzas
+        async function cargarCobranzas() {
+            try {
+                const result = await window.api.galicia.getCobros();
+                const tbody = document.getElementById('tabla-cobranzas');
+                
+                if (result.success && result.data.length > 0) {
+                    tbody.innerHTML = result.data.map(c => {
+                        const estadoClass = c.estado === 'pagada' ? 'text-green-400' : 
+                                          c.estado === 'vencida' ? 'text-red-400' : 'text-yellow-400';
+                        return `
+                            <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                                <td class="px-3 py-2">${c.id}</td>
+                                <td class="px-3 py-2">${c.cliente}</td>
+                                <td class="px-3 py-2 text-right font-mono">$${c.monto.toLocaleString('es-AR')}</td>
+                                <td class="px-3 py-2 text-center">${c.vencimiento}</td>
+                                <td class="px-3 py-2 text-center">
+                                    <span class="px-2 py-1 rounded text-xs ${estadoClass}">
+                                        ${c.estado.toUpperCase()}
+                                    </span>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="px-3 py-4 text-center text-slate-400">
+                                ${result.error || 'No se encontraron cobranzas'}
+                            </td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('tabla-cobranzas').innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-3 py-4 text-center text-red-400">
+                            Error al cargar cobranzas: ${error.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Función para probar conexión
+        async function testConnection() {
+            try {
+                updateConnectionStatus(false, 'Probando conexión...');
+                const result = await window.api.galicia.testConnection();
+                updateConnectionStatus(result.success, result.message);
+                return result.success;
+            } catch (error) {
+                updateConnectionStatus(false, `Error: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Probar conexión inicial
+            await testConnection();
+            
+            // Cargar datos si la conexión es exitosa
+            if (isConnected) {
+                await cargarSaldos();
+                await cargarMovimientos();
+                await cargarCobranzas();
+            }
+        });
+
+        // Formulario de cobranza
+        document.getElementById('form-cobranza').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const cliente = document.getElementById('cliente').value;
+            const monto = parseFloat(document.getElementById('monto').value);
+            const vencimiento = document.getElementById('vencimiento').value;
+
+            try {
+                const result = await window.api.galicia.crearCobranza({
+                    cliente,
+                    monto,
+                    vencimiento
+                });
+
+                if (result.success) {
+                    alert(`Cobranza creada exitosamente con ID: ${result.data.id}`);
+                    // Limpiar formulario
+                    document.getElementById('form-cobranza').reset();
+                    // Recargar cobranzas
+                    await cargarCobranzas();
+                } else {
+                    alert(`Error al crear cobranza: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`Error de conexión: ${error.message}`);
+            }
+        });
+
+        // Botón volver a configuración
+        document.getElementById('btnBackToConfig').addEventListener('click', () => {
+            window.api.openView('config');
+        });
+
+        // Botones de recarga
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                if (isConnected) {
+                    cargarSaldos();
+                    cargarMovimientos();
+                    cargarCobranzas();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -21,11 +21,12 @@ import { getDb } from './services/DbService';
 import { getFacturacionService } from './services/FacturacionService';
 import { afipService } from './modules/facturacion/afipService';
 import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
+import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
-let currentViewName: 'config' | 'caja' | 'imagen' = 'caja';
+let currentViewName: 'config' | 'caja' | 'imagen' | 'galicia' = 'caja';
 // Ventana persistente para presentaciones (comun12)
 let imageDualWindow: BrowserWindow | null = null;
 // Ventana 'nueva' (reutilizable bajo política de Producto Nuevo)
@@ -978,7 +979,7 @@ app.whenReady().then(() => {
 	});
 
 	// Abrir vistas (config/caja/imagen)
-	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja' | 'imagen') => {
+	ipcMain.handle('open-view', async (_evt, view: 'config' | 'caja' | 'imagen' | 'galicia') => {
 		console.log('[main] open-view →', view);
 		
 		if (view === 'config') {
@@ -1058,6 +1059,27 @@ app.whenReady().then(() => {
 						mainWindow.setSize(420, 420);
 						try { mainWindow.center(); } catch {}
 					}
+				} catch {}
+				await mainWindow.loadFile(target);
+				console.log('[main] loadFile done');
+				return { ok: true };
+			}
+		} else if (view === 'galicia') {
+			// Para galicia, abrir directamente
+			const file = 'galicia.html';
+			console.log('[main] galicia requested → loading galicia.html');
+			if (mainWindow) {
+				currentViewName = 'galicia';
+				(store as any).set('lastView', 'galicia');
+				const target = path.join(app.getAppPath(), 'public', file);
+				console.log('[main] loading file:', target);
+				// Ajustar tamaño para módulo galicia
+				try {
+					mainWindow.setMinimumSize(1000, 700);
+					mainWindow.setSize(1200, 800);
+					mainWindow.setMenuBarVisibility(false);
+					mainWindow.setAutoHideMenuBar(true);
+					try { mainWindow.center(); } catch {}
 				} catch {}
 				await mainWindow.loadFile(target);
 				console.log('[main] loadFile done');
@@ -2396,6 +2418,52 @@ app.whenReady().then(() => {
 			return { ok: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// ===== HANDLERS GALICIA =====
+	ipcMain.handle('galicia:get-saldos', async () => {
+		try {
+			const saldos = await getGaliciaSaldos();
+			return { success: true, data: saldos };
+		} catch (error: any) {
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle('galicia:get-movimientos', async () => {
+		try {
+			const movimientos = await getGaliciaMovimientos();
+			return { success: true, data: movimientos };
+		} catch (error: any) {
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle('galicia:crear-cobranza', async (_e, data: { cliente: string; monto: number; vencimiento: string }) => {
+		try {
+			const cobranzaId = await crearGaliciaCobranza(data);
+			return { success: true, data: { id: cobranzaId } };
+		} catch (error: any) {
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle('galicia:get-cobros', async () => {
+		try {
+			const cobros = await getGaliciaCobros();
+			return { success: true, data: cobros };
+		} catch (error: any) {
+			return { success: false, error: error.message };
+		}
+	});
+
+	ipcMain.handle('galicia:test-connection', async () => {
+		try {
+			const result = await testGaliciaConnection();
+			return result;
+		} catch (error: any) {
+			return { success: false, message: error.message };
 		}
 	});
 

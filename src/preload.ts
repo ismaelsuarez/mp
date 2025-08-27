@@ -87,7 +87,7 @@ contextBridge.exposeInMainWorld('api', {
 	async listHistory() {
 		return await ipcRenderer.invoke('list-history');
 	},
-	async openView(view: 'config' | 'caja' | 'imagen') {
+	async openView(view: 'config' | 'caja' | 'imagen' | 'galicia') {
 		console.log('[preload] openView invoked with', view);
 		const res = await ipcRenderer.invoke('open-view', view);
 		console.log('[preload] openView result', res);
@@ -154,6 +154,14 @@ contextBridge.exposeInMainWorld('api', {
 		get: (id: number) => ipcRenderer.invoke('perfiles:get', id),
 		save: (perfil: any) => ipcRenderer.invoke('perfiles:save', perfil),
 		remove: (id: number) => ipcRenderer.invoke('perfiles:delete', id)
+	},
+	// Galicia
+	galicia: {
+		getSaldos: () => ipcRenderer.invoke('galicia:get-saldos'),
+		getMovimientos: () => ipcRenderer.invoke('galicia:get-movimientos'),
+		crearCobranza: (data: { cliente: string; monto: number; vencimiento: string }) => ipcRenderer.invoke('galicia:crear-cobranza', data),
+		getCobros: () => ipcRenderer.invoke('galicia:get-cobros'),
+		testConnection: () => ipcRenderer.invoke('galicia:test-connection')
 	},
 
 });
