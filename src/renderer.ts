@@ -30,7 +30,9 @@ window.addEventListener('DOMContentLoaded', () => {
 		'DEFAULT_VIEW',
 		// FTP Server (admin)
 		'FTP_SRV_HOST','FTP_SRV_PORT','FTP_SRV_USER','FTP_SRV_PASS','FTP_SRV_ROOT','FTP_SRV_ENABLED'
-		,'FTP_SRV_PASV_HOST','FTP_SRV_PASV_MIN','FTP_SRV_PASV_MAX'
+		,'FTP_SRV_PASV_HOST','FTP_SRV_PASV_MIN','FTP_SRV_PASV_MAX',
+		// Galicia (admin)
+		'GALICIA_APP_ID','GALICIA_APP_KEY','GALICIA_CERT_PATH','GALICIA_KEY_PATH','GALICIA_ENVIRONMENT'
 	];
 	const el: any = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
 	const preview = document.getElementById('preview') as HTMLElement;
@@ -158,10 +160,16 @@ window.addEventListener('DOMContentLoaded', () => {
 			FTP_SRV_PASS: (el.FTP_SRV_PASS as HTMLInputElement)?.value || undefined,
 			FTP_SRV_ROOT: (el.FTP_SRV_ROOT as HTMLInputElement)?.value || undefined,
 			FTP_SRV_ENABLED: (el.FTP_SRV_ENABLED as HTMLInputElement)?.checked === true,
-			FTP_SRV_PASV_HOST: (el.FTP_SRV_PASV_HOST as HTMLInputElement)?.value || undefined,
-			FTP_SRV_PASV_MIN: (el.FTP_SRV_PASV_MIN as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MIN as HTMLInputElement).value) : undefined,
-			FTP_SRV_PASV_MAX: (el.FTP_SRV_PASV_MAX as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MAX as HTMLInputElement).value) : undefined
-		};
+					FTP_SRV_PASV_HOST: (el.FTP_SRV_PASV_HOST as HTMLInputElement)?.value || undefined,
+		FTP_SRV_PASV_MIN: (el.FTP_SRV_PASV_MIN as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MIN as HTMLInputElement).value) : undefined,
+		FTP_SRV_PASV_MAX: (el.FTP_SRV_PASV_MAX as HTMLInputElement)?.value ? Number((el.FTP_SRV_PASV_MAX as HTMLInputElement).value) : undefined,
+		// Galicia
+		GALICIA_APP_ID: (el.GALICIA_APP_ID as HTMLInputElement)?.value || undefined,
+		GALICIA_APP_KEY: (el.GALICIA_APP_KEY as HTMLInputElement)?.value || undefined,
+		GALICIA_CERT_PATH: (el.GALICIA_CERT_PATH as HTMLInputElement)?.value || undefined,
+		GALICIA_KEY_PATH: (el.GALICIA_KEY_PATH as HTMLInputElement)?.value || undefined,
+		GALICIA_ENVIRONMENT: (el.GALICIA_ENVIRONMENT as HTMLSelectElement)?.value || 'sandbox'
+	};
 	}
 
 	function setFormFromConfig(cfg: any) {
@@ -248,12 +256,26 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (ftpPasvHostEl) ftpPasvHostEl.value = cfg.FTP_SRV_PASV_HOST || '';
 		if (ftpPasvMinEl) ftpPasvMinEl.value = String(cfg.FTP_SRV_PASV_MIN || '50000');
 		if (ftpPasvMaxEl) ftpPasvMaxEl.value = String(cfg.FTP_SRV_PASV_MAX || '50100');
+		
+		// Galicia
+		const galiciaAppIdEl = document.getElementById('GALICIA_APP_ID') as HTMLInputElement | null;
+		const galiciaAppKeyEl = document.getElementById('GALICIA_APP_KEY') as HTMLInputElement | null;
+		const galiciaCertPathEl = document.getElementById('GALICIA_CERT_PATH') as HTMLInputElement | null;
+		const galiciaKeyPathEl = document.getElementById('GALICIA_KEY_PATH') as HTMLInputElement | null;
+		const galiciaEnvironmentEl = document.getElementById('GALICIA_ENVIRONMENT') as HTMLSelectElement | null;
+		
+		if (galiciaAppIdEl) galiciaAppIdEl.value = cfg.GALICIA_APP_ID || '';
+		if (galiciaAppKeyEl) galiciaAppKeyEl.value = cfg.GALICIA_APP_KEY || '';
+		if (galiciaCertPathEl) galiciaCertPathEl.value = cfg.GALICIA_CERT_PATH || '';
+		if (galiciaKeyPathEl) galiciaKeyPathEl.value = cfg.GALICIA_KEY_PATH || '';
+		if (galiciaEnvironmentEl) galiciaEnvironmentEl.value = cfg.GALICIA_ENVIRONMENT || 'sandbox';
 	}
 
 	function renderPreview(cfg: any) {
 		const safe = { ...cfg } as any;
 		if (safe.MP_ACCESS_TOKEN) safe.MP_ACCESS_TOKEN = '********';
 		if (safe.SMTP_PASS) safe.SMTP_PASS = '********';
+		if (safe.GALICIA_APP_KEY) safe.GALICIA_APP_KEY = '********';
 		const filterEl = document.getElementById('previewFilter') as HTMLInputElement | null;
 		let obj: any = safe;
 		if (filterEl && filterEl.value) {
