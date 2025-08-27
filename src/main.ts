@@ -1712,7 +1712,9 @@ app.whenReady().then(() => {
 			}
 			
 			// Notificar a la UI sobre el nuevo contenido o abrir ventana separada
-			const wantNewWindow = (windowMode === 'nueva') || (cfgNow.IMAGE_WINDOW_SEPARATE === true);
+			// Si IMAGE_WINDOW_SEPARATE está tildado, forzar VENTANA=nueva para que el cajero pueda tener modo caja y modo imagen en ventanas separadas
+			const forceSeparateWindow = cfgNow.IMAGE_WINDOW_SEPARATE === true;
+			const wantNewWindow = (windowMode === 'nueva') || forceSeparateWindow;
 			// En modo 'comun12' se envía a ambas: ventana actual (si corresponde) y ventana persistente (reutilizable)
 			if (windowMode === 'comun12') {
 				if (mainWindow) {
@@ -1839,21 +1841,31 @@ app.whenReady().then(() => {
 					const pnEnabled = cfgNow.IMAGE_PRODUCTO_NUEVO_ENABLED === true;
 					const pnWaitSec = Number(cfgNow.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS || 0);
 					const reuseWindow = pnEnabled && Number.isFinite(pnWaitSec) && pnWaitSec > 0 && (Date.now() - lastImageNewWindowAt) < pnWaitSec * 1000;
-					if (reuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
-								// Llevar ventana al frente sin activarla (sin focus)
-							try { 
-						lastImageNewWindow.showInactive();  // ← Muestra sin activar (no roba foco)
-						lastImageNewWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
-						// Métodos adicionales para Windows
-						try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
-						setTimeout(() => {
-							try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
-						}, 100); // Quitar alwaysOnTop después de 100ms
-					} catch {}
+					
+					// Si forceSeparateWindow está activo, SIEMPRE reutilizar la ventana separada existente
+					const shouldReuseWindow = reuseWindow || forceSeparateWindow;
+					
+					if (shouldReuseWindow && lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
+						// Llevar ventana al frente sin activarla (sin focus)
+						try { 
+							lastImageNewWindow.showInactive();  // ← Muestra sin activar (no roba foco)
+							lastImageNewWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
+							// Métodos adicionales para Windows
+							try { lastImageNewWindow.setAlwaysOnTop(true); } catch {}
+							setTimeout(() => {
+								try { lastImageNewWindow?.setAlwaysOnTop(false); } catch {}
+							}, 100); // Quitar alwaysOnTop después de 100ms
+						} catch {}
 						try { lastImageNewWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 						lastImageNewWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
 						lastImageNewWindowAt = Date.now();
-						logInfo('VENTANA=nueva reutilizada por Producto Nuevo', { withinSeconds: pnWaitSec });
+						
+						if (forceSeparateWindow) {
+							logInfo('VENTANA=nueva reutilizada por IMAGE_WINDOW_SEPARATE', { forceSeparateWindow });
+						} else {
+							logInfo('VENTANA=nueva reutilizada por Producto Nuevo', { withinSeconds: pnWaitSec });
+						}
+						
 						// Ya refrescamos el contenido en la misma ventana
 						try { fs.unlinkSync(controlPath); } catch {}
 						return 1;
@@ -1965,7 +1977,9 @@ app.whenReady().then(() => {
 						try { mainWindow?.setAlwaysOnTop(false); } catch {}
 					}, 100); // Quitar alwaysOnTop después de 100ms
 				} catch {}
-				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: windowMode || 'comun', fallback: isFallback });
+				// Si forceSeparateWindow está activo, siempre usar 'nueva' para que el cajero pueda tener modo caja y modo imagen en ventanas separadas
+				const finalWindowMode = forceSeparateWindow ? 'nueva' : (windowMode || 'comun');
+				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: finalWindowMode, fallback: isFallback });
 			}
 			
 			// Eliminar archivo de control después de procesarlo

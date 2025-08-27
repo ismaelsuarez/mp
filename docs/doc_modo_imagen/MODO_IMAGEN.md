@@ -48,7 +48,7 @@ Rutas soportadas:
 - `IMAGE_CONTROL_FILE`: nombre del archivo de control (default `direccion.txt`).
 - `IMAGE_WATCH`: Disparo inmediato por FTP (sin intervalo). Reacciona apenas llega el archivo de control a la carpeta.
 - `IMAGE_INTERVAL_MS`: intervalo propio de Imagen (si no se usa el disparo inmediato). Si se define, tiene prioridad sobre el intervalo global.
-- `IMAGE_WINDOW_SEPARATE`: abrir el visor en una ventana separada (opcional; complementa `VENTANA=nueva`).
+- `IMAGE_WINDOW_SEPARATE`: **Forzar ventana separada (cajero + imagen)**. Si está habilitado, el contenido siempre se abre en una ventana separada (modo `nueva`), permitiendo que el cajero tenga abierto tanto el modo caja como el modo imagen en ventanas separadas simultáneamente. **Además, reutiliza la misma ventana separada para nuevas solicitudes**, evitando abrir múltiples ventanas. Si no está habilitado, respeta el `VENTANA=nueva` del archivo de control.
 - `IMAGE_ENABLED` (implícito ON): permite desactivar sólo el escaneo/procesamiento de imagen.
 - `IMAGE_CLEANUP_ENABLED` (por defecto ON): habilita limpieza automática de .txt antiguos.
 - `IMAGE_CLEANUP_HOURS` (default 24): antigüedad (en horas) para eliminar .txt residuales.
@@ -67,20 +67,40 @@ Rutas soportadas:
 - Evitar intervalos demasiado bajos (por ej. < 500 ms) para no aumentar uso de disco/CPU.
 - Mantener el antivirus con exclusión para la carpeta de control si observas bloqueos o demoras.
 
+## Casos de uso específicos
+
+### Modo Cajero (IMAGE_WINDOW_SEPARATE habilitado)
+- **Objetivo**: Permitir que el cajero tenga abierto simultáneamente el modo caja y el modo imagen en ventanas separadas
+- **Configuración**: Habilitar `IMAGE_WINDOW_SEPARATE` en Configuración → Modo Imagen
+- **Comportamiento**: 
+  - El contenido siempre se abre en una ventana separada (modo `nueva`)
+  - Ignora el `VENTANA=comun` del archivo de control
+  - **Reutiliza la misma ventana separada para nuevas solicitudes**, evitando abrir múltiples ventanas
+  - Permite trabajar en modo caja en la ventana principal mientras se muestran imágenes/videos en una ventana separada
+  - La ventana de imagen va al frente automáticamente sin interrumpir el trabajo del cajero
+
+### Modo Presentación (IMAGE_WINDOW_SEPARATE deshabilitado)
+- **Objetivo**: Presentaciones y cartelería digital respetando la configuración del archivo de control
+- **Configuración**: Deshabilitar `IMAGE_WINDOW_SEPARATE` en Configuración → Modo Imagen
+- **Comportamiento**:
+  - Respeta el `VENTANA=nueva` o `VENTANA=comun` del archivo de control
+  - Crea ventanas independientes solo cuando se especifica `VENTANA=nueva`
+  - Ideal para kioscos y mostradores
+
 ## Limpieza y solución de problemas
 - Limpieza: tras procesar, el `.txt` se elimina. Si el archivo está ocupado (EBUSY/EPERM/EACCES), se reintenta en el siguiente evento/ciclo. Con `IMAGE_CLEANUP_ENABLED/HOURS` se borran `.txt` muy antiguos de la carpeta de control.
-- “No se encontró archivo de contenido”
+- "No se encontró archivo de contenido"
   - La ruta indicada en el .txt no existe o no es accesible. Revisar permisos de red/UNC y que el archivo no haya sido movido.
-- “No aparece la imagen y se borra el .txt”
+- "No aparece la imagen y se borra el .txt"
   - Es el comportamiento esperado cuando el destino no existe. El disparador se consume para permitir uno nuevo.
-- “Persiste un .txt y no cambia la imagen”
+- "Persiste un .txt y no cambia la imagen"
   - Revisar que el .txt tenga contenido válido y sin espacios invisibles al final. La limpieza automática borra .txt muy antiguos según `IMAGE_CLEANUP_HOURS`.
 - Rutas UNC: si solicita credenciales, mapeá acceso persistente (ej.: `net use \\servidor\share /user:USUARIO CONTRASEÑA /persistent:yes`).
 
 ### Multi‑monitor y reset manual
 - La app recuerda el monitor donde se usó cada ventana (principal, `nueva`, `comun12`) y restaura allí cuando sea posible.
 - Si una pantalla ya no está conectada o cambió la geometría, se reubica automáticamente dentro del área visible del monitor disponible.
-- Menú de bandeja → “Resetear posición/tamaño (ventana actual)”: borra las coordenadas guardadas y centra con tamaño por defecto.
+- Menú de bandeja → "Resetear posición/tamaño (ventana actual)": borra las coordenadas guardadas y centra con tamaño por defecto.
 
 ## Archivos y referencias
 - Lógica principal: `src/main.ts`
@@ -94,4 +114,4 @@ Rutas soportadas:
 - Configuración/UX administración: `public/config.html`, `src/renderer.ts`
 
 ---
-Última actualización: 2025-08-20 (multi‑monitor, fallback jpg→mp4, reset de ventana)
+Última actualización: 2025-01-27 (modo cajero con IMAGE_WINDOW_SEPARATE, multi‑monitor, fallback jpg→mp4, reset de ventana)
