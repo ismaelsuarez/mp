@@ -144,6 +144,10 @@ contextBridge.exposeInMainWorld('api', {
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),
 	'afip:validar-certificado': () => ipcRenderer.invoke('afip:validar-certificado'),
 	'afip:clear-ta': () => ipcRenderer.invoke('afip:clear-ta'),
+	'afip:clear-config': () => ipcRenderer.invoke('afip:clear-config'),
+	'db:reset': () => ipcRenderer.invoke('db:reset'),
+	'secure:import-cert-key': (certPath: string, keyPath: string) => ipcRenderer.invoke('secure:import-cert-key', { certPath, keyPath }),
+	'secure:write-temp-afip': () => ipcRenderer.invoke('secure:write-temp-afip'),
 	// Gestión Provincial
 	provincia: {
 		getConfiguracion: () => ipcRenderer.invoke('provincia:get-configuracion'),

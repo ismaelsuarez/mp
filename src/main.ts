@@ -22,6 +22,7 @@ import { getFacturacionService } from './services/FacturacionService';
 import { afipService } from './modules/facturacion/afipService';
 import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
+import { getSecureStore } from './services/SecureStore';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -528,7 +529,13 @@ function createMainWindow() {
 		return 'caja';
 	})();
 	// Si la vista por defecto es administración (config), forzar autenticación previa
-	const initialFile = defaultView === 'caja' ? 'caja.html' : (defaultView === 'imagen' ? 'imagen.html' : 'auth.html');
+	// Bypass en desarrollo: SKIP_ADMIN_AUTH=true o --skip-admin
+	const devAdminBypass = (!app.isPackaged) && (String(process.env.SKIP_ADMIN_AUTH).toLowerCase() === 'true' || process.argv.includes('--skip-admin'));
+	const initialFile = defaultView === 'caja'
+		? 'caja.html'
+		: (defaultView === 'imagen'
+			? 'imagen.html'
+			: (devAdminBypass ? 'config.html' : 'auth.html'));
 	currentViewName = defaultView;
 
 	// Inicializar DB de facturación al inicio
@@ -1267,6 +1274,26 @@ app.whenReady().then(() => {
 			(afipService as any).clearInstance?.();
 			// Intento best-effort: algunos SDK guardan TA en disco; aquí podríamos borrar rutas conocidas si existieran
 			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('afip:clear-config', async () => {
+		try {
+			const res = getDb().clearAfipConfig();
+			(afipService as any).clearInstance?.();
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('db:reset', async () => {
+		try {
+			const res = getDb().resetDatabase();
+			(afipService as any).clearInstance?.();
+			return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -2496,7 +2523,10 @@ app.whenReady().then(() => {
 		try {
 			const afip = await (afipService as any).getAfipInstance?.();
 			if (!afip) throw new Error('AFIP no inicializado');
-			const pts = await afip.ElectronicBilling.getPointsOfSales();
+			const eb = (afip as any).ElectronicBilling;
+			const fn = eb?.getSalesPoints || eb?.getPointsOfSales;
+			if (typeof fn !== 'function') throw new Error('Método de puntos de venta no disponible en SDK');
+			const pts = await fn.call(eb);
 			return { ok: true, puntos: pts };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
@@ -2506,6 +2536,25 @@ app.whenReady().then(() => {
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
+});
+
+// ===== SecureStore / Importación protegida =====
+ipcMain.handle('secure:import-cert-key', async (_e, { certPath, keyPath }: { certPath: string; keyPath: string }) => {
+    try {
+        getSecureStore().importCertKey(certPath, keyPath);
+        return { ok: true };
+    } catch (e: any) {
+        return { ok: false, error: String(e?.message || e) };
+    }
+});
+
+ipcMain.handle('secure:write-temp-afip', async () => {
+    try {
+        const { certPath, keyPath } = getSecureStore().writeTempFilesForAfip();
+        return { ok: true, certPath, keyPath };
+    } catch (e: any) {
+        return { ok: false, error: String(e?.message || e) };
+    }
 });
 
 app.on('window-all-closed', () => {

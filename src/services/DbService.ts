@@ -196,6 +196,31 @@ class DbService {
 		try { fs.writeFileSync(this.fallbackPath, JSON.stringify(data, null, 2)); } catch {}
 	}
 
+	private backupFileIfExists(filePath: string, suffix: string): string | null {
+		try {
+			if (!filePath) return null;
+			if (!fs.existsSync(filePath)) return null;
+			const dir = path.dirname(filePath);
+			const base = path.basename(filePath);
+			const ts = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+			const backupPath = path.join(dir, `${base}.${suffix}-${ts}.bak`);
+			fs.copyFileSync(filePath, backupPath);
+			return backupPath;
+		} catch {
+			return null;
+		}
+	}
+
+	private backupDatabase(): { sqliteBackup?: string | null; jsonBackup?: string | null } {
+		const out: { sqliteBackup?: string | null; jsonBackup?: string | null } = {};
+		if (this.enabled && this.dbPath) {
+			out.sqliteBackup = this.backupFileIfExists(this.dbPath, 'sqlite');
+		} else {
+			out.jsonBackup = this.backupFileIfExists(this.fallbackPath, 'json');
+		}
+		return out;
+	}
+
 	getAfipConfig(): AfipConfig | null {
 		if (this.enabled && this.db) {
 			const row = this.db.prepare('SELECT * FROM configuracion_afip ORDER BY id DESC LIMIT 1').get();
@@ -603,6 +628,39 @@ class DbService {
 		});
 		this.writeFallback(data);
 		return before - data.comprobantes_control.length;
+	}
+
+	resetDatabase(): { sqliteBackup?: string | null; jsonBackup?: string | null } {
+		const backups = this.backupDatabase();
+		if (this.enabled && this.db) {
+			try {
+				this.db.exec('DROP TABLE IF EXISTS configuracion_afip;');
+				this.db.exec('DROP TABLE IF EXISTS facturas_afip;');
+				this.db.exec('DROP TABLE IF EXISTS perfiles_config;');
+				this.db.exec('DROP TABLE IF EXISTS parametros_facturacion;');
+				this.initSchema();
+			} catch {}
+			return backups;
+		}
+		// Fallback JSON
+		try {
+			this.writeFallback({ configuracion_afip: null, facturas_afip: [], facturas_estado: [] });
+		} catch {}
+		return backups;
+	}
+
+	clearAfipConfig(): { previous?: any; jsonBackup?: string | null } {
+		if (this.enabled && this.db) {
+			try {
+				this.db.prepare('DELETE FROM configuracion_afip').run();
+			} catch {}
+			return {};
+		}
+		const data = this.readFallback();
+		data.configuracion_afip = null;
+		this.writeFallback(data);
+		const jsonBackup = this.backupFileIfExists(this.fallbackPath, 'json');
+		return { previous: data?.configuracion_afip, jsonBackup };
 	}
 
 

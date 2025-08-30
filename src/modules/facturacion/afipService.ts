@@ -1,4 +1,6 @@
 import { DatosAFIP, Comprobante, TipoComprobante, ServerStatus, CertificadoInfo } from './types';
+import { AfipVoucherResponse } from './afip/types';
+import { AfipInstanceManager } from './afip/AfipInstanceManager';
 import { getDb } from '../../services/DbService';
 import { AfipLogger } from './afip/AfipLogger';
 import { CertificateValidator } from './afip/CertificateValidator';
@@ -25,6 +27,7 @@ function loadAfip() {
 
 class AfipService {
   private afipInstance: any = null;
+  private instanceManager: AfipInstanceManager | null = null;
   private logger: AfipLogger;
   private idempotencyManager: IdempotencyManager;
   private resilienceWrapper: ResilienceWrapper;
@@ -48,11 +51,6 @@ class AfipService {
    */
   private async getAfipInstance(): Promise<any> {
     this.debugLog('getAfipInstance: inicio');
-    if (this.afipInstance) {
-      this.debugLog('getAfipInstance: reutilizando instancia existente');
-      return this.afipInstance;
-    }
-
     const cfg = getDb().getAfipConfig();
     if (!cfg) {
       throw new Error('Falta configurar AFIP en Administración');
@@ -81,16 +79,17 @@ class AfipService {
     }
     this.debugLog('Certificado válido. Días restantes:', certInfo.diasRestantes);
 
-    const Afip = loadAfip();
-    this.afipInstance = new Afip({
-      CUIT: Number(cfg.cuit),
-      production: cfg.entorno === 'produccion',
-      cert: cfg.cert_path,
-      key: cfg.key_path
-    });
-    this.debugLog('Instancia AFIP creada', { production: cfg.entorno === 'produccion' });
-
-    return this.afipInstance;
+    if (!this.instanceManager) {
+      this.instanceManager = new AfipInstanceManager(() => ({
+        cuit: Number(cfg.cuit),
+        production: cfg.entorno === 'produccion',
+        cert: cfg.cert_path,
+        key: cfg.key_path
+      }));
+    }
+    const instance = await this.instanceManager.getInstance();
+    this.debugLog('Instancia AFIP creada/reutilizada', { production: cfg.entorno === 'produccion' });
+    return (this.afipInstance = instance);
   }
 
   /**
@@ -180,7 +179,7 @@ class AfipService {
       const last = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte),
         'getLastVoucher'
-      ) as any;
+      ) as number;
       
       const numero = Number(last) + 1;
       this.debugLog('getLastVoucher OK', { last: Number(last), siguiente: numero });
@@ -293,10 +292,10 @@ class AfipService {
       const response = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.createVoucher(request),
         'createVoucher'
-      ) as any;
+      ) as AfipVoucherResponse;
 
-      const cae: string = response.CAE;
-      const caeVto: string = response.CAEFchVto;
+      const cae: string = String(response.CAE);
+      const caeVto: string = String(response.CAEFchVto);
       const observaciones = Array.isArray(response.Observaciones) ? response.Observaciones : undefined;
       this.debugLog('createVoucher OK', { cae, caeVto });
 
@@ -377,7 +376,7 @@ class AfipService {
       const last = await this.resilienceWrapper.execute(
         () => this.getAfipInstance().then(afip => afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte)),
         'getLastVoucher'
-      ) as any;
+      ) as number;
       const numero = Number(last);
       this.debugLog('Número AFIP (con provincias)', numero);
 
@@ -512,7 +511,7 @@ class AfipService {
       const last = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte),
         'getLastVoucher'
-      ) as any;
+      ) as number;
 
       const n = Number(last);
       this.debugLog('getUltimoAutorizado', { puntoVenta, tipoComprobante, last: n });
@@ -699,10 +698,9 @@ class AfipService {
     return timeValidator.validateSystemTime();
   }
 
-  /**
-   * Limpia la instancia de AFIP (útil para testing)
-   */
+  /** Limpia la instancia de AFIP para forzar renovaciones de TA */
   clearInstance(): void {
+    this.instanceManager?.clearCache();
     this.afipInstance = null;
     this.debugLog('Instancia AFIP limpiada');
   }

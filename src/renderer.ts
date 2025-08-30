@@ -2231,4 +2231,54 @@ window.addEventListener('DOMContentLoaded', () => {
 		}
 	});
 
+	(document.getElementById('btnAfipClearCfg') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const status = document.getElementById('pruebaStatus');
+		if (status) status.textContent = 'Borrando configuración AFIP...';
+		try {
+			const res = await (window.api as any)['afip:clear-config']();
+			if (status) status.textContent = res?.ok ? `Configuración AFIP borrada. Backup: ${res?.jsonBackup || 'n/a'}` : `Error: ${res?.error || ''}`;
+			showToast(res?.ok ? 'Config AFIP borrada' : `Error: ${res?.error || ''}`);
+		} catch (e: any) {
+			if (status) status.textContent = `Error: ${e?.message || e}`;
+		}
+	});
+
+	(document.getElementById('btnDbReset') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const status = document.getElementById('pruebaStatus');
+		if (status) status.textContent = 'Reseteando base de datos...';
+		try {
+			const res = await (window.api as any)['db:reset']();
+			const msg = res?.ok ? `Base reseteada. Backup sqlite: ${res?.sqliteBackup || 'n/a'} | json: ${res?.jsonBackup || 'n/a'}` : `Error: ${res?.error || ''}`;
+			if (status) status.textContent = msg;
+			showToast(res?.ok ? 'Base reseteada' : `Error: ${res?.error || ''}`);
+		} catch (e: any) {
+			if (status) status.textContent = `Error: ${e?.message || e}`;
+		}
+	});
+
+	// Importación segura de certificado/clave con cifrado por usuario (DPAPI/fallback)
+	(document.getElementById('btnSecureImport') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const certEl = document.getElementById('secureImportCert') as HTMLInputElement | null;
+		const keyEl = document.getElementById('secureImportKey') as HTMLInputElement | null;
+		const certPath = certEl?.value?.trim() || '';
+		const keyPath = keyEl?.value?.trim() || '';
+		const status = document.getElementById('pruebaStatus');
+		if (!certPath || !keyPath) {
+			if (status) status.textContent = 'Debe indicar las rutas de certificado y clave.';
+			return;
+		}
+		if (status) status.textContent = 'Importando y cifrando cert/key...';
+		try {
+			const res = await (window.api as any)['secure:import-cert-key'](certPath, keyPath);
+			if (res?.ok) {
+				if (status) status.textContent = 'Certificado y clave importados de forma segura.';
+				showToast('Importación segura OK');
+			} else {
+				if (status) status.textContent = `Error importando: ${res?.error || ''}`;
+			}
+		} catch (e: any) {
+			if (status) status.textContent = `Error: ${e?.message || e}`;
+		}
+	});
+
 });
