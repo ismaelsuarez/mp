@@ -362,7 +362,9 @@
 									<select id="FAC_TIPO_DEF">
 										<option value="FA">Factura A</option>
 										<option value="FB">Factura B</option>
-										<option value="NC">Nota de crédito</option>
+										<option value="FC">Factura C</option>
+										<option value="NC">Nota de crédito A/B</option>
+										<option value="NC_C">Nota de crédito C</option>
 										<option value="RECIBO">Recibo</option>
 									</select>
 								</label>
@@ -543,9 +545,12 @@
 									<button type="button" id="btnAsociarComprobante" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 hidden">Asociar Comprobante</button>
 									<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">Verificar Estado AFIP</button>
 									<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">Validar Certificado</button>
+									<button type="button" id="btnAfipClearTA" class="px-3 py-1.5 text-sm rounded-md bg-amber-700 text-white border-0 hover:bg-amber-600" title="Borrar token/TA y forzar relogin">Borrar TA / Relogin</button>
+									<button type="button" id="btnListPtosVta" class="px-3 py-1.5 text-sm rounded-md bg-purple-600 text-white border-0 hover:bg-purple-500">Listar Puntos de Venta</button>
 									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
 								</div>
 								<div id="pruebaStatus" class="mt-2 text-xs"></div>
+								<pre id="afipPtosVtaStatus" class="mt-2 text-[11px] bg-slate-900 border border-slate-700 rounded p-2 overflow-auto" style="max-height:160px"></pre>
 							</div>
 						</div>
 

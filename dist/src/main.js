@@ -1555,6 +1555,17 @@ electron_1.app.whenReady().then(() => {
             return { ok: false, error: String(e?.message || e) };
         }
     });
+    electron_1.ipcMain.handle('afip:clear-ta', async () => {
+        try {
+            // Reiniciar instancia de AFIP para forzar nuevo login
+            afipService_1.afipService.clearInstance?.();
+            // Intento best-effort: algunos SDK guardan TA en disco; aquí podríamos borrar rutas conocidas si existieran
+            return { ok: true };
+        }
+        catch (e) {
+            return { ok: false, error: String(e?.message || e) };
+        }
+    });
     createMainWindow();
     createTray();
     electron_1.app.on('before-quit', () => { isQuitting = true; });
@@ -2952,6 +2963,18 @@ electron_1.app.whenReady().then(() => {
         }
         catch (error) {
             return { success: false, message: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('facturacion:listar-ptos-vta', async () => {
+        try {
+            const afip = await afipService_1.afipService.getAfipInstance?.();
+            if (!afip)
+                throw new Error('AFIP no inicializado');
+            const pts = await afip.ElectronicBilling.getPointsOfSales();
+            return { ok: true, puntos: pts };
+        }
+        catch (e) {
+            return { ok: false, error: String(e?.message || e) };
         }
     });
     electron_1.app.on('activate', () => {

@@ -1850,8 +1850,10 @@ window.addEventListener('DOMContentLoaded', () => {
 			// Comprobantes asociados (si procede NC/ND)
 			const comprobantesAsociados = (window as any).__cbtesAsoc || [];
 
+			// Tomar punto de venta desde la configuración UI
+			const ptoVtaUi = Number((document.getElementById('AFIP_PTO_VTA') as HTMLInputElement)?.value || 1);
 			const res = await (window.api as any).facturacion?.emitir({
-				pto_vta: 1,
+				pto_vta: ptoVtaUi,
 				tipo_cbte: tipoCbte,
 				concepto: concepto,
 				doc_tipo: docTipo,
@@ -2159,5 +2161,74 @@ window.addEventListener('DOMContentLoaded', () => {
 			}
 		} catch {}
 	})();
+
+	// Botón: listar puntos de venta AFIP
+	(document.getElementById('btnListPtosVta') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const outEl = document.getElementById('afipPtosVtaStatus') as HTMLPreElement | null;
+		if (outEl) outEl.textContent = 'Consultando puntos de venta...';
+		try {
+			const res = await (window.api as any).facturacion?.listarPuntosDeVenta();
+			if (res?.ok) {
+				const list = Array.isArray(res.puntos) ? res.puntos : [];
+				const pretty = JSON.stringify(list, null, 2);
+				if (outEl) outEl.textContent = pretty || '[]';
+			} else {
+				if (outEl) outEl.textContent = `Error: ${res?.error || 'Fallo al listar puntos de venta'}`;
+			}
+		} catch (e: any) {
+			if (outEl) outEl.textContent = `Error: ${e?.message || e}`;
+		}
+	});
+
+	// Ajustes UI segun condicion IVA de empresa
+	(async function tuneUiByEmpresaIVA(){
+		try {
+			const r = await (window.api as any).facturacion?.empresaGet();
+			const cond = String(r?.data?.condicion_iva || 'RI').toUpperCase();
+			const isMono = cond === 'MT' || cond === 'MONO';
+			// Deshabilitar edición de IVA en items si MONO (alícuota 0)
+			if (isMono) {
+				const ivaInputs = document.querySelectorAll('#tablaItemsPrueba tbody select, #tablaItemsPrueba tbody input[name="alicuotaIva"]');
+				ivaInputs.forEach((el: any) => { try { el.disabled = true; } catch {} });
+			}
+		} catch {}
+	})();
+
+	// Adaptar tipos por defecto según condición IVA de empresa
+	(async function tuneParamTiposByEmpresa(){
+		try {
+			const r = await (window.api as any).facturacion?.empresaGet();
+			const cond = String(r?.data?.condicion_iva || 'RI').toUpperCase();
+			const sel = document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement | null;
+			if (!sel) return;
+			const mono = (cond === 'MT' || cond === 'MONO');
+			Array.from(sel.options).forEach(opt => {
+				const v = opt.value;
+				const isC = (v === 'FC' || v === 'NC_C' || v === 'RECIBO');
+				const isAB = (v === 'FA' || v === 'FB' || v === 'NC');
+				(opt as any).style.display = mono ? (isC ? '' : 'none') : (isAB || v === 'FC' || v === 'RECIBO' ? '' : 'none');
+			});
+			// Si selección actual no es válida, elegir la primera visible
+			if ((sel as any).selectedIndex === -1 || (sel.options[sel.selectedIndex] as any).style.display === 'none') {
+				for (const opt of Array.from(sel.options)) { if ((opt as any).style.display !== 'none') { (opt as any).selected = true; break; } }
+			}
+		} catch {}
+	})();
+
+	(document.getElementById('btnAfipClearTA') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const status = document.getElementById('pruebaStatus');
+		if (status) status.textContent = 'Borrando TA y reiniciando sesión...';
+		try {
+			const res = await (window.api as any)['afip:clear-ta']();
+			if (res?.ok) {
+				if (status) status.textContent = 'TA borrado. Reinicia la emisión para generar nuevo token.';
+				showToast('TA borrado / Relogin OK');
+			} else {
+				if (status) status.textContent = `Error borrando TA: ${res?.error || ''}`;
+			}
+		} catch (e: any) {
+			if (status) status.textContent = `Error: ${e?.message || e}`;
+		}
+	});
 
 });

@@ -137,11 +137,14 @@ electron_1.contextBridge.exposeInMainWorld('api', {
         findExpiringCAE: (warningThresholdHours) => electron_1.ipcRenderer.invoke('facturacion:find-expiring-cae', { warningThresholdHours }),
         findExpiredCAE: () => electron_1.ipcRenderer.invoke('facturacion:find-expired-cae'),
         // Emisión con provincias
-        emitirConProvincias: (payload) => electron_1.ipcRenderer.invoke('facturacion:emitir-con-provincias', payload)
+        emitirConProvincias: (payload) => electron_1.ipcRenderer.invoke('facturacion:emitir-con-provincias', payload),
+        // Diagnóstico
+        listarPuntosDeVenta: () => electron_1.ipcRenderer.invoke('facturacion:listar-ptos-vta')
     },
     // AFIP
     'afip:check-server-status': () => electron_1.ipcRenderer.invoke('afip:check-server-status'),
     'afip:validar-certificado': () => electron_1.ipcRenderer.invoke('afip:validar-certificado'),
+    'afip:clear-ta': () => electron_1.ipcRenderer.invoke('afip:clear-ta'),
     // Gestión Provincial
     provincia: {
         getConfiguracion: () => electron_1.ipcRenderer.invoke('provincia:get-configuracion'),

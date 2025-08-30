@@ -215,6 +215,20 @@ class AfipService {
                 MonCotiz: 1,
                 Iva: ivaArray
             };
+            // Ajustes para monotributo con comprobantes C: no discrimina IVA
+            try {
+                const cfgEmpresa = (0, DbService_1.getDb)().getEmpresaConfig?.();
+                const cond = String(cfgEmpresa?.condicion_iva || '').toUpperCase();
+                if ((cond === 'MT' || cond === 'MONO') && [11, 12, 13].includes(tipoCbte)) {
+                    request.ImpIVA = 0;
+                    request.Iva = [];
+                    if (!comprobante.cliente?.cuit) {
+                        request.DocTipo = 99;
+                        request.DocNro = 0;
+                    }
+                }
+            }
+            catch { }
             // Fechas de servicio: obligatorias si Concepto es 2 o 3
             if (Number(request.Concepto) === 2 || Number(request.Concepto) === 3) {
                 const normalize = (s) => (s ? String(s).replace(/-/g, '') : undefined);

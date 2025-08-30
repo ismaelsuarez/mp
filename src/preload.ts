@@ -136,11 +136,14 @@ contextBridge.exposeInMainWorld('api', {
 		findExpiringCAE: (warningThresholdHours?: number) => ipcRenderer.invoke('facturacion:find-expiring-cae', { warningThresholdHours }),
 		findExpiredCAE: () => ipcRenderer.invoke('facturacion:find-expired-cae'),
 		// Emisión con provincias
-		emitirConProvincias: (payload: any) => ipcRenderer.invoke('facturacion:emitir-con-provincias', payload)
+		emitirConProvincias: (payload: any) => ipcRenderer.invoke('facturacion:emitir-con-provincias', payload),
+		// Diagnóstico
+		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta')
 	},
 	// AFIP
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),
 	'afip:validar-certificado': () => ipcRenderer.invoke('afip:validar-certificado'),
+	'afip:clear-ta': () => ipcRenderer.invoke('afip:clear-ta'),
 	// Gestión Provincial
 	provincia: {
 		getConfiguracion: () => ipcRenderer.invoke('provincia:get-configuracion'),

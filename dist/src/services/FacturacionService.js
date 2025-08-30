@@ -55,6 +55,8 @@ class FacturacionService {
         let outAny = undefined;
         try {
             // Convertir parámetros al formato Comprobante
+            const empCfg = db.getEmpresaConfig?.();
+            const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() || 'RI';
             const comprobante = {
                 tipo: this.mapTipoComprobante(params.tipo_cbte),
                 puntoVenta: params.pto_vta,
@@ -63,7 +65,7 @@ class FacturacionService {
                     cuit: params.cuit_emisor,
                     razonSocial: params.empresa?.nombre || 'Empresa',
                     domicilio: params.empresa?.domicilio || '',
-                    condicionIva: 'RI'
+                    condicionIva: empCondIva
                 },
                 cliente: params.cuit_receptor ? {
                     cuit: params.cuit_receptor,
