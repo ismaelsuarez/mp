@@ -18,6 +18,14 @@ export class ProvinciaManager {
   private configuracion: ConfiguracionProvincias = {};
   private logger: AfipLogger;
   private configPath: string;
+  private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+
+  private debugLog(...args: any[]) {
+    if (this.DEBUG_FACT) {
+      // eslint-disable-next-line no-console
+      console.log('[FACT][ProvinciaManager]', ...args);
+    }
+  }
 
   constructor(configPath?: string) {
     this.logger = new AfipLogger();
@@ -37,6 +45,7 @@ export class ProvinciaManager {
         serviciosRegistrados: Array.from(this.servicios.keys()),
         configuracionCargada: Object.keys(this.configuracion)
       });
+      this.debugLog('Inicializado', { servicios: Array.from(this.servicios.keys()), configPath: this.configPath });
     } catch (error) {
       this.logger.logError('provincia_manager_inicializacion', error instanceof Error ? error : new Error(String(error)), {
         configPath: this.configPath
@@ -52,6 +61,7 @@ export class ProvinciaManager {
       if (fs.existsSync(this.configPath)) {
         const contenido = fs.readFileSync(this.configPath, 'utf-8');
         this.configuracion = JSON.parse(contenido);
+        this.debugLog('Configuración cargada desde archivo', this.configPath);
       } else {
         // Crear configuración por defecto
         this.crearConfiguracionPorDefecto();
@@ -129,6 +139,7 @@ export class ProvinciaManager {
     if (this.configuracion.mendoza?.enabled) {
       const mockMode = process.env.NODE_ENV !== 'production';
       this.servicios.set('mendoza', new ATMService(mockMode));
+      this.debugLog('Servicio registrado', { servicio: 'ATMService', jurisdiccion: 'mendoza', mockMode });
     }
 
     // Aquí se registrarían otros servicios cuando estén implementados

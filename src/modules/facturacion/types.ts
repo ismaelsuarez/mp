@@ -48,6 +48,7 @@ export interface Totales {
 
 export interface Comprobante {
   tipo: TipoComprobante;
+  cbteTipo?: number; // Código AFIP numérico (1,2,3,6,7,8,11,12,13)
   puntoVenta: number;
   numero?: number;
   fecha: string; // YYYYMMDD
@@ -62,12 +63,19 @@ export interface Comprobante {
   concepto?: number; // 1=Productos, 2=Servicios, 3=Productos y Servicios
   docTipo?: number; // 80=CUIT, 86=CUIL, 96=DNI, 99=Consumidor Final
   monId?: string; // PES, DOL, EUR
+  // Servicios (obligatorio si concepto 2 o 3)
+  FchServDesde?: string; // YYYYMMDD
+  FchServHasta?: string; // YYYYMMDD
+  FchVtoPago?: string;   // YYYYMMDD
+  // Comprobantes asociados (NC/ND)
+  comprobantesAsociados?: Array<{ Tipo: number; PtoVta: number; Nro: number }>;
 }
 
 export interface DatosAFIP {
   cae: string;
   vencimientoCAE: string; // YYYYMMDD
   qrData: string; // URL QR AFIP completa
+  observaciones?: any[];
 }
 
 export interface FacturaData {

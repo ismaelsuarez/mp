@@ -24,6 +24,14 @@ export class TimeValidator {
   private lastValidation: TimeValidationResult | null = null;
   private validationCount = 0;
   private totalDrift = 0;
+  private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+
+  private debugLog(...args: any[]) {
+    if (this.DEBUG_FACT) {
+      // eslint-disable-next-line no-console
+      console.log('[FACT][TimeValidator]', ...args);
+    }
+  }
 
   constructor(config?: Partial<NTPConfig>) {
     this.logger = new AfipLogger();
@@ -48,11 +56,13 @@ export class TimeValidator {
         port: this.config.port,
         allowedDrift: this.config.allowedDrift
       });
+      this.debugLog('Validando tiempo con NTP', this.config);
 
       const result = await this.queryNTP();
       
       // Agregar duración al resultado
       result.duration = Date.now() - startTime;
+      this.debugLog('Resultado NTP', { drift: result.drift, isValid: result.isValid, duration: result.duration });
       
       // Calcular estadísticas
       this.validationCount++;
@@ -75,6 +85,7 @@ export class TimeValidator {
         server: this.config.server,
         port: this.config.port
       });
+      this.debugLog('NTP ERROR', errorMessage);
 
       // En caso de error de NTP, no bloquear pero generar warning
       const systemTime = new Date();
@@ -124,6 +135,7 @@ export class TimeValidator {
           ntpTime,
           duration: Date.now() - startTime
         };
+        this.debugLog('queryNTP OK', { drift: result.drift, allowed: this.config.allowedDrift });
 
         if (!result.isValid) {
           result.error = `Drift de tiempo detectado: ${drift}ms > permitido ${this.config.allowedDrift}ms`;

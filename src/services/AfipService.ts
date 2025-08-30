@@ -16,6 +16,12 @@ export type ComprobanteInput = {
 	iva: number;
 	total: number;
 	detalle: Array<{ descripcion: string; cantidad: number; precioUnitario: number; alicuotaIva: number }>;
+	// Nuevos campos para servicios
+	FchServDesde?: string; // YYYYMMDD
+	FchServHasta?: string; // YYYYMMDD
+	FchVtoPago?: string;   // YYYYMMDD
+	// Comprobantes asociados (NC/ND)
+	comprobantesAsociados?: Array<{ Tipo: number; PtoVta: number; Nro: number }>;
 };
 
 export type ComprobanteOutput = {

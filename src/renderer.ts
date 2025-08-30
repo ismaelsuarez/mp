@@ -1773,16 +1773,34 @@ window.addEventListener('DOMContentLoaded', () => {
 			const concepto = parseInt((document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement)?.value || '1');
 			const docTipo = parseInt((document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement)?.value || '80');
 			const moneda = (document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement)?.value || 'PES';
-			
+
+			// Fechas de servicio (si concepto 2 o 3)
+			const toYyyymmdd = (v?: string) => (v ? v.replace(/-/g, '') : undefined);
+			const fServDesdeEl = document.getElementById('FchServDesde') as HTMLInputElement | null;
+			const fServHastaEl = document.getElementById('FchServHasta') as HTMLInputElement | null;
+			const fVtoPagoEl = document.getElementById('FchVtoPago') as HTMLInputElement | null;
+			const FchServDesde = fServDesdeEl?.value ? toYyyymmdd(fServDesdeEl.value) : undefined;
+			const FchServHasta = fServHastaEl?.value ? toYyyymmdd(fServHastaEl.value) : undefined;
+			const FchVtoPago = fVtoPagoEl?.value ? toYyyymmdd(fVtoPagoEl.value) : undefined;
+
 			// Obtener datos del cliente
 			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim() || '20300123456';
 			const razonSocial = (document.getElementById('pruebaFacturaRazon') as HTMLInputElement)?.value?.trim() || 'Cliente Demo S.A.';
-			
+
 			// Validar datos
 			if (!cuitCliente || !razonSocial) {
 				const status = document.getElementById('pruebaStatus');
 				if (status) status.innerHTML = '<span class="text-red-400">Error: Complete los datos del cliente</span>';
 				return;
+			}
+
+			// Validación de fechas de servicio cuando corresponde
+			if (concepto === 2 || concepto === 3) {
+				if (!FchServDesde || !FchServHasta || !FchVtoPago) {
+					const status = document.getElementById('pruebaStatus');
+					if (status) status.innerHTML = '<span class="text-red-400">Error: Para Servicios debe completar FchServDesde, FchServHasta y FchVtoPago</span>';
+					return;
+				}
 			}
 
 			// Validar items
@@ -1828,7 +1846,10 @@ window.addEventListener('DOMContentLoaded', () => {
 				precioUnitario: item.precioUnitario,
 				alicuotaIva: item.alicuotaIva === -1 ? 0 : item.alicuotaIva // -1 = Exento se convierte a 0
 			}));
-			
+
+			// Comprobantes asociados (si procede NC/ND)
+			const comprobantesAsociados = (window as any).__cbtesAsoc || [];
+
 			const res = await (window.api as any).facturacion?.emitir({
 				pto_vta: 1,
 				tipo_cbte: tipoCbte,
@@ -1845,18 +1866,25 @@ window.addEventListener('DOMContentLoaded', () => {
 				total: totalFinal,
 				detalle: detalle,
 				empresa: { nombre: 'TODO-COMPUTACIÓN', cuit: '20123456789' },
-				plantilla: tipoCbte === 11 ? 'factura_c' : 'factura_a'
+				plantilla: tipoCbte === 11 ? 'factura_c' : 'factura_a',
+				// Nuevos campos
+				FchServDesde,
+				FchServHasta,
+				FchVtoPago,
+				comprobantesAsociados
 			});
-			
+
 			if (res?.ok) {
 				if (status) status.innerHTML = `<span class="text-green-400">✅ Factura emitida Nº ${res.numero} - CAE: ${res.cae}</span>`;
 				showToast(`Factura de prueba emitida exitosamente - CAE: ${res.cae}`);
-				
+				// Mostrar observaciones si existen
+				if (Array.isArray(res.observaciones) && res.observaciones.length > 0) {
+					showToast(`Observaciones AFIP: ${JSON.stringify(res.observaciones)}`);
+				}
 				// Abrir PDF
 				if (res.pdf_path) {
 					await (window.api as any).facturacion?.abrirPdf(res.pdf_path);
 				}
-				
 				// Limpiar formulario
 				(document.getElementById('pruebaFacturaCuit') as HTMLInputElement).value = '';
 				(document.getElementById('pruebaFacturaRazon') as HTMLInputElement).value = '';
@@ -1866,16 +1894,15 @@ window.addEventListener('DOMContentLoaded', () => {
 				(document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement).value = '80';
 				(document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement).value = 'PES';
 				limpiarItemsPrueba();
-				
 				// Recargar listado
 				cargarListadoFacturas();
 			} else {
-				if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${res?.error || 'falló emisión'}</span>`;
+				if (status) status.innerHTML = `<span class=\"text-red-400\">❌ Error: ${res?.error || 'falló emisión'}</span>`;
 				showToast(`Error en factura de prueba: ${res?.error || 'Error desconocido'}`);
 			}
 		} catch (e: any) {
 			const status = document.getElementById('pruebaStatus');
-			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			if (status) status.innerHTML = `<span class=\"text-red-400\">❌ Error: ${e?.message || e}</span>`;
 			showToast(`Error: ${e?.message || e}`);
 		}
 	});
@@ -1980,5 +2007,157 @@ window.addEventListener('DOMContentLoaded', () => {
 			actualizarItemPrueba(itemsPrueba[2].id, 'alicuotaIva', 10.5);
 		}
 	}, 1000);
+
+	// Mostrar/ocultar fechas de servicio según concepto
+	(function serviceDatesToggle(){
+		const sel = document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement | null;
+		const cont = document.getElementById('fechasServicioContainer') as HTMLDivElement | null;
+		if (!sel || !cont) return;
+		const update = () => {
+			const v = parseInt(sel.value || '1');
+			if (v === 2 || v === 3) cont.classList.remove('hidden'); else cont.classList.add('hidden');
+		};
+		sel.addEventListener('change', update);
+		update();
+	})();
+
+	// Mostrar botón "Asociar Comprobante" si es NC/ND y abrir modal para seleccionar factura asociada
+	(function asociarCbteToggle(){
+		const sel = document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement | null;
+		const btn = document.getElementById('btnAsociarComprobante') as HTMLButtonElement | null;
+		if (!sel || !btn) return;
+		const isNota = (t: number) => [2,7,12,3,8,13].includes(t);
+		const update = () => { const t = parseInt(sel.value||'0'); if (isNota(t)) btn.classList.remove('hidden'); else btn.classList.add('hidden'); };
+		sel.addEventListener('change', update);
+		update();
+		(window as any).__cbtesAsoc = [];
+
+		async function openAsociarModal() {
+			// Crear modal en runtime (una sola vez)
+			let modal = document.getElementById('modalAsocDyn') as HTMLDivElement | null;
+			if (!modal) {
+				modal = document.createElement('div');
+				modal.id = 'modalAsocDyn';
+				modal.className = 'fixed inset-0 bg-black/60 hidden items-center justify-center z-50';
+				modal.innerHTML = `
+					<div class="bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-full max-w-3xl p-4">
+						<div class="flex items-center justify-between mb-3">
+							<h3 class="text-sm font-semibold">Asociar Comprobante</h3>
+							<button type="button" id="modalAsocClose" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">✕</button>
+						</div>
+						<div class="flex items-center gap-2 mb-3">
+							<input id="asocSearch" placeholder="Buscar por número o razón social..." class="flex-1 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white" />
+							<button type="button" id="asocRefresh" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">Refrescar</button>
+						</div>
+						<div class="max-h-80 overflow-auto">
+							<table class="w-full text-xs">
+								<thead>
+									<tr class="text-left text-slate-400">
+										<th class="py-1">Sel</th>
+										<th class="py-1">Fecha</th>
+										<th class="py-1">PtoVta</th>
+										<th class="py-1">Tipo</th>
+										<th class="py-1">Número</th>
+										<th class="py-1">Receptor</th>
+										<th class="py-1">Total</th>
+									</tr>
+								</thead>
+								<tbody id="asocTbody"></tbody>
+							</table>
+						</div>
+						<div class="flex items-center justify-end gap-2 mt-3">
+							<span id="asocCount" class="text-xs text-slate-300"></span>
+							<button type="button" id="asocConfirm" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Confirmar selección</button>
+						</div>
+					</div>
+				`;
+				document.body.appendChild(modal);
+				modal.addEventListener('click', (e) => { if (e.target === modal) modal?.classList.add('hidden'); });
+				modal.querySelector('#modalAsocClose')?.addEventListener('click', () => modal?.classList.add('hidden'));
+			}
+
+			function updateCountLabel(selCount: number) {
+				const lbl = document.getElementById('asocCount');
+				if (lbl) lbl.textContent = selCount > 0 ? `${selCount} seleccionado(s)` : '';
+			}
+
+			async function loadRows() {
+				const res = await (window.api as any).facturacion?.listar({});
+				const tbody = modal!.querySelector('#asocTbody') as HTMLTableSectionElement | null;
+				if (!tbody) return;
+				tbody.innerHTML = '';
+				const rows = (res?.rows || []) as any[];
+				const filter = (document.getElementById('asocSearch') as HTMLInputElement | null)?.value?.toLowerCase() || '';
+				const selected: Array<{ Tipo: number; PtoVta: number; Nro: number }> = Array.isArray((window as any).__cbtesAsoc) ? (window as any).__cbtesAsoc : [];
+				for (const r of rows) {
+					const numeroTxt = String(r.numero || '').padStart(8,'0');
+					const receptor = (r.razon_social_receptor || r.cuit_receptor || '').toLowerCase();
+					if (filter && !(numeroTxt.includes(filter) || receptor.includes(filter))) continue;
+					const tr = document.createElement('tr');
+					tr.innerHTML = `
+						<td class="py-1"><input type="checkbox" class="asocChk" data-tipo="${r.tipo_cbte}" data-pto="${r.pto_vta}" data-nro="${r.numero}"></td>
+						<td class="py-1">${r.fecha || ''}</td>
+						<td class="py-1">${r.pto_vta}</td>
+						<td class="py-1">${r.tipo_cbte}</td>
+						<td class="py-1">${numeroTxt}</td>
+						<td class="py-1">${r.razon_social_receptor || r.cuit_receptor || ''}</td>
+						<td class="py-1">$${Number(r.total).toFixed(2)}</td>
+					`;
+					tbody.appendChild(tr);
+					const chk = tr.querySelector('.asocChk') as HTMLInputElement | null;
+					if (chk) {
+						const exists = selected.some(x => Number(x.Tipo) === Number(r.tipo_cbte) && Number(x.PtoVta) === Number(r.pto_vta) && Number(x.Nro) === Number(r.numero));
+						chk.checked = exists;
+						chk.addEventListener('change', () => {
+							const selArr: Array<{ Tipo: number; PtoVta: number; Nro: number }> = Array.isArray((window as any).__cbtesAsoc) ? (window as any).__cbtesAsoc : [];
+							const entry = { Tipo: Number(r.tipo_cbte), PtoVta: Number(r.pto_vta), Nro: Number(r.numero) };
+							const idx = selArr.findIndex(x => x.Tipo === entry.Tipo && x.PtoVta === entry.PtoVta && x.Nro === entry.Nro);
+							if (chk.checked) { if (idx === -1) selArr.push(entry); }
+							else { if (idx >= 0) selArr.splice(idx, 1); }
+							(window as any).__cbtesAsoc = selArr;
+							updateCountLabel(selArr.length);
+						});
+					}
+				}
+				updateCountLabel(Array.isArray((window as any).__cbtesAsoc) ? (window as any).__cbtesAsoc.length : 0);
+			}
+
+			modal.classList.remove('hidden');
+			await loadRows();
+			modal.querySelector('#asocRefresh')?.addEventListener('click', loadRows);
+			modal.querySelector('#asocSearch')?.addEventListener('input', loadRows);
+			modal.querySelector('#asocConfirm')?.addEventListener('click', () => {
+				const selArr: Array<{ Tipo: number; PtoVta: number; Nro: number }> = Array.isArray((window as any).__cbtesAsoc) ? (window as any).__cbtesAsoc : [];
+				showToast(selArr.length > 0 ? `Se asociaron ${selArr.length} comprobante(s).` : 'No hay comprobantes asociados.');
+				modal?.classList.add('hidden');
+				const count = selArr.length;
+				btn.textContent = count > 0 ? `Asociar Comprobante (${count})` : 'Asociar Comprobante';
+			});
+		}
+
+		btn.addEventListener('click', openAsociarModal);
+	})();
+
+	// Filtrar tipos de comprobante visibles según condición IVA de empresa
+	(async function filterCbteByCondEmpresa(){
+		try {
+			const r = await (window.api as any).facturacion?.empresaGet();
+			const cond = String(r?.data?.condicion_iva || 'RI').toUpperCase();
+			const sel = document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement | null;
+			if (!sel) return;
+			const allowMono = new Set(['11','12','13']);
+			const allowRI = new Set(['1','2','3','6','7','8','11','12','13']);
+			Array.from(sel.options).forEach(opt => {
+				const val = opt.value;
+				const ok = (cond === 'MT' || cond === 'MONO') ? allowMono.has(val) : allowRI.has(val);
+				(opt as any).style.display = ok ? '' : 'none';
+				if (!ok && opt.selected) opt.selected = false;
+			});
+			// Si nada seleccionado, seleccionar el primero visible
+			if (!sel.value) {
+				for (const opt of Array.from(sel.options)) { if ((opt as any).style.display !== 'none') { opt.selected = true; break; } }
+			}
+		} catch {}
+	})();
 
 });

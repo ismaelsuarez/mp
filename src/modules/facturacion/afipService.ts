@@ -11,6 +11,7 @@ import { caeValidator } from './afip/CAEValidator';
 import { getProvinciaManager } from './provincia/ProvinciaManager';
 import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IProvinciaService';
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
+import { validateArcaRules } from './arca/ArcaAdapter';
 
 // Carga diferida del SDK para evitar crash si falta
 function loadAfip() {
@@ -27,6 +28,14 @@ class AfipService {
   private logger: AfipLogger;
   private idempotencyManager: IdempotencyManager;
   private resilienceWrapper: ResilienceWrapper;
+  private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+
+  private debugLog(...args: any[]) {
+    if (this.DEBUG_FACT) {
+      // eslint-disable-next-line no-console
+      console.log('[FACT][AFIPService]', ...args);
+    }
+  }
 
   constructor() {
     this.logger = new AfipLogger();
@@ -38,7 +47,9 @@ class AfipService {
    * Obtiene una instancia de AFIP configurada
    */
   private async getAfipInstance(): Promise<any> {
+    this.debugLog('getAfipInstance: inicio');
     if (this.afipInstance) {
+      this.debugLog('getAfipInstance: reutilizando instancia existente');
       return this.afipInstance;
     }
 
@@ -46,24 +57,29 @@ class AfipService {
     if (!cfg) {
       throw new Error('Falta configurar AFIP en Administración');
     }
+    this.debugLog('Config AFIP cargada', { entorno: cfg.entorno, cuit: cfg.cuit, pto_vta: cfg.pto_vta, cert_path: cfg.cert_path, key_path: cfg.key_path });
 
     // VALIDACIÓN DE TIEMPO NTP - NUEVA FUNCIONALIDAD
     try {
       await validateSystemTimeAndThrow();
       this.logger.logRequest('timeValidation', { status: 'passed', message: 'Sistema sincronizado con NTP' });
+      this.debugLog('Validación NTP OK');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.logError('timeValidation', error instanceof Error ? error : new Error(errorMessage), {
         message: 'Validación de tiempo falló antes de crear instancia AFIP'
       });
+      this.debugLog('Validación NTP FAIL', errorMessage);
       throw new Error(`Error de sincronización de tiempo: ${errorMessage}`);
     }
 
     // Validar certificado antes de crear instancia
     const certInfo = CertificateValidator.validateCertificate(cfg.cert_path);
     if (!certInfo.valido) {
+      this.debugLog('Certificado inválido', certInfo);
       throw new Error(`Certificado inválido: ${certInfo.error}`);
     }
+    this.debugLog('Certificado válido. Días restantes:', certInfo.diasRestantes);
 
     const Afip = loadAfip();
     this.afipInstance = new Afip({
@@ -72,8 +88,27 @@ class AfipService {
       cert: cfg.cert_path,
       key: cfg.key_path
     });
+    this.debugLog('Instancia AFIP creada', { production: cfg.entorno === 'produccion' });
 
     return this.afipInstance;
+  }
+
+  /**
+   * Flujo ARCA (WSBFEv1) mínimo: solo validación local por ahora.
+   * Próximo paso: integrar WSAA para wsbfev1 y BFEAuthorize/BFEGetPARAM.
+   */
+  private async solicitarCAEArca(comprobante: Comprobante): Promise<DatosAFIP> {
+    // Validaciones ARCA locales
+    const arcaVal = validateArcaRules(comprobante);
+    if (!arcaVal.isValid) {
+      throw new Error(`Reglas ARCA: ${arcaVal.errors.join('; ')}`);
+    }
+    if (arcaVal.warnings.length) {
+      this.debugLog('ARCA warnings', arcaVal.warnings);
+    }
+
+    // Placeholder: hasta integrar BFEAuthorize, devolvemos error claro
+    throw new Error('ARCA activo: falta integrar WSAA/BFEAuthorize. Configurar homologación ARCA.');
   }
 
   /**
@@ -81,17 +116,35 @@ class AfipService {
    */
   async solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP> {
     try {
+      this.debugLog('solicitarCAE: inicio', {
+        tipo: comprobante.tipo,
+        puntoVenta: comprobante.puntoVenta,
+        fecha: comprobante.fecha,
+        total: comprobante.totales?.total
+      });
       // Validar comprobante básico
       const errors = AfipHelpers.validateComprobante(comprobante);
       if (errors.length > 0) {
+        this.debugLog('solicitarCAE: validación local falló', errors);
         throw new Error(`Errores de validación: ${errors.join(', ')}`);
+      }
+
+      const isArca = (process.env.AFIP_MODE || '').toLowerCase() === 'arca';
+
+      // Si ARCA está activo, no usar WSFE: ir por flujo ARCA
+      if (isArca) {
+        this.debugLog('AFIP_MODE=arca → usar flujo WSBFEv1');
+        return await this.solicitarCAEArca(comprobante);
       }
 
       const afip = await this.getAfipInstance();
       const cfg = getDb().getAfipConfig()!;
       
-      const ptoVta = cfg.pto_vta || comprobante.puntoVenta;
+      // Tomar pto de venta desde UI si viene, caso contrario usar config
+      const ptoVta = comprobante.puntoVenta || cfg.pto_vta;
       const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+      this.debugLog('Parámetros AFIP', { ptoVta, tipoCbte });
+
 
       // VALIDACIÓN CON FEParamGet* - NUEVA FUNCIONALIDAD
       const validator = new AfipValidator(afip);
@@ -113,12 +166,14 @@ class AfipService {
           comprobante, 
           validationResult 
         });
+        this.debugLog('Validación FEParamGet* FAIL', validationResult);
         throw new Error(errorMessage);
       }
 
       // Log warnings si existen
       if (validationResult.warnings.length > 0) {
         this.logger.logRequest('validationWarnings', { warnings: validationResult.warnings });
+        this.debugLog('Validación FEParamGet* warnings', validationResult.warnings);
       }
 
       // Obtener último número autorizado con resiliencia
@@ -128,6 +183,7 @@ class AfipService {
       ) as any;
       
       const numero = Number(last) + 1;
+      this.debugLog('getLastVoucher OK', { last: Number(last), siguiente: numero });
 
       // CONTROL DE IDEMPOTENCIA - NUEVA FUNCIONALIDAD
       const idempotencyResult = await this.idempotencyManager.checkIdempotency(
@@ -136,6 +192,7 @@ class AfipService {
         numero,
         { comprobante, validationParams }
       );
+      this.debugLog('Idempotencia', idempotencyResult);
 
       // Si es un duplicado exitoso, retornar CAE existente
       if (idempotencyResult.isDuplicate && !idempotencyResult.shouldProceed && idempotencyResult.existingCae) {
@@ -174,9 +231,10 @@ class AfipService {
 
       // Construir array de IVA
       const ivaArray = AfipHelpers.buildIvaArray(comprobante.items);
+      this.debugLog('Construyendo request createVoucher');
 
       // Construir request para AFIP
-      const request = {
+      const request: any = {
         CantReg: 1,
         PtoVta: ptoVta,
         CbteTipo: tipoCbte,
@@ -197,6 +255,26 @@ class AfipService {
         Iva: ivaArray
       };
 
+      // Fechas de servicio: obligatorias si Concepto es 2 o 3
+      if (Number(request.Concepto) === 2 || Number(request.Concepto) === 3) {
+        const normalize = (s?: string) => (s ? String(s).replace(/-/g, '') : undefined);
+        const fdesde = normalize(comprobante.FchServDesde);
+        const fhasta = normalize(comprobante.FchServHasta);
+        const fvto = normalize(comprobante.FchVtoPago);
+        if (fdesde) request.FchServDesde = fdesde;
+        if (fhasta) request.FchServHasta = fhasta;
+        if (fvto) request.FchVtoPago = fvto;
+      }
+
+      // Comprobantes asociados (NC/ND)
+      if (Array.isArray(comprobante.comprobantesAsociados) && comprobante.comprobantesAsociados.length > 0) {
+        request.CbtesAsoc = comprobante.comprobantesAsociados.map(x => ({
+          Tipo: Number(x.Tipo),
+          PtoVta: Number(x.PtoVta),
+          Nro: Number(x.Nro)
+        }));
+      }
+
       // Solicitar CAE con resiliencia
       const response = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.createVoucher(request),
@@ -205,6 +283,8 @@ class AfipService {
 
       const cae: string = response.CAE;
       const caeVto: string = response.CAEFchVto;
+      const observaciones = Array.isArray(response.Observaciones) ? response.Observaciones : undefined;
+      this.debugLog('createVoucher OK', { cae, caeVto });
 
       // Marcar como exitoso en control de idempotencia
       await this.idempotencyManager.markAsApproved(ptoVta, tipoCbte, numero, cae, caeVto);
@@ -220,10 +300,11 @@ class AfipService {
         cae
       });
 
-      return { cae, vencimientoCAE: caeVto, qrData };
+      return { cae, vencimientoCAE: caeVto, qrData, observaciones };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      this.debugLog('solicitarCAE ERROR', errorMessage);
       
       // Marcar como fallido en control de idempotencia si tenemos los datos
       try {
@@ -260,10 +341,12 @@ class AfipService {
       total: comprobante.totales.total,
       cuitEmisor: comprobante.empresa.cuit
     });
+    this.debugLog('solicitarCAEConProvincias: inicio');
 
     try {
       // 1. Solicitar CAE a AFIP primero
       const afipResult = await this.solicitarCAE(comprobante);
+      this.debugLog('AFIP CAE obtenido', { cae: afipResult.cae, vto: afipResult.vencimientoCAE });
       
       this.logger.logRequest('afip_cae_obtenido', {
         cae: afipResult.cae,
@@ -282,6 +365,7 @@ class AfipService {
         'getLastVoucher'
       ) as any;
       const numero = Number(last);
+      this.debugLog('Número AFIP (con provincias)', numero);
 
       const provincialParams: ComprobanteProvincialParams = {
         cae: afipResult.cae,
@@ -311,6 +395,7 @@ class AfipService {
       // 3. Procesar con administraciones provinciales
       const provinciaManager = getProvinciaManager();
       const resultado = await provinciaManager.procesarComprobante(provincialParams);
+      this.debugLog('Resultado provincial', { estado: resultado.estado, servicio: resultado.provincial?.servicio });
 
       this.logger.logRequest('procesamiento_provincial_completado', {
         cae: afipResult.cae,
@@ -323,6 +408,7 @@ class AfipService {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      this.debugLog('solicitarCAEConProvincias ERROR', errorMessage);
       
       this.logger.logError('solicitarCAE_con_provincias_error', error instanceof Error ? error : new Error(errorMessage), {
         comprobante: {
@@ -356,6 +442,7 @@ class AfipService {
         () => afip.ElectronicBilling.getServerStatus(),
         'getServerStatus'
       ) as any;
+      this.debugLog('ServerStatus', status);
 
       return {
         appserver: status.AppServer,
@@ -377,6 +464,7 @@ class AfipService {
     try {
       const cfg = getDb().getAfipConfig();
       if (!cfg) {
+        this.debugLog('validarCertificado: no hay configuración');
         return {
           valido: false,
           fechaExpiracion: new Date(),
@@ -385,7 +473,9 @@ class AfipService {
         };
       }
 
-      return CertificateValidator.validateCertificate(cfg.cert_path);
+      const info = CertificateValidator.validateCertificate(cfg.cert_path);
+      this.debugLog('validarCertificado:', info);
+      return info;
 
     } catch (error) {
       return {
@@ -410,7 +500,9 @@ class AfipService {
         'getLastVoucher'
       ) as any;
 
-      return Number(last);
+      const n = Number(last);
+      this.debugLog('getUltimoAutorizado', { puntoVenta, tipoComprobante, last: n });
+      return n;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -598,6 +690,7 @@ class AfipService {
    */
   clearInstance(): void {
     this.afipInstance = null;
+    this.debugLog('Instancia AFIP limpiada');
   }
 }
 

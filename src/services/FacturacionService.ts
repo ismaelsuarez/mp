@@ -21,10 +21,35 @@ export type EmitirFacturaParams = ComprobanteInput & {
 };
 
 export class FacturacionService {
+    private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+    private debugLog(...args: any[]) { if (this.DEBUG_FACT) { /* eslint-disable no-console */ console.log('[FACT][Service]', ...args); } }
 	async emitirFacturaYGenerarPdf(params: EmitirFacturaParams) {
 		const db = getDb();
+		this.debugLog('emitirFacturaYGenerarPdf: inicio', { pto_vta: params.pto_vta, tipo_cbte: params.tipo_cbte, total: params.total });
+		// Filtrado por condición IVA de la empresa (RI vs MONO)
+		try {
+			const empCfg = db.getEmpresaConfig?.();
+			if (empCfg && empCfg.condicion_iva) {
+				const cond = String(empCfg.condicion_iva || '').toUpperCase();
+				const tipoSel = Number(params.tipo_cbte);
+				const monoPermitidos = new Set([11, 12, 13]);
+				const riPermitidos = new Set([1, 2, 3, 6, 7, 8, 11, 12, 13]);
+				if (cond === 'MT' || cond === 'MONO') {
+					if (!monoPermitidos.has(tipoSel)) {
+						throw new Error('Para Monotributo solo se permiten comprobantes tipo C (11, 12, 13).');
+					}
+				} else if (cond === 'RI') {
+					if (!riPermitidos.has(tipoSel)) {
+						throw new Error('Para Responsable Inscripto solo se permiten comprobantes A/B/C válidos.');
+					}
+				}
+			}
+		} catch (e) {
+			// Si no hay DB o método no existe, continuar
+		}
 		// Intentar emitir
 		let numero = 0; let cae = ''; let cae_venc = '';
+		let outAny: any = undefined;
 		try {
 			// Convertir parámetros al formato Comprobante
 			const comprobante: Comprobante = {
@@ -57,22 +82,38 @@ export class FacturacionService {
 				// Nuevos campos de configuración AFIP
 				concepto: params.concepto,
 				docTipo: params.doc_tipo,
-				monId: params.mon_id
+				monId: params.mon_id,
+				// Fechas de servicio y comprobantes asociados
+				FchServDesde: (params as any).FchServDesde,
+				FchServHasta: (params as any).FchServHasta,
+				FchVtoPago: (params as any).FchVtoPago,
+				comprobantesAsociados: (params as any).comprobantesAsociados
 			};
 
-			const out = await afipService.solicitarCAE(comprobante);
-			cae = out.cae; 
-			cae_venc = out.vencimientoCAE;
+			this.debugLog('Solicitando CAE...');
+			outAny = await afipService.solicitarCAE(comprobante);
+			cae = outAny.cae; 
+			cae_venc = outAny.vencimientoCAE;
+			this.debugLog('CAE recibido', { cae, cae_venc });
+			// Log de observaciones de AFIP si existen
+			if (Array.isArray(outAny?.observaciones) && outAny.observaciones.length > 0) {
+				/* eslint-disable no-console */
+				console.warn(`[FACT][Observaciones] Factura emitida con advertencias:`, outAny.observaciones);
+			}
 			
 			// Obtener número del último autorizado + 1
 			const cfg = db.getAfipConfig();
 			if (cfg) {
+				this.debugLog('Consultando último autorizado...');
 				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, comprobante.tipo);
 				numero = ultimo + 1;
+				this.debugLog('Número asignado', numero);
 			} else {
 				numero = Math.floor(Date.now() / 1000); // Fallback
+				this.debugLog('CFG AFIP ausente, numero fallback', numero);
 			}
 		} catch (e: any) {
+			this.debugLog('Error emitiendo CAE', e?.message || e);
 			const fallbackNumero = Math.floor(Date.now() / 1000);
 			db.insertFacturaEstadoPendiente({
 				numero: fallbackNumero,
@@ -108,6 +149,7 @@ export class FacturacionService {
 		});
 
 		// Generar PDF vía plantilla
+		this.debugLog('Generando PDF...');
 		const pdfPath = await getFacturaGenerator().generarPdf(params.plantilla || 'factura_a', {
 			emisor: { nombre: params.empresa?.nombre || 'Empresa', cuit: params.empresa?.cuit || params.cuit_emisor, domicilio: params.empresa?.domicilio, iibb: params.empresa?.iibb, inicio: params.empresa?.inicio, logoPath: params.logoPath },
 			receptor: { nombre: params.razon_social_receptor || 'Consumidor Final', cuit: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
@@ -116,6 +158,7 @@ export class FacturacionService {
 			totales: { neto: params.neto, iva: params.iva, total: params.total },
 			afip: { cae, cae_vto: cae_venc, qr_url: qrUrl }
 		});
+		this.debugLog('PDF generado', pdfPath);
 
 		// Guardar en DB
 		db.insertFacturaEmitida({
@@ -136,7 +179,9 @@ export class FacturacionService {
 			pdf_path: pdfPath
 		});
 
-		return { numero, cae, cae_vencimiento: cae_venc, qr_url: qrUrl, pdf_path: pdfPath };
+		this.debugLog('Factura emitida OK', { numero, cae, cae_venc });
+		const obs = Array.isArray((outAny as any)?.observaciones) ? (outAny as any).observaciones : undefined;
+		return { numero, cae, cae_vencimiento: cae_venc, qr_url: qrUrl, pdf_path: pdfPath, observaciones: obs };
 	}
 
 	private buildQrAfipUrl(data: any): string {
@@ -352,13 +397,15 @@ export class FacturacionService {
 	private mapTipoComprobante(tipoCbte: number): TipoComprobante {
 		switch (tipoCbte) {
 			case 1: return 'A';
+			case 2: return 'A'; // ND A
+			case 3: return 'FA'; // NC A (alias)
 			case 6: return 'B';
+			case 7: return 'B'; // ND B
+			case 8: return 'FB'; // NC B (alias)
 			case 11: return 'C';
-			case 2: return 'E';
-			case 3: return 'FA';
-			case 8: return 'FB';
-			case 13: return 'NC';
-			default: return 'A';
+			case 12: return 'C'; // ND C
+			case 13: return 'NC'; // NC C (alias)
+			default: return 'C';
 		}
 	}
 

@@ -18,6 +18,14 @@ export interface ValidationResult {
 export class AfipValidator {
   private afip: any;
   private logger: AfipLogger;
+  private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+
+  private debugLog(...args: any[]) {
+    if (this.DEBUG_FACT) {
+      // eslint-disable-next-line no-console
+      console.log('[FACT][AfipValidator]', ...args);
+    }
+  }
 
   constructor(afipInstance: any) {
     this.afip = afipInstance;
@@ -33,6 +41,7 @@ export class AfipValidator {
 
     try {
       this.logger.logRequest('validateComprobante', { params });
+      this.debugLog('Validando comprobante (FEParamGet*)', params);
 
       // 1. Validar tipos de comprobante
       await this.validateTipoComprobante(params.cbteTipo, errors);
@@ -64,6 +73,7 @@ export class AfipValidator {
       };
 
       this.logger.logResponse('validateComprobante', result);
+      this.debugLog('Resultado validación FEParamGet*', result);
       return result;
 
     } catch (error) {

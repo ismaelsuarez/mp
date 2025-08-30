@@ -106,7 +106,7 @@
 								<input id="MP_DAYS_BACK" type="number" min="1" step="1" placeholder="7" />
 							</label>
 						</div>
-						<p class="text-xs text-slate-500 -mt-2">Si completas fechas, se ignora “Días hacia atrás”. “Sin filtro” trae todo (solo diagnóstico).</p>
+						<p class="text-xs text-slate-500 -mt-2">Si completas fechas, se ignora "Días hacia atrás". "Sin filtro" trae todo (solo diagnóstico).</p>
 
 						<!-- Búsqueda y paginación -->
 						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -131,7 +131,7 @@
 							<label>Límite por página <input id="MP_LIMIT" type="number" min="1" step="1" placeholder="50" /></label>
 							<label>Páginas máximas <input id="MP_MAX_PAGES" type="number" min="1" step="1" placeholder="100" /></label>
 						</div>
-						<p class="text-xs text-slate-500 -mt-2">“Campo de fecha” define qué timestamp usa el filtro (sugerido: “Última actualización”). “Estado” permite elegir un estado específico o “Todos”.</p>
+						<p class="text-xs text-slate-500 -mt-2">"Campo de fecha" define qué timestamp usa el filtro (sugerido: "Última actualización"). "Estado" permite elegir un estado específico o "Todos".</p>
 					</div>
 				</details>
 
@@ -441,14 +441,17 @@
 									<label class="text-xs">
 										Tipo de Comprobante:
 										<select id="pruebaFacturaTipoCbte" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
-											<option value="1">A - Factura A</option>
-											<option value="6">B - Factura B</option>
-											<option value="11" selected>C - Factura C</option>
-											<option value="3">E - Factura E</option>
-											<option value="8">FA - Factura A</option>
-											<option value="13">FB - Factura B</option>
-											<option value="2">NC - Nota de Crédito</option>
-											<option value="4">RECIBO - Recibo</option>
+											<option value="1">Factura A (1)</option>
+											<option value="6">Factura B (6)</option>
+											<option value="11" selected>Factura C (11)</option>
+											<option value="19">Factura E (19)</option>
+											<option value="2">Nota de Débito A (2)</option>
+											<option value="7">Nota de Débito B (7)</option>
+											<option value="12">Nota de Débito C (12)</option>
+											<option value="3">Nota de Crédito A (3)</option>
+											<option value="8">Nota de Crédito B (8)</option>
+											<option value="13">Nota de Crédito C (13)</option>
+											<option value="4">Recibo (4)</option>
 										</select>
 									</label>
 									<label class="text-xs">
@@ -537,6 +540,7 @@
 								<!-- Botones de Acción -->
 								<div class="flex items-center gap-2">
 									<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">Emitir Factura de Prueba</button>
+									<button type="button" id="btnAsociarComprobante" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 hidden">Asociar Comprobante</button>
 									<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">Verificar Estado AFIP</button>
 									<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">Validar Certificado</button>
 									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
@@ -632,7 +636,7 @@
 						<!-- Carpeta Remota para acción "remoto" -->
 						<div class="mb-3 p-3 rounded-md border border-slate-700 bg-slate-800/40">
 							<div class="text-sm font-semibold mb-2">Modo remoto (disparador por archivo)</div>
-							<p class="text-xs text-slate-400 mb-2">Si habilitas el modo remoto, el sistema revisará periódicamente la carpeta configurada. Cuando encuentre un archivo <code>mp*.txt</code>, ejecutará el mismo proceso que “Descargar MP” y luego eliminará el archivo. Útil para integraciones con otros sistemas que dejan un “disparador”.</p>
+							<p class="text-xs text-slate-400 mb-2">Si habilitas el modo remoto, el sistema revisará periódicamente la carpeta configurada. Cuando encuentre un archivo <code>mp*.txt</code>, ejecutará el mismo proceso que "Descargar MP" y luego eliminará el archivo. Útil para integraciones con otros sistemas que dejan un "disparador".</p>
 							<div class="flex flex-col md:flex-row md:items-end gap-2 mb-2">
 								<label class="block flex-1">Carpeta Remota
 									<input id="AUTO_REMOTE_DIR" placeholder="C:\\tmp" />
@@ -654,12 +658,12 @@
 									<input id="AUTO_REMOTE_WATCH" type="checkbox" />
 									<span class="text-sm leading-5">
 										Disparo inmediato por FTP (sin intervalo)<br>
-										<span class="text-xs text-slate-400">Reacciona apenas llega el archivo. Deshabilita el uso de “Intervalo remoto”.</span>
+										<span class="text-xs text-slate-400">Reacciona apenas llega el archivo. Deshabilita el uso de "Intervalo remoto".</span>
 									</span>
 								</label>
 							</div>
 							<button type="button" id="btnTestRemote" class="ml-2 text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Probar remoto ahora</button>
-							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta los <strong>días</strong> y <strong>horarios</strong> configurados arriba. Si defines un <strong>intervalo remoto (ms)</strong>, usará ese valor (sugerido: 60000 ms).<br><span class="text-amber-300">Cuando está activado “Disparo inmediato por FTP (sin intervalo)”, al llegar <code>mp*.txt</code> se procesa <strong>siempre</strong> (ignora días/horas) y el envío de <code>mp.dbf</code> por FTP se realiza en <strong>modo forzado</strong> (no se salta por “sin cambios”).</span></div>
+							<div class="text-xs text-slate-400 mt-2">El modo remoto respeta los <strong>días</strong> y <strong>horarios</strong> configurados arriba. Si defines un <strong>intervalo remoto (ms)</strong>, usará ese valor (sugerido: 60000 ms).<br><span class="text-amber-300">Cuando está activado "Disparo inmediato por FTP (sin intervalo)", al llegar <code>mp*.txt</code> se procesa <strong>siempre</strong> (ignora días/horas) y el envío de <code>mp.dbf</code> por FTP se realiza en <strong>modo forzado</strong> (no se salta por "sin cambios").</span></div>
 						</div>
 
 
@@ -704,7 +708,7 @@
 							<input id="IMAGE_PUBLICIDAD_ALLOWED" type="checkbox" />
 							<span class="text-sm leading-5">
 								Modo Publicidad (pantalla completa para ventana espejo)
-								<br><span class="text-xs text-slate-400">Habilita el control “Publicidad” en el menú del icono de bandeja. Si está tildado allí, la ventana espejo abrirá en <strong>pantalla completa</strong> (estilo F11).</span>
+								<br><span class="text-xs text-slate-400">Habilita el control "Publicidad" en el menú del icono de bandeja. Si está tildado allí, la ventana espejo abrirá en <strong>pantalla completa</strong> (estilo F11).</span>
 							</span>
 						</label>
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -723,7 +727,7 @@
 								<button type="button" id="btnTestImage" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Probar lectura ahora</button>
 							</div>
 						</div>
-						<p class="text-xs text-slate-400">Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc. Con “Disparo inmediato” activo se procesa siempre (ignora días/horas).</p>
+						<p class="text-xs text-slate-400">Soporta: JPG, PNG, GIF, PDF, MP3, WAV, MP4, etc. Con "Disparo inmediato" activo se procesa siempre (ignora días/horas).</p>
 					</div>
 				</details>
 

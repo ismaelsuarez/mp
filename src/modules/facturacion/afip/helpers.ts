@@ -7,12 +7,29 @@ export class AfipHelpers {
    */
   static mapTipoCbte(tipo: TipoComprobante): number {
     switch (tipo) {
-      case 'FA': return 1; // Factura A
-      case 'FB': return 6; // Factura B
-      case 'NC': return 3; // Nota de Crédito A (simplificado)
-      case 'RECIBO': return 4; // Recibo A (referencia; ajustar según uso)
-      default: return 6;
+      case 'A': return 1;            // Factura A
+      case 'B': return 6;            // Factura B
+      case 'C': return 11;           // Factura C
+      case 'FA': return 1;           // Alias Factura A
+      case 'FB': return 6;           // Alias Factura B
+      case 'RECIBO': return 4;       // Recibo A (ajustar según uso requerido)
+      case 'NC': return 13;          // Nota de Crédito C por defecto
+      default: return 11;            // Por defecto, usar C
     }
+  }
+
+  /**
+   * Mapea (clase=A/B/C, tipo base=FACTURA/NC/ND) al código AFIP exacto
+   */
+  static mapCbteByClass(kind: 'FACT'|'NC'|'ND', clase: 'A'|'B'|'C'): number {
+    if (kind === 'FACT') {
+      return clase === 'A' ? 1 : (clase === 'B' ? 6 : 11);
+    }
+    if (kind === 'NC') {
+      return clase === 'A' ? 3 : (clase === 'B' ? 8 : 13);
+    }
+    // ND
+    return clase === 'A' ? 2 : (clase === 'B' ? 7 : 12);
   }
 
   /**
