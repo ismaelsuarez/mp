@@ -11,6 +11,7 @@ import { ResilienceWrapper } from './afip/ResilienceWrapper';
 import { getResilienceConfig } from './afip/config';
 import { caeValidator } from './afip/CAEValidator';
 import { getProvinciaManager } from './provincia/ProvinciaManager';
+import { getSecureStore } from '../../services/SecureStore';
 import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IProvinciaService';
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 import { validateArcaRules } from './arca/ArcaAdapter';
@@ -32,6 +33,7 @@ class AfipService {
   private idempotencyManager: IdempotencyManager;
   private resilienceWrapper: ResilienceWrapper;
   private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
+  private tempCleanup: (() => void) | null = null;
 
   private debugLog(...args: any[]) {
     if (this.DEBUG_FACT) {
@@ -71,8 +73,22 @@ class AfipService {
       throw new Error(`Error de sincronización de tiempo: ${errorMessage}`);
     }
 
-    // Validar certificado antes de crear instancia
-    const certInfo = CertificateValidator.validateCertificate(cfg.cert_path);
+    // Resolver origen de cert/key: modo seguro (SecureStore) o rutas configuradas
+    let resolvedCertPath = cfg.cert_path;
+    let resolvedKeyPath = cfg.key_path;
+    const useSecure = (!resolvedCertPath || String(resolvedCertPath).trim() === '') && (!resolvedKeyPath || String(resolvedKeyPath).trim() === '');
+    if (useSecure) {
+      this.debugLog('Modo 100% seguro activo: usando SecureStore para cert/key temporales');
+      const { certPath, keyPath, cleanup } = getSecureStore().writeTempFilesForAfip();
+      resolvedCertPath = certPath;
+      resolvedKeyPath = keyPath;
+      // Guardar cleanup para limpiar al renovar/limpiar instancia
+      this.tempCleanup?.();
+      this.tempCleanup = cleanup;
+    }
+
+    // Validar certificado antes de crear instancia (usar ruta resuelta)
+    const certInfo = CertificateValidator.validateCertificate(resolvedCertPath);
     if (!certInfo.valido) {
       this.debugLog('Certificado inválido', certInfo);
       throw new Error(`Certificado inválido: ${certInfo.error}`);
@@ -83,8 +99,8 @@ class AfipService {
       this.instanceManager = new AfipInstanceManager(() => ({
         cuit: Number(cfg.cuit),
         production: cfg.entorno === 'produccion',
-        cert: cfg.cert_path,
-        key: cfg.key_path
+        cert: resolvedCertPath,
+        key: resolvedKeyPath
       }));
     }
     const instance = await this.instanceManager.getInstance();
@@ -702,6 +718,9 @@ class AfipService {
   clearInstance(): void {
     this.instanceManager?.clearCache();
     this.afipInstance = null;
+    // Limpiar archivos temporales si se usó modo seguro
+    try { this.tempCleanup?.(); } catch {}
+    this.tempCleanup = null;
     this.debugLog('Instancia AFIP limpiada');
   }
 }

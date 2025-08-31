@@ -1,5 +1,6 @@
 import { AfipLogger } from './AfipLogger';
-import { AfipVoucherType } from './types';
+import { AfipVoucherType, ClasePorTipo } from './types';
+import { getDb } from '../../../services/DbService';
 
 export interface ValidationParams {
   cbteTipo: number;
@@ -47,6 +48,9 @@ export class AfipValidator {
       // 1. Validar tipos de comprobante
       await this.validateTipoComprobante(params.cbteTipo, errors);
 
+      // 1.1 Reglas A/B/C según condición IVA del emisor (refuerzo backend)
+      await this.validateClaseComprobanteSegunCondicionEmisor(params.cbteTipo, errors, warnings);
+
       // 2. Validar conceptos
       await this.validateConcepto(params.concepto, errors);
 
@@ -84,10 +88,43 @@ export class AfipValidator {
     }
   }
 
+  /**
+   * Refuerza reglas de clase de comprobante A/B/C según condición del emisor.
+   * - Emisor MONOTRIBUTO/MT → solo clase C (11,12,13)
+   * - Emisor RI → se permite A/B; si intenta C, se emite warning (reglas completas dependen del receptor)
+   * Basado en lineamientos del manual ARCA (FEParamGetCondicionIvaReceptor).
+   */
+  private async validateClaseComprobanteSegunCondicionEmisor(cbteTipo: number, errors: string[], warnings: string[]): Promise<void> {
+    try {
+      const empresa = getDb().getEmpresaConfig?.();
+      const cond = String(empresa?.condicion_iva || '').trim().toUpperCase();
+      const esTipoDe = (arr: number[]) => arr.includes(Number(cbteTipo));
+
+      if (cond === 'MONO' || cond === 'MT' || cond === 'MONOTRIBUTO') {
+        if (!esTipoDe(ClasePorTipo.C)) {
+          errors.push(`Para emisor Monotributo, solo se permiten comprobantes clase C (11,12,13). Recibido: ${cbteTipo}`);
+        }
+      } else if (cond === 'RI' || cond === 'RESPONSABLE INSCRIPTO' || cond === 'RESPONSABLE_INSCRIPTO') {
+        if (esTipoDe(ClasePorTipo.C)) {
+          warnings.push('Emisor Responsable Inscripto con comprobante clase C: verificar condición del receptor.');
+        }
+      }
+    } catch (e) {
+      // En caso de cualquier problema de lectura de config, no bloquear
+      warnings.push('No se pudo verificar condición IVA del emisor para validar clase del comprobante.');
+    }
+  }
+
   /** Valida el tipo de comprobante usando FEParamGetTiposCbte */
   private async validateTipoComprobante(cbteTipo: number, errors: string[]): Promise<void> {
     try {
-      const tiposCbte = await this.afip.ElectronicBilling.getVoucherTypes() as AfipVoucherType[];
+      const eb = this.afip?.ElectronicBilling;
+      const fn = eb?.getVoucherTypes || eb?.getVoucherType;
+      if (typeof fn !== 'function') {
+        errors.push('SDK no expone método de tipos de comprobante (getVoucherTypes).');
+        return;
+      }
+      const tiposCbte = (await fn.call(eb)) as AfipVoucherType[];
       const tipoValido = Array.isArray(tiposCbte) && tiposCbte.some((t) => Number((t as any).Id) === cbteTipo);
       if (!tipoValido) {
         const tiposDisponibles = (tiposCbte || []).map((t) => `${(t as any).Id} (${(t as any).Desc})`).join(', ');
@@ -143,7 +180,13 @@ export class AfipValidator {
   /** Valida el punto de venta usando FEParamGetPtosVenta */
   private async validatePuntoVenta(ptoVta: number, errors: string[]): Promise<void> {
     try {
-      const ptosVta = await this.afip.ElectronicBilling.getSalesPoints() as Array<{ Nro: number | string; Desc?: string }>;
+      const eb = this.afip?.ElectronicBilling;
+      const fn = eb?.getSalesPoints || eb?.getPointsOfSales;
+      if (typeof fn !== 'function') {
+        errors.push('SDK no expone método de puntos de venta (getSalesPoints/getPointsOfSales).');
+        return;
+      }
+      const ptosVta = (await fn.call(eb)) as Array<{ Nro: number | string; Desc?: string }>;
       const ptoValido = Array.isArray(ptosVta) && ptosVta.some((p) => Number((p as any).Nro) === ptoVta);
       if (!ptoValido) {
         const ptosDisponibles = (ptosVta || []).map((p) => `${(p as any).Nro} (${(p as any).Desc || ''})`).join(', ');
@@ -186,14 +229,14 @@ export class AfipValidator {
    */
   async getValidationInfo(): Promise<any> {
     try {
-      const info = {
-        tiposCbte: await this.afip.ElectronicBilling.getVoucherTypes(),
-        conceptos: await this.afip.ElectronicBilling.getConceptTypes(),
-        tiposDoc: await this.afip.ElectronicBilling.getDocumentTypes(),
-        monedas: await this.afip.ElectronicBilling.getCurrenciesTypes(),
-        ptosVta: await this.afip.ElectronicBilling.getSalesPoints(),
-        tiposIva: await this.afip.ElectronicBilling.getAliquotsTypes()
-      };
+      const eb = this.afip?.ElectronicBilling;
+      const tiposCbte = (eb?.getVoucherTypes ? await eb.getVoucherTypes() : undefined) || null;
+      const conceptos = (eb?.getConceptTypes ? await eb.getConceptTypes() : undefined) || null;
+      const tiposDoc = (eb?.getDocumentTypes ? await eb.getDocumentTypes() : undefined) || null;
+      const monedas = (eb?.getCurrenciesTypes ? await eb.getCurrenciesTypes() : undefined) || null;
+      const ptosVta = (eb?.getSalesPoints ? await eb.getSalesPoints() : (eb?.getPointsOfSales ? await eb.getPointsOfSales() : null));
+      const tiposIva = (eb?.getAliquotsTypes ? await eb.getAliquotsTypes() : (eb?.getAliquotTypes ? await eb.getAliquotTypes() : null));
+      const info = { tiposCbte, conceptos, tiposDoc, monedas, ptosVta, tiposIva };
 
       this.logger.logResponse('getValidationInfo', info);
       return info;
