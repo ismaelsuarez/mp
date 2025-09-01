@@ -1,0 +1,176 @@
+{
+  "info": {
+    "name": "AFIP WSFEv1 - Colección",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "afip-wsfev1-collection"
+  },
+  "item": [
+    {
+      "name": "FEDummy (ServerStatus)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEDummy" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEDummy/>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FEParamGetPtosVenta",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEParamGetPtosVenta" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEParamGetPtosVenta>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n    </ar:FEParamGetPtosVenta>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FEParamGetTiposCbte",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEParamGetTiposCbte" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEParamGetTiposCbte>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n    </ar:FEParamGetTiposCbte>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FEParamGetTiposConcepto",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEParamGetTiposConcepto" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEParamGetTiposConcepto>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n    </ar:FEParamGetTiposConcepto>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FEParamGetTiposDoc",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEParamGetTiposDoc" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEParamGetTiposDoc>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n    </ar:FEParamGetTiposDoc>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FEParamGetTiposMonedas",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FEParamGetTiposMonedas" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FEParamGetTiposMonedas>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n    </ar:FEParamGetTiposMonedas>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FECompUltimoAutorizado",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FECompUltimoAutorizado" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FECompUltimoAutorizado>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n      <ar:PtoVta>{{ptoVta}}</ar:PtoVta>\n      <ar:CbteTipo>{{tipoCbte}}</ar:CbteTipo>\n    </ar:FECompUltimoAutorizado>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FECAESolicitar (Factura C)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FECAESolicitar" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FECAESolicitar>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n      <ar:FeCAEReq>\n        <ar:FeCabReq>\n          <ar:CantReg>1</ar:CantReg>\n          <ar:PtoVta>{{ptoVta}}</ar:PtoVta>\n          <ar:CbteTipo>{{tipoCbte}}</ar:CbteTipo>\n        </ar:FeCabReq>\n        <ar:FeDetReq>\n          <ar:FECAEDetRequest>\n            <ar:Concepto>{{concepto}}</ar:Concepto>\n            <ar:DocTipo>{{docTipo}}</ar:DocTipo>\n            <ar:DocNro>{{docNro}}</ar:DocNro>\n            <ar:CbteDesde>{{cbteDesde}}</ar:CbteDesde>\n            <ar:CbteHasta>{{cbteHasta}}</ar:CbteHasta>\n            <ar:CbteFch>{{cbteFch}}</ar:CbteFch>\n            <ar:ImpTotal>{{impTotal}}</ar:ImpTotal>\n            <ar:ImpTotConc>0</ar:ImpTotConc>\n            <ar:ImpNeto>{{impNeto}}</ar:ImpNeto>\n            <ar:ImpOpEx>0</ar:ImpOpEx>\n            <ar:ImpIVA>{{impIVA}}</ar:ImpIVA>\n            <ar:ImpTrib>0</ar:ImpTrib>\n            <ar:MonId>{{monId}}</ar:MonId>\n            <ar:MonCotiz>1</ar:MonCotiz>\n            {{#FchServDesde}}<ar:FchServDesde>{{FchServDesde}}</ar:FchServDesde>{{/FchServDesde}}\n            {{#FchServHasta}}<ar:FchServHasta>{{FchServHasta}}</ar:FchServHasta>{{/FchServHasta}}\n            {{#FchVtoPago}}<ar:FchVtoPago>{{FchVtoPago}}</ar:FchVtoPago>{{/FchVtoPago}}\n            <!-- En Factura C no se envía Iva -->\n          </ar:FECAEDetRequest>\n        </ar:FeDetReq>\n      </ar:FeCAEReq>\n    </ar:FECAESolicitar>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FECAESolicitar (Factura C - Servicios)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FECAESolicitar" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FECAESolicitar>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n      <ar:FeCAEReq>\n        <ar:FeCabReq>\n          <ar:CantReg>1</ar:CantReg>\n          <ar:PtoVta>{{ptoVta}}</ar:PtoVta>\n          <ar:CbteTipo>11</ar:CbteTipo>\n        </ar:FeCabReq>\n        <ar:FeDetReq>\n          <ar:FECAEDetRequest>\n            <ar:Concepto>2</ar:Concepto>\n            <ar:DocTipo>{{docTipo}}</ar:DocTipo>\n            <ar:DocNro>{{docNro}}</ar:DocNro>\n            <ar:CbteDesde>{{cbteDesde}}</ar:CbteDesde>\n            <ar:CbteHasta>{{cbteHasta}}</ar:CbteHasta>\n            <ar:CbteFch>{{cbteFch}}</ar:CbteFch>\n            <ar:ImpTotal>{{impTotal}}</ar:ImpTotal>\n            <ar:ImpTotConc>0</ar:ImpTotConc>\n            <ar:ImpNeto>{{impNeto}}</ar:ImpNeto>\n            <ar:ImpOpEx>0</ar:ImpOpEx>\n            <ar:ImpIVA>0</ar:ImpIVA>\n            <ar:ImpTrib>0</ar:ImpTrib>\n            <ar:MonId>{{monId}}</ar:MonId>\n            <ar:MonCotiz>1</ar:MonCotiz>\n            <ar:FchServDesde>{{FchServDesde}}</ar:FchServDesde>\n            <ar:FchServHasta>{{FchServHasta}}</ar:FchServHasta>\n            <ar:FchVtoPago>{{FchVtoPago}}</ar:FchVtoPago>\n          </ar:FECAEDetRequest>\n        </ar:FeDetReq>\n      </ar:FeCAEReq>\n    </ar:FECAESolicitar>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FECAESolicitar (NC C - CbtesAsoc)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FECAESolicitar" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FECAESolicitar>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n      <ar:FeCAEReq>\n        <ar:FeCabReq>\n          <ar:CantReg>1</ar:CantReg>\n          <ar:PtoVta>{{ptoVta}}</ar:PtoVta>\n          <ar:CbteTipo>13</ar:CbteTipo>\n        </ar:FeCabReq>\n        <ar:FeDetReq>\n          <ar:FECAEDetRequest>\n            <ar:Concepto>{{concepto}}</ar:Concepto>\n            <ar:DocTipo>{{docTipo}}</ar:DocTipo>\n            <ar:DocNro>{{docNro}}</ar:DocNro>\n            <ar:CbteDesde>{{cbteDesde}}</ar:CbteDesde>\n            <ar:CbteHasta>{{cbteHasta}}</ar:CbteHasta>\n            <ar:CbteFch>{{cbteFch}}</ar:CbteFch>\n            <ar:ImpTotal>{{impTotal}}</ar:ImpTotal>\n            <ar:ImpTotConc>0</ar:ImpTotConc>\n            <ar:ImpNeto>{{impNeto}}</ar:ImpNeto>\n            <ar:ImpOpEx>0</ar:ImpOpEx>\n            <ar:ImpIVA>{{impIVA}}</ar:ImpIVA>\n            <ar:ImpTrib>0</ar:ImpTrib>\n            <ar:MonId>{{monId}}</ar:MonId>\n            <ar:MonCotiz>1</ar:MonCotiz>\n            <ar:CbtesAsoc>\n              <ar:CbteAsoc>\n                <ar:Tipo>{{cbteAsocTipo}}</ar:Tipo>\n                <ar:PtoVta>{{cbteAsocPtoVta}}</ar:PtoVta>\n                <ar:Nro>{{cbteAsocNro}}</ar:Nro>\n              </ar:CbteAsoc>\n              {{#cbteAsocNro2}}<ar:CbteAsoc><ar:Tipo>{{cbteAsocTipo2}}</ar:Tipo><ar:PtoVta>{{cbteAsocPtoVta2}}</ar:PtoVta><ar:Nro>{{cbteAsocNro2}}</ar:Nro></ar:CbteAsoc>{{/cbteAsocNro2}}\n            </ar:CbtesAsoc>\n          </ar:FECAEDetRequest>\n        </ar:FeDetReq>\n      </ar:FeCAEReq>\n    </ar:FECAESolicitar>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    },
+    {
+      "name": "FECAESolicitar (ND C - CbtesAsoc)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "text/xml; charset=utf-8" },
+          { "key": "SOAPAction", "value": "http://ar.gov.afip.dif.FEV1/FECAESolicitar" }
+        ],
+        "url": { "raw": "{{baseUrl}}", "host": ["{{baseUrl}}"] },
+        "body": {
+          "mode": "raw",
+          "raw": "<soapenv:Envelope xmlns:soapenv=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:ar=\"http://ar.gov.afip.dif.FEV1/\">\n  <soapenv:Header/>\n  <soapenv:Body>\n    <ar:FECAESolicitar>\n      <ar:Auth>\n        <ar:Token>{{token}}</ar:Token>\n        <ar:Sign>{{sign}}</ar:Sign>\n        <ar:Cuit>{{cuit}}</ar:Cuit>\n      </ar:Auth>\n      <ar:FeCAEReq>\n        <ar:FeCabReq>\n          <ar:CantReg>1</ar:CantReg>\n          <ar:PtoVta>{{ptoVta}}</ar:PtoVta>\n          <ar:CbteTipo>12</ar:CbteTipo>\n        </ar:FeCabReq>\n        <ar:FeDetReq>\n          <ar:FECAEDetRequest>\n            <ar:Concepto>{{concepto}}</ar:Concepto>\n            <ar:DocTipo>{{docTipo}}</ar:DocTipo>\n            <ar:DocNro>{{docNro}}</ar:DocNro>\n            <ar:CbteDesde>{{cbteDesde}}</ar:CbteDesde>\n            <ar:CbteHasta>{{cbteHasta}}</ar:CbteHasta>\n            <ar:CbteFch>{{cbteFch}}</ar:CbteFch>\n            <ar:ImpTotal>{{impTotal}}</ar:ImpTotal>\n            <ar:ImpTotConc>0</ar:ImpTotConc>\n            <ar:ImpNeto>{{impNeto}}</ar:ImpNeto>\n            <ar:ImpOpEx>0</ar:ImpOpEx>\n            <ar:ImpIVA>{{impIVA}}</ar:ImpIVA>\n            <ar:ImpTrib>0</ar:ImpTrib>\n            <ar:MonId>{{monId}}</ar:MonId>\n            <ar:MonCotiz>1</ar:MonCotiz>\n            <ar:CbtesAsoc>\n              <ar:CbteAsoc>\n                <ar:Tipo>{{cbteAsocTipo}}</ar:Tipo>\n                <ar:PtoVta>{{cbteAsocPtoVta}}</ar:PtoVta>\n                <ar:Nro>{{cbteAsocNro}}</ar:Nro>\n              </ar:CbteAsoc>\n              {{#cbteAsocNro2}}<ar:CbteAsoc><ar:Tipo>{{cbteAsocTipo2}}</ar:Tipo><ar:PtoVta>{{cbteAsocPtoVta2}}</ar:PtoVta><ar:Nro>{{cbteAsocNro2}}</ar:Nro></ar:CbteAsoc>{{/cbteAsocNro2}}\n            </ar:CbtesAsoc>\n          </ar:FECAEDetRequest>\n        </ar:FeDetReq>\n      </ar:FeCAEReq>\n    </ar:FECAESolicitar>\n  </soapenv:Body>\n</soapenv:Envelope>"
+        }
+      }
+    }
+  ]
+}
+
+
