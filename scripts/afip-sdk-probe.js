@@ -17,10 +17,10 @@ function parseArgs() {
 
 function loadAfip() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('@afipsdk/afip.js');
+    const { CompatAfip } = require('../dist/src/modules/facturacion/adapters/CompatAfip.js');
+    return CompatAfip;
   } catch (e) {
-    console.error('No se pudo cargar @afipsdk/afip.js');
+    console.error('No se pudo cargar CompatAfip desde dist. Ejecute "pnpm run build:ts" antes de este script.');
     process.exit(1);
   }
 }
@@ -55,37 +55,36 @@ async function main() {
   }
 
   try {
-    const eb = afip.ElectronicBilling;
-    const getPvs = eb.getSalesPoints || eb.getPointsOfSales;
-    const pvs = typeof getPvs === 'function' ? await getPvs.call(eb) : null;
+    const getPvs = afip.ElectronicBilling.getSalesPoints || afip.ElectronicBilling.getPointsOfSales;
+    const pvs = typeof getPvs === 'function' ? await getPvs.call(afip.ElectronicBilling) : null;
     console.log('Puntos de venta:', pvs);
   } catch (e) {
     console.error('Puntos de venta ERROR:', e?.message || e);
   }
 
   try {
-    const tipos = await afip.ElectronicBilling.getVoucherTypes();
-    console.log('Tipos de comprobante:', Array.isArray(tipos) ? tipos.map(t => t.Id) : tipos);
+    const tipos = await afip.ElectronicBilling.getVoucherTypes?.();
+    console.log('Tipos de comprobante:', tipos);
   } catch (e) {
     console.error('getVoucherTypes ERROR:', e?.message || e);
   }
 
   try {
-    const conceptos = await afip.ElectronicBilling.getConceptTypes();
+    const conceptos = await afip.ElectronicBilling.getConceptTypes?.();
     console.log('Conceptos:', conceptos);
   } catch (e) {
     console.error('getConceptTypes ERROR:', e?.message || e);
   }
 
   try {
-    const docs = await afip.ElectronicBilling.getDocumentTypes();
+    const docs = await afip.ElectronicBilling.getDocumentTypes?.();
     console.log('Tipos de documento:', docs);
   } catch (e) {
     console.error('getDocumentTypes ERROR:', e?.message || e);
   }
 
   try {
-    const mons = await afip.ElectronicBilling.getCurrenciesTypes();
+    const mons = await afip.ElectronicBilling.getCurrenciesTypes?.();
     console.log('Monedas:', mons);
   } catch (e) {
     console.error('getCurrenciesTypes ERROR:', e?.message || e);

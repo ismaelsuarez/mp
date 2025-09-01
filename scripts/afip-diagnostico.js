@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const ntpClient = require('ntp-client');
 const forge = require('node-forge');
-const Afip = require('@afipsdk/afip.js');
+const { CompatAfip } = require('../dist/src/modules/facturacion/adapters/CompatAfip.js');
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -187,7 +187,7 @@ async function main() {
     const afipOptions = usarMem
       ? { CUIT: cuit, cert: certContentMem, key: keyContentMem, production: entorno === 'produccion' }
       : { CUIT: cuit, cert: certPath, key: keyPath, production: entorno === 'produccion' };
-    afip = new Afip(afipOptions);
+    afip = new CompatAfip(afipOptions);
     ok(`Instancia AFIP creada (production=${entorno === 'produccion'}, cert/key en memoria=${usarMem})`);
   } catch (e) {
     fail('No se pudo crear instancia AFIP', e.message);
@@ -216,10 +216,10 @@ async function main() {
   // Paso 5: FEParamGet* (tipos paramétricos)
   section('5) FEParamGet* (tipos paramétricos)');
   const feTests = [
-    { name: 'getVoucherTypes', fn: () => afip.ElectronicBilling.getVoucherTypes() },
-    { name: 'getConceptTypes', fn: () => afip.ElectronicBilling.getConceptTypes() },
-    { name: 'getDocumentTypes', fn: () => afip.ElectronicBilling.getDocumentTypes() },
-    { name: 'getCurrenciesTypes', fn: () => afip.ElectronicBilling.getCurrenciesTypes() },
+    { name: 'getVoucherTypes', fn: () => ebCall(afip, 'getVoucherTypes') },
+    { name: 'getConceptTypes', fn: () => ebCall(afip, 'getConceptTypes') },
+    { name: 'getDocumentTypes', fn: () => ebCall(afip, 'getDocumentTypes') },
+    { name: 'getCurrenciesTypes', fn: () => ebCall(afip, 'getCurrenciesTypes') },
   ];
   for (const t of feTests) {
     try {
@@ -228,6 +228,12 @@ async function main() {
     } catch (e) {
       fail(`${t.name} ERROR`, e.message);
     }
+  }
+
+  function ebCall(afip, name) {
+    const fn = afip.ElectronicBilling?.[name];
+    if (typeof fn !== 'function') throw new Error(`Método ${name} no disponible`);
+    return fn.call(afip.ElectronicBilling);
   }
 
   // Paso 6: Último comprobante autorizado (opcional por tipo)

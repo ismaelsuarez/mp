@@ -1,10 +1,9 @@
 import { AfipValidator } from '../../afip/AfipValidator';
 import { mockAfipInstance } from '../fixtures/mocks';
 
-// Mock de afip.js
-jest.mock('@afipsdk/afip.js', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => mockAfipInstance)
+// Mock del adapter local
+jest.mock('../../adapters/CompatAfip', () => ({
+  CompatAfip: jest.fn().mockImplementation(() => mockAfipInstance)
 }));
 
 describe('AfipValidator', () => {

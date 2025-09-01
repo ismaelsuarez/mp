@@ -2,10 +2,9 @@ import { afipService } from '../../afipService';
 import { comprobanteValido, comprobanteDuplicado } from '../fixtures/comprobantes';
 import { mockAfipInstance, mockTimeValidator, mockIdempotencyManager } from '../fixtures/mocks';
 
-// Mock de todos los componentes
-jest.mock('@afipsdk/afip.js', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => mockAfipInstance)
+// Mock de adapter local
+jest.mock('../../adapters/CompatAfip', () => ({
+  CompatAfip: jest.fn().mockImplementation(() => mockAfipInstance)
 }));
 
 jest.mock('../../utils/TimeValidator', () => ({

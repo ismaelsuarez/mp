@@ -1,4 +1,4 @@
-## Informe Técnico: Módulo de Facturación (Electron + Node.js + afip.js)
+## Informe Técnico: Módulo de Facturación (Electron + Node.js + afip.ts local)
 
 ### 1. Arquitectura General y Componentes
 
@@ -42,7 +42,7 @@ ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 });
 ```
 
-- **Conector AFIP (`afip.js`)**: SDK oficial `@afipsdk/afip.js` usado desde `AfipService` para WSAA/WSFE (ElectronicBilling). Instanciación y uso de `getLastVoucher`/`createVoucher`:
+- **Conector AFIP (adapter local)**: Se utiliza un adapter `CompatAfip` sobre el SDK local `sdk/afip.ts-main` para WSAA/WSFE (ElectronicBilling). Instanciación y uso de `getLastVoucher`/`createVoucher`:
 
 ```176:266:src/modules/facturacion/afipService.ts
 // Validación FEParamGet*
@@ -69,8 +69,8 @@ Diagrama de componentes (Mermaid):
 flowchart LR
   UI["Electron UI<br/>Formulario de factura"] -->|IPC invoke 'facturacion:emitir'| BE["Proceso Principal NodeJS<br/>FacturacionService"]
   BE -->|orquesta| AFIPSRV["AfipService"]
-  AFIPSRV -->|SDK| SDK["@afipsdk/afip.js"]
-  SDK -->|WSAA/WSFE| AFIP["Servidores AFIP"]
+  AFIPSRV -->|Adapter| ADP["CompatAfip (afip.ts local)"]
+  ADP -->|WSAA/WSFE| AFIP["Servidores AFIP"]
   BE -->|PDF/DB| PERS["Persistencia + PDF"]
   BE -->|resultado (Nº, CAE, venc)| UI
 ```

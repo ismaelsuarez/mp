@@ -2,7 +2,7 @@
 
 ## 🎯 Objetivo Cumplido
 
-Se implementó exitosamente la validación runtime con AFIP usando los métodos `FEParamGet*` del SDK oficial `@afipsdk/afip.js` para evitar intentos de emisión con parámetros inválidos o no autorizados.
+Se implementó exitosamente la validación runtime con AFIP usando los métodos `FEParamGet*` a través del adapter local `CompatAfip` (basado en `afip.ts`), para evitar intentos de emisión con parámetros inválidos o no autorizados.
 
 ## 📋 Checklist de Implementación
 

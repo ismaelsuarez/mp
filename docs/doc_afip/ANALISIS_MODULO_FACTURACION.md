@@ -35,7 +35,7 @@ public/config.html        # UI de configuración y pruebas
 
 #### 2.2. Patrones de Diseño Identificados
 
-- Facade: `afipService.ts` encapsula `@afipsdk/afip.js` y expone operaciones de alto nivel (validar/emitir, check status, último comprobante).
+- Facade: `afipService.ts` encapsula el adapter local `CompatAfip` (sobre `afip.ts`) y expone operaciones de alto nivel (validar/emitir, check status, último comprobante).
 - Adapter: `AfipValidator` traduce FEParamGet* a una validación semántica de negocio.
 - Strategy/Policy: validaciones locales vs remotas (NTP, certificado, FEParamGet*), y flujo ARCA alternativo.
 - Resilience patterns: `ResilienceWrapper` (retries/backoff; protección ante fallas de red/AFIP).
@@ -50,8 +50,8 @@ flowchart LR
   UI["Renderer (config.html)\nFormulario & pruebas"] -->|invoke IPC| MAIN["main.ts\nHandlers facturacion:* & afip:*"]
   MAIN --> FAC["FacturacionService\nOrquestación PDF/DB"]
   FAC --> AFS["afipService (módulo)\nResiliencia + Idempotencia + Validaciones"]
-  AFS --> SDK["@afipsdk/afip.js"]
-  SDK --> AFIP["AFIP WSAA/WSFE"]
+  AFS --> ADP["CompatAfip (afip.ts local)"]
+  ADP --> AFIP["AFIP WSAA/WSFE"]
   FAC --> DB["DbService\nSQLite/JSON fallback"]
   FAC --> PDF["FacturaGenerator\nPlantillas HTML → PDF"]
 ```
@@ -73,7 +73,7 @@ flowchart LR
     8) Marcado idempotente “aprobado” + QR + retorno `{ cae, vence, qrData, observaciones }`
   - `solicitarCAEConProvincias(comprobante)`: Variante que encadena `ProvinciaManager`.
   - Helpers de consulta: `getUltimoAutorizado`, `checkServerStatus`, validaciones de CAE, etc.
-- Dependencias: `DbService` (config/empresa), `AfipValidator`, `CertificateValidator`, `ResilienceWrapper`, `IdempotencyManager`, `helpers`, `@afipsdk/afip.js`.
+- Dependencias: `DbService` (config/empresa), `AfipValidator`, `CertificateValidator`, `ResilienceWrapper`, `IdempotencyManager`, `helpers`, adapter `CompatAfip`.
 
 #### 3.2. `FacturacionService` (src/services/FacturacionService.ts)
 - Propósito: Orquestar emisión end-to-end desde IPC: convierte entrada UI → `Comprobante`, invoca `afipService.solicitarCAE`, genera QR, produce PDF, persiste y retorna a la UI.
@@ -173,7 +173,7 @@ No es parte directa de este módulo (existe integración con Mercado Pago en otr
 - `AfipValidator`, `CertificateValidator`, `helpers`, `ResilienceWrapper`, `IdempotencyManager`.
 
 #### 5.2. Dependencias Externas
-- `@afipsdk/afip.js` (WSAA/WSFE).
+  - `afip.ts` (local, bajo `sdk/afip.ts-main`) vía adapter `CompatAfip`.
 - `dayjs`, `electron` (IPC, UI), librerías de utilidades varias.
 
 #### 5.3. Configuraciones Requeridas

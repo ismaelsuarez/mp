@@ -16,15 +16,7 @@ import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IP
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 import { validateArcaRules } from './arca/ArcaAdapter';
 
-// Carga diferida del SDK para evitar crash si falta
-function loadAfip() {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('@afipsdk/afip.js');
-  } catch (e) {
-    throw new Error('SDK AFIP no instalado. Instala "@afipsdk/afip.js" o indica el SDK a usar.');
-  }
-}
+// Eliminado: carga del SDK externo @afipsdk/afip.js
 
 class AfipService {
   private afipInstance: any = null;

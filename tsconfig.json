@@ -11,8 +11,12 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "types": ["node", "jest"]
+    "types": ["node", "jest"],
+    "baseUrl": ".",
+    "paths": {
+      "afip-local/*": ["sdk/afip.ts-main/src/*"]
+    }
   },
-  "include": ["src/**/*", "mp-sdk/**/*", "types/**/*"],
+  "include": ["src/**/*", "mp-sdk/**/*", "types/**/*", "sdk/afip.ts-main/src/**/*"],
   "exclude": ["node_modules", "out", "dist"]
 }

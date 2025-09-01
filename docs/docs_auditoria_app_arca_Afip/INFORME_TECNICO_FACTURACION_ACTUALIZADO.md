@@ -35,7 +35,7 @@ Evaluar el estado actual del módulo de facturación AFIP/ARCA y identificar opo
 - **WSFEV1 implementado**: Servicio principal de facturación electrónica funcionando
 - **Validaciones robustas**: Sistema de validación con FEParamGet* implementado
 - **Idempotencia garantizada**: Control de duplicados y concurrencia
-- **Librería oficial**: Uso de @afipsdk/afip.js (100k+ descargas)
+- **Librería oficial**: Migrado a adapter local `CompatAfip` (sobre `afip.ts`); sin dependencias externas que hagan phone-home.
 
 ### 🚀 Oportunidades Identificadas
 - **Moneda extranjera**: Implementar WSFEXV1 para exportación
@@ -46,7 +46,7 @@ Evaluar el estado actual del módulo de facturación AFIP/ARCA y identificar opo
 
 ### ⚠️ Riesgos Identificados
 - **Cambios normativos**: Nuevas resoluciones pueden requerir actualizaciones
-- **Dependencia externa**: Cambios en @afipsdk/afip.js pueden afectar funcionalidad
+- **Dependencia externa**: Eliminada. Cambios en bibliotecas de terceros no afectan la funcionalidad núcleo (se usa SDK local auditable).
 - **Falta de integración provincial**: Posible incumplimiento si aplica
 
 ---

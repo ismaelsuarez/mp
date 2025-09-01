@@ -1,5 +1,6 @@
 import path from 'path';
 import { getDb } from './DbService';
+import { CompatAfip } from '../modules/facturacion/adapters/CompatAfip';
 
 export type ComprobanteInput = {
 	pto_vta: number;
@@ -39,15 +40,8 @@ export class AfipService {
 		const cfg = db.getAfipConfig();
 		if (!cfg) throw new Error('Falta configurar AFIP');
 		const production = cfg.entorno === 'produccion';
-		let AfipLib: any;
-		try {
-			// Carga diferida para no crashear si falta el SDK
-			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			AfipLib = require('@afipsdk/afip.js');
-		} catch (e) {
-			throw new Error('SDK de AFIP no instalado. Instala el paquete correspondiente (@afipsdk/afip.js) o indica el SDK a utilizar.');
-		}
-		this.afip = new AfipLib({
+
+		this.afip = new CompatAfip({
 			CUIT: Number(cfg.cuit),
 			production,
 			cert: cfg.cert_path,

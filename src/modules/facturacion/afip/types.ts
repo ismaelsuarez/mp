@@ -1,5 +1,5 @@
 /**
- * Tipados fuertes para respuestas del SDK @afipsdk/afip.js
+ * Tipados fuertes para respuestas normalizadas de AFIP (WSFE)
  */
 
 export interface AfipObservation {
@@ -17,8 +17,7 @@ export interface AfipVoucherResponse {
   CAEFchVto: string; // YYYYMMDD
   Observaciones?: AfipObservation[] | null;
   Reproceso?: string | null;
-  // En algunas versiones el SDK incluye campos adicionales
-  // que no son relevantes para esta app. Los dejamos abiertos.
+  // Algunos SDKs pueden incluir campos adicionales no utilizados por la app.
   [key: string]: unknown;
 }
 
@@ -35,7 +34,7 @@ export interface AfipServerStatus {
   authserver: string;
 }
 
-/** Error normalizado proveniente del SDK (o axios) */
+/** Error normalizado proveniente del adapter/cliente (o axios) */
 export interface AfipSdkError {
   code?: string | number;
   message: string;
@@ -55,8 +54,7 @@ export interface ValidationParams {
   cuit?: string;
 }
 
-
-/** Enumeraciones y constantes útiles (inspiradas en SDKs TS) */
+/** Enumeraciones y constantes útiles */
 export enum CbteTipo {
   FA_A = 1,
   ND_A = 2,

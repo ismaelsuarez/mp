@@ -2,8 +2,9 @@
  * Gestiona el ciclo de vida de la instancia de Afip con caché de TA.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const loadAfip = () => require('@afipsdk/afip.js');
+import { CompatAfip } from '../adapters/CompatAfip';
+
+const loadAfip = () => CompatAfip;
 
 export type AfipSdkCtor = new (opts: { CUIT: number; production: boolean; cert: string; key: string }) => any;
 
@@ -33,13 +34,10 @@ export class AfipInstanceManager {
     this.creatingPromise = (async () => {
       const Afip: AfipSdkCtor = loadAfip();
       const { cuit, production, cert, key } = this.optsProvider();
-      // Crear nueva instancia
       const instance = new Afip({ CUIT: cuit, production, cert, key });
-      // Trigger de autenticación temprana (opcional): una llamada barata
       try {
         await instance.ElectronicBilling.getServerStatus();
       } catch {}
-      // Estimación de expiración de TA: ~10 hs; refrescamos a las 9 hs
       this.afipInstance = instance;
       this.taExpirationTime = Date.now() + this.taRefreshThresholdMs;
       this.creatingPromise = null;
