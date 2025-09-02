@@ -152,7 +152,8 @@ export class FacturacionService {
 
 		// Generar PDF vía plantilla
 		this.debugLog('Generando PDF...');
-		const pdfPath = await getFacturaGenerator().generarPdf(params.plantilla || 'factura_a', {
+		const plantillaAuto: PlantillaTipo = ([3,8,13].includes(params.tipo_cbte) ? 'nota_credito' : (params.tipo_cbte===6 ? 'factura_b' : 'factura_a'));
+		const pdfPath = await getFacturaGenerator().generarPdf(params.plantilla || plantillaAuto, {
 			emisor: { nombre: params.empresa?.nombre || 'Empresa', cuit: params.empresa?.cuit || params.cuit_emisor, domicilio: params.empresa?.domicilio, iibb: params.empresa?.iibb, inicio: params.empresa?.inicio, logoPath: params.logoPath },
 			receptor: { nombre: params.razon_social_receptor || 'Consumidor Final', cuit: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
 			cbte: { tipo: String(params.tipo_cbte), pto_vta: params.pto_vta, numero, fecha: params.fecha },

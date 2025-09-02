@@ -68,7 +68,20 @@ export class AfipValidator {
         await this.validateCotizacion(params.monId, errors, warnings);
       }
 
-      // 7. Validar tipos de IVA (opcional, para información)
+      // 7. Validar coherencia de clase si hay comprobantes asociados (UI)
+      try {
+        const sel: Array<{ Tipo: number; PtoVta: number; Nro: number }> = (global as any).__cbtesAsoc || [];
+        if (Array.isArray(sel) && sel.length > 0) {
+          const clasePorTipo = (t: number): 'A'|'B'|'C'|null => (t===1||t===2||t===3)?'A':(t===6||t===7||t===8)?'B':(t===11||t===12||t===13)?'C':null;
+          const claseSel = clasePorTipo(params.cbteTipo);
+          const claseAsoc = clasePorTipo(sel[0].Tipo);
+          if (claseSel && claseAsoc && claseSel !== claseAsoc) {
+            errors.push(`La clase del comprobante (NC/ND ${claseSel}) debe coincidir con la clase del comprobante asociado (${claseAsoc}).`);
+          }
+        }
+      } catch {}
+
+      // 8. Validar tipos de IVA (opcional, para información)
       await this.validateTiposIva(warnings);
 
       const result: ValidationResult = {

@@ -2117,6 +2117,26 @@ window.addEventListener('DOMContentLoaded', () => {
 							if (chk.checked) { if (idx === -1) selArr.push(entry); }
 							else { if (idx >= 0) selArr.splice(idx, 1); }
 							(window as any).__cbtesAsoc = selArr;
+							// Autoajustar clase de NC/ND según comprobante asociado
+							try {
+								if (selArr.length > 0) {
+									const tipoSelEl = document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement;
+									const tSel = parseInt(tipoSelEl.value || '0');
+									const esNota = (x:number)=>[2,7,12,3,8,13].includes(x);
+									const clasePorTipo = (tipo: number): 'A'|'B'|'C'|null => (tipo===1||tipo===2||tipo===3)?'A':(tipo===6||tipo===7||tipo===8)?'B':(tipo===11||tipo===12||tipo===13)?'C':null;
+									const claseAsoc = clasePorTipo(entry.Tipo);
+									if (esNota(tSel) && claseAsoc) {
+										const mapNC: Record<'A'|'B'|'C', number> = { A:3, B:8, C:13 };
+										const mapND: Record<'A'|'B'|'C', number> = { A:2, B:7, C:12 };
+										const esNC = [3,8,13].includes(tSel);
+										const target = esNC ? mapNC[claseAsoc] : mapND[claseAsoc];
+										if (target && tSel !== target) {
+											tipoSelEl.value = String(target);
+											showToast(`Tipo ajustado a ${esNC?'NC':'ND'} ${claseAsoc} según comprobante asociado`);
+										}
+									}
+								}
+							} catch {}
 							updateCountLabel(selArr.length);
 						});
 					}

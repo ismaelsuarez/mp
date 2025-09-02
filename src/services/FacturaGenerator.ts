@@ -56,8 +56,14 @@ export class FacturaGenerator {
     const template = Handlebars.compile(tplSource);
 
     const qrDataUrl = await this.buildQrPngDataUrl(datos.afip?.qr_url);
+    const isNC = datos.cbte.tipo === '3' || datos.cbte.tipo === '8' || datos.cbte.tipo === '13';
+    const isNB = datos.cbte.tipo === '2' || datos.cbte.tipo === '7' || datos.cbte.tipo === '12';
+    const titulo = isNC ? 'Nota de Crédito ' + (['3','8','13'].includes(datos.cbte.tipo) ? (datos.cbte.tipo === '3' ? 'A' : datos.cbte.tipo === '8' ? 'B' : 'C') : '')
+                  : isNB ? 'Nota de Débito ' + (['2','7','12'].includes(datos.cbte.tipo) ? (datos.cbte.tipo === '2' ? 'A' : datos.cbte.tipo === '7' ? 'B' : 'C') : '')
+                  : (datos.cbte.tipo === '1' ? 'Factura A' : datos.cbte.tipo === '6' ? 'Factura B' : datos.cbte.tipo === '11' ? 'Factura C' : 'Factura');
     const viewModel = {
       ...datos,
+      titulo,
       fecha_larga: dayjs(datos.cbte.fecha, ['YYYY-MM-DD','YYYYMMDD']).format('DD/MM/YYYY'),
       nro_formateado: String(datos.cbte.numero).padStart(8, '0'),
       qr_data_url: qrDataUrl
