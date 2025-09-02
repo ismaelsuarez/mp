@@ -1672,6 +1672,9 @@ app.whenReady().then(() => {
 			let filePath = '';
 			let windowMode: 'comun' | 'nueva' | 'comun12' | undefined;
 			let infoText: string | undefined;
+			let numeradorValue: string | undefined;
+			let isNumeradorMode = false;
+			
 			const parts = content.split('@');
 			for (const raw of parts) {
 				const seg = raw.trim();
@@ -1686,7 +1689,15 @@ app.whenReady().then(() => {
 				const val = rest.join('=').trim();
 				if (key === 'URI') filePath = val;
 				else if (key === 'VENTANA') windowMode = String(val).trim().toLowerCase() as any;
-				else if (key === 'INFO') infoText = val;
+				else if (key === 'INFO') {
+					infoText = val;
+					// Detectar modo numerador: @INFO=numero: VALOR
+					if (val.toLowerCase().startsWith('numero:')) {
+						isNumeradorMode = true;
+						numeradorValue = val.substring(7).trim(); // Extraer todo después de "numero:"
+						logInfo('Modo numerador detectado', { numeradorValue, originalInfo: val });
+					}
+				}
 			}
 			if (!filePath) {
 				// fallback legacy: línea completa era la ruta
@@ -1759,16 +1770,24 @@ app.whenReady().then(() => {
 					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 					// Llevar ventana principal al frente sin activarla (sin focus)
 					try { 
-						mainWindow.moveTop(); // Primero mover al frente
-						mainWindow.focus();   // Luego dar focus
-						mainWindow.show();    // Finalmente hacer visible
+						mainWindow.showInactive();  // ← Muestra sin activar (no roba foco)
+						mainWindow.moveTop();       // ← Mueve al frente de la pila de ventanas
+						//mainWindow.moveTop(); // Primero mover al frente
+						//mainWindow.focus();   // Luego dar focus
+						//mainWindow.show();    // Finalmente hacer visible
 						// Métodos adicionales para Windows
 						try { mainWindow.setAlwaysOnTop(true); } catch {}
 						setTimeout(() => {
 							try { mainWindow?.setAlwaysOnTop(false); } catch {}
 						}, 100); // Quitar alwaysOnTop después de 100ms
 					} catch {}
-					mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'comun' });
+					mainWindow.webContents.send('image:new-content', { 
+						filePath, 
+						info: infoText, 
+						windowMode: 'comun',
+						isNumeradorMode,
+						numeradorValue
+					});
 				}
 				// Reutilizar o crear la ventana persistente para presentación
 				try {
@@ -1870,7 +1889,15 @@ app.whenReady().then(() => {
 						}, 100); // Quitar alwaysOnTop después de 100ms
 					} catch {}
 					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
-					imageDualWindow?.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva12', fallback: isFallback, publicidad: isPublicidadActive() });
+					imageDualWindow?.webContents.send('image:new-content', { 
+						filePath, 
+						info: infoText, 
+						windowMode: 'nueva12', 
+						fallback: isFallback, 
+						publicidad: isPublicidadActive(),
+						isNumeradorMode,
+						numeradorValue
+					});
 				} catch {}
 			} else if (wantNewWindow) {
 				// 'nueva': crear una nueva ventana. Primera vez: centrar; siguientes: restaurar coordenadas guardadas
@@ -1895,7 +1922,14 @@ app.whenReady().then(() => {
 							}, 100); // Quitar alwaysOnTop después de 100ms
 						} catch {}
 						try { lastImageNewWindow.setTitle(infoText || path.basename(filePath)); } catch {}
-						lastImageNewWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
+						lastImageNewWindow.webContents.send('image:new-content', { 
+							filePath, 
+							info: infoText, 
+							windowMode: 'nueva', 
+							fallback: isFallback,
+							isNumeradorMode,
+							numeradorValue
+						});
 						lastImageNewWindowAt = Date.now();
 						
 						if (forceSeparateWindow) {
@@ -1998,7 +2032,14 @@ app.whenReady().then(() => {
 						}, 100); // Quitar alwaysOnTop después de 100ms
 					} catch {}
 					try { win.setTitle(infoText || path.basename(filePath)); } catch {}
-					win.webContents.send('image:new-content', { filePath, info: infoText, windowMode: 'nueva', fallback: isFallback });
+					win.webContents.send('image:new-content', { 
+						filePath, 
+						info: infoText, 
+						windowMode: 'nueva', 
+						fallback: isFallback,
+						isNumeradorMode,
+						numeradorValue
+					});
 					// Registrar como última ventana 'nueva'
 					lastImageNewWindow = win;
 					lastImageNewWindowAt = Date.now();
@@ -2017,7 +2058,14 @@ app.whenReady().then(() => {
 				} catch {}
 				// Si forceSeparateWindow está activo, siempre usar 'nueva' para que el cajero pueda tener modo caja y modo imagen en ventanas separadas
 				const finalWindowMode = forceSeparateWindow ? 'nueva' : (windowMode || 'comun');
-				mainWindow.webContents.send('image:new-content', { filePath, info: infoText, windowMode: finalWindowMode, fallback: isFallback });
+				mainWindow.webContents.send('image:new-content', { 
+					filePath, 
+					info: infoText, 
+					windowMode: finalWindowMode, 
+					fallback: isFallback,
+					isNumeradorMode,
+					numeradorValue
+				});
 			}
 			
 			// Eliminar archivo de control después de procesarlo

@@ -110,7 +110,13 @@ contextBridge.exposeInMainWorld('api', {
 	async testImageControl() {
 		return await ipcRenderer.invoke('image:test-control');
 	},
-	onNewImageContent(callback: (payload: { filePath: string; info?: string; windowMode?: string }) => void) {
+	onNewImageContent(callback: (payload: { 
+		filePath: string; 
+		info?: string; 
+		windowMode?: string;
+		isNumeradorMode?: boolean;
+		numeradorValue?: string;
+	}) => void) {
 		ipcRenderer.on('image:new-content', (_e, payload) => callback(payload));
 	},
 	// Utils

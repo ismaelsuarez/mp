@@ -111,7 +111,7 @@ function createContentElement(filePath: string, _contentType: string): HTMLEleme
     return div;
 }
 
-function showContent(filePath: string) {
+function showContent(filePath: string, isNumeradorMode: boolean = false, numeradorValue: string = '') {
     const viewer = document.getElementById('contentViewer');
     if (!viewer) return;
     
@@ -139,7 +139,99 @@ function showContent(filePath: string) {
     
     const contentElement = createContentElement(filePath, contentType);
     (viewer as HTMLElement).innerHTML = '';
-    (viewer as HTMLElement).appendChild(contentElement);
+    
+    // Si es modo numerador, crear contenedor con imagen de fondo y texto superpuesto
+    if (isNumeradorMode && numeradorValue) {
+        // Variable configurable para el tamaño del numerador (fácil de ajustar)
+        const NUMERADOR_SIZE_MULTIPLIER = 0.35; // Aumentar este valor para números más grandes
+        
+        const numeradorContainer = document.createElement('div');
+        numeradorContainer.style.position = 'relative';
+        numeradorContainer.style.width = '100%';
+        numeradorContainer.style.height = '100%';
+        numeradorContainer.style.backgroundColor = '#000000'; // Fondo negro
+        numeradorContainer.style.color = '#ffffff'; // Texto blanco por defecto
+        
+        // Agregar la imagen como fondo
+        contentElement.style.width = '100%';
+        contentElement.style.height = '100%';
+        contentElement.style.objectFit = 'contain';
+        numeradorContainer.appendChild(contentElement);
+        
+        // Parsear el numerador: " 15 0" → Turno: " 15", Box: " 0"
+        const numeradorParts = numeradorValue.trim().split(/\s+/);
+        const turnoNumber = numeradorParts[0] || ''; // " 15"
+        const boxNumber = numeradorParts[1] || '';  // " 0"
+        
+        // Crear contenedor para el turno (número principal)
+        if (turnoNumber) {
+            const turnoText = document.createElement('div');
+            turnoText.textContent = turnoNumber;
+            turnoText.style.position = 'absolute';
+            turnoText.style.top = '35%'; // Posicionado arriba del centro
+            turnoText.style.left = '50%';
+            turnoText.style.transform = 'translate(-50%, -50%)';
+            turnoText.style.backgroundColor = 'transparent';
+            turnoText.style.color = '#00FF88'; // Verde brillante
+            turnoText.style.fontWeight = '900';
+            turnoText.style.fontFamily = 'Impact, Arial Black, sans-serif';
+            turnoText.style.zIndex = '1000';
+            turnoText.style.textAlign = 'center';
+            turnoText.style.whiteSpace = 'nowrap';
+            
+            // Tamaño más grande para el turno (número principal)
+            const turnoSize = Math.min(window.innerWidth, window.innerHeight) * 0.25;
+            turnoText.style.fontSize = `${Math.max(turnoSize, 100)}px`;
+            
+            // Sombra para el turno
+            turnoText.style.textShadow = `
+                4px 4px 8px rgba(0, 0, 0, 0.9),
+                -4px -4px 8px rgba(0, 0, 0, 0.9),
+                0 0 20px rgba(0, 255, 136, 0.4)
+            `;
+            
+            numeradorContainer.appendChild(turnoText);
+        }
+        
+        // Crear contenedor para el box (número secundario)
+        if (boxNumber) {
+            const boxText = document.createElement('div');
+            boxText.textContent = boxNumber;
+            boxText.style.position = 'absolute';
+            boxText.style.top = '65%'; // Posicionado abajo del centro
+            boxText.style.left = '50%';
+            boxText.style.transform = 'translate(-50%, -50%)';
+            boxText.style.backgroundColor = 'transparent';
+            boxText.style.color = '#FF6B6B'; // Rojo para diferenciar del turno
+            boxText.style.fontWeight = '900';
+            boxText.style.fontFamily = 'Impact, Arial Black, sans-serif';
+            boxText.style.zIndex = '1000';
+            boxText.style.textAlign = 'center';
+            boxText.style.whiteSpace = 'nowrap';
+            
+            // Tamaño más pequeño para el box (número secundario)
+            const boxSize = Math.min(window.innerWidth, window.innerHeight) * 0.15;
+            boxText.style.fontSize = `${Math.max(boxSize, 60)}px`;
+            
+            // Sombra para el box
+            boxText.style.textShadow = `
+                3px 3px 6px rgba(0, 0, 0, 0.9),
+                -3px -3px 6px rgba(0, 0, 0, 0.9),
+                0 0 15px rgba(255, 107, 107, 0.4)
+            `;
+            
+            numeradorContainer.appendChild(boxText);
+        }
+        
+        (viewer as HTMLElement).appendChild(numeradorContainer);
+        
+        // Asegurar que el contenedor principal tenga fondo negro
+        (viewer as HTMLElement).style.backgroundColor = '#000000';
+        document.body.style.backgroundColor = '#000000';
+    } else {
+        // Modo normal: solo el contenido
+        (viewer as HTMLElement).appendChild(contentElement);
+    }
     
     // Si es video, asegurar inicio inmediato (algunas plataformas requieren play() explícito)
     try {
@@ -194,7 +286,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	window.api.onNewImageContent?.((payload: any) => {
 		if (payload && payload.filePath) {
 			const wasFallback = !!payload.fallback;
-			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}${wasFallback ? ' (fallback)' : ''}`);
+			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}${wasFallback ? ' (fallback)' : ''}${payload.isNumeradorMode ? ` [Numerador: ${payload.numeradorValue}]` : ''}`);
 			// Aplicar estilo de "espejo" si windowMode === 'nueva12'
 			try {
 				const mode = String(payload.windowMode || '').toLowerCase();
@@ -222,7 +314,7 @@ window.addEventListener('DOMContentLoaded', () => {
 				if (payload.publicidad === true) document.body.classList.add('publicidad');
 				else document.body.classList.remove('publicidad');
 			} catch {}
-			showContent(payload.filePath);
+			showContent(payload.filePath, payload.isNumeradorMode, payload.numeradorValue);
 			// Mostrar info (si existiera en el futuro una barra superior)
 			try {
 				// En vez de superponer sobre la imagen, poner el texto como título de la ventana (ya lo hace main).
