@@ -1,4 +1,5 @@
 import { IOptions } from "soap";
+import type { Agent as HttpsAgent } from "https";
 import { ILoginCmsReturn } from "./soap/interfaces/LoginCMSService/LoginCms";
 import { ServiceSoapTypes } from "./soap/interfaces/Service/ServiceSoap";
 import {
@@ -99,6 +100,14 @@ export type Context = {
    * The path of the auth obj if the package is auto managed
    */
   ticketPath?: string;
+
+  /**
+   * Custom HTTPS agent to force legacy TLS options when calling AFIP endpoints.
+   * This is used as a workaround for AFIP servers requiring TLS 1.2 with
+   * legacy DHE ciphers (SECLEVEL=1) in some environments. Certificates are
+   * correct; this only adapts transport settings.
+   */
+  httpsAgent?: HttpsAgent;
 };
 
 export interface IVoucher {

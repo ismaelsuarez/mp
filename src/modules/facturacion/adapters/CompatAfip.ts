@@ -1,6 +1,8 @@
 import { Afip as LocalAfip } from '../../../../sdk/afip.ts-main/src/afip';
 import type { Context } from '../../../../sdk/afip.ts-main/src/types';
 import fs from 'fs';
+import https from 'https';
+import crypto from 'crypto';
 import path from 'path';
 
 function ensureWsdlAssets() {
@@ -51,12 +53,29 @@ export class CompatAfip {
 		ensureWsdlAssets();
 		const certContent = readPemIfPath(opts.cert);
 		const keyContent = readPemIfPath(opts.key);
+
+		// Agente HTTPS personalizado para compatibilidad con servidores AFIP antiguos
+		// - Fuerza TLS >= 1.2
+		// - Reduce SECLEVEL a 1 para permitir DHE de 1024 bits
+		// - Habilita SSL_OP_LEGACY_SERVER_CONNECT
+		const httpsAgent = new https.Agent({
+			cert: certContent,
+			key: keyContent,
+			secureOptions: (crypto as any).constants?.SSL_OP_LEGACY_SERVER_CONNECT,
+			minVersion: 'TLSv1.2',
+			// Preferir suites RSA-GCM para evitar DHE 1024 del servidor y bajar SECLEVEL
+			ciphers: 'AES128-GCM-SHA256:AES256-GCM-SHA384:@SECLEVEL=1',
+			// Forzar protocolo TLSv1.2 en clientes que lo soporten
+			secureProtocol: 'TLSv1_2_method' as any,
+		});
 		const ctx: Context = {
 			cuit: opts.CUIT,
 			production: !!opts.production,
 			cert: certContent,
 			key: keyContent,
-			handleTicket: false
+			handleTicket: false,
+			// Inyectar agente HTTPS personalizado a afip.ts
+			httpsAgent
 		};
 		this.inner = new LocalAfip(ctx);
 	}

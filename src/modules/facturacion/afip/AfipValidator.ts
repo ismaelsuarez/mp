@@ -186,10 +186,20 @@ export class AfipValidator {
         errors.push('SDK no expone método de puntos de venta (getSalesPoints/getPointsOfSales).');
         return;
       }
-      const ptosVta = (await fn.call(eb)) as Array<{ Nro: number | string; Desc?: string }>;
-      const ptoValido = Array.isArray(ptosVta) && ptosVta.some((p) => Number((p as any).Nro) === ptoVta);
+      const raw = await fn.call(eb) as any;
+      const list: Array<{ Nro: number | string; Desc?: string }> = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.PtoVenta)
+          ? raw.PtoVenta
+          : Array.isArray(raw?.ResultGet?.PtoVenta)
+            ? raw.ResultGet.PtoVenta
+            : Array.isArray(raw?.FEParamGetPtosVentaResult?.ResultGet?.PtoVenta)
+              ? raw.FEParamGetPtosVentaResult.ResultGet.PtoVenta
+              : [];
+
+      const ptoValido = list.some((p) => Number((p as any).Nro) === ptoVta);
       if (!ptoValido) {
-        const ptosDisponibles = (ptosVta || []).map((p) => `${(p as any).Nro} (${(p as any).Desc || ''})`).join(', ');
+        const ptosDisponibles = list.map((p) => `${(p as any).Nro} (${(p as any).Desc || ''})`).join(', ');
         errors.push(`Punto de venta inválido: ${ptoVta}. Puntos válidos: ${ptosDisponibles}`);
       }
     } catch (error) {

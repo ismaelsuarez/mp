@@ -30,6 +30,8 @@ export class AfipAuth {
         endpoint: this.context.production
           ? EndpointsEnum.WSAA
           : EndpointsEnum.WSAA_TEST,
+        // Inyectar agente personalizado si está disponible para compatibilidad TLS
+        ...(this.context as any).httpsAgent ? { httpsAgent: (this.context as any).httpsAgent } : {},
       },
     });
   }
