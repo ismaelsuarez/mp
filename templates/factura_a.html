@@ -5,87 +5,212 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Factura A</title>
   <style>
-    body{ font-family: Arial, sans-serif; color:#111; }
-    .header{ display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #333; padding-bottom:8px; }
-    .logo{ height:64px; }
-    .title{ font-size:20px; font-weight:bold; }
-    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:8px; }
-    table{ width:100%; border-collapse:collapse; margin-top:12px; }
-    th, td{ border:1px solid #999; padding:6px; font-size:12px; }
-    th{ background:#f2f2f2; }
-    .totales{ margin-top:12px; display:flex; justify-content:flex-end; }
-    .totales table{ width:auto; }
-    .qr{ position:fixed; right:24px; bottom:24px; text-align:center; font-size:10px; color:#444; }
+    body { 
+      margin: 0;
+      padding: 0;
+      background-image: url('file://{{backgroundPath}}');
+      background-repeat: no-repeat;
+      background-position: top left;
+      background-size: cover;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      color: #000;
+    }
+    
+    /* Solo los datos mínimos necesarios superpuestos */
+    .cliente-nombre {
+      position: absolute;
+      top: 120px;
+      left: 50px;
+      font-size: 14px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    
+    .cliente-domicilio {
+      position: absolute;
+      top: 145px;
+      left: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    
+    .cliente-cuit {
+      position: absolute;
+      top: 170px;
+      left: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    
+    .cliente-iva {
+      position: absolute;
+      top: 195px;
+      left: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+    
+    /* Datos del comprobante */
+    .comprobante-tipo {
+      position: absolute;
+      top: 120px;
+      right: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+      text-align: right;
+    }
+    
+    .comprobante-numero {
+      position: absolute;
+      top: 145px;
+      right: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+      text-align: right;
+    }
+    
+    .comprobante-fecha {
+      position: absolute;
+      top: 170px;
+      right: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+      text-align: right;
+    }
+    
+    .comprobante-cae {
+      position: absolute;
+      top: 195px;
+      right: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 4px 8px;
+      border-radius: 3px;
+      text-align: right;
+    }
+    
+    /* Tabla de detalles - solo los datos, sin estructura */
+    .detalle-row {
+      position: absolute;
+      font-size: 11px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 2px 6px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+    
+    /* Totales */
+    .total-neto {
+      position: absolute;
+      bottom: 120px;
+      right: 50px;
+      font-size: 14px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 6px 10px;
+      border-radius: 4px;
+      text-align: right;
+    }
+    
+    .total-iva {
+      position: absolute;
+      bottom: 95px;
+      right: 50px;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 4px 10px;
+      border-radius: 4px;
+      text-align: right;
+    }
+    
+    .total-final {
+      position: absolute;
+      bottom: 70px;
+      right: 50px;
+      font-size: 16px;
+      font-weight: bold;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 8px 12px;
+      border-radius: 4px;
+      text-align: right;
+      color: #000;
+    }
+    
+    /* QR Code */
+    .qr-code {
+      position: absolute;
+      bottom: 50px;
+      left: 50px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 6px;
+      border-radius: 4px;
+    }
+    
+    .qr-code img {
+      height: 60px;
+      width: 60px;
+    }
   </style>
-  <!-- Handlebars placeholders: {{emisor.nombre}}, {{receptor.nombre}}, etc. -->
 </head>
-<body {{#if backgroundPath}}style="background-image:url('file://{{backgroundPath}}'); background-repeat:no-repeat; background-position: top left; background-size: cover;"{{/if}}>
-  <div class="header" style="margin:16mm 16mm 0 16mm;">
-    <div>
-      <div class="title">{{titulo}}</div>
-      <div><strong>{{emisor.nombre}}</strong></div>
-      <div>CUIT: {{emisor.cuit}}</div>
-      {{#if emisor.domicilio}}<div>{{emisor.domicilio}}</div>{{/if}}
-      {{#if emisor.iibb}}<div>IIBB: {{emisor.iibb}}</div>{{/if}}
-      {{#if emisor.inicio}}<div>Inicio actividades: {{emisor.inicio}}</div>{{/if}}
-    </div>
-    <div>
-      {{#if emisor.logoPath}}<img class="logo" src="file://{{emisor.logoPath}}" />{{/if}}
-    </div>
+<body>
+  <!-- Solo los datos mínimos superpuestos sobre la imagen -->
+  
+  <!-- Datos del cliente -->
+  <div class="cliente-nombre">{{receptor.nombre}}</div>
+  <div class="cliente-domicilio">{{receptor.domicilio}}</div>
+  <div class="cliente-cuit">CUIT/DNI: {{receptor.cuit}}</div>
+  <div class="cliente-iva">IVA: {{receptor.condicionIva}}</div>
+  
+  <!-- Datos del comprobante -->
+  <div class="comprobante-tipo">Tipo: {{cbte.tipo}}</div>
+  <div class="comprobante-numero">Número: {{nro_formateado}}</div>
+  <div class="comprobante-fecha">Fecha: {{fecha_larga}}</div>
+  {{#if afip.cae}}<div class="comprobante-cae">CAE: {{afip.cae}}</div>{{/if}}
+  
+  <!-- Detalles de la factura - posicionados manualmente -->
+  {{#each detalle}}
+  <div class="detalle-row" style="top: {{add 250 (multiply @index 25)}}px; left: 50px;">
+    {{this.descripcion}}
   </div>
-
-  <div class="grid" style="margin:4mm 16mm 0 16mm;">
-    <div>
-      <div><strong>Receptor</strong></div>
-      <div>{{receptor.nombre}}</div>
-      <div>CUIT/DNI: {{receptor.cuit}}</div>
-      <div>IVA: {{receptor.condicionIva}}</div>
-      {{#if receptor.domicilio}}<div>{{receptor.domicilio}}</div>{{/if}}
-    </div>
-    <div>
-      <div><strong>Comprobante</strong></div>
-      <div>Tipo: {{cbte.tipo}}</div>
-      <div>Pto Vta: {{cbte.pto_vta}} - Número: {{nro_formateado}}</div>
-      <div>Fecha: {{fecha_larga}}</div>
-      {{#if afip.cae}}<div>CAE: {{afip.cae}} - Vto: {{afip.cae_vto}}</div>{{/if}}
-    </div>
+  <div class="detalle-row" style="top: {{add 250 (multiply @index 25)}}px; left: 200px;">
+    {{this.cantidad}}
   </div>
-
-  <table style="margin:6mm 16mm 0 16mm;">
-    <thead>
-      <tr>
-        <th>Descripción</th>
-        <th>Cant.</th>
-        <th>P. Unit.</th>
-        <th>IVA %</th>
-        <th>Importe</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each detalle}}
-      <tr>
-        <td>{{this.descripcion}}</td>
-        <td style="text-align:right;">{{this.cantidad}}</td>
-        <td style="text-align:right;">{{this.precioUnitario}}</td>
-        <td style="text-align:right;">{{this.alicuotaIva}}</td>
-        <td style="text-align:right;">{{this.importe}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-
-  <div class="totales" style="margin:6mm 16mm 0 16mm;">
-    <table>
-      <tr><th>Neto</th><td style="text-align:right;">{{totales.neto}}</td></tr>
-      <tr><th>IVA</th><td style="text-align:right;">{{totales.iva}}</td></tr>
-      <tr><th>Total</th><td style="text-align:right; font-weight:bold;">{{totales.total}}</td></tr>
-    </table>
+  <div class="detalle-row" style="top: {{add 250 (multiply @index 25)}}px; left: 250px;">
+    ${{this.precioUnitario}}
   </div>
-
-  {{#if qr_data_url}}
-  <div class="qr">
-    <img src="{{qr_data_url}}" style="height:120px;" />
-    <div>QR AFIP</div>
+  <div class="detalle-row" style="top: {{add 250 (multiply @index 25)}}px; left: 320px;">
+    {{this.alicuotaIva}}%
+  </div>
+  <div class="detalle-row" style="top: {{add 250 (multiply @index 25)}}px; left: 380px;">
+    ${{this.importe}}
+  </div>
+  {{/each}}
+  
+  <!-- Totales -->
+  <div class="total-neto">Neto: ${{totales.neto}}</div>
+  <div class="total-iva">IVA: ${{totales.iva}}</div>
+  <div class="total-final">Total: ${{totales.total}}</div>
+  
+  <!-- QR Code -->
+  {{#if afip.qr_url}}
+  <div class="qr-code">
+    <img src="{{afip.qr_url}}" alt="QR AFIP" />
   </div>
   {{/if}}
 </body>
