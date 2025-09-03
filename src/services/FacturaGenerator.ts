@@ -19,6 +19,7 @@ export type DatosFactura = {
   detalle: Array<{ descripcion: string; cantidad: number; precioUnitario: number; importe: number; alicuotaIva?: number }>;
   totales: { neto: number; iva: number; total: number };
   afip?: { cae?: string; cae_vto?: string; qr_url?: string };
+  backgroundPath?: string; // Imagen de fondo opcional (e.g., MiFondo-pagado.jpg)
 };
 
 export class FacturaGenerator {
@@ -38,10 +39,12 @@ export class FacturaGenerator {
       recibo: 'recibo.html',
       remito: 'remito.html'
     };
-    const file = map[tipo] || map['factura_a'];
-    const full = path.join(this.templatesDir, file);
-    if (!fs.existsSync(full)) throw new Error(`Plantilla no encontrada: ${full}`);
-    return full;
+    const primary = path.join(this.templatesDir, map[tipo] || map['factura_a']);
+    if (fs.existsSync(primary)) return primary;
+    // Fallback a factura A si no existe la plantilla específica
+    const fallback = path.join(this.templatesDir, map['factura_a']);
+    if (fs.existsSync(fallback)) return fallback;
+    throw new Error(`Plantilla no encontrada: ${primary}`);
   }
 
   private async buildQrPngDataUrl(url?: string): Promise<string | undefined> {
@@ -56,6 +59,15 @@ export class FacturaGenerator {
     const template = Handlebars.compile(tplSource);
 
     const qrDataUrl = await this.buildQrPngDataUrl(datos.afip?.qr_url);
+    // Resolver imagen de fondo si no se pasó explícita
+    let backgroundPath = datos.backgroundPath;
+    if (!backgroundPath) {
+      const overrides = [
+        path.join(app.getAppPath(), 'src', 'modules', 'facturacion', 'plantilla', 'MiFondo-pagado.jpg'),
+        path.join(this.templatesDir, 'MiFondo-pagado.jpg')
+      ];
+      for (const p of overrides) { if (fs.existsSync(p)) { backgroundPath = p; break; } }
+    }
     const isNC = datos.cbte.tipo === '3' || datos.cbte.tipo === '8' || datos.cbte.tipo === '13';
     const isNB = datos.cbte.tipo === '2' || datos.cbte.tipo === '7' || datos.cbte.tipo === '12';
     const titulo = isNC ? 'Nota de Crédito ' + (['3','8','13'].includes(datos.cbte.tipo) ? (datos.cbte.tipo === '3' ? 'A' : datos.cbte.tipo === '8' ? 'B' : 'C') : '')
@@ -66,7 +78,8 @@ export class FacturaGenerator {
       titulo,
       fecha_larga: dayjs(datos.cbte.fecha, ['YYYY-MM-DD','YYYYMMDD']).format('DD/MM/YYYY'),
       nro_formateado: String(datos.cbte.numero).padStart(8, '0'),
-      qr_data_url: qrDataUrl
+      qr_data_url: qrDataUrl,
+      backgroundPath
     };
     const html = template(viewModel);
 
@@ -79,7 +92,13 @@ export class FacturaGenerator {
     try {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'load' });
-      await page.pdf({ path: outPath, printBackground: true, format: 'A4', margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' } });
+      const hasBg = !!backgroundPath;
+      await page.pdf({
+        path: outPath,
+        printBackground: true,
+        format: 'A4',
+        margin: hasBg ? { top: '0mm', bottom: '0mm', left: '0mm', right: '0mm' } : { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' }
+      });
     } finally {
       try { await browser.close(); } catch {}
     }

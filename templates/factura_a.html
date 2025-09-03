@@ -19,8 +19,8 @@
   </style>
   <!-- Handlebars placeholders: {{emisor.nombre}}, {{receptor.nombre}}, etc. -->
 </head>
-<body>
-  <div class="header">
+<body {{#if backgroundPath}}style="background-image:url('file://{{backgroundPath}}'); background-repeat:no-repeat; background-position: top left; background-size: cover;"{{/if}}>
+  <div class="header" style="margin:16mm 16mm 0 16mm;">
     <div>
       <div class="title">{{titulo}}</div>
       <div><strong>{{emisor.nombre}}</strong></div>
@@ -34,7 +34,7 @@
     </div>
   </div>
 
-  <div class="grid" style="margin-top:10px;">
+  <div class="grid" style="margin:4mm 16mm 0 16mm;">
     <div>
       <div><strong>Receptor</strong></div>
       <div>{{receptor.nombre}}</div>
@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <table>
+  <table style="margin:6mm 16mm 0 16mm;">
     <thead>
       <tr>
         <th>Descripción</th>
@@ -74,7 +74,7 @@
     </tbody>
   </table>
 
-  <div class="totales">
+  <div class="totales" style="margin:6mm 16mm 0 16mm;">
     <table>
       <tr><th>Neto</th><td style="text-align:right;">{{totales.neto}}</td></tr>
       <tr><th>IVA</th><td style="text-align:right;">{{totales.iva}}</td></tr>
