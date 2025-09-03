@@ -12,7 +12,6 @@
     "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
     "diagnostico:afip": "node scripts/afip-diagnostico.js",
     "probe:afip": "node scripts/afip-sdk-probe.js",
-    "prebuild": "node scripts/copy-manual.js",
     "build": "npm run build:ts && electron-builder -w",
     "release": "npm run build:ts && electron-builder -w --publish always",
     "build:windows": "node scripts/build-windows.js",

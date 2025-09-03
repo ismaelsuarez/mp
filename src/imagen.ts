@@ -142,15 +142,12 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
     
     // Si es modo numerador, crear contenedor con imagen de fondo y texto superpuesto
     if (isNumeradorMode && numeradorValue) {
-        // Variable configurable para el tamaño del numerador (fácil de ajustar)
-        const NUMERADOR_SIZE_MULTIPLIER = 0.35; // Aumentar este valor para números más grandes
-        
         const numeradorContainer = document.createElement('div');
         numeradorContainer.style.position = 'relative';
         numeradorContainer.style.width = '100%';
         numeradorContainer.style.height = '100%';
-        numeradorContainer.style.backgroundColor = '#000000'; // Fondo negro
-        numeradorContainer.style.color = '#ffffff'; // Texto blanco por defecto
+        numeradorContainer.style.backgroundColor = '#000000';
+        numeradorContainer.style.overflow = 'hidden'; // Evitar scroll
         
         // Agregar la imagen como fondo
         contentElement.style.width = '100%';
@@ -158,71 +155,91 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
         contentElement.style.objectFit = 'contain';
         numeradorContainer.appendChild(contentElement);
         
-        // Parsear el numerador: " 15 0" → Turno: " 15", Box: " 0"
-        const numeradorParts = numeradorValue.trim().split(/\s+/);
-        const turnoNumber = numeradorParts[0] || ''; // " 15"
-        const boxNumber = numeradorParts[1] || '';  // " 0"
+        // Crear un solo numerador unificado que muestre todo el contenido
+        const numeradorText = document.createElement('div');
+        numeradorText.setAttribute('data-type', 'numerador');
+        numeradorText.textContent = numeradorValue; // Mostrar todo el valor: " 15 0"
+        numeradorText.style.position = 'absolute';
+        numeradorText.style.top = '45%'; // Centrado vertical
+        numeradorText.style.left = '52%'; // Centrado horizontal
+        numeradorText.style.transform = 'translate(-50%, -50%)';
+        numeradorText.style.backgroundColor = 'transparent';
+        numeradorText.style.color = '#00FF88'; // Color verde unificado
+        numeradorText.style.fontWeight = '900';
+        numeradorText.style.fontFamily = 'Console, Consolas, "Courier New", monospace';
+        numeradorText.style.zIndex = '1000';
+        numeradorText.style.textAlign = 'center';
+        numeradorText.style.whiteSpace = 'nowrap';
+        numeradorText.style.width = '100%'; // Tomar todo el ancho disponible
         
-        // Crear contenedor para el turno (número principal)
-        if (turnoNumber) {
-            const turnoText = document.createElement('div');
-            turnoText.textContent = turnoNumber;
-            turnoText.style.position = 'absolute';
-            turnoText.style.top = '35%'; // Posicionado arriba del centro
-            turnoText.style.left = '50%';
-            turnoText.style.transform = 'translate(-50%, -50%)';
-            turnoText.style.backgroundColor = 'transparent';
-            turnoText.style.color = '#00FF88'; // Verde brillante
-            turnoText.style.fontWeight = '900';
-            turnoText.style.fontFamily = 'Impact, Arial Black, sans-serif';
-            turnoText.style.zIndex = '1000';
-            turnoText.style.textAlign = 'center';
-            turnoText.style.whiteSpace = 'nowrap';
+        // Función para calcular tamaño responsive que tome todo el ancho
+        const calculateResponsiveSize = (text: string) => {
+            const containerWidth = numeradorContainer.clientWidth || window.innerWidth;
+            const containerHeight = numeradorContainer.clientHeight || window.innerHeight;
             
-            // Tamaño más grande para el turno (número principal)
-            const turnoSize = Math.min(window.innerWidth, window.innerHeight) * 0.25;
-            turnoText.style.fontSize = `${Math.max(turnoSize, 100)}px`;
+            // Tomar 85% del ancho para el numerador unificado
+            const targetWidth = containerWidth * 0.80;
             
-            // Sombra para el turno
-            turnoText.style.textShadow = `
-                4px 4px 8px rgba(0, 0, 0, 0.9),
-                -4px -4px 8px rgba(0, 0, 0, 0.9),
-                0 0 20px rgba(0, 255, 136, 0.4)
+            // Calcular tamaño de fuente que haga que el texto ocupe exactamente ese ancho
+            const tempSpan = document.createElement('span');
+            tempSpan.style.fontFamily = 'Console, Consolas, "Courier New", monospace';
+            tempSpan.style.fontWeight = '900';
+            tempSpan.style.fontSize = '100px'; // Tamaño base para medir
+            tempSpan.style.visibility = 'hidden';
+            tempSpan.style.position = 'absolute';
+            tempSpan.style.whiteSpace = 'nowrap';
+            tempSpan.textContent = text;
+            
+            document.body.appendChild(tempSpan);
+            const textWidth = tempSpan.offsetWidth;
+            document.body.removeChild(tempSpan);
+            
+            // Calcular el factor de escala para que el texto ocupe exactamente el ancho objetivo
+            const scaleFactor = targetWidth / textWidth;
+            const finalFontSize = Math.floor(100 * scaleFactor);
+            
+            // Aplicar límites para evitar números demasiado grandes o pequeños
+            const minSize = 80;
+            const maxSize = Math.min(containerHeight * 0.8, containerWidth * 0.8);
+            
+            return Math.max(minSize, Math.min(finalFontSize, maxSize));
+        };
+        
+        // Función para actualizar tamaño del numerador
+        const updateNumeradorSize = () => {
+            const fontSize = calculateResponsiveSize(numeradorValue);
+            numeradorText.style.fontSize = `${fontSize}px`;
+            
+            // Sombra proporcional al tamaño de fuente
+            const shadowSize = Math.max(2, fontSize * 0.02);
+            const glowSize = Math.max(10, fontSize * 0.1);
+            numeradorText.style.textShadow = `
+                ${shadowSize}px ${shadowSize}px ${shadowSize * 2}px rgba(0, 0, 0, 0.9),
+                -${shadowSize}px -${shadowSize}px ${shadowSize * 2}px rgba(0, 0, 0, 0.9),
+                0 0 ${glowSize}px rgba(0, 255, 136, 0.4)
             `;
-            
-            numeradorContainer.appendChild(turnoText);
-        }
+        };
         
-        // Crear contenedor para el box (número secundario)
-        if (boxNumber) {
-            const boxText = document.createElement('div');
-            boxText.textContent = boxNumber;
-            boxText.style.position = 'absolute';
-            boxText.style.top = '65%'; // Posicionado abajo del centro
-            boxText.style.left = '50%';
-            boxText.style.transform = 'translate(-50%, -50%)';
-            boxText.style.backgroundColor = 'transparent';
-            boxText.style.color = '#FF6B6B'; // Rojo para diferenciar del turno
-            boxText.style.fontWeight = '900';
-            boxText.style.fontFamily = 'Impact, Arial Black, sans-serif';
-            boxText.style.zIndex = '1000';
-            boxText.style.textAlign = 'center';
-            boxText.style.whiteSpace = 'nowrap';
-            
-            // Tamaño más pequeño para el box (número secundario)
-            const boxSize = Math.min(window.innerWidth, window.innerHeight) * 0.15;
-            boxText.style.fontSize = `${Math.max(boxSize, 60)}px`;
-            
-            // Sombra para el box
-            boxText.style.textShadow = `
-                3px 3px 6px rgba(0, 0, 0, 0.9),
-                -3px -3px 6px rgba(0, 0, 0, 0.9),
-                0 0 15px rgba(255, 107, 107, 0.4)
-            `;
-            
-            numeradorContainer.appendChild(boxText);
-        }
+        // Aplicar tamaño inicial
+        updateNumeradorSize();
         
+        // Observar cambios en el contenedor
+        const numeradorResizeObserver = new ResizeObserver(() => {
+            updateNumeradorSize();
+        });
+        numeradorResizeObserver.observe(numeradorContainer);
+        
+        // Escuchar cambios de tamaño de ventana
+        const handleWindowResize = () => {
+            setTimeout(() => {
+                updateNumeradorSize();
+            }, 100);
+        };
+        
+        window.addEventListener('resize', handleWindowResize);
+        window.addEventListener('orientationchange', handleWindowResize);
+        
+        numeradorContainer.appendChild(numeradorText);
         (viewer as HTMLElement).appendChild(numeradorContainer);
         
         // Asegurar que el contenedor principal tenga fondo negro
