@@ -146,7 +146,7 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
         numeradorContainer.style.position = 'relative';
         numeradorContainer.style.width = '100%';
         numeradorContainer.style.height = '100%';
-        numeradorContainer.style.backgroundColor = '#000000';
+        numeradorContainer.style.backgroundColor = '#000000'; // Solo negro para numerador
         numeradorContainer.style.overflow = 'hidden'; // Evitar scroll
         
         // Agregar la imagen como fondo
@@ -160,7 +160,7 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
         numeradorText.setAttribute('data-type', 'numerador');
         numeradorText.textContent = numeradorValue; // Mostrar todo el valor: " 15 0"
         numeradorText.style.position = 'absolute';
-        numeradorText.style.top = '45%'; // Centrado vertical
+        numeradorText.style.top = '44%'; // Centrado vertical
         numeradorText.style.left = '52%'; // Centrado horizontal
         numeradorText.style.transform = 'translate(-50%, -50%)';
         numeradorText.style.backgroundColor = 'transparent';
@@ -177,7 +177,7 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
             const containerWidth = numeradorContainer.clientWidth || window.innerWidth;
             const containerHeight = numeradorContainer.clientHeight || window.innerHeight;
             
-            // Tomar 85% del ancho para el numerador unificado
+            // Tomar 95% del ancho para el numerador unificado (mejor para números largos)
             const targetWidth = containerWidth * 0.80;
             
             // Calcular tamaño de fuente que haga que el texto ocupe exactamente ese ancho
@@ -199,8 +199,8 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
             const finalFontSize = Math.floor(100 * scaleFactor);
             
             // Aplicar límites para evitar números demasiado grandes o pequeños
-            const minSize = 80;
-            const maxSize = Math.min(containerHeight * 0.8, containerWidth * 0.8);
+            const minSize = 40; // Reducido para números largos
+            const maxSize = Math.min(containerHeight * 0.9, containerWidth * 0.9); // Aumentado a 90%
             
             return Math.max(minSize, Math.min(finalFontSize, maxSize));
         };
@@ -242,12 +242,16 @@ function showContent(filePath: string, isNumeradorMode: boolean = false, numerad
         numeradorContainer.appendChild(numeradorText);
         (viewer as HTMLElement).appendChild(numeradorContainer);
         
-        // Asegurar que el contenedor principal tenga fondo negro
+        // Solo para numerador: asegurar que el contenedor principal tenga fondo negro
         (viewer as HTMLElement).style.backgroundColor = '#000000';
         document.body.style.backgroundColor = '#000000';
     } else {
-        // Modo normal: solo el contenido
+        // Modo normal: solo el contenido con fondo blanco por defecto
         (viewer as HTMLElement).appendChild(contentElement);
+        
+        // Restaurar fondo blanco por defecto (para cualquier otro @INFO o modo normal)
+        (viewer as HTMLElement).style.backgroundColor = '#ffffff';
+        document.body.style.backgroundColor = '#ffffff';
     }
     
     // Si es video, asegurar inicio inmediato (algunas plataformas requieren play() explícito)
