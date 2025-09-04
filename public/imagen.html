@@ -46,7 +46,7 @@
     }
     /* Indicador visual para ventana ESPEJO (nueva12): franja superior azul sin tapar contenido */
     body.mirror-mode {
-        /* Marco azul en los 4 bordes, sin afectar layout ni contenido */
+        /* Marco en los 4 bordes, sin afectar layout ni contenido */
         box-shadow:
             inset 0 4px 0 #f472b6,
             inset 0 -4px 0 #f472b6,
@@ -58,6 +58,23 @@
         border: 3px solid #f472b6;
         border-radius: 10px;
         box-shadow: 0 1px 6px rgba(244, 114, 182, 0.25);
+        background: #ffffff;
+    }
+    
+    /* Indicador visual para ventana ESPEJO INDEPENDIENTE (nueva2): franja naranja */
+    body.mirror-independent {
+        /* Marco naranja en los 4 bordes para diferenciar del espejo dual */
+        box-shadow:
+            inset 0 4px 0 #f97316,
+            inset 0 -4px 0 #f97316,
+            inset 4px 0 0 #f97316,
+            inset -4px 0 0 #f97316;
+    }
+    /* Borde redondeado naranja alrededor del visor en modo espejo independiente */
+    body.mirror-independent .content-viewer {
+        border: 3px solid #f97316;
+        border-radius: 10px;
+        box-shadow: 0 1px 6px rgba(249, 115, 22, 0.25);
         background: #ffffff;
     }
     /* Publicidad: sin marcos, fondo blanco, cubrir todo */

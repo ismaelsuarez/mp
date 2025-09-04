@@ -308,22 +308,35 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (payload && payload.filePath) {
 			const wasFallback = !!payload.fallback;
 			appendLogImagen(`Nuevo contenido detectado: ${payload.filePath}${wasFallback ? ' (fallback)' : ''}${payload.isNumeradorMode ? ` [Numerador: ${payload.numeradorValue}]` : ''}`);
-			// Aplicar estilo de "espejo" si windowMode === 'nueva12'
+			// Aplicar estilo de "espejo" si windowMode === 'nueva12' o 'nueva2'
 			try {
 				const mode = String(payload.windowMode || '').toLowerCase();
 				const titleEl = document.getElementById('customTitleText');
 				const barEl = document.getElementById('customTitlebar');
 				if (mode === 'nueva12') {
-					// franja azul en body para diferenciación
+					// franja azul en body para diferenciación (espejo dual)
 					document.body.classList.add('mirror-mode');
+					document.body.classList.add('mirror-dual');
 					// si existiera barra de título personalizada, cambiar color y sufijo
 					if (barEl) (barEl as HTMLElement).style.background = '#0ea5e9';
 					if (titleEl && typeof (titleEl as any).textContent === 'string') {
 						const t = String((titleEl as any).textContent || '').replace(/\s*\(ESPEJO\)\s*$/i,'').trim();
 						(titleEl as any).textContent = t ? `${t} (ESPEJO)` : 'ESPEJO';
 					}
+				} else if (mode === 'nueva2') {
+					// franja naranja en body para diferenciación (espejo independiente)
+					document.body.classList.add('mirror-mode');
+					document.body.classList.add('mirror-independent');
+					// si existiera barra de título personalizada, cambiar color y sufijo
+					if (barEl) (barEl as HTMLElement).style.background = '#f97316';
+					if (titleEl && typeof (titleEl as any).textContent === 'string') {
+						const t = String((titleEl as any).textContent || '').replace(/\s*\(INDEPENDIENTE\)\s*$/i,'').trim();
+						(titleEl as any).textContent = t ? `${t} (INDEPENDIENTE)` : 'INDEPENDIENTE';
+					}
 				} else {
 					document.body.classList.remove('mirror-mode');
+					document.body.classList.remove('mirror-dual');
+					document.body.classList.remove('mirror-independent');
 					if (barEl) (barEl as HTMLElement).style.background = '#10b981';
 				}
 			} catch {}

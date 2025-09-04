@@ -1670,7 +1670,7 @@ app.whenReady().then(() => {
 			
 			// Parseo flexible: URI=... @VENTANA=... @INFO=...
 			let filePath = '';
-			let windowMode: 'comun' | 'nueva' | 'comun12' | undefined;
+			let windowMode: 'comun' | 'nueva' | 'comun12' | 'comun2' | undefined;
 			let infoText: string | undefined;
 			let numeradorValue: string | undefined;
 			let isNumeradorMode = false;
@@ -1765,8 +1765,10 @@ app.whenReady().then(() => {
 			const forceSeparateWindow = cfgNow.IMAGE_WINDOW_SEPARATE === true;
 			const wantNewWindow = (windowMode === 'nueva') || forceSeparateWindow;
 			// En modo 'comun12' se envía a ambas: ventana actual (si corresponde) y ventana persistente (reutilizable)
-			if (windowMode === 'comun12') {
-				if (mainWindow) {
+			// En modo 'comun2' se envía SOLO a la ventana persistente (espejo) sin tocar la ventana principal
+			if (windowMode === 'comun12' || windowMode === 'comun2') {
+				// Solo actualizar ventana principal si es 'comun12' (no en 'comun2')
+				if (windowMode === 'comun12' && mainWindow) {
 					try { mainWindow.setTitle(infoText || path.basename(filePath)); } catch {}
 					// Llevar ventana principal al frente sin activarla (sin focus)
 					try { 
@@ -1889,10 +1891,13 @@ app.whenReady().then(() => {
 						}, 100); // Quitar alwaysOnTop después de 100ms
 					} catch {}
 					try { imageDualWindow?.setTitle(infoText || path.basename(filePath)); } catch {}
+					// Determinar el windowMode para la ventana secundaria
+					const secondaryWindowMode = windowMode === 'comun2' ? 'nueva2' : 'nueva12';
+					
 					imageDualWindow?.webContents.send('image:new-content', { 
 						filePath, 
 						info: infoText, 
-						windowMode: 'nueva12', 
+						windowMode: secondaryWindowMode, 
 						fallback: isFallback, 
 						publicidad: isPublicidadActive(),
 						isNumeradorMode,
@@ -2056,8 +2061,9 @@ app.whenReady().then(() => {
 						try { mainWindow?.setAlwaysOnTop(false); } catch {}
 					}, 100); // Quitar alwaysOnTop después de 100ms
 				} catch {}
-				// Si forceSeparateWindow está activo, siempre usar 'nueva' para que el cajero pueda tener modo caja y modo imagen en ventanas separadas
-				const finalWindowMode = forceSeparateWindow ? 'nueva' : (windowMode || 'comun');
+				// Para VENTANA=comun, SIEMPRE usar la ventana principal, independientemente de IMAGE_WINDOW_SEPARATE
+				// Solo aplicar forceSeparateWindow cuando windowMode sea undefined o cuando se solicite explícitamente
+				const finalWindowMode = (windowMode === 'comun') ? 'comun' : (forceSeparateWindow ? 'nueva' : (windowMode || 'comun'));
 				mainWindow.webContents.send('image:new-content', { 
 					filePath, 
 					info: infoText, 
