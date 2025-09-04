@@ -29,6 +29,9 @@ Qué verás:
 - Rectángulos de borde rojo (40×6 mm por defecto) en cada coordenada del layout.
 - Dentro de cada rectángulo, el nombre del campo (ej: `clienteNombre`, `fecha`, `nro`, etc.).
 
+Nota sobre el QR:
+- El rectángulo del `qr` usa su tamaño real (`size` en mm) definido en el layout para que puedas ubicarlo exactamente.
+
 Ajustes rápidos:
 - Mover un campo hacia arriba: reducir `y` (ej: `y: 52 → 50`).
 - Mover un campo hacia la derecha: aumentar `x` (ej: `x: 16 → 18`).

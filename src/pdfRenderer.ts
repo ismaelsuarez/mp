@@ -25,31 +25,32 @@ export interface Config {
   pageSize?: 'A4';
   coords: {
     // Letra del comprobante (A/B/C) en el recuadro central superior
-    comprobanteLetra?: { x: number; y: number };
+    comprobanteLetra?: { x: number; y: number; fontSize?: number };
 
-    clienteNombre: { x: number; y: number };
-    clienteDomicilio: { x: number; y: number };
-    clienteCuit: { x: number; y: number };
-    clienteIva: { x: number; y: number };
+    clienteNombre: { x: number; y: number; fontSize?: number };
+    clienteDomicilio: { x: number; y: number; fontSize?: number };
+    clienteCuit: { x: number; y: number; fontSize?: number };
+    clienteIva: { x: number; y: number; fontSize?: number };
 
     // Fecha/hora
-    fecha: { x: number; y: number };
-    fechaHora?: { x: number; y: number };
-    pv: { x: number; y: number };
-    nro: { x: number; y: number };
+    fecha: { x: number; y: number; fontSize?: number };
+    fechaHora?: { x: number; y: number; fontSize?: number };
+    pv: { x: number; y: number; fontSize?: number };
+    nro: { x: number; y: number; fontSize?: number };
 
-    atendio?: { x: number; y: number };
-    condicionPago?: { x: number; y: number };
+    atendio?: { x: number; y: number; fontSize?: number };
+    condicionPago?: { x: number; y: number; fontSize?: number };
 
     // Extra encabezado (opcionales)
-    referenciaInterna?: { x: number; y: number };
-    notaRecepcion?: { x: number; y: number };
-    remito?: { x: number; y: number };
-    email?: { x: number; y: number };
-    observaciones?: { x: number; y: number; maxWidth?: number };
+    referenciaInterna?: { x: number; y: number; fontSize?: number };
+    notaRecepcion?: { x: number; y: number; fontSize?: number };
+    remito?: { x: number; y: number; fontSize?: number };
+    email?: { x: number; y: number; fontSize?: number };
+    observaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
 
     itemsStartY: number; // mm
     itemsRowHeight: number; // mm
+    itemsFontSize?: number; // tamaño base para filas de items
     cols: {
       cant: { x: number; w: number };
       desc: { x: number; w: number };
@@ -59,28 +60,28 @@ export interface Config {
     };
 
     // Totales discriminados
-    neto: { x: number; y: number }; // neto gravado total
-    neto21?: { x: number; y: number };
-    neto105?: { x: number; y: number };
-    neto27?: { x: number; y: number };
-    iva21?: { x: number; y: number };
-    iva105?: { x: number; y: number };
-    iva27?: { x: number; y: number };
-    impIvaTotal: { x: number; y: number };
-    total: { x: number; y: number };
+    neto: { x: number; y: number; fontSize?: number }; // neto gravado total
+    neto21?: { x: number; y: number; fontSize?: number };
+    neto105?: { x: number; y: number; fontSize?: number };
+    neto27?: { x: number; y: number; fontSize?: number };
+    iva21?: { x: number; y: number; fontSize?: number };
+    iva105?: { x: number; y: number; fontSize?: number };
+    iva27?: { x: number; y: number; fontSize?: number };
+    impIvaTotal: { x: number; y: number; fontSize?: number };
+    total: { x: number; y: number; fontSize?: number };
 
     // Total en letras
-    totalEnLetras?: { x: number; y: number; maxWidth?: number };
+    totalEnLetras?: { x: number; y: number; maxWidth?: number; fontSize?: number };
 
-    cae: { x: number; y: number };
-    caeVto: { x: number; y: number };
+    cae: { x: number; y: number; fontSize?: number };
+    caeVto: { x: number; y: number; fontSize?: number };
 
     qr: { x: number; y: number; size: number }; // mm
 
     // Textos legales / pie
-    legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number };
-    legalGracias?: { x: number; y: number; maxWidth?: number };
-    legalContacto?: { x: number; y: number; maxWidth?: number };
+    legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
   };
 }
 
@@ -298,63 +299,78 @@ export async function generateInvoicePdf({
 
   // Letra del comprobante
   if (data.tipoComprobanteLetra && c.comprobanteLetra) {
-    drawText(data.tipoComprobanteLetra, c.comprobanteLetra.x, c.comprobanteLetra.y, {
-      fontSize: 26,
-      bold: true,
-      align: 'center',
-    });
+    drawText(
+      data.tipoComprobanteLetra,
+      c.comprobanteLetra.x,
+      c.comprobanteLetra.y,
+      { fontSize: c.comprobanteLetra.fontSize ?? 26, bold: true, align: 'center' },
+    );
   }
 
   // Encabezado / Cliente
   drawText(data.cliente.nombre, c.clienteNombre.x, c.clienteNombre.y, {
-    fontSize: 10,
+    fontSize: c.clienteNombre.fontSize ?? 10,
     bold: true,
     maxWidth: 90,
   });
   if (data.cliente.domicilio) {
     drawText(data.cliente.domicilio, c.clienteDomicilio.x, c.clienteDomicilio.y, {
-      fontSize: 9,
+      fontSize: c.clienteDomicilio.fontSize ?? 9,
       maxWidth: 90,
     });
   }
-  if (data.cliente.cuitDni) drawText(data.cliente.cuitDni, c.clienteCuit.x, c.clienteCuit.y, { fontSize: 9 });
-  if (data.cliente.condicionIva) drawText(data.cliente.condicionIva, c.clienteIva.x, c.clienteIva.y, { fontSize: 9 });
+  if (data.cliente.cuitDni)
+    drawText(data.cliente.cuitDni, c.clienteCuit.x, c.clienteCuit.y, { fontSize: c.clienteCuit.fontSize ?? 9 });
+  if (data.cliente.condicionIva)
+    drawText(data.cliente.condicionIva, c.clienteIva.x, c.clienteIva.y, { fontSize: c.clienteIva.fontSize ?? 9 });
 
   // Encabezado / Comprobante
   const fechaMostrar = (data.fechaHora || data.fecha) as string;
   if (c.fechaHora) {
-    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: 10 });
+    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
   } else {
-    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: 10 });
+    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
   }
-  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: 10, bold: true });
-  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: 10, bold: true });
+  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
 
-  if (data.atendio && c.atendio) drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: 9 });
-  if (data.condicionPago && c.condicionPago) drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: 9 });
+  if (data.atendio && c.atendio)
+    drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
+  if (data.condicionPago && c.condicionPago)
+    drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
 
   // Campos opcionales extra del encabezado
   if (c.referenciaInterna)
-    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, { fontSize: 9 });
+    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
+      fontSize: c.referenciaInterna.fontSize ?? 9,
+    });
   if (c.notaRecepcion)
-    drawLabelValue(drawText, 'RECEP', data.notaRecepcion, c.notaRecepcion.x, c.notaRecepcion.y, { fontSize: 9 });
-  if (c.remito) drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: 9 });
-  if (c.email) drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: 9 });
+    drawLabelValue(drawText, 'RECEP', data.notaRecepcion, c.notaRecepcion.x, c.notaRecepcion.y, {
+      fontSize: c.notaRecepcion.fontSize ?? 9,
+    });
+  if (c.remito)
+    drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: c.remito.fontSize ?? 9 });
+  if (c.email)
+    drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: c.email.fontSize ?? 9 });
   if (c.observaciones && data.observaciones)
-    drawText(data.observaciones, c.observaciones.x, c.observaciones.y, { fontSize: 9, maxWidth: c.observaciones.maxWidth });
+    drawText(data.observaciones, c.observaciones.x, c.observaciones.y, {
+      fontSize: c.observaciones.fontSize ?? 9,
+      maxWidth: c.observaciones.maxWidth,
+    });
 
   // Detalle de ítems
   let rowY = c.itemsStartY;
   const rowHeight = c.itemsRowHeight;
+  const itemsFontSize = c.itemsFontSize ?? 9;
   for (const it of data.items) {
     const total = typeof it.total === 'number' ? it.total : it.cantidad * it.unitario;
     drawRow(
       [
-        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center' },
-        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left' },
-        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right' },
-        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center' },
-        { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right' },
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
       ],
       rowY,
     );
@@ -362,7 +378,7 @@ export async function generateInvoicePdf({
   }
 
   // Totales
-  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: 10, bold: true });
+  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
 
   const iva21 = data.ivaPorAlicuota['21'] || 0;
   const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
@@ -372,28 +388,28 @@ export async function generateInvoicePdf({
   const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
   const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
 
-  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: 9 });
-  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: 9 });
-  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: 9 });
+  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
 
-  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: 9 });
-  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: 9 });
-  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: 9 });
+  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
 
-  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: 10 });
-  drawNumber(data.total, c.total.x, c.total.y, { fontSize: 12, bold: true });
+  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+  drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
 
   if (c.totalEnLetras) {
     drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
-      fontSize: 9,
+      fontSize: c.totalEnLetras.fontSize ?? 9,
       bold: true,
       maxWidth: c.totalEnLetras.maxWidth,
     });
   }
 
   // CAE
-  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: 10, bold: true });
-  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: 9 });
+  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
+  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
 
   // QR
   if (qrDataUrl) {
@@ -413,16 +429,16 @@ export async function generateInvoicePdf({
       'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
       c.legalDefensaConsumidor.x,
       c.legalDefensaConsumidor.y,
-      { fontSize: 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+      { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
     );
   if (c.legalGracias)
     drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
-      fontSize: 9,
+      fontSize: c.legalGracias.fontSize ?? 9,
       maxWidth: c.legalGracias.maxWidth,
     });
   if (c.legalContacto)
     drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
-      fontSize: 8,
+      fontSize: c.legalContacto.fontSize ?? 8,
       maxWidth: c.legalContacto.maxWidth,
     });
 
@@ -445,8 +461,8 @@ export async function generateCalibrationPdf(bgPath: string, outputPath: string,
   const pageH = doc.page.height;
   doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
 
-  const rectW = mm(opts?.rectWidthMM ?? 40);
-  const rectH = mm(opts?.rectHeightMM ?? 6);
+  const rectWDefault = mm(opts?.rectWidthMM ?? 40);
+  const rectHDefault = mm(opts?.rectHeightMM ?? 6);
 
   const cfg = opts?.config;
   const coords = (cfg ? cfg.coords : undefined) || ({} as any);
@@ -472,6 +488,9 @@ export async function generateCalibrationPdf(bgPath: string, outputPath: string,
     if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') continue;
     const x = mm(pos.x);
     const y = mm(pos.y);
+    const isQr = key.toLowerCase() === 'qr' && typeof pos.size === 'number';
+    const rectW = isQr ? mm(pos.size) : rectWDefault;
+    const rectH = isQr ? mm(pos.size) : rectHDefault;
     doc.rect(x, y, rectW, rectH).stroke();
     doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
   }

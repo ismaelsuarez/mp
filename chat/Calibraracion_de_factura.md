@@ -1,5 +1,5 @@
 # Trabajar en modo ventana y variantes
-_Exported on 9/3/2025 at 23:11:24 GMT-3 from Cursor (1.5.9)_
+_Exported on 9/3/2025 at 23:38:29 GMT-3 from Cursor (1.5.9)_
 
 ---
 
@@ -4627,4 +4627,1753 @@ despues lo vemos, gracias
 **Cursor**
 
 Perfecto. Quedo atento para cuando lo retomen.
+
+---
+
+**User**
+
+aca tambien manejo el tamaño de la fuente del texto @invoiceLayout.mendoza.ts 
+
+---
+
+**Cursor**
+
+Voy a habilitar el control de tamaño de fuente desde `invoiceLayout.mendoza.ts` agregando `fontSize` opcional en las coordenadas del layout y usándolo en `pdfRenderer.ts`. Después actualizaré el layout con un ejemplo y verificaré lints.
+
+```typescript
+import fs from 'fs';
+import PDFDocument from 'pdfkit';
+
+export const mm = (valueInMillimeters: number): number => (valueInMillimeters * 72) / 25.4;
+
+export type Align = 'left' | 'right' | 'center';
+
+export interface TextOpts {
+  fontSize?: number;
+  bold?: boolean;
+  align?: Align;
+  maxWidth?: number; // en mm
+}
+
+export interface Cell {
+  text: string;
+  x: number; // mm (inicio de la celda)
+  width: number; // mm (ancho de la celda)
+  align?: Align;
+  fontSize?: number;
+  bold?: boolean;
+}
+
+export interface Config {
+  pageSize?: 'A4';
+  coords: {
+    // Letra del comprobante (A/B/C) en el recuadro central superior
+    comprobanteLetra?: { x: number; y: number; fontSize?: number };
+
+    clienteNombre: { x: number; y: number; fontSize?: number };
+    clienteDomicilio: { x: number; y: number; fontSize?: number };
+    clienteCuit: { x: number; y: number; fontSize?: number };
+    clienteIva: { x: number; y: number; fontSize?: number };
+
+    // Fecha/hora
+    fecha: { x: number; y: number; fontSize?: number };
+    fechaHora?: { x: number; y: number; fontSize?: number };
+    pv: { x: number; y: number; fontSize?: number };
+    nro: { x: number; y: number; fontSize?: number };
+
+    atendio?: { x: number; y: number; fontSize?: number };
+    condicionPago?: { x: number; y: number; fontSize?: number };
+
+    // Extra encabezado (opcionales)
+    referenciaInterna?: { x: number; y: number; fontSize?: number };
+    notaRecepcion?: { x: number; y: number; fontSize?: number };
+    remito?: { x: number; y: number; fontSize?: number };
+    email?: { x: number; y: number; fontSize?: number };
+    observaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    itemsStartY: number; // mm
+    itemsRowHeight: number; // mm
+    itemsFontSize?: number; // tamaño base para filas de items
+    cols: {
+      cant: { x: number; w: number };
+      desc: { x: number; w: number };
+      unit: { x: number; w: number };
+      alic: { x: number; w: number };
+      total: { x: number; w: number };
+    };
+
+    // Totales discriminados
+    neto: { x: number; y: number; fontSize?: number }; // neto gravado total
+    neto21?: { x: number; y: number; fontSize?: number };
+    neto105?: { x: number; y: number; fontSize?: number };
+    neto27?: { x: number; y: number; fontSize?: number };
+    iva21?: { x: number; y: number; fontSize?: number };
+    iva105?: { x: number; y: number; fontSize?: number };
+    iva27?: { x: number; y: number; fontSize?: number };
+    impIvaTotal: { x: number; y: number; fontSize?: number };
+    total: { x: number; y: number; fontSize?: number };
+
+    // Total en letras
+    totalEnLetras?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    cae: { x: number; y: number; fontSize?: number };
+    caeVto: { x: number; y: number; fontSize?: number };
+
+    qr: { x: number; y: number; size: number }; // mm
+
+    // Textos legales / pie
+    legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+  };
+}
+
+export type Item = {
+  descripcion: string;
+  cantidad: number;
+  unitario: number;
+  iva: number; // 21 | 10.5 | 27 | 0
+  total?: number; // cantidad * unitario (si no viene, se calcula)
+};
+
+export type InvoiceData = {
+  empresa: {
+    nombre?: string;
+    cuit: string;
+    pv: number;
+    numero: number;
+  };
+  cliente: {
+    nombre: string;
+    domicilio?: string;
+    cuitDni?: string;
+    condicionIva?: string;
+  };
+  fecha: string; // YYYY-MM-DD
+  fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
+  tipoComprobanteLetra?: string; // A | B | C
+  atendio?: string;
+  condicionPago?: string;
+  referenciaInterna?: string;
+  notaRecepcion?: string;
+  remito?: string;
+  email?: string;
+  observaciones?: string;
+
+  items: Item[];
+
+  netoGravado: number;
+  netoPorAlicuota?: { [ali: string]: number }; // { "21": 0, "10.5": 0, "27": 0 }
+  ivaPorAlicuota: { [ali: string]: number };
+  ivaTotal: number;
+  total: number;
+
+  cae: string;
+  caeVto: string; // YYYY-MM-DD
+};
+
+function formatNumberEsAr(value: number): string {
+  return (value ?? 0).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function numeroALetras(num: number): string {
+  // Conversión simple a letras en castellano (ARS)
+  // Soporta hasta millones; suficiente para facturas comunes
+  const unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = [
+    '',
+    'DIEZ',
+    'VEINTE',
+    'TREINTA',
+    'CUARENTA',
+    'CINCUENTA',
+    'SESENTA',
+    'SETENTA',
+    'OCHENTA',
+    'NOVENTA',
+  ];
+  const especiales: { [k: number]: string } = {
+    11: 'ONCE',
+    12: 'DOCE',
+    13: 'TRECE',
+    14: 'CATORCE',
+    15: 'QUINCE',
+  };
+  const centenas = [
+    '',
+    'CIEN',
+    'DOSCIENTOS',
+    'TRESCIENTOS',
+    'CUATROCIENTOS',
+    'QUINIENTOS',
+    'SEISCIENTOS',
+    'SETECIENTOS',
+    'OCHOCIENTOS',
+    'NOVECIENTOS',
+  ];
+
+  function seccion(n: number): string {
+    if (n === 0) return '';
+    if (n < 10) return unidades[n];
+    if (n > 10 && n < 16) return especiales[n];
+    if (n < 20) return 'DIECI' + unidades[n - 10].toLowerCase();
+    if (n === 20) return 'VEINTE';
+    if (n > 20 && n < 30) return 'VEINTI' + unidades[n - 20].toLowerCase();
+    if (n < 100) {
+      const d = Math.floor(n / 10);
+      const u = n % 10;
+      return u ? `${decenas[d]} Y ${unidades[u]}` : decenas[d];
+    }
+    if (n === 100) return 'CIEN';
+    if (n < 1000) {
+      const c = Math.floor(n / 100);
+      const r = n % 100;
+      const cc = centenas[c];
+      return r ? `${cc} ${seccion(r)}` : cc;
+    }
+    return '';
+  }
+
+  function miles(n: number): string {
+    if (n < 1000) return seccion(n);
+    const m = Math.floor(n / 1000);
+    const r = n % 1000;
+    const mtxt = m === 1 ? 'MIL' : `${seccion(m)} MIL`;
+    return r ? `${mtxt} ${seccion(r)}` : mtxt;
+  }
+
+  function millones(n: number): string {
+    if (n < 1000000) return miles(n);
+    const mm = Math.floor(n / 1000000);
+    const r = n % 1000000;
+    const mmtxt = mm === 1 ? 'UN MILLON' : `${seccion(mm)} MILLONES`;
+    return r ? `${mmtxt} ${miles(r)}` : mmtxt;
+  }
+
+  const entero = Math.floor(Math.abs(num));
+  const dec = Math.round((Math.abs(num) - entero) * 100);
+  const letras = entero === 0 ? 'CERO' : millones(entero);
+  const fraccion = dec.toString().padStart(2, '0');
+  return `${letras} CON ${fraccion}/100`;
+}
+
+function drawLabelValue(
+  docText: (text: string, xMM: number, yMM: number, opts?: TextOpts) => void,
+  label: string,
+  value: string | undefined,
+  xMM: number,
+  yMM: number,
+  opts: TextOpts = {},
+) {
+  if (!value) return;
+  const full = `${label}: ${value}`;
+  docText(full, xMM, yMM, opts);
+}
+
+export async function generateInvoicePdf({
+  bgPath,
+  outputPath,
+  data,
+  qrDataUrl,
+  config,
+}: {
+  bgPath: string;
+  outputPath: string;
+  data: InvoiceData;
+  qrDataUrl?: string | Buffer;
+  config: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+
+  // Fondo a página completa
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  // Fuentes (usar Helvetica por defecto si no se registran TTF)
+  const fontRegularRegistered = false;
+  const fontBoldRegistered = false;
+
+  function setFont(bold?: boolean) {
+    if (!fontRegularRegistered && !fontBoldRegistered) {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+    } else {
+      doc.font(bold ? 'B' : 'R');
+    }
+  }
+
+  function drawText(text: string, xMM: number, yMM: number, opts: TextOpts = {}) {
+    const { fontSize = 10, bold, align = 'left', maxWidth } = opts;
+    setFont(bold);
+    doc.fontSize(fontSize);
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const width = maxWidth ? mm(maxWidth) : undefined;
+    doc.text(text ?? '', x, y, { width, align });
+  }
+
+  function drawNumber(value: number, xRightMM: number, yMM: number, opts: TextOpts = {}) {
+    const text = formatNumberEsAr(value);
+    drawText(text, xRightMM, yMM, { ...opts, align: opts.align ?? 'right' });
+  }
+
+  function drawImage(img: string | Buffer, xMM: number, yMM: number, wMM?: number) {
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const opt: any = {};
+    if (wMM) opt.width = mm(wMM);
+    doc.image(img as any, x, y, opt);
+  }
+
+  function drawRow(cells: Cell[], yMM: number) {
+    for (const cell of cells) {
+      const { text, x, width, align = 'left', fontSize = 9, bold } = cell;
+      drawText(text, x, yMM, { align, fontSize, bold, maxWidth: width });
+    }
+  }
+
+  const c = config.coords;
+
+  // Letra del comprobante
+  if (data.tipoComprobanteLetra && c.comprobanteLetra) {
+    drawText(data.tipoComprobanteLetra, c.comprobanteLetra.x, c.comprobanteLetra.y, {
+      fontSize: 26,
+      bold: true,
+      align: 'center',
+    });
+  }
+
+  // Encabezado / Cliente
+  drawText(data.cliente.nombre, c.clienteNombre.x, c.clienteNombre.y, {
+    fontSize: 10,
+    bold: true,
+    maxWidth: 90,
+  });
+  if (data.cliente.domicilio) {
+    drawText(data.cliente.domicilio, c.clienteDomicilio.x, c.clienteDomicilio.y, {
+      fontSize: 9,
+      maxWidth: 90,
+    });
+  }
+  if (data.cliente.cuitDni) drawText(data.cliente.cuitDni, c.clienteCuit.x, c.clienteCuit.y, { fontSize: 9 });
+  if (data.cliente.condicionIva) drawText(data.cliente.condicionIva, c.clienteIva.x, c.clienteIva.y, { fontSize: 9 });
+
+  // Encabezado / Comprobante
+  const fechaMostrar = (data.fechaHora || data.fecha) as string;
+  if (c.fechaHora) {
+    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: 10 });
+  } else {
+    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: 10 });
+  }
+  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: 10, bold: true });
+  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: 10, bold: true });
+
+  if (data.atendio && c.atendio) drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: 9 });
+  if (data.condicionPago && c.condicionPago) drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: 9 });
+
+  // Campos opcionales extra del encabezado
+  if (c.referenciaInterna)
+    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, { fontSize: 9 });
+  if (c.notaRecepcion)
+    drawLabelValue(drawText, 'RECEP', data.notaRecepcion, c.notaRecepcion.x, c.notaRecepcion.y, { fontSize: 9 });
+  if (c.remito) drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: 9 });
+  if (c.email) drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: 9 });
+  if (c.observaciones && data.observaciones)
+    drawText(data.observaciones, c.observaciones.x, c.observaciones.y, { fontSize: 9, maxWidth: c.observaciones.maxWidth });
+
+  // Detalle de ítems
+  let rowY = c.itemsStartY;
+  const rowHeight = c.itemsRowHeight;
+  for (const it of data.items) {
+    const total = typeof it.total === 'number' ? it.total : it.cantidad * it.unitario;
+    drawRow(
+      [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center' },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left' },
+        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right' },
+        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center' },
+        { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right' },
+      ],
+      rowY,
+    );
+    rowY += rowHeight;
+  }
+
+  // Totales
+  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: 10, bold: true });
+
+  const iva21 = data.ivaPorAlicuota['21'] || 0;
+  const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
+  const iva27 = data.ivaPorAlicuota['27'] || 0;
+
+  const neto21 = (data.netoPorAlicuota && (data.netoPorAlicuota['21'] || 0)) || undefined;
+  const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
+  const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
+
+  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: 9 });
+  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: 9 });
+  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: 9 });
+
+  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: 9 });
+  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: 9 });
+  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: 9 });
+
+  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: 10 });
+  drawNumber(data.total, c.total.x, c.total.y, { fontSize: 12, bold: true });
+
+  if (c.totalEnLetras) {
+    drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
+      fontSize: 9,
+      bold: true,
+      maxWidth: c.totalEnLetras.maxWidth,
+    });
+  }
+
+  // CAE
+  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: 10, bold: true });
+  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: 9 });
+
+  // QR
+  if (qrDataUrl) {
+    let buf: Buffer;
+    if (typeof qrDataUrl === 'string') {
+      const base64 = qrDataUrl.replace(/^data:image\/\w+;base64,/, '');
+      buf = Buffer.from(base64, 'base64');
+    } else {
+      buf = qrDataUrl;
+    }
+    drawImage(buf, c.qr.x, c.qr.y, c.qr.size);
+  }
+
+  // Textos legales / pie
+  if (c.legalDefensaConsumidor)
+    drawText(
+      'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
+      c.legalDefensaConsumidor.x,
+      c.legalDefensaConsumidor.y,
+      { fontSize: 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+    );
+  if (c.legalGracias)
+    drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
+      fontSize: 9,
+      maxWidth: c.legalGracias.maxWidth,
+    });
+  if (c.legalContacto)
+    drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
+      fontSize: 8,
+      maxWidth: c.legalContacto.maxWidth,
+    });
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+  return { ok: true, outputPath };
+}
+
+export async function generateCalibrationPdf(bgPath: string, outputPath: string, opts?: {
+  rectWidthMM?: number;
+  rectHeightMM?: number;
+  // Permitir pasar un layout alternativo si se desea
+  config?: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  const rectW = mm(opts?.rectWidthMM ?? 40);
+  const rectH = mm(opts?.rectHeightMM ?? 6);
+
+  const cfg = opts?.config;
+  const coords = (cfg ? cfg.coords : undefined) || ({} as any);
+
+  // Si no se pasó config, intentar cargar el layout por defecto dinámicamente
+  // Nota: import dinámico para evitar ciclo en tiempo de compilación
+  if (!cfg) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const defaultLayout: { default?: Config; coords?: Config['coords'] } = require('./invoiceLayout.mendoza');
+      const usable = (defaultLayout.default as Config) || (defaultLayout as unknown as Config);
+      Object.assign(coords, usable.coords);
+    } catch {
+      // sin layout, no dibujamos nada
+    }
+  }
+
+  doc.strokeColor('red').lineWidth(0.5);
+  doc.fontSize(6).fillColor('red');
+
+  const entries = Object.entries(coords) as Array<[string, any]>;
+  for (const [key, pos] of entries) {
+    if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') continue;
+    const x = mm(pos.x);
+    const y = mm(pos.y);
+    doc.rect(x, y, rectW, rectH).stroke();
+    doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
+  }
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+}
+
+
+
+```
+
+```typescript
+import fs from 'fs';
+import PDFDocument from 'pdfkit';
+
+export const mm = (valueInMillimeters: number): number => (valueInMillimeters * 72) / 25.4;
+
+export type Align = 'left' | 'right' | 'center';
+
+export interface TextOpts {
+  fontSize?: number;
+  bold?: boolean;
+  align?: Align;
+  maxWidth?: number; // en mm
+}
+
+export interface Cell {
+  text: string;
+  x: number; // mm (inicio de la celda)
+  width: number; // mm (ancho de la celda)
+  align?: Align;
+  fontSize?: number;
+  bold?: boolean;
+}
+
+export interface Config {
+  pageSize?: 'A4';
+  coords: {
+    // Letra del comprobante (A/B/C) en el recuadro central superior
+    comprobanteLetra?: { x: number; y: number; fontSize?: number };
+
+    clienteNombre: { x: number; y: number; fontSize?: number };
+    clienteDomicilio: { x: number; y: number; fontSize?: number };
+    clienteCuit: { x: number; y: number; fontSize?: number };
+    clienteIva: { x: number; y: number; fontSize?: number };
+
+    // Fecha/hora
+    fecha: { x: number; y: number; fontSize?: number };
+    fechaHora?: { x: number; y: number; fontSize?: number };
+    pv: { x: number; y: number; fontSize?: number };
+    nro: { x: number; y: number; fontSize?: number };
+
+    atendio?: { x: number; y: number; fontSize?: number };
+    condicionPago?: { x: number; y: number; fontSize?: number };
+
+    // Extra encabezado (opcionales)
+    referenciaInterna?: { x: number; y: number; fontSize?: number };
+    notaRecepcion?: { x: number; y: number; fontSize?: number };
+    remito?: { x: number; y: number; fontSize?: number };
+    email?: { x: number; y: number; fontSize?: number };
+    observaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    itemsStartY: number; // mm
+    itemsRowHeight: number; // mm
+    itemsFontSize?: number; // tamaño base para filas de items
+    cols: {
+      cant: { x: number; w: number };
+      desc: { x: number; w: number };
+      unit: { x: number; w: number };
+      alic: { x: number; w: number };
+      total: { x: number; w: number };
+    };
+
+    // Totales discriminados
+    neto: { x: number; y: number; fontSize?: number }; // neto gravado total
+    neto21?: { x: number; y: number; fontSize?: number };
+    neto105?: { x: number; y: number; fontSize?: number };
+    neto27?: { x: number; y: number; fontSize?: number };
+    iva21?: { x: number; y: number; fontSize?: number };
+    iva105?: { x: number; y: number; fontSize?: number };
+    iva27?: { x: number; y: number; fontSize?: number };
+    impIvaTotal: { x: number; y: number; fontSize?: number };
+    total: { x: number; y: number; fontSize?: number };
+
+    // Total en letras
+    totalEnLetras?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    cae: { x: number; y: number; fontSize?: number };
+    caeVto: { x: number; y: number; fontSize?: number };
+
+    qr: { x: number; y: number; size: number }; // mm
+
+    // Textos legales / pie
+    legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+  };
+}
+
+export type Item = {
+  descripcion: string;
+  cantidad: number;
+  unitario: number;
+  iva: number; // 21 | 10.5 | 27 | 0
+  total?: number; // cantidad * unitario (si no viene, se calcula)
+};
+
+export type InvoiceData = {
+  empresa: {
+    nombre?: string;
+    cuit: string;
+    pv: number;
+    numero: number;
+  };
+  cliente: {
+    nombre: string;
+    domicilio?: string;
+    cuitDni?: string;
+    condicionIva?: string;
+  };
+  fecha: string; // YYYY-MM-DD
+  fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
+  tipoComprobanteLetra?: string; // A | B | C
+  atendio?: string;
+  condicionPago?: string;
+  referenciaInterna?: string;
+  notaRecepcion?: string;
+  remito?: string;
+  email?: string;
+  observaciones?: string;
+
+  items: Item[];
+
+  netoGravado: number;
+  netoPorAlicuota?: { [ali: string]: number }; // { "21": 0, "10.5": 0, "27": 0 }
+  ivaPorAlicuota: { [ali: string]: number };
+  ivaTotal: number;
+  total: number;
+
+  cae: string;
+  caeVto: string; // YYYY-MM-DD
+};
+
+function formatNumberEsAr(value: number): string {
+  return (value ?? 0).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function numeroALetras(num: number): string {
+  // Conversión simple a letras en castellano (ARS)
+  // Soporta hasta millones; suficiente para facturas comunes
+  const unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = [
+    '',
+    'DIEZ',
+    'VEINTE',
+    'TREINTA',
+    'CUARENTA',
+    'CINCUENTA',
+    'SESENTA',
+    'SETENTA',
+    'OCHENTA',
+    'NOVENTA',
+  ];
+  const especiales: { [k: number]: string } = {
+    11: 'ONCE',
+    12: 'DOCE',
+    13: 'TRECE',
+    14: 'CATORCE',
+    15: 'QUINCE',
+  };
+  const centenas = [
+    '',
+    'CIEN',
+    'DOSCIENTOS',
+    'TRESCIENTOS',
+    'CUATROCIENTOS',
+    'QUINIENTOS',
+    'SEISCIENTOS',
+    'SETECIENTOS',
+    'OCHOCIENTOS',
+    'NOVECIENTOS',
+  ];
+
+  function seccion(n: number): string {
+    if (n === 0) return '';
+    if (n < 10) return unidades[n];
+    if (n > 10 && n < 16) return especiales[n];
+    if (n < 20) return 'DIECI' + unidades[n - 10].toLowerCase();
+    if (n === 20) return 'VEINTE';
+    if (n > 20 && n < 30) return 'VEINTI' + unidades[n - 20].toLowerCase();
+    if (n < 100) {
+      const d = Math.floor(n / 10);
+      const u = n % 10;
+      return u ? `${decenas[d]} Y ${unidades[u]}` : decenas[d];
+    }
+    if (n === 100) return 'CIEN';
+    if (n < 1000) {
+      const c = Math.floor(n / 100);
+      const r = n % 100;
+      const cc = centenas[c];
+      return r ? `${cc} ${seccion(r)}` : cc;
+    }
+    return '';
+  }
+
+  function miles(n: number): string {
+    if (n < 1000) return seccion(n);
+    const m = Math.floor(n / 1000);
+    const r = n % 1000;
+    const mtxt = m === 1 ? 'MIL' : `${seccion(m)} MIL`;
+    return r ? `${mtxt} ${seccion(r)}` : mtxt;
+  }
+
+  function millones(n: number): string {
+    if (n < 1000000) return miles(n);
+    const mm = Math.floor(n / 1000000);
+    const r = n % 1000000;
+    const mmtxt = mm === 1 ? 'UN MILLON' : `${seccion(mm)} MILLONES`;
+    return r ? `${mmtxt} ${miles(r)}` : mmtxt;
+  }
+
+  const entero = Math.floor(Math.abs(num));
+  const dec = Math.round((Math.abs(num) - entero) * 100);
+  const letras = entero === 0 ? 'CERO' : millones(entero);
+  const fraccion = dec.toString().padStart(2, '0');
+  return `${letras} CON ${fraccion}/100`;
+}
+
+function drawLabelValue(
+  docText: (text: string, xMM: number, yMM: number, opts?: TextOpts) => void,
+  label: string,
+  value: string | undefined,
+  xMM: number,
+  yMM: number,
+  opts: TextOpts = {},
+) {
+  if (!value) return;
+  const full = `${label}: ${value}`;
+  docText(full, xMM, yMM, opts);
+}
+
+export async function generateInvoicePdf({
+  bgPath,
+  outputPath,
+  data,
+  qrDataUrl,
+  config,
+}: {
+  bgPath: string;
+  outputPath: string;
+  data: InvoiceData;
+  qrDataUrl?: string | Buffer;
+  config: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+
+  // Fondo a página completa
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  // Fuentes (usar Helvetica por defecto si no se registran TTF)
+  const fontRegularRegistered = false;
+  const fontBoldRegistered = false;
+
+  function setFont(bold?: boolean) {
+    if (!fontRegularRegistered && !fontBoldRegistered) {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+    } else {
+      doc.font(bold ? 'B' : 'R');
+    }
+  }
+
+  function drawText(text: string, xMM: number, yMM: number, opts: TextOpts = {}) {
+    const { fontSize = 10, bold, align = 'left', maxWidth } = opts;
+    setFont(bold);
+    doc.fontSize(fontSize);
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const width = maxWidth ? mm(maxWidth) : undefined;
+    doc.text(text ?? '', x, y, { width, align });
+  }
+
+  function drawNumber(value: number, xRightMM: number, yMM: number, opts: TextOpts = {}) {
+    const text = formatNumberEsAr(value);
+    drawText(text, xRightMM, yMM, { ...opts, align: opts.align ?? 'right' });
+  }
+
+  function drawImage(img: string | Buffer, xMM: number, yMM: number, wMM?: number) {
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const opt: any = {};
+    if (wMM) opt.width = mm(wMM);
+    doc.image(img as any, x, y, opt);
+  }
+
+  function drawRow(cells: Cell[], yMM: number) {
+    for (const cell of cells) {
+      const { text, x, width, align = 'left', fontSize = 9, bold } = cell;
+      drawText(text, x, yMM, { align, fontSize, bold, maxWidth: width });
+    }
+  }
+
+  const c = config.coords;
+
+  // Letra del comprobante
+  if (data.tipoComprobanteLetra && c.comprobanteLetra) {
+    drawText(
+      data.tipoComprobanteLetra,
+      c.comprobanteLetra.x,
+      c.comprobanteLetra.y,
+      { fontSize: c.comprobanteLetra.fontSize ?? 26, bold: true, align: 'center' },
+    );
+  }
+
+  // Encabezado / Cliente
+  drawText(data.cliente.nombre, c.clienteNombre.x, c.clienteNombre.y, {
+    fontSize: c.clienteNombre.fontSize ?? 10,
+    bold: true,
+    maxWidth: 90,
+  });
+  if (data.cliente.domicilio) {
+    drawText(data.cliente.domicilio, c.clienteDomicilio.x, c.clienteDomicilio.y, {
+      fontSize: c.clienteDomicilio.fontSize ?? 9,
+      maxWidth: 90,
+    });
+  }
+  if (data.cliente.cuitDni)
+    drawText(data.cliente.cuitDni, c.clienteCuit.x, c.clienteCuit.y, { fontSize: c.clienteCuit.fontSize ?? 9 });
+  if (data.cliente.condicionIva)
+    drawText(data.cliente.condicionIva, c.clienteIva.x, c.clienteIva.y, { fontSize: c.clienteIva.fontSize ?? 9 });
+
+  // Encabezado / Comprobante
+  const fechaMostrar = (data.fechaHora || data.fecha) as string;
+  if (c.fechaHora) {
+    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
+  } else {
+    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
+  }
+  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
+
+  if (data.atendio && c.atendio)
+    drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
+  if (data.condicionPago && c.condicionPago)
+    drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
+
+  // Campos opcionales extra del encabezado
+  if (c.referenciaInterna)
+    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
+      fontSize: c.referenciaInterna.fontSize ?? 9,
+    });
+  if (c.notaRecepcion)
+    drawLabelValue(drawText, 'RECEP', data.notaRecepcion, c.notaRecepcion.x, c.notaRecepcion.y, {
+      fontSize: c.notaRecepcion.fontSize ?? 9,
+    });
+  if (c.remito)
+    drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: c.remito.fontSize ?? 9 });
+  if (c.email)
+    drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: c.email.fontSize ?? 9 });
+  if (c.observaciones && data.observaciones)
+    drawText(data.observaciones, c.observaciones.x, c.observaciones.y, {
+      fontSize: c.observaciones.fontSize ?? 9,
+      maxWidth: c.observaciones.maxWidth,
+    });
+
+  // Detalle de ítems
+  let rowY = c.itemsStartY;
+  const rowHeight = c.itemsRowHeight;
+  const itemsFontSize = c.itemsFontSize ?? 9;
+  for (const it of data.items) {
+    const total = typeof it.total === 'number' ? it.total : it.cantidad * it.unitario;
+    drawRow(
+      [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+      ],
+      rowY,
+    );
+    rowY += rowHeight;
+  }
+
+  // Totales
+  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+
+  const iva21 = data.ivaPorAlicuota['21'] || 0;
+  const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
+  const iva27 = data.ivaPorAlicuota['27'] || 0;
+
+  const neto21 = (data.netoPorAlicuota && (data.netoPorAlicuota['21'] || 0)) || undefined;
+  const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
+  const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
+
+  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+
+  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+
+  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+  drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+
+  if (c.totalEnLetras) {
+    drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
+      fontSize: c.totalEnLetras.fontSize ?? 9,
+      bold: true,
+      maxWidth: c.totalEnLetras.maxWidth,
+    });
+  }
+
+  // CAE
+  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
+  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+
+  // QR
+  if (qrDataUrl) {
+    let buf: Buffer;
+    if (typeof qrDataUrl === 'string') {
+      const base64 = qrDataUrl.replace(/^data:image\/\w+;base64,/, '');
+      buf = Buffer.from(base64, 'base64');
+    } else {
+      buf = qrDataUrl;
+    }
+    drawImage(buf, c.qr.x, c.qr.y, c.qr.size);
+  }
+
+  // Textos legales / pie
+  if (c.legalDefensaConsumidor)
+    drawText(
+      'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
+      c.legalDefensaConsumidor.x,
+      c.legalDefensaConsumidor.y,
+      { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+    );
+  if (c.legalGracias)
+    drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
+      fontSize: c.legalGracias.fontSize ?? 9,
+      maxWidth: c.legalGracias.maxWidth,
+    });
+  if (c.legalContacto)
+    drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
+      fontSize: c.legalContacto.fontSize ?? 8,
+      maxWidth: c.legalContacto.maxWidth,
+    });
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+  return { ok: true, outputPath };
+}
+
+export async function generateCalibrationPdf(bgPath: string, outputPath: string, opts?: {
+  rectWidthMM?: number;
+  rectHeightMM?: number;
+  // Permitir pasar un layout alternativo si se desea
+  config?: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  const rectW = mm(opts?.rectWidthMM ?? 40);
+  const rectH = mm(opts?.rectHeightMM ?? 6);
+
+  const cfg = opts?.config;
+  const coords = (cfg ? cfg.coords : undefined) || ({} as any);
+
+  // Si no se pasó config, intentar cargar el layout por defecto dinámicamente
+  // Nota: import dinámico para evitar ciclo en tiempo de compilación
+  if (!cfg) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const defaultLayout: { default?: Config; coords?: Config['coords'] } = require('./invoiceLayout.mendoza');
+      const usable = (defaultLayout.default as Config) || (defaultLayout as unknown as Config);
+      Object.assign(coords, usable.coords);
+    } catch {
+      // sin layout, no dibujamos nada
+    }
+  }
+
+  doc.strokeColor('red').lineWidth(0.5);
+  doc.fontSize(6).fillColor('red');
+
+  const entries = Object.entries(coords) as Array<[string, any]>;
+  for (const [key, pos] of entries) {
+    if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') continue;
+    const x = mm(pos.x);
+    const y = mm(pos.y);
+    doc.rect(x, y, rectW, rectH).stroke();
+    doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
+  }
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+}
+
+
+
+```
+
+```typescript
+import type { Config } from './pdfRenderer';
+
+const layoutMendoza: Config = {
+  coords: {
+    comprobanteLetra: { x:-9, y: 8, fontSize: 26 },
+    clienteNombre: { x: 27, y: 50, fontSize: 10 },
+    clienteDomicilio: { x: 27, y: 54, fontSize: 9 },
+    clienteCuit: { x: 27, y: 58, fontSize: 9 },
+    clienteIva: { x: 27, y: 62, fontSize: 9 },
+
+    fecha: { x: 175, y: 40, fontSize: 10 },
+    fechaHora: { x: 160, y: 40, fontSize: 10 },
+    pv: { x: 162, y: 30, fontSize: 10 },
+    nro: { x: 181, y: 30, fontSize: 10 },
+
+    atendio: { x: 16, y: 86, fontSize: 9 },
+    condicionPago: { x: 120, y: 86, fontSize: 9 },
+
+    referenciaInterna: { x: 16, y: 94, fontSize: 9 },
+    notaRecepcion: { x: 70, y: 94, fontSize: 9 },
+    remito: { x: 120, y: 94, fontSize: 9 },
+    email: { x: 16, y: 100, fontSize: 9 },
+    observaciones: { x: 16, y: 106, maxWidth: 120, fontSize: 9 },
+
+    itemsStartY: 105,
+    itemsRowHeight: 6,
+    itemsFontSize: 9,
+    cols: {
+      cant: { x: 12, w: 16 },
+      desc: { x: 30, w: 110 },
+      unit: { x: 142, w: 24 },
+      alic: { x: 168, w: 14 },
+      total: { x: 184, w: 22 },
+    },
+
+    neto: { x: 170, y: 230, fontSize: 10 },
+    neto21: { x: 150, y: 230, fontSize: 9 },
+    neto105: { x: 150, y: 237, fontSize: 9 },
+    neto27: { x: 150, y: 244, fontSize: 9 },
+    iva21: { x: 170, y: 237, fontSize: 9 },
+    iva105: { x: 170, y: 244, fontSize: 9 },
+    impIvaTotal: { x: 170, y: 251, fontSize: 10 },
+    total: { x: 170, y: 262, fontSize: 12 },
+
+    totalEnLetras: { x: 20, y: 270, maxWidth: 120, fontSize: 9 },
+
+    cae: { x: 20, y: 250, fontSize: 10 },
+    caeVto: { x: 20, y: 257, fontSize: 9 },
+
+    qr: { x: 20, y: 210, size: 28 },
+
+    legalDefensaConsumidor: { x: 20, y: 285, maxWidth: 170, fontSize: 7 },
+    legalGracias: { x: 20, y: 292, maxWidth: 170, fontSize: 9 },
+    legalContacto: { x: 20, y: 299, maxWidth: 170, fontSize: 8 },
+  },
+};
+
+export default layoutMendoza;
+
+
+
+```
+
+Hola
+
+Sí, ahora podés manejar el tamaño de fuente desde `src/invoiceLayout.mendoza.ts`. Agregué `fontSize` opcional en cada coordenada relevante y el render lo respeta:
+
+- Encabezado y letra del comprobante: `comprobanteLetra.fontSize`, `clienteNombre.fontSize`, etc.
+- Fecha/hora, PV y número: `fecha.fontSize`, `fechaHora.fontSize`, `pv.fontSize`, `nro.fontSize`.
+- Extras: `atendio.fontSize`, `condicionPago.fontSize`, `referenciaInterna.fontSize`, etc.
+- Ítems: `itemsFontSize` para todas las columnas del detalle.
+- Totales: `neto.fontSize`, `neto21.fontSize`, `iva21.fontSize`, `total.fontSize`, etc.
+- Total en letras: `totalEnLetras.fontSize`.
+- CAE/CAE Vto: `cae.fontSize`, `caeVto.fontSize`.
+- Textos legales: `legalDefensaConsumidor.fontSize`, `legalGracias.fontSize`, `legalContacto.fontSize`.
+
+Ejemplo ya aplicado en `invoiceLayout.mendoza.ts`:
+```ts
+comprobanteLetra: { x:-9, y: 8, fontSize: 26 }
+itemsFontSize: 9
+total: { x: 170, y: 262, fontSize: 12 }
+```
+
+Si querés calibro “fuente por sección” con valores distintos para encabezado, ítems y totales.
+
+```typescript
+comprobanteLetra: { x:-9, y: 8, fontSize: 26 }
+itemsFontSize: 9
+total: { x: 170, y: 262, fontSize: 12 }
+```
+
+---
+
+**User**
+
+falta que agregues donde va el QR para colcarlo donde lo necesito, 
+
+---
+
+**Cursor**
+
+Voy a actualizar el calibrador para que el rectángulo del campo `qr` respete su tamaño real (`size` en mm) y agregar una nota en la guía de calibración. Luego revisaré que no haya errores.
+
+```typescript
+import fs from 'fs';
+import PDFDocument from 'pdfkit';
+
+export const mm = (valueInMillimeters: number): number => (valueInMillimeters * 72) / 25.4;
+
+export type Align = 'left' | 'right' | 'center';
+
+export interface TextOpts {
+  fontSize?: number;
+  bold?: boolean;
+  align?: Align;
+  maxWidth?: number; // en mm
+}
+
+export interface Cell {
+  text: string;
+  x: number; // mm (inicio de la celda)
+  width: number; // mm (ancho de la celda)
+  align?: Align;
+  fontSize?: number;
+  bold?: boolean;
+}
+
+export interface Config {
+  pageSize?: 'A4';
+  coords: {
+    // Letra del comprobante (A/B/C) en el recuadro central superior
+    comprobanteLetra?: { x: number; y: number; fontSize?: number };
+
+    clienteNombre: { x: number; y: number; fontSize?: number };
+    clienteDomicilio: { x: number; y: number; fontSize?: number };
+    clienteCuit: { x: number; y: number; fontSize?: number };
+    clienteIva: { x: number; y: number; fontSize?: number };
+
+    // Fecha/hora
+    fecha: { x: number; y: number; fontSize?: number };
+    fechaHora?: { x: number; y: number; fontSize?: number };
+    pv: { x: number; y: number; fontSize?: number };
+    nro: { x: number; y: number; fontSize?: number };
+
+    atendio?: { x: number; y: number; fontSize?: number };
+    condicionPago?: { x: number; y: number; fontSize?: number };
+
+    // Extra encabezado (opcionales)
+    referenciaInterna?: { x: number; y: number; fontSize?: number };
+    notaRecepcion?: { x: number; y: number; fontSize?: number };
+    remito?: { x: number; y: number; fontSize?: number };
+    email?: { x: number; y: number; fontSize?: number };
+    observaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    itemsStartY: number; // mm
+    itemsRowHeight: number; // mm
+    itemsFontSize?: number; // tamaño base para filas de items
+    cols: {
+      cant: { x: number; w: number };
+      desc: { x: number; w: number };
+      unit: { x: number; w: number };
+      alic: { x: number; w: number };
+      total: { x: number; w: number };
+    };
+
+    // Totales discriminados
+    neto: { x: number; y: number; fontSize?: number }; // neto gravado total
+    neto21?: { x: number; y: number; fontSize?: number };
+    neto105?: { x: number; y: number; fontSize?: number };
+    neto27?: { x: number; y: number; fontSize?: number };
+    iva21?: { x: number; y: number; fontSize?: number };
+    iva105?: { x: number; y: number; fontSize?: number };
+    iva27?: { x: number; y: number; fontSize?: number };
+    impIvaTotal: { x: number; y: number; fontSize?: number };
+    total: { x: number; y: number; fontSize?: number };
+
+    // Total en letras
+    totalEnLetras?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+
+    cae: { x: number; y: number; fontSize?: number };
+    caeVto: { x: number; y: number; fontSize?: number };
+
+    qr: { x: number; y: number; size: number }; // mm
+
+    // Textos legales / pie
+    legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+  };
+}
+
+export type Item = {
+  descripcion: string;
+  cantidad: number;
+  unitario: number;
+  iva: number; // 21 | 10.5 | 27 | 0
+  total?: number; // cantidad * unitario (si no viene, se calcula)
+};
+
+export type InvoiceData = {
+  empresa: {
+    nombre?: string;
+    cuit: string;
+    pv: number;
+    numero: number;
+  };
+  cliente: {
+    nombre: string;
+    domicilio?: string;
+    cuitDni?: string;
+    condicionIva?: string;
+  };
+  fecha: string; // YYYY-MM-DD
+  fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
+  tipoComprobanteLetra?: string; // A | B | C
+  atendio?: string;
+  condicionPago?: string;
+  referenciaInterna?: string;
+  notaRecepcion?: string;
+  remito?: string;
+  email?: string;
+  observaciones?: string;
+
+  items: Item[];
+
+  netoGravado: number;
+  netoPorAlicuota?: { [ali: string]: number }; // { "21": 0, "10.5": 0, "27": 0 }
+  ivaPorAlicuota: { [ali: string]: number };
+  ivaTotal: number;
+  total: number;
+
+  cae: string;
+  caeVto: string; // YYYY-MM-DD
+};
+
+function formatNumberEsAr(value: number): string {
+  return (value ?? 0).toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function numeroALetras(num: number): string {
+  // Conversión simple a letras en castellano (ARS)
+  // Soporta hasta millones; suficiente para facturas comunes
+  const unidades = ['', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+  const decenas = [
+    '',
+    'DIEZ',
+    'VEINTE',
+    'TREINTA',
+    'CUARENTA',
+    'CINCUENTA',
+    'SESENTA',
+    'SETENTA',
+    'OCHENTA',
+    'NOVENTA',
+  ];
+  const especiales: { [k: number]: string } = {
+    11: 'ONCE',
+    12: 'DOCE',
+    13: 'TRECE',
+    14: 'CATORCE',
+    15: 'QUINCE',
+  };
+  const centenas = [
+    '',
+    'CIEN',
+    'DOSCIENTOS',
+    'TRESCIENTOS',
+    'CUATROCIENTOS',
+    'QUINIENTOS',
+    'SEISCIENTOS',
+    'SETECIENTOS',
+    'OCHOCIENTOS',
+    'NOVECIENTOS',
+  ];
+
+  function seccion(n: number): string {
+    if (n === 0) return '';
+    if (n < 10) return unidades[n];
+    if (n > 10 && n < 16) return especiales[n];
+    if (n < 20) return 'DIECI' + unidades[n - 10].toLowerCase();
+    if (n === 20) return 'VEINTE';
+    if (n > 20 && n < 30) return 'VEINTI' + unidades[n - 20].toLowerCase();
+    if (n < 100) {
+      const d = Math.floor(n / 10);
+      const u = n % 10;
+      return u ? `${decenas[d]} Y ${unidades[u]}` : decenas[d];
+    }
+    if (n === 100) return 'CIEN';
+    if (n < 1000) {
+      const c = Math.floor(n / 100);
+      const r = n % 100;
+      const cc = centenas[c];
+      return r ? `${cc} ${seccion(r)}` : cc;
+    }
+    return '';
+  }
+
+  function miles(n: number): string {
+    if (n < 1000) return seccion(n);
+    const m = Math.floor(n / 1000);
+    const r = n % 1000;
+    const mtxt = m === 1 ? 'MIL' : `${seccion(m)} MIL`;
+    return r ? `${mtxt} ${seccion(r)}` : mtxt;
+  }
+
+  function millones(n: number): string {
+    if (n < 1000000) return miles(n);
+    const mm = Math.floor(n / 1000000);
+    const r = n % 1000000;
+    const mmtxt = mm === 1 ? 'UN MILLON' : `${seccion(mm)} MILLONES`;
+    return r ? `${mmtxt} ${miles(r)}` : mmtxt;
+  }
+
+  const entero = Math.floor(Math.abs(num));
+  const dec = Math.round((Math.abs(num) - entero) * 100);
+  const letras = entero === 0 ? 'CERO' : millones(entero);
+  const fraccion = dec.toString().padStart(2, '0');
+  return `${letras} CON ${fraccion}/100`;
+}
+
+function drawLabelValue(
+  docText: (text: string, xMM: number, yMM: number, opts?: TextOpts) => void,
+  label: string,
+  value: string | undefined,
+  xMM: number,
+  yMM: number,
+  opts: TextOpts = {},
+) {
+  if (!value) return;
+  const full = `${label}: ${value}`;
+  docText(full, xMM, yMM, opts);
+}
+
+export async function generateInvoicePdf({
+  bgPath,
+  outputPath,
+  data,
+  qrDataUrl,
+  config,
+}: {
+  bgPath: string;
+  outputPath: string;
+  data: InvoiceData;
+  qrDataUrl?: string | Buffer;
+  config: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+
+  // Fondo a página completa
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  // Fuentes (usar Helvetica por defecto si no se registran TTF)
+  const fontRegularRegistered = false;
+  const fontBoldRegistered = false;
+
+  function setFont(bold?: boolean) {
+    if (!fontRegularRegistered && !fontBoldRegistered) {
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+    } else {
+      doc.font(bold ? 'B' : 'R');
+    }
+  }
+
+  function drawText(text: string, xMM: number, yMM: number, opts: TextOpts = {}) {
+    const { fontSize = 10, bold, align = 'left', maxWidth } = opts;
+    setFont(bold);
+    doc.fontSize(fontSize);
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const width = maxWidth ? mm(maxWidth) : undefined;
+    doc.text(text ?? '', x, y, { width, align });
+  }
+
+  function drawNumber(value: number, xRightMM: number, yMM: number, opts: TextOpts = {}) {
+    const text = formatNumberEsAr(value);
+    drawText(text, xRightMM, yMM, { ...opts, align: opts.align ?? 'right' });
+  }
+
+  function drawImage(img: string | Buffer, xMM: number, yMM: number, wMM?: number) {
+    const x = mm(xMM);
+    const y = mm(yMM);
+    const opt: any = {};
+    if (wMM) opt.width = mm(wMM);
+    doc.image(img as any, x, y, opt);
+  }
+
+  function drawRow(cells: Cell[], yMM: number) {
+    for (const cell of cells) {
+      const { text, x, width, align = 'left', fontSize = 9, bold } = cell;
+      drawText(text, x, yMM, { align, fontSize, bold, maxWidth: width });
+    }
+  }
+
+  const c = config.coords;
+
+  // Letra del comprobante
+  if (data.tipoComprobanteLetra && c.comprobanteLetra) {
+    drawText(
+      data.tipoComprobanteLetra,
+      c.comprobanteLetra.x,
+      c.comprobanteLetra.y,
+      { fontSize: c.comprobanteLetra.fontSize ?? 26, bold: true, align: 'center' },
+    );
+  }
+
+  // Encabezado / Cliente
+  drawText(data.cliente.nombre, c.clienteNombre.x, c.clienteNombre.y, {
+    fontSize: c.clienteNombre.fontSize ?? 10,
+    bold: true,
+    maxWidth: 90,
+  });
+  if (data.cliente.domicilio) {
+    drawText(data.cliente.domicilio, c.clienteDomicilio.x, c.clienteDomicilio.y, {
+      fontSize: c.clienteDomicilio.fontSize ?? 9,
+      maxWidth: 90,
+    });
+  }
+  if (data.cliente.cuitDni)
+    drawText(data.cliente.cuitDni, c.clienteCuit.x, c.clienteCuit.y, { fontSize: c.clienteCuit.fontSize ?? 9 });
+  if (data.cliente.condicionIva)
+    drawText(data.cliente.condicionIva, c.clienteIva.x, c.clienteIva.y, { fontSize: c.clienteIva.fontSize ?? 9 });
+
+  // Encabezado / Comprobante
+  const fechaMostrar = (data.fechaHora || data.fecha) as string;
+  if (c.fechaHora) {
+    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
+  } else {
+    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
+  }
+  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
+
+  if (data.atendio && c.atendio)
+    drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
+  if (data.condicionPago && c.condicionPago)
+    drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
+
+  // Campos opcionales extra del encabezado
+  if (c.referenciaInterna)
+    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
+      fontSize: c.referenciaInterna.fontSize ?? 9,
+    });
+  if (c.notaRecepcion)
+    drawLabelValue(drawText, 'RECEP', data.notaRecepcion, c.notaRecepcion.x, c.notaRecepcion.y, {
+      fontSize: c.notaRecepcion.fontSize ?? 9,
+    });
+  if (c.remito)
+    drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: c.remito.fontSize ?? 9 });
+  if (c.email)
+    drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: c.email.fontSize ?? 9 });
+  if (c.observaciones && data.observaciones)
+    drawText(data.observaciones, c.observaciones.x, c.observaciones.y, {
+      fontSize: c.observaciones.fontSize ?? 9,
+      maxWidth: c.observaciones.maxWidth,
+    });
+
+  // Detalle de ítems
+  let rowY = c.itemsStartY;
+  const rowHeight = c.itemsRowHeight;
+  const itemsFontSize = c.itemsFontSize ?? 9;
+  for (const it of data.items) {
+    const total = typeof it.total === 'number' ? it.total : it.cantidad * it.unitario;
+    drawRow(
+      [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+        { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+      ],
+      rowY,
+    );
+    rowY += rowHeight;
+  }
+
+  // Totales
+  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+
+  const iva21 = data.ivaPorAlicuota['21'] || 0;
+  const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
+  const iva27 = data.ivaPorAlicuota['27'] || 0;
+
+  const neto21 = (data.netoPorAlicuota && (data.netoPorAlicuota['21'] || 0)) || undefined;
+  const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
+  const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
+
+  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+
+  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+
+  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+  drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+
+  if (c.totalEnLetras) {
+    drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
+      fontSize: c.totalEnLetras.fontSize ?? 9,
+      bold: true,
+      maxWidth: c.totalEnLetras.maxWidth,
+    });
+  }
+
+  // CAE
+  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
+  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+
+  // QR
+  if (qrDataUrl) {
+    let buf: Buffer;
+    if (typeof qrDataUrl === 'string') {
+      const base64 = qrDataUrl.replace(/^data:image\/\w+;base64,/, '');
+      buf = Buffer.from(base64, 'base64');
+    } else {
+      buf = qrDataUrl;
+    }
+    drawImage(buf, c.qr.x, c.qr.y, c.qr.size);
+  }
+
+  // Textos legales / pie
+  if (c.legalDefensaConsumidor)
+    drawText(
+      'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
+      c.legalDefensaConsumidor.x,
+      c.legalDefensaConsumidor.y,
+      { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+    );
+  if (c.legalGracias)
+    drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
+      fontSize: c.legalGracias.fontSize ?? 9,
+      maxWidth: c.legalGracias.maxWidth,
+    });
+  if (c.legalContacto)
+    drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
+      fontSize: c.legalContacto.fontSize ?? 8,
+      maxWidth: c.legalContacto.maxWidth,
+    });
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+  return { ok: true, outputPath };
+}
+
+export async function generateCalibrationPdf(bgPath: string, outputPath: string, opts?: {
+  rectWidthMM?: number;
+  rectHeightMM?: number;
+  // Permitir pasar un layout alternativo si se desea
+  config?: Config;
+}) {
+  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const stream = fs.createWriteStream(outputPath);
+  doc.pipe(stream);
+
+  const pageW = doc.page.width;
+  const pageH = doc.page.height;
+  doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
+
+  const rectWDefault = mm(opts?.rectWidthMM ?? 40);
+  const rectHDefault = mm(opts?.rectHeightMM ?? 6);
+
+  const cfg = opts?.config;
+  const coords = (cfg ? cfg.coords : undefined) || ({} as any);
+
+  // Si no se pasó config, intentar cargar el layout por defecto dinámicamente
+  // Nota: import dinámico para evitar ciclo en tiempo de compilación
+  if (!cfg) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const defaultLayout: { default?: Config; coords?: Config['coords'] } = require('./invoiceLayout.mendoza');
+      const usable = (defaultLayout.default as Config) || (defaultLayout as unknown as Config);
+      Object.assign(coords, usable.coords);
+    } catch {
+      // sin layout, no dibujamos nada
+    }
+  }
+
+  doc.strokeColor('red').lineWidth(0.5);
+  doc.fontSize(6).fillColor('red');
+
+  const entries = Object.entries(coords) as Array<[string, any]>;
+  for (const [key, pos] of entries) {
+    if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') continue;
+    const x = mm(pos.x);
+    const y = mm(pos.y);
+    const isQr = key.toLowerCase() === 'qr' && typeof pos.size === 'number';
+    const rectW = isQr ? mm(pos.size) : rectWDefault;
+    const rectH = isQr ? mm(pos.size) : rectHDefault;
+    doc.rect(x, y, rectW, rectH).stroke();
+    doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
+  }
+
+  doc.end();
+  await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
+}
+
+
+
+```
+
+```markdown
+## Guía de calibración y prueba de factura (PDFKit)
+
+Esta guía explica cómo alinear (calibrar) la factura generada con PDFKit para que coincida exactamente con el modelo viejo, usando el fondo `MiFondo-pagado.jpg`.
+
+### Archivos involucrados
+- Layout (coordenadas en mm): `src/invoiceLayout.mendoza.ts`
+- Render PDF: `src/pdfRenderer.ts`
+- Script de calibración: `src/calibrate.ts`
+- Ejemplo de factura ficticia: `src/renderExample.ts`
+- Fondo JPG: `templates/MiFondo-pagado.jpg`
+- Salidas: `test-output/calibration.pdf` y `test-output/FA_0016-00009207.NEW.pdf`
+
+### Conceptos clave
+- Todas las coordenadas están en milímetros (mm). Conversión interna: `mm(x) = x * 72 / 25.4`.
+- Eje X (izq→der) y Eje Y (arriba→abajo). Si un texto aparece demasiado abajo, disminuir su `y`.
+- El **layout** concentra todas las posiciones: editar solo `src/invoiceLayout.mendoza.ts` para mover campos.
+
+### 1) Generar PDF de calibración
+Sirve para ver rápidamente todas las posiciones de los campos sobre el fondo sin datos reales.
+
+Pasos:
+1. Compilar TypeScript:
+   - `npm run build:ts`
+2. Ejecutar calibración:
+   - `node dist/src/calibrate.js`
+3. Abrir `test-output/calibration.pdf` y comparar con el PDF viejo.
+
+Qué verás:
+- Rectángulos de borde rojo (40×6 mm por defecto) en cada coordenada del layout.
+- Dentro de cada rectángulo, el nombre del campo (ej: `clienteNombre`, `fecha`, `nro`, etc.).
+
+Nota sobre el QR:
+- El rectángulo del `qr` usa su tamaño real (`size` en mm) definido en el layout para que puedas ubicarlo exactamente.
+
+Ajustes rápidos:
+- Mover un campo hacia arriba: reducir `y` (ej: `y: 52 → 50`).
+- Mover un campo hacia la derecha: aumentar `x` (ej: `x: 16 → 18`).
+- Repetir: guardar, `npm run build:ts`, `node dist/src/calibrate.js` y volver a abrir `calibration.pdf`.
+
+Tamaño de cajas (opcional):
+- En `src/calibrate.ts` podés cambiar `rectWidthMM` y `rectHeightMM` si alguna etiqueta no entra.
+
+### 2) Ajustar coordenadas en el layout
+Editar `src/invoiceLayout.mendoza.ts`:
+- Letra de comprobante: `comprobanteLetra: { x, y }`
+- Encabezado cliente: `clienteNombre`, `clienteDomicilio`, `clienteCuit`, `clienteIva`
+- Fecha/hora: `fecha` o `fechaHora`
+- Punto de venta y número: `pv`, `nro`
+- Extra encabezado (opcionales): `atendio`, `condicionPago`, `referenciaInterna`, `notaRecepcion`, `remito`, `email`, `observaciones`
+- Ítems (detalle):
+  - Posición inicial de filas: `itemsStartY`
+  - Alto de fila: `itemsRowHeight`
+  - Columnas: `cols.cant`, `cols.desc`, `cols.unit`, `cols.alic`, `cols.total` (cada una con `{ x, w }`)
+- Totales:
+  - Neto total: `neto`
+  - Netos por alícuota: `neto21`, `neto105`, `neto27`
+  - IVA por alícuota: `iva21`, `iva105`, `iva27`
+  - IVA total: `impIvaTotal`
+  - Total final: `total`
+  - En letras: `totalEnLetras { x, y, maxWidth }`
+- CAE y vencimiento: `cae`, `caeVto`
+- QR: `qr { x, y, size }` (tamaño en mm, típico 28)
+- Textos legales/pie: `legalDefensaConsumidor`, `legalGracias`, `legalContacto`
+
+Sugerencias:
+- Ajustar en pasos de 1–2 mm hasta calzar perfecto.
+- Mantener foco primero en encabezado, luego ítems, por último totales y pie.
+
+### 3) Generar factura ficticia de prueba
+Sirve para evaluar tipografías, alineaciones numéricas y wraps reales de descripciones.
+
+Pasos:
+1. Editar `src/renderExample.ts` y completar:
+   - `tipoComprobanteLetra`, `fechaHora`, datos de cliente e ítems reales de prueba.
+   - Opcional: agregar `qr_base64.txt` (data URL base64) si querés ver el QR.
+2. Compilar TypeScript: `npm run build:ts`
+3. Ejecutar ejemplo: `node dist/src/renderExample.js`
+4. Abrir `test-output/FA_0016-00009207.NEW.pdf` y comparar con el PDF viejo.
+
+Qué validar:
+- Números alineados a la derecha con 2 decimales (unitario y total por línea, totales abajo).
+- Wrap de descripciones dentro del ancho de columna definido (`cols.desc.w`).
+- Separación entre filas según `itemsRowHeight`.
+- Letra de comprobante bien centrada en el recuadro superior.
+- CAE, Vencimiento y QR en sus posiciones exactas.
+- Texto “SON PESOS: …” en posición y ancho correctos.
+
+### 4) Tips y resolución de problemas
+- Si todo aparece “corrida” verticalmente por igual, revisar escala/zoom de impresión (usar 100% sin márgenes).
+- A4 recomendado: 210×297 mm; el JPG puede estirarse a página completa si no coincide.
+- Si el QR no aparece, verificar `qr_base64.txt` (debe contener `data:image/...;base64,XXXX`).
+- Los textos legales se definen en `pdfRenderer.ts` (pueden editarse o apagarse moviendo sus coordenadas fuera de página).
+- Por defecto se usa fuente `Helvetica`/`Helvetica-Bold`. Se pueden registrar TTF si se requiere.
+
+### 5) Checklist de campos (resumen)
+- Letra: `comprobanteLetra`
+- Cliente: `clienteNombre`, `clienteDomicilio`, `clienteCuit`, `clienteIva`
+- Fecha/hora: `fecha` | `fechaHora`
+- PV y Nro: `pv`, `nro`
+- Extras: `atendio`, `condicionPago`, `referenciaInterna`, `notaRecepcion`, `remito`, `email`, `observaciones`
+- Ítems: `itemsStartY`, `itemsRowHeight`, `cols.{cant,desc,unit,alic,total}`
+- Totales: `neto`, `neto21`, `neto105`, `neto27`, `iva21`, `iva105`, `iva27`, `impIvaTotal`, `total`, `totalEnLetras`
+- CAE/QR/Pie: `cae`, `caeVto`, `qr`, `legalDefensaConsumidor`, `legalGracias`, `legalContacto`
+
+---
+Con estos pasos, tu ayudante debería poder alinear la factura en pocos ciclos: generar `calibration.pdf`, ajustar mm en el layout, validar con la factura ficticia y repetir hasta que calce al 100% con el diseño viejo.
+
+
+
+```
+
+Hola
+
+- Ya ajusté el modo de calibración: el rectángulo del campo `qr` ahora respeta el tamaño real configurado en `src/invoiceLayout.mendoza.ts` (`qr.size` en mm). Así lo podés ubicar con precisión.
+- También actualicé la guía `docs/facturacion/Calibracion_Factura_PDF.md` con la nota sobre el QR.
+
+Para mover el QR:
+- Editá en `src/invoiceLayout.mendoza.ts`:
+```ts
+qr: { x: 20, y: 210, size: 28 }
+```
+- Re-generá la calibración:
+```powershell
+npm run pdf:calibrate
+```
+- Verificá en `test-output/calibration.pdf`. Ajustá `x`, `y` y/o `size` hasta calzar perfecto.
+
+```typescript
+qr: { x: 20, y: 210, size: 28 }
+```
+
+```powershell
+npm run pdf:calibrate
+```
 
