@@ -92,16 +92,25 @@ export interface Config {
     subtotal105?: { x: number; y: number; fontSize?: number };
     subtotal27?: { x: number; y: number; fontSize?: number };
 
-    // Totales discriminados
-    neto: { x: number; y: number; fontSize?: number }; // neto gravado total
-    neto21?: { x: number; y: number; fontSize?: number };
-    neto105?: { x: number; y: number; fontSize?: number };
-    neto27?: { x: number; y: number; fontSize?: number };
-    iva21?: { x: number; y: number; fontSize?: number };
-    iva105?: { x: number; y: number; fontSize?: number };
-    iva27?: { x: number; y: number; fontSize?: number };
-    impIvaTotal: { x: number; y: number; fontSize?: number };
-    total: { x: number; y: number; fontSize?: number };
+         // Totales discriminados
+     neto: { x: number; y: number; fontSize?: number }; // neto gravado total
+     netoLabel?: { x: number; y: number; fontSize?: number }; // etiqueta "Neto:"
+     neto21?: { x: number; y: number; fontSize?: number };
+     neto21Label?: { x: number; y: number; fontSize?: number }; // etiqueta "Neto 21%:"
+     neto105?: { x: number; y: number; fontSize?: number };
+     neto105Label?: { x: number; y: number; fontSize?: number }; // etiqueta "Neto 10.5%:"
+     neto27?: { x: number; y: number; fontSize?: number };
+     neto27Label?: { x: number; y: number; fontSize?: number }; // etiqueta "Neto 27%:"
+     iva21?: { x: number; y: number; fontSize?: number };
+     iva21Label?: { x: number; y: number; fontSize?: number }; // etiqueta "IVA 21%:"
+     iva105?: { x: number; y: number; fontSize?: number };
+     iva105Label?: { x: number; y: number; fontSize?: number }; // etiqueta "IVA 10.5%:"
+     iva27?: { x: number; y: number; fontSize?: number };
+     iva27Label?: { x: number; y: number; fontSize?: number }; // etiqueta "IVA 27%:"
+     impIvaTotal: { x: number; y: number; fontSize?: number };
+     impIvaTotalLabel?: { x: number; y: number; fontSize?: number }; // etiqueta "IVA Total:"
+     total: { x: number; y: number; fontSize?: number };
+     totalLabel?: { x: number; y: number; fontSize?: number }; // etiqueta "TOTAL:"
 
     // Total en letras
     totalEnLetras?: { x: number; y: number; maxWidth?: number; fontSize?: number };
@@ -109,7 +118,6 @@ export interface Config {
     cae: { x: number; y: number; fontSize?: number };
     caeVto: { x: number; y: number; fontSize?: number };
 
-    qr: { x: number; y: number; size: number }; // mm
     qrCode?: { x: number; y: number; size: number };
 
     // Textos legales / pie
@@ -283,17 +291,18 @@ function drawLabelValue(
 // Función para generar QR code
 async function generateQRCode(data: string): Promise<Buffer> {
   try {
-    return await QRCode.toBuffer(data, {
+    const buffer = await QRCode.toBuffer(data, {
       type: 'image/png',
-      width: 200,
-      margin: 1,
+      width: 300, // Aumentar tamaño para mejor calidad
+      margin: 2,  // Margen más pequeño
       color: {
-        dark: '#000000',
-        light: '#FFFFFF'
-      }
+        dark: '#000000',  // Negro puro
+        light: '#FFFFFF'  // Blanco puro
+      },
+      errorCorrectionLevel: 'M' // Nivel medio de corrección
     });
+    return buffer;
   } catch (error) {
-    console.error('Error generando QR:', error);
     // Retornar un buffer vacío si falla
     return Buffer.alloc(0);
   }
@@ -480,8 +489,15 @@ export async function generateInvoicePdf({
     rowY += rowHeight;
   }
 
-  // Totales
-  drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+  // Totales - Dibujar etiquetas y valores por separado (como en el sistema viejo)
+  console.log('🔍 DEBUG NETO:', { x: c.neto.x, y: c.neto.y, value: data.netoGravado });
+  console.log('🔍 DEBUG NETO - Coordenadas convertidas:', { x: mm(c.neto.x), y: mm(c.neto.y) });
+  
+  // Dibujar etiqueta y valor por separado
+  if (c.netoLabel) {
+    drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
+  }
+  drawText(formatNumberEsAr(data.netoGravado), c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
 
   const iva21 = data.ivaPorAlicuota['21'] || 0;
   const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
@@ -491,16 +507,56 @@ export async function generateInvoicePdf({
   const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
   const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
 
-  if (c.neto21 && typeof neto21 === 'number') drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
-  if (c.neto105 && typeof neto105 === 'number') drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
-  if (c.neto27 && typeof neto27 === 'number') drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+  if (c.neto21 && typeof neto21 === 'number') {
+    console.log('🔍 DEBUG NETO21:', { x: c.neto21.x, y: c.neto21.y, value: neto21 });
+    if (c.neto21Label) {
+      drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(neto21), c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+  }
+  if (c.neto105 && typeof neto105 === 'number') {
+    console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
+    if (c.neto105Label) {
+      drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(neto105), c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+  }
+  if (c.neto27 && typeof neto27 === 'number') {
+    console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
+    if (c.neto27Label) {
+      drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(neto27), c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+  }
 
-  if (c.iva21) drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
-  if (c.iva105) drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
-  if (c.iva27) drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+  if (c.iva21) {
+    if (c.iva21Label) {
+      drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(iva21), c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+  }
+  if (c.iva105) {
+    if (c.iva105Label) {
+      drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(iva105), c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+  }
+  if (c.iva27) {
+    if (c.iva27Label) {
+      drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(iva27), c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+  }
 
-  drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
-  drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+  if (c.impIvaTotalLabel) {
+    drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
+  }
+  drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+  
+  if (c.totalLabel) {
+    drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
+  }
+  drawText(formatNumberEsAr(data.total), c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
 
   if (c.totalEnLetras) {
     drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
@@ -514,16 +570,28 @@ export async function generateInvoicePdf({
   drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
   drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
 
-  // QR
-  if (qrDataUrl) {
-    let buf: Buffer;
-    if (typeof qrDataUrl === 'string') {
-      const base64 = qrDataUrl.replace(/^data:image\/\w+;base64,/, '');
-      buf = Buffer.from(base64, 'base64');
-    } else {
-      buf = qrDataUrl;
+  // QR Code - Dibujar inmediatamente después del CAE
+  if (c.qrCode && data.cae) {
+    try {
+      // Generar datos para el QR (formato AFIP)
+      const qrData = `${data.empresa.cuit}|${data.empresa.condicionIva}|${data.empresa.pv}|${data.empresa.numero}|${data.cae}|${data.caeVto}`;
+      
+      const qrBuffer = await generateQRCode(qrData);
+      
+      if (qrBuffer.length > 0) {
+        // Dibujar el QR directamente
+        const x = mm(c.qrCode.x);
+        const y = mm(c.qrCode.y);
+        const size = mm(c.qrCode.size);
+        
+        doc.image(qrBuffer, x, y, {
+          width: size,
+          height: size
+        });
+      }
+    } catch (error) {
+      // Silenciar errores de QR
     }
-    drawImage(buf, c.qr.x, c.qr.y, c.qr.size);
   }
 
   // Textos legales / pie
@@ -545,23 +613,7 @@ export async function generateInvoicePdf({
       maxWidth: c.legalContacto.maxWidth,
     });
     
-    // QR Code
-    if (c.qrCode && data.cae) {
-      try {
-        // Generar datos para el QR (formato AFIP)
-        const qrData = `${data.empresa.cuit}|${data.empresa.condicionIva}|${data.empresa.pv}|${data.empresa.numero}|${data.cae}|${data.caeVto}`;
-        const qrBuffer = await generateQRCode(qrData);
-        
-        if (qrBuffer.length > 0) {
-          doc.image(qrBuffer, mm(c.qrCode.x), mm(c.qrCode.y), {
-            width: mm(c.qrCode.size),
-            height: mm(c.qrCode.size)
-          });
-        }
-      } catch (error) {
-        console.error('Error dibujando QR:', error);
-      }
-    }
+
 
   doc.end();
   await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
@@ -608,12 +660,12 @@ export async function generateCalibrationPdf(bgPath: string, outputPath: string,
   for (const [key, pos] of entries) {
     if (!pos || typeof pos.x !== 'number' || typeof pos.y !== 'number') continue;
     const x = mm(pos.x);
-    const y = mm(pos.y);
-    const isQr = key.toLowerCase() === 'qr' && typeof pos.size === 'number';
-    const rectW = isQr ? mm(pos.size) : rectWDefault;
-    const rectH = isQr ? mm(pos.size) : rectHDefault;
-    doc.rect(x, y, rectW, rectH).stroke();
-    doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
+          const y = mm(pos.y);
+      const isQr = key.toLowerCase() === 'qr' && typeof pos.size === 'number';
+      const rectW = isQr ? mm(pos.size) : rectWDefault;
+      const rectH = isQr ? mm(pos.size) : rectHDefault;
+      doc.rect(x, y, rectW, rectH).stroke();
+      doc.text(key, x + mm(1), y + mm(1), { width: rectW - mm(2) });
   }
 
   doc.end();
