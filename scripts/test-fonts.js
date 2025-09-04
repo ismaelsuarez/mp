@@ -1,10 +1,11 @@
-import fs from 'fs';
-import layout from './invoiceLayout.mendoza';
-import { generateInvoicePdf } from './pdfRenderer';
-import type { InvoiceData } from './pdfRenderer';
+const fs = require('fs');
+const { generateInvoicePdf } = require('../dist/src/pdfRenderer');
+const layout = require('../dist/src/invoiceLayout.mendoza').default;
 
-(async () => {
-  const data: InvoiceData = {
+async function testFonts() {
+  console.log('🔤 Probando fuentes de la factura...');
+  
+  const data = {
     empresa: { 
       nombre: 'TODO-COMPUTACIÓN',
       domicilio: 'AV. SAN MARTÍN 1234, MENDOZA',
@@ -21,8 +22,8 @@ import type { InvoiceData } from './pdfRenderer';
       condicionIva: 'RESPONSABLE INSCRIPTO',
     },
     fecha: '2025-09-01',
-    hora: 'Hora: 15:30', // Hora de emisión
-    tipoComprobanteLetra: 'B', // A=Factura A, B=Factura B, C=Factura C, NC=Nota de Crédito, ND=Nota de Débito, R=Remito
+    hora: '15:30',
+    tipoComprobanteLetra: 'B',
     atendio: 'Atendio: gonzalo',
     condicionPago: 'Pago: MC DEBIT',
     referenciaInterna: 'Ref.Interna 25090111361441',
@@ -31,7 +32,6 @@ import type { InvoiceData } from './pdfRenderer';
     email: 'cliente@example.com',
     observaciones: 'Factura emitida conforme a datos proporcionados por el cliente',
 
-    // Información adicional
     moneda: 'PES',
     cotizacion: 1.0,
     formaPago: 'TARJETA DE CRÉDITO',
@@ -39,40 +39,38 @@ import type { InvoiceData } from './pdfRenderer';
     items: [
       { descripcion: 'GRASA DISIP. GRIZZLY 0,3gr     SERVICIO', cantidad: 1, unitario: 6033.058, iva: 21, total: 6033.058 },
       { descripcion: 'MANTENIMIENTO DE EQUIPO', cantidad: 1, unitario: 24793.388, iva: 21, total: 24793.388 },
-      { descripcion: 'REPARACION/MANTENIMIENTO DE MECANISMOS', cantidad: 1, unitario: 99173.554, iva: 21, total: 99173.554 },
-      { descripcion: 'BONIFICACION 21%', cantidad: 1, unitario: -6611.57, iva: 21, total: -6611.57 },
     ],
 
-    netoGravado: 123388.43,
-    netoPorAlicuota: { '21': 123388.43, '10.5': 0, '27': 0 },
-    ivaPorAlicuota: { '21': 25911.57, '10.5': 0, '27': 0 },
-    ivaTotal: 25911.57,
-    total: 149300.0,
+    netoGravado: 30826.45,
+    netoPorAlicuota: { '21': 30826.45, '10.5': 0, '27': 0 },
+    ivaPorAlicuota: { '21': 6473.55, '10.5': 0, '27': 0 },
+    ivaTotal: 6473.55,
+    total: 37300.0,
 
-    // Datos de CAE
     cae: '75355394213832',
     caeVto: '2025-09-11',
   };
 
-  let qrDataUrl: string | undefined;
-  try {
-    qrDataUrl = fs.readFileSync('./qr_base64.txt', 'utf8').trim();
-  } catch {
-    // si no existe el archivo, seguimos sin QR
-  }
-
   const outputDir = 'test-output';
   if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
 
-  const result = await generateInvoicePdf({
-    bgPath: 'templates/MiFondo-pagado.jpg',
-    outputPath: `${outputDir}/FA_0016-00009207.NEW.pdf`,
-    data,
-    qrDataUrl,
-    config: layout,
-  });
+  try {
+    const result = await generateInvoicePdf({
+      bgPath: 'templates/MiFondo-pagado.jpg',
+      outputPath: `${outputDir}/test-fonts.pdf`,
+      data,
+      config: layout,
+    });
 
-  console.log('PDF generado en:', result.outputPath);
-})();
+    console.log('✅ PDF generado exitosamente con fuente Helvetica');
+    console.log('📁 Archivo:', result.outputPath);
+    console.log('\n🎯 Verificar que la fuente sea Helvetica (sans-serif)');
+    console.log('🔍 Comparar con la factura original');
+    
+  } catch (error) {
+    console.error('❌ Error al generar PDF:', error.message);
+  }
+}
 
-
+// Ejecutar la prueba
+testFonts();

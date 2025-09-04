@@ -1,5 +1,6 @@
 import fs from 'fs';
 import PDFDocument from 'pdfkit';
+import QRCode from 'qrcode';
 
 export const mm = (valueInMillimeters: number): number => (valueInMillimeters * 72) / 25.4;
 
@@ -23,7 +24,27 @@ export interface Cell {
 
 export interface Config {
   pageSize?: 'A4';
+  
+  // Configuración de página
+  page?: {
+    width: number; // mm
+    height: number; // mm
+    margins: {
+      top: number;
+      bottom: number;
+      left: number;
+      right: number;
+    };
+  };
+  
   coords: {
+    // Información de la Empresa
+    empresaNombre?: { x: number; y: number; fontSize?: number };
+    empresaDomicilio?: { x: number; y: number; fontSize?: number };
+    empresaCuit?: { x: number; y: number; fontSize?: number };
+    empresaIva?: { x: number; y: number; fontSize?: number };
+    empresaInscripcion?: { x: number; y: number; fontSize?: number };
+
     // Letra del comprobante (A/B/C) en el recuadro central superior
     comprobanteLetra?: { x: number; y: number; fontSize?: number };
 
@@ -36,10 +57,17 @@ export interface Config {
     fecha: { x: number; y: number; fontSize?: number };
     fechaHora?: { x: number; y: number; fontSize?: number };
     pv: { x: number; y: number; fontSize?: number };
-    nro: { x: number; y: number; fontSize?: number };
+    numero?: { x: number; y: number; fontSize?: number };
+    tipoComprobante?: { x: number; y: number; fontSize?: number }; // Tipo de comprobante
 
     atendio?: { x: number; y: number; fontSize?: number };
     condicionPago?: { x: number; y: number; fontSize?: number };
+
+    // Información Adicional
+    hora?: { x: number; y: number; fontSize?: number }; // Hora de emisión
+    moneda?: { x: number; y: number; fontSize?: number };
+    cotizacion?: { x: number; y: number; fontSize?: number };
+    formaPago?: { x: number; y: number; fontSize?: number };
 
     // Extra encabezado (opcionales)
     referenciaInterna?: { x: number; y: number; fontSize?: number };
@@ -59,6 +87,11 @@ export interface Config {
       total: { x: number; w: number };
     };
 
+    // Subtotales por Alícuota
+    subtotal21?: { x: number; y: number; fontSize?: number };
+    subtotal105?: { x: number; y: number; fontSize?: number };
+    subtotal27?: { x: number; y: number; fontSize?: number };
+
     // Totales discriminados
     neto: { x: number; y: number; fontSize?: number }; // neto gravado total
     neto21?: { x: number; y: number; fontSize?: number };
@@ -77,11 +110,19 @@ export interface Config {
     caeVto: { x: number; y: number; fontSize?: number };
 
     qr: { x: number; y: number; size: number }; // mm
+    qrCode?: { x: number; y: number; size: number };
 
     // Textos legales / pie
     legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+  };
+
+  // Validación de campos requeridos
+  validation?: {
+    requiredFields: string[];
+    maxWidth: number;
+    maxHeight: number;
   };
 }
 
@@ -96,7 +137,10 @@ export type Item = {
 export type InvoiceData = {
   empresa: {
     nombre?: string;
+    domicilio?: string;
     cuit: string;
+    condicionIva?: string;
+    inscripcion?: string;
     pv: number;
     numero: number;
   };
@@ -107,6 +151,7 @@ export type InvoiceData = {
     condicionIva?: string;
   };
   fecha: string; // YYYY-MM-DD
+  hora?: string; // HH:mm - Hora de emisión
   fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
   tipoComprobanteLetra?: string; // A | B | C
   atendio?: string;
@@ -116,6 +161,11 @@ export type InvoiceData = {
   remito?: string;
   email?: string;
   observaciones?: string;
+
+  // Información adicional
+  moneda?: string;
+  cotizacion?: number;
+  formaPago?: string;
 
   items: Item[];
 
@@ -230,6 +280,25 @@ function drawLabelValue(
   docText(full, xMM, yMM, opts);
 }
 
+// Función para generar QR code
+async function generateQRCode(data: string): Promise<Buffer> {
+  try {
+    return await QRCode.toBuffer(data, {
+      type: 'image/png',
+      width: 200,
+      margin: 1,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+  } catch (error) {
+    console.error('Error generando QR:', error);
+    // Retornar un buffer vacío si falla
+    return Buffer.alloc(0);
+  }
+}
+
 export async function generateInvoicePdf({
   bgPath,
   outputPath,
@@ -243,7 +312,11 @@ export async function generateInvoicePdf({
   qrDataUrl?: string | Buffer;
   config: Config;
 }) {
-  const doc = new PDFDocument({ size: 'A4', margin: 0 });
+  const doc = new PDFDocument({ 
+    size: 'A4', 
+    margin: 0,
+    font: 'Helvetica' // Fuente original que funcionaba
+  });
   const stream = fs.createWriteStream(outputPath);
   doc.pipe(stream);
 
@@ -259,7 +332,7 @@ export async function generateInvoicePdf({
 
   function setFont(bold?: boolean) {
     if (!fontRegularRegistered && !fontBoldRegistered) {
-      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica');
+      doc.font(bold ? 'Helvetica-Bold' : 'Helvetica'); // Fuente original que funcionaba
     } else {
       doc.font(bold ? 'B' : 'R');
     }
@@ -329,15 +402,45 @@ export async function generateInvoicePdf({
   if (c.fechaHora) {
     drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
   } else {
-    drawText(fechaMostrar, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
+    // Formatear fecha en formato argentino DD/MM/YYYY
+    const fechaObj = new Date(data.fecha);
+    const fechaFormateada = fechaObj.toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    drawText(`Fecha: ${fechaFormateada}`, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
   }
-  drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
-  drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
+  
+  // Tipo de comprobante (Factura, Nota de Crédito, Remito, etc.)
+  if (c.tipoComprobante) {
+    const tipoTexto = data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
+                     data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
+                     data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
+                     data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
+                     data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
+                     data.tipoComprobanteLetra === 'R' ? 'REMITO' :
+                     'COMPROBANTE';
+    drawText(tipoTexto, c.tipoComprobante.x, c.tipoComprobante.y, { 
+      fontSize: c.tipoComprobante.fontSize ?? 10, 
+      bold: true 
+    });
+  }
+  
+  // Número de comprobante en formato "N° 0016 - 00009207"
+  const numeroComprobante = `N° ${String(data.empresa.pv).padStart(4, '0')} - ${String(data.empresa.numero).padStart(8, '0')}`;
+  drawText(numeroComprobante, c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  
+  // Ya no necesitamos dibujar pv y nro por separado
+  // drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  // drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
 
   if (data.atendio && c.atendio)
     drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
   if (data.condicionPago && c.condicionPago)
     drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
+  if (data.hora && c.hora)
+    drawText(data.hora, c.hora.x, c.hora.y, { fontSize: c.hora.fontSize ?? 9 });
 
   // Campos opcionales extra del encabezado
   if (c.referenciaInterna)
@@ -441,6 +544,24 @@ export async function generateInvoicePdf({
       fontSize: c.legalContacto.fontSize ?? 8,
       maxWidth: c.legalContacto.maxWidth,
     });
+    
+    // QR Code
+    if (c.qrCode && data.cae) {
+      try {
+        // Generar datos para el QR (formato AFIP)
+        const qrData = `${data.empresa.cuit}|${data.empresa.condicionIva}|${data.empresa.pv}|${data.empresa.numero}|${data.cae}|${data.caeVto}`;
+        const qrBuffer = await generateQRCode(qrData);
+        
+        if (qrBuffer.length > 0) {
+          doc.image(qrBuffer, mm(c.qrCode.x), mm(c.qrCode.y), {
+            width: mm(c.qrCode.size),
+            height: mm(c.qrCode.size)
+          });
+        }
+      } catch (error) {
+        console.error('Error dibujando QR:', error);
+      }
+    }
 
   doc.end();
   await new Promise<void>((resolve) => stream.on('finish', () => resolve()));
