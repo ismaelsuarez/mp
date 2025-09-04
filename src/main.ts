@@ -1128,6 +1128,20 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:abrir-pdf', async (_e, filePath: string) => {
 		try { await getFacturacionService().abrirPdf(filePath); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+	// Idempotencia: listar y limpiar
+	ipcMain.handle('facturacion:idempotency:list', async () => {
+		try {
+			const stats = afipService.getIdempotencyStats();
+			const pending = afipService.getComprobantesByEstado('PENDING');
+			return { ok: true, stats, pending };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturacion:idempotency:cleanup', async () => {
+		try {
+			const cleaned = afipService.cleanupIdempotency();
+			return { ok: true, cleaned };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
 	ipcMain.handle('facturacion:empresa:get', async () => {
 		try { return { ok: true, data: getDb().getEmpresaConfig() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});

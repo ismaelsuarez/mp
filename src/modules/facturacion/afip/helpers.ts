@@ -70,6 +70,57 @@ export class AfipHelpers {
   }
 
   /**
+   * Consolida los totales por alícuota para WSFEv1 (FECAESolicitar)
+   * Retorna solo montos consolidados y el array Iva[] por alícuota.
+   */
+  static consolidateTotals(items: Comprobante['items']): {
+    ImpTotConc: number;
+    ImpOpEx: number;
+    ImpTrib: number;
+    ImpNeto: number;
+    ImpIVA: number;
+    ImpTotal: number;
+    Iva: Array<{ Id: number; BaseImp: number; Importe: number }>;
+  } {
+    const netoPorAli: Map<number, number> = new Map();
+    const ivaPorAli: Map<number, number> = new Map();
+
+    let impOpEx = 0; // Operaciones exentas (alícuota 0)
+
+    for (const item of items || []) {
+      const base = (item.cantidad || 0) * (item.precioUnitario || 0);
+      const ali = Number(item.iva || 0);
+      if (ali === 0) { impOpEx += base; continue; }
+      const impIva = (base * ali) / 100;
+      netoPorAli.set(ali, (netoPorAli.get(ali) || 0) + base);
+      ivaPorAli.set(ali, (ivaPorAli.get(ali) || 0) + impIva);
+    }
+
+    const ImpNeto = Array.from(netoPorAli.values()).reduce((a, b) => a + b, 0);
+    const ImpIVA = Array.from(ivaPorAli.values()).reduce((a, b) => a + b, 0);
+    const ImpTotConc = 0;
+    const ImpTrib = 0;
+    const ImpOpEx = impOpEx;
+    const ImpTotal = ImpNeto + ImpIVA + ImpTotConc + ImpTrib + ImpOpEx;
+
+    const Iva: Array<{ Id: number; BaseImp: number; Importe: number }> = [];
+    for (const [ali, base] of netoPorAli.entries()) {
+      const importe = ivaPorAli.get(ali) || 0;
+      Iva.push({ Id: this.mapIvaId(ali), BaseImp: this.formatNumber(base), Importe: this.formatNumber(importe) });
+    }
+
+    return {
+      ImpTotConc: this.formatNumber(ImpTotConc),
+      ImpOpEx: this.formatNumber(ImpOpEx),
+      ImpTrib: this.formatNumber(ImpTrib),
+      ImpNeto: this.formatNumber(ImpNeto),
+      ImpIVA: this.formatNumber(ImpIVA),
+      ImpTotal: this.formatNumber(ImpTotal),
+      Iva
+    };
+  }
+
+  /**
    * Construye la URL del QR para AFIP
    */
   static buildQrUrl(data: {
@@ -136,5 +187,60 @@ export class AfipHelpers {
    */
   static formatNumber(value: number): number {
     return Math.round(value * 100) / 100;
+  }
+
+  /**
+   * Mapea condición IVA del receptor (UI) al código ARCA (IVARECEPTOR)
+   * Referencia (manual ARCA COMPG):
+   * 1: IVA Responsable Inscripto
+   * 6: Responsable Monotributo
+   * 13: Monotributista Social
+   * 16: Monotributo Trabajador Independiente Promovido
+   * 4: IVA Sujeto Exento
+   * 7: Sujeto No Categorizado
+   * 8: Proveedor del Exterior
+   * 9: Cliente del Exterior
+   * 10: IVA Liberado – Ley N° 19.640
+   * 15: IVA No Alcanzado
+   * 5: Consumidor Final
+   */
+  static mapCondicionIvaReceptorToArcaCode(cond?: string): number | undefined {
+    const v = String(cond || '').trim().toUpperCase();
+    switch (v) {
+      case 'RI':
+      case 'RESPONSABLE INSCRIPTO':
+        return 1;
+      case 'MT':
+      case 'MONOTRIBUTO':
+        return 6;
+      case 'MONOTRIBUTO SOCIAL':
+      case 'MONOTRIBUTISTA SOCIAL':
+        return 13;
+      case 'MONOTRIBUTO TRABAJADOR INDEPENDIENTE PROMOVIDO':
+        return 16;
+      case 'EX':
+      case 'EXENTO':
+        return 4;
+      case 'SNC':
+      case 'SUJETO NO CATEGORIZADO':
+        return 7;
+      case 'PROVEEDOR EXTERIOR':
+      case 'PROVEEDOR DEL EXTERIOR':
+        return 8;
+      case 'CLIENTE EXTERIOR':
+      case 'CLIENTE DEL EXTERIOR':
+        return 9;
+      case 'LIBERADO 19640':
+      case 'IVA LIBERADO – LEY N° 19.640':
+        return 10;
+      case 'NO ALCANZADO':
+      case 'IVA NO ALCANZADO':
+        return 15;
+      case 'CF':
+      case 'CONSUMIDOR FINAL':
+        return 5;
+      default:
+        return undefined;
+    }
   }
 }

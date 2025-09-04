@@ -20,6 +20,8 @@ export interface ComprobanteProvincialParams {
   cuitReceptor?: string;
   razonSocialReceptor?: string;
   condicionIvaReceptor?: string;
+  // Código ARCA de condición IVA del receptor (IVARECEPTOR)
+  ivareceptor?: number;
   
   // Importes
   neto: number;

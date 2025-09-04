@@ -134,6 +134,9 @@ contextBridge.exposeInMainWorld('api', {
 		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
 		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
 		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs'),
+		// Idempotencia
+		idempotencyList: () => ipcRenderer.invoke('facturacion:idempotency:list'),
+		idempotencyCleanup: () => ipcRenderer.invoke('facturacion:idempotency:cleanup'),
 		// Validación de CAE
 		validateCAE: (facturaId: number, operation: string) => ipcRenderer.invoke('facturacion:validate-cae', { facturaId, operation }),
 		validateCAEComprobante: (numero: number, ptoVta: number, tipoCbte: number, operation: string) => ipcRenderer.invoke('facturacion:validate-cae-comprobante', { numero, ptoVta, tipoCbte, operation }),

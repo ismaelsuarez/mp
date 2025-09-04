@@ -570,26 +570,35 @@ export async function generateInvoicePdf({
   drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
   drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
 
-  // QR Code - Dibujar inmediatamente después del CAE
-  if (c.qrCode && data.cae) {
+  // QR Code - preferir URL oficial (qrDataUrl). Fallback: QR simplificado con CAE
+  if (c.qrCode) {
     try {
-      // Generar datos para el QR (formato AFIP)
-      const qrData = `${data.empresa.cuit}|${data.empresa.condicionIva}|${data.empresa.pv}|${data.empresa.numero}|${data.cae}|${data.caeVto}`;
-      
-      const qrBuffer = await generateQRCode(qrData);
-      
-      if (qrBuffer.length > 0) {
-        // Dibujar el QR directamente
+      let qrBuffer: Buffer | null = null;
+      if (qrDataUrl) {
+        if (Buffer.isBuffer(qrDataUrl)) {
+          qrBuffer = qrDataUrl as Buffer;
+        } else if (typeof qrDataUrl === 'string') {
+          const s = qrDataUrl as string;
+          if (/^data:image\//i.test(s)) {
+            const base64 = s.replace(/^data:image\/\w+;base64,/, '');
+            qrBuffer = Buffer.from(base64, 'base64');
+          } else {
+            qrBuffer = await generateQRCode(s);
+          }
+        }
+      }
+      // Fallback si no hay URL y tenemos CAE
+      if (!qrBuffer && data.cae) {
+        const qrData = `${data.empresa.cuit}|${data.empresa.condicionIva}|${data.empresa.pv}|${data.empresa.numero}|${data.cae}|${data.caeVto}`;
+        qrBuffer = await generateQRCode(qrData);
+      }
+      if (qrBuffer && qrBuffer.length > 0) {
         const x = mm(c.qrCode.x);
         const y = mm(c.qrCode.y);
         const size = mm(c.qrCode.size);
-        
-        doc.image(qrBuffer, x, y, {
-          width: size,
-          height: size
-        });
+        doc.image(qrBuffer, x, y, { width: size, height: size });
       }
-    } catch (error) {
+    } catch {
       // Silenciar errores de QR
     }
   }

@@ -9,6 +9,7 @@ import { afipService } from '../modules/facturacion/afipService';
 import { Comprobante, TipoComprobante } from '../modules/facturacion/types';
 import { ResultadoProvincial } from '../modules/facturacion/provincia/IProvinciaService';
 import { getFacturaGenerator, PlantillaTipo } from './FacturaGenerator';
+import { generateInvoicePdf } from '../pdfRenderer';
 
 // CommonJS requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -68,7 +69,10 @@ export class FacturacionService {
 					cuit: params.cuit_receptor,
 					razonSocial: params.razon_social_receptor || 'Cliente',
 					condicionIva: params.condicion_iva_receptor as any || 'CF'
-				} : undefined,
+				} : (params.condicion_iva_receptor ? {
+					razonSocial: params.razon_social_receptor || 'Cliente',
+					condicionIva: params.condicion_iva_receptor as any || 'CF'
+				} as any : undefined),
 				items: (params.detalle || []).map(item => ({
 					descripcion: item.descripcion,
 					cantidad: item.cantidad,
@@ -150,18 +154,55 @@ export class FacturacionService {
 			codAut: Number(cae)
 		});
 
-		// Generar PDF vía plantilla
-		this.debugLog('Generando PDF...');
-		const plantillaAuto: PlantillaTipo = ([3,8,13].includes(params.tipo_cbte) ? 'nota_credito' : (params.tipo_cbte===6 ? 'factura_b' : 'factura_a'));
-		const pdfPath = await getFacturaGenerator().generarPdf(params.plantilla || plantillaAuto, {
-			emisor: { nombre: params.empresa?.nombre || 'Empresa', cuit: params.empresa?.cuit || params.cuit_emisor, domicilio: params.empresa?.domicilio, iibb: params.empresa?.iibb, inicio: params.empresa?.inicio, logoPath: params.logoPath },
-			receptor: { nombre: params.razon_social_receptor || 'Consumidor Final', cuit: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
-			cbte: { tipo: String(params.tipo_cbte), pto_vta: params.pto_vta, numero, fecha: params.fecha },
-			detalle: (params.detalle || []).map(d => ({ ...d, importe: d.cantidad * d.precioUnitario })),
-			totales: { neto: params.neto, iva: params.iva, total: params.total },
-			afip: { cae, cae_vto: cae_venc, qr_url: qrUrl }
+		// Generar PDF con el layout de ejemplo (como npm run pdf:example)
+		this.debugLog('Generando PDF (layout invoiceLayout.mendoza)...');
+		const base = app.getAppPath();
+		const bgCandidates = [
+			path.join(base, 'templates', 'MiFondo-pagado.jpg'),
+			path.join(base, 'templates', 'MiFondo.jpg')
+		];
+		let bgPath = bgCandidates.find(p => fs.existsSync(p));
+		if (!bgPath) bgPath = path.join(base, 'public', 'Noimage.jpg');
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const layout = require('../invoiceLayout.mendoza').default || require('../invoiceLayout.mendoza');
+		const outDir = path.join(app.getPath('documents'), 'facturas');
+		try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+		// Prefijo según tipo para evitar pisar archivos entre Facturas/NC/ND
+		const t = Number(params.tipo_cbte);
+		const clasePorTipo = (tipo: number): 'A'|'B'|'C' => (tipo===1||tipo===2||tipo===3)?'A':(tipo===6||tipo===7||tipo===8)?'B':'C';
+		let prefix = 'CBTE';
+		if ([3,8,13].includes(t)) prefix = `NC_${clasePorTipo(t)}`; else
+		if ([2,7,12].includes(t)) prefix = `ND_${clasePorTipo(t)}`; else
+		if ([1,6,11].includes(t)) prefix = `F${clasePorTipo(t)}`;
+		const outName = `${prefix}_${String(params.pto_vta).padStart(4,'0')}-${String(numero).padStart(8,'0')}.pdf`;
+		const outPath = path.join(outDir, outName);
+		const ivaPorAlicuota: Record<string, number> = {};
+		for (const d of (params.detalle || [])) {
+			const baseImp = d.cantidad * d.precioUnitario;
+			const ali = String(d.alicuotaIva).replace(',', '.');
+			ivaPorAlicuota[ali] = (ivaPorAlicuota[ali] || 0) + (baseImp * (Number(ali) || 0) / 100);
+		}
+		await generateInvoicePdf({
+			bgPath,
+			outputPath: outPath,
+			data: {
+				empresa: { nombre: params.empresa?.nombre || 'Empresa', domicilio: params.empresa?.domicilio, cuit: params.empresa?.cuit || params.cuit_emisor, pv: params.pto_vta, numero },
+				cliente: { nombre: params.razon_social_receptor || 'Consumidor Final', cuitDni: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
+				fecha: dayjs(params.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
+				tipoComprobanteLetra: ([3,8,13].includes(params.tipo_cbte) ? 'NC' : (params.tipo_cbte===6 ? 'B' : 'A')),
+				items: (params.detalle || []).map(d => ({ descripcion: d.descripcion, cantidad: d.cantidad, unitario: d.precioUnitario, iva: d.alicuotaIva })),
+				netoGravado: params.neto,
+				ivaPorAlicuota,
+				ivaTotal: params.iva,
+				total: params.total,
+				cae,
+				caeVto: dayjs(cae_venc, 'YYYYMMDD').format('YYYY-MM-DD')
+			},
+			config: layout,
+			qrDataUrl: qrUrl
 		});
-		this.debugLog('PDF generado', pdfPath);
+		const pdfPath = outPath;
+		this.debugLog('PDF generado (layout)', pdfPath);
 
 		// Guardar en DB
 		db.insertFacturaEmitida({

@@ -236,31 +236,47 @@ class AfipService {
         throw new Error('Comprobante en proceso, intente nuevamente en unos momentos');
       }
 
-      // Construir array de IVA
-      const ivaArray = AfipHelpers.buildIvaArray(comprobante.items);
-      this.debugLog('Construyendo request createVoucher');
+      // Consolidar totales por alícuota (enviar SOLO montos consolidados a AFIP)
+      const totales = AfipHelpers.consolidateTotals(comprobante.items);
+      const ivaArray = totales.Iva;
+      this.debugLog('Construyendo request createVoucher (consolidado)', totales);
 
       // Construir request para AFIP
+      // Normalizaciones de tipos/formatos exigidos por WSFE
+      const concepto = Number(comprobante.concepto || 1);
+      const docTipo = Number(comprobante.docTipo || 99);
+      const docNro = comprobante.cliente?.cuit
+        ? Number(String(comprobante.cliente.cuit).replace(/\D/g, ''))
+        : 0;
+      const cbteFch = String(comprobante.fecha).replace(/-/g, '');
+      const monId = String(comprobante.monId || 'PES').trim().toUpperCase();
+
       const request: any = {
         CantReg: 1,
         PtoVta: ptoVta,
         CbteTipo: tipoCbte,
-        Concepto: comprobante.concepto || 1,
-        DocTipo: comprobante.docTipo || 99,
-        DocNro: comprobante.cliente?.cuit ? Number(comprobante.cliente.cuit) : 0,
+        Concepto: concepto,
+        DocTipo: docTipo,
+        DocNro: docNro,
         CbteDesde: numero,
         CbteHasta: numero,
-        CbteFch: comprobante.fecha,
-        ImpTotal: AfipHelpers.formatNumber(comprobante.totales.total),
-        ImpTotConc: 0,
-        ImpNeto: AfipHelpers.formatNumber(comprobante.totales.neto),
-        ImpOpEx: 0,
-        ImpIVA: AfipHelpers.formatNumber(comprobante.totales.iva),
-        ImpTrib: 0,
-        MonId: comprobante.monId || 'PES',
+        CbteFch: cbteFch,
+        ImpTotal: totales.ImpTotal,
+        ImpTotConc: totales.ImpTotConc,
+        ImpNeto: totales.ImpNeto,
+        ImpOpEx: totales.ImpOpEx,
+        ImpIVA: totales.ImpIVA,
+        ImpTrib: totales.ImpTrib,
+        MonId: monId,
         MonCotiz: 1,
         Iva: ivaArray
       };
+
+      // ARCA / Provinciales: IVARECEPTOR (si hay condición IVA del receptor)
+      try {
+        const ivarc = AfipHelpers.mapCondicionIvaReceptorToArcaCode(comprobante.cliente?.condicionIva);
+        if (ivarc !== undefined) (request as any).IVARECEPTOR = ivarc;
+      } catch {}
 
       // Ajustes para monotributo con comprobantes C: no discrimina IVA
       try {
@@ -400,6 +416,7 @@ class AfipService {
         cuitReceptor: comprobante.cliente?.cuit,
         razonSocialReceptor: comprobante.cliente?.razonSocial,
         condicionIvaReceptor: comprobante.cliente?.condicionIva,
+        ivareceptor: AfipHelpers.mapCondicionIvaReceptorToArcaCode(comprobante.cliente?.condicionIva),
         neto: comprobante.totales.neto,
         iva: comprobante.totales.iva,
         total: comprobante.totales.total,

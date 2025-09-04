@@ -1786,6 +1786,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			// Obtener datos del cliente
 			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim() || '20300123456';
 			const razonSocial = (document.getElementById('pruebaFacturaRazon') as HTMLInputElement)?.value?.trim() || 'Cliente Demo S.A.';
+			const condIvaRec = (document.getElementById('pruebaFacturaCondIvaRec') as HTMLSelectElement | null)?.value || 'CF';
 
 			// Validar datos
 			if (!cuitCliente || !razonSocial) {
@@ -1862,7 +1863,7 @@ window.addEventListener('DOMContentLoaded', () => {
 				cuit_emisor: '20123456789',
 				cuit_receptor: cuitCliente,
 				razon_social_receptor: razonSocial,
-				condicion_iva_receptor: 'RI',
+				condicion_iva_receptor: condIvaRec,
 				neto: totalNeto,
 				iva: totalIva,
 				total: totalFinal,
@@ -1928,6 +1929,47 @@ window.addEventListener('DOMContentLoaded', () => {
 			} else {
 				if (status) status.innerHTML = `<span class="text-red-400">❌ Error verificando estado: ${res?.error || 'Error desconocido'}</span>`;
 				showToast(`Error: ${res?.error || 'Error verificando servidores'}`);
+			}
+		} catch (e: any) {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+
+	// Idempotencia: Listar pendientes y limpiar
+	(document.getElementById('btnIdemList') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		try {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Listando comprobantes en proceso...</span>';
+			const res = await (window.api as any).facturacion?.idempotencyList();
+			if (res?.ok) {
+				showToast(`PEND:${res.stats?.pending} / OK:${res.stats?.approved} / FAIL:${res.stats?.failed}`);
+				const pend = Array.isArray(res.pending) ? res.pending : [];
+				const html = pend.slice(0, 10).map((p: any) => `#${p.nro_comprobante} PV:${p.pto_vta} T:${p.tipo_cbte} ${p.estado}`).join('<br>');
+				if (status) status.innerHTML = `<span class="text-green-400">✅ Pendientes: ${pend.length}</span><div class="text-xs">${html}</div>`;
+			} else {
+				if (status) status.innerHTML = `<span class="text-red-400">❌ Error listando: ${res?.error || 'desconocido'}</span>`;
+				showToast(`Error listando idempotencia: ${res?.error || 'desconocido'}`);
+			}
+		} catch (e: any) {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = `<span class="text-red-400">❌ Error: ${e?.message || e}</span>`;
+			showToast(`Error: ${e?.message || e}`);
+		}
+	});
+
+	(document.getElementById('btnIdemCleanup') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		try {
+			const status = document.getElementById('pruebaStatus');
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Limpiando idempotencia...</span>';
+			const res = await (window.api as any).facturacion?.idempotencyCleanup();
+			if (res?.ok) {
+				if (status) status.innerHTML = `<span class="text-green-400">✅ Limpiados: ${res.cleaned}</span>`;
+				showToast(`Limpiados: ${res.cleaned}`);
+			} else {
+				if (status) status.innerHTML = `<span class="text-red-400">❌ Error limpiando: ${res?.error || 'desconocido'}</span>`;
+				showToast(`Error limpiando idempotencia: ${res?.error || 'desconocido'}`);
 			}
 		} catch (e: any) {
 			const status = document.getElementById('pruebaStatus');
@@ -2019,6 +2061,34 @@ window.addEventListener('DOMContentLoaded', () => {
 			const v = parseInt(sel.value || '1');
 			if (v === 2 || v === 3) cont.classList.remove('hidden'); else cont.classList.add('hidden');
 		};
+		sel.addEventListener('change', update);
+		update();
+	})();
+
+	// Actualizar IVARECEPTOR al cambiar condición del receptor
+	(function receptorIvaCodeSync(){
+		const sel = document.getElementById('pruebaFacturaCondIvaRec') as HTMLSelectElement | null;
+		const out = document.getElementById('pruebaFacturaIvaRecCod') as HTMLInputElement | null;
+		if (!sel || !out) return;
+		const map: Record<string, number> = {
+			'RI': 1,
+			'RESPONSABLE INSCRIPTO': 1,
+			'MT': 6,
+			'MONOTRIBUTO': 6,
+			'MONOTRIBUTO SOCIAL': 13,
+			'MONOTRIBUTO TRABAJADOR INDEPENDIENTE PROMOVIDO': 16,
+			'EX': 4,
+			'EXENTO': 4,
+			'SNC': 7,
+			'SUJETO NO CATEGORIZADO': 7,
+			'PROVEEDOR DEL EXTERIOR': 8,
+			'CLIENTE DEL EXTERIOR': 9,
+			'LIBERADO 19640': 10,
+			'NO ALCANZADO': 15,
+			'CF': 5,
+			'CONSUMIDOR FINAL': 5
+		};
+		const update = () => { const v = (sel.value || '').toUpperCase(); out.value = String(map[v] ?? ''); };
 		sel.addEventListener('change', update);
 		update();
 	})();
