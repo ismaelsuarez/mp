@@ -45,6 +45,17 @@ export class AfipHelpers {
   }
 
   /**
+   * Mapea un CbteTipo WSFE estándar al correspondiente MiPyME (FCE)
+   * 1->201, 2->202, 3->203, 6->206, 7->207, 8->208, 11->211, 12->212, 13->213
+   */
+  static mapToMiPymeCbte(cbteTipo: number): number {
+    const map: Record<number, number> = {
+      1: 201, 2: 202, 3: 203, 6: 206, 7: 207, 8: 208, 11: 211, 12: 212, 13: 213
+    };
+    return map[cbteTipo] ?? cbteTipo;
+  }
+
+  /**
    * Construye el array de IVA para AFIP agrupando por alícuota
    */
   static buildIvaArray(items: Comprobante['items']): any[] {

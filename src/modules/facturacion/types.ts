@@ -59,6 +59,12 @@ export interface Comprobante {
   totales: Totales;
   observaciones?: string;
   codigoOperacion?: string;
+  // MiPyME
+  modoFin?: 'ADC' | 'SCA';
+  // Validaciones
+  validarPadron13?: boolean;
+  // Tributos opcionales (Ingresos Brutos, Internos, etc.)
+  tributos?: Array<{ Id: number; Desc: string; BaseImp: number; Alic: number; Importe: number }>;
   // Nuevos campos para configuración AFIP
   concepto?: number; // 1=Productos, 2=Servicios, 3=Productos y Servicios
   docTipo?: number; // 80=CUIT, 86=CUIL, 96=DNI, 99=Consumidor Final

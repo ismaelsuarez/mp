@@ -85,6 +85,7 @@ export class FacturacionService {
 					iva: params.iva,
 					total: params.total
 				},
+				modoFin: (params as any).modoFin,
 				// Nuevos campos de configuración AFIP
 				concepto: params.concepto,
 				docTipo: params.doc_tipo,
@@ -94,6 +95,8 @@ export class FacturacionService {
 				FchServHasta: (params as any).FchServHasta,
 				FchVtoPago: (params as any).FchVtoPago,
 				comprobantesAsociados: (params as any).comprobantesAsociados
+				,
+				validarPadron13: (params as any).validarPadron13 === true
 			};
 
 			this.debugLog('Solicitando CAE...');
@@ -190,6 +193,7 @@ export class FacturacionService {
 				cliente: { nombre: params.razon_social_receptor || 'Consumidor Final', cuitDni: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
 				fecha: dayjs(params.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
 				tipoComprobanteLetra: ([3,8,13].includes(params.tipo_cbte) ? 'NC' : (params.tipo_cbte===6 ? 'B' : 'A')),
+				mipymeModo: (params as any).modoFin,
 				items: (params.detalle || []).map(d => ({ descripcion: d.descripcion, cantidad: d.cantidad, unitario: d.precioUnitario, iva: d.alicuotaIva })),
 				netoGravado: params.neto,
 				ivaPorAlicuota,

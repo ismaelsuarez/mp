@@ -1122,6 +1122,28 @@ app.whenReady().then(() => {
 			return { ok: false, error: String(e?.message || e) };
 		}
 	});
+
+	// Padrón 13: consulta
+	ipcMain.handle('facturacion:padron13:consulta', async (_e, payload: { cuit: number }) => {
+		try {
+			const { consultarPadronAlcance13 } = require('./modules/facturacion/padron');
+			const data = await consultarPadronAlcance13(Number(payload?.cuit));
+			return { ok: true, data };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// Padrón 13: ping/dummy
+	ipcMain.handle('facturacion:padron13:ping', async () => {
+		try {
+			const { pingPadron13 } = require('./modules/facturacion/padron');
+			const r = await pingPadron13();
+			return r;
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
 	ipcMain.handle('facturacion:listar', async (_e, filtros: { desde?: string; hasta?: string }) => {
 		try { const rows = getDb().listFacturas(filtros?.desde, filtros?.hasta); return { ok: true, rows }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});

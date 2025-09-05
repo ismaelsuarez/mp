@@ -1,3 +1,216 @@
+# Facturación – Integración AFIP / ARCA
+
+## Fork local de afip.ts
+
+- Se creó un fork local basado en el SDK `afip.ts` y se expone en `src/libs/afip/`.
+- Importación a usar en el proyecto:
+
+```ts
+import { Afip } from '../libs/afip';
+```
+
+- Se eliminaron dependencias externas del paquete en NPM. Se mantiene soporte de servicios: WSAA, WSFEv1, Padrones (A4/A5/A10/A13) y MiPyME (FCE) extendido.
+
+## Padrón 13 (A13)
+
+Wrapper:
+
+```ts
+export async function consultarPadronAlcance13(cuit: number) {
+  return afip.registerScopeThirteenService.getTaxpayerDetails(cuit);
+}
+```
+
+Validación antes de emitir: si falla la consulta de CUIT (no existe o error), no se envía a AFIP y se registra el error.
+
+## Factura de Crédito MiPyME (FCE / FCEM)
+
+- Servicio agregado `src/libs/afip/services/wsfecred.ts` expuesto como `electronicBillingMiPymeService`.
+- API:
+  - `createVoucherMiPyme(data, modoFin: "ADC" | "SCA")` (Opcional `ModoFin` se agrega como opcional con Id 2101).
+  - `getLastVoucherMiPyme(ptoVta, cbteTipo)`.
+- En `afipService.ts` si el comprobante incluye `modoFin`, se mapea `CbteTipo` al correspondiente MiPyME (1→201, 6→206, 11→211, etc.) y se usa el nuevo servicio.
+
+## Consolidación de totales (sin ítems hacia AFIP)
+
+- Implementado `AfipHelpers.consolidateTotals(items)` que retorna solo los montos consolidados y el arreglo de alícuotas `Iva[]`.
+- El request a AFIP (WSFE o FCE) contiene únicamente totales y alícuotas; los ítems no se envían a AFIP.
+- Los ítems se usan solo para PDF.
+
+## Campos opcionales
+
+- Soportados `ImpTrib` y `ImpOpEx` en el request si corresponden; `Tributos` opcional admitido via `comprobante.tributos`.
+
+## IVARECEPTOR
+
+- Se mantiene el soporte para enviar `IVARECEPTOR` al request según condición IVA del receptor (mapeo ARCA).
+
+## UI Manual (config.html / renderer.ts)
+
+- Permite carga manual de facturas.
+- Validación de Cliente con Padrón 13 antes de emitir.
+- Emisión consolidada (solo totales + IVA).
+- Emisión MiPyME con selección de `ModoFin` (ADC/SCA).
+
+## PDF
+
+- Se usa `templates/MiFondo-pagado.jpg` como fondo cuando está disponible.
+- Ítems solo para impresión (no se envían a AFIP).
+- Si es MiPyME, se agrega banner/etiqueta “Factura de Crédito MiPyME – Modo: ADC/SCA”.
+
+## Ejemplos JSON (requests)
+
+Factura común consolidada:
+
+```json
+{
+  "CantReg": 1,
+  "PtoVta": 1,
+  "CbteTipo": 11,
+  "Concepto": 1,
+  "DocTipo": 80,
+  "DocNro": 20300123456,
+  "CbteDesde": 9208,
+  "CbteHasta": 9208,
+  "CbteFch": "20250101",
+  "ImpTotal": 151.5,
+  "ImpTotConc": 0,
+  "ImpNeto": 100,
+  "ImpOpEx": 0,
+  "ImpIVA": 51.5,
+  "ImpTrib": 0,
+  "MonId": "PES",
+  "MonCotiz": 1,
+  "Iva": [{ "Id": 5, "BaseImp": 100, "Importe": 21 }, { "Id": 4, "BaseImp": 100, "Importe": 10.5 }]
+}
+```
+
+Factura MiPyME consolidada:
+
+```json
+{
+  "CantReg": 1,
+  "PtoVta": 1,
+  "CbteTipo": 201,
+  "Concepto": 1,
+  "DocTipo": 80,
+  "DocNro": 20300123456,
+  "CbteDesde": 15,
+  "CbteHasta": 15,
+  "CbteFch": "20250101",
+  "ImpTotal": 121,
+  "ImpTotConc": 0,
+  "ImpNeto": 100,
+  "ImpOpEx": 0,
+  "ImpIVA": 21,
+  "ImpTrib": 0,
+  "MonId": "PES",
+  "MonCotiz": 1,
+  "Iva": [{ "Id": 5, "BaseImp": 100, "Importe": 21 }],
+  "Opcionales": [{ "Id": "2101", "Valor": "ADC" }]
+}
+```
+
+Factura con tributos/exenciones:
+
+```json
+{
+  "CantReg": 1,
+  "PtoVta": 1,
+  "CbteTipo": 6,
+  "Concepto": 1,
+  "DocTipo": 99,
+  "DocNro": 0,
+  "CbteDesde": 120,
+  "CbteHasta": 120,
+  "CbteFch": "20250102",
+  "ImpTotal": 100,
+  "ImpTotConc": 0,
+  "ImpNeto": 80,
+  "ImpOpEx": 20,
+  "ImpIVA": 16.8,
+  "ImpTrib": 3.2,
+  "MonId": "PES",
+  "MonCotiz": 1,
+  "Iva": [{ "Id": 4, "BaseImp": 80, "Importe": 8.4 }, { "Id": 5, "BaseImp": 40, "Importe": 8.4 }],
+  "Tributos": [{ "Id": 99, "Desc": "Ingresos Brutos", "BaseImp": 80, "Alic": 4, "Importe": 3.2 }]
+}
+```
+
+## Notas
+
+- AFIP solo recibe montos consolidados + IVA. Los ítems son internos y se imprimen en el PDF.
+- Validación Padrón 13 se ejecuta antes de enviar a AFIP; si falla, no se emite.
+
+### 11. UI mejorada para operador (config.html / renderer.ts)
+
+- Panel de estado visual con chips:
+  - Padrón 13: muestra estado (OK/ERROR/—) y botón “Ver detalle” con la respuesta JSON completa de A13.
+  - MiPyME: indica el ModoFin seleccionado (ADC/SCA) cuando aplica.
+  - Listo para emitir: resumen final de aptitud para emitir según validaciones previas e ítems.
+- Checklist compacto junto a “Emitir”:
+  - “Revisar” pinta badges para Padrón, MiPyME, Items y Listo, con colores informativos (verde/ámbar/rojo).
+- Acciones manuales previas:
+  - Validar Padrón 13 (sin emitir): consulta y muestra resultado/errores.
+  - Previsualizar MiPyME: muestra si corresponde FCE y el `CbteTipo` FCE resultante.
+- Editor de Tributos opcionales: tabla para agregar/quitar tributos y sus valores (`Id`, `Desc`, `BaseImp`, `Alic`, `Importe`).
+- Emisión consolidada: la UI arma `detalle` solo para PDF y envía al backend totales + IVA + (opcional) tributos y MiPyME.
+
+### 12. Fork local de AFIP – dependencias y estructura
+
+- Ubicación del fork: `src/libs/afip/` (envoltorio) y base SDK local en `sdk/afip.ts-main/`.
+- Importación recomendada en servicios/adaptadores:
+  ```ts
+  import { Afip } from '../libs/afip';
+  ```
+- Dependencias utilizadas por el fork (todas ya presentes en package.json del proyecto):
+  - `soap` (1.x): cliente SOAP para WSDL AFIP (usado por el SDK local). El fork añade paso del `httpsAgent` al cliente SOAP y a la descarga del WSDL.
+  - `https` (nativo Node) y `crypto` (nativo Node): inyección de un `https.Agent` con opciones TLS compatibles (TLS ≥ 1.2, `SSL_OP_LEGACY_SERVER_CONNECT`, `@SECLEVEL=1`).
+  - `fs`, `path` (nativos Node): copiado de WSDL locales y lectura de certificados.
+- Servicios del fork expuestos por `src/libs/afip/index.ts`:
+  - `electronicBillingService` (WSFEv1 normal).
+  - `registerScopeThirteenService` (Padrón 13 – A13).
+  - `electronicBillingMiPymeService` (FCE/WSFECRED extendido en `src/libs/afip/services/wsfecred.ts`).
+- Adaptador de compatibilidad del proyecto: `src/modules/facturacion/adapters/CompatAfip.ts`.
+  - Mapea métodos de alto nivel (`getLastVoucher`, `createVoucher`, `getServerStatus`) y expone además `ElectronicBillingMiPyme`.
+  - Inyecta `httpsAgent` personalizado al contexto del SDK local.
+
+### 13. Servicios/Endpoints y WSDL soportados
+
+- Endpoints (homologación/producción) y WSDL provienen del SDK local (`sdk/afip.ts-main/src/soap/wsdl`).
+- Soportados:
+  - WSAA: `LoginCms` (autenticación, manejado por el SDK local).
+  - WSFEv1: emisión y consulta de comprobantes (WSDL `wsfe.wsdl` y `wsfe-production.wsdl`).
+  - Padrones A4/A5/A10/A13: consultas de persona (WSDL correspondientes con sufijo `-production` / test).
+  - FCE (MiPyME): implementado como extensión sobre WSFEv1 (métodos `FECAESolicitar`, `FECompUltimoAutorizado`) agregando opcional `ModoFin`.
+
+### 14. IPC expuestos hacia la UI (preload.ts / main.ts)
+
+- `facturacion:emitir`: emisión estándar consolidada (totales + IVA + tributos opcionales + MiPyME opcional).
+- `facturacion:padron13:consulta`: consulta manual a Padrón 13 (UI: “Validar Padrón 13”).
+- Otros existentes: listar, abrir PDF, idempotencia, certificados, etc.
+
+### 15. Tests añadidos (dummy/ficticios)
+
+- `src/modules/facturacion/__tests__/padron13.test.ts`: valida que la llamada a A13 retorne estructura o capture error controlado en ausencia de WS.
+- `src/modules/facturacion/__tests__/mipyme.test.ts`: construye un comprobante con `modoFin` y verifica que no reviente el armado; puede fallar por credenciales pero no rompe el build.
+- `src/modules/facturacion/__tests__/facturaNormal.test.ts`: prueba de consolidación de totales/IVA por alícuota.
+
+### 16. Mapeo MiPyME (FCE)
+
+| Comprobante | WSFEv1 | FCE/MiPyME |
+|---|---:|---:|
+| Factura A/B/C | 1 / 6 / 11 | 201 / 206 / 211 |
+| ND A/B/C | 2 / 7 / 12 | 202 / 207 / 212 |
+| NC A/B/C | 3 / 8 / 13 | 203 / 208 / 213 |
+
+`ModoFin` (ADC/SCA) se informa como `Opcional` con Id `2101`.
+
+### 17. Operativa y experiencia de uso
+
+- Antes de emitir, la UI muestra estado de Padrón 13/MiPyME y un checklist “Listo para emitir”.
+- Los ítems solo determinan totales e impresión; AFIP nunca recibe líneas de productos.
+- Los tributos opcionales se pueden cargar en la UI y se informan en el request (cuando corresponda).
 ## Facturación (Node.js + TypeScript)
 
 ### 1. Introducción

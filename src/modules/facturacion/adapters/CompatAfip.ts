@@ -1,5 +1,5 @@
-import { Afip as LocalAfip } from '../../../../sdk/afip.ts-main/src/afip';
-import type { Context } from '../../../../sdk/afip.ts-main/src/types';
+import { Afip as LocalAfip } from '../../../libs/afip';
+import type { Context } from '../../../libs/afip';
 import fs from 'fs';
 import https from 'https';
 import crypto from 'crypto';
@@ -81,7 +81,7 @@ export class CompatAfip {
 	}
 
 	public get ElectronicBilling() {
-		const svc = this.inner.electronicBillingService;
+		const svc = (this.inner as any).electronicBillingService;
 		return {
 			getServerStatus: async () => {
 				const res: any = await svc.getServerStatus();
@@ -128,6 +128,40 @@ export class CompatAfip {
 					return anySvc.getParamGetCotizacion({ MonId: monId });
 				}
 				throw new Error('getCurrencyQuotation no disponible en SDK local');
+			}
+		};
+	}
+
+	public get ElectronicBillingMiPyme() {
+		const svc = (this.inner as any).electronicBillingMiPymeService;
+		return {
+			getLastVoucher: async (ptoVta: number, tipo: number) => {
+				const res: any = await svc.getLastVoucherMiPyme(ptoVta, tipo);
+				return res.CbteNro ?? res;
+			},
+			createVoucher: async (req: any & { ModoFin?: 'ADC'|'SCA' }) => {
+				const r: any = await svc.createVoucherMiPyme(req);
+				return {
+					CAE: r.cae,
+					CAEFchVto: r.caeFchVto,
+					Observaciones: r.response?.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs ?? undefined
+				};
+			}
+		};
+	}
+
+	// Proxy mínimo para Padrón 13
+	public get registerScopeThirteenService() {
+		const svc = (this.inner as any).registerScopeThirteenService;
+		return {
+			getServerStatus: async () => {
+				return await svc.getServerStatus();
+			},
+			getTaxpayerDetails: async (identifier: number) => {
+				return await svc.getTaxpayerDetails(identifier);
+			},
+			getTaxIDByDocument: async (documentNumber: string) => {
+				return await svc.getTaxIDByDocument(documentNumber);
 			}
 		};
 	}
