@@ -1,5 +1,8 @@
 # Notas de versión
-
+## 1.0.17
+- Modo Imagen - "Ir al Frente Automáticamente"
+  - **VENTANA=comun2**: actualiza solo la ventana, modo publicidad.
+## 1.0.16
 ## 1.0.15
 ## 1.0.14
 Fecha de publicación: 2025-01-27
