@@ -532,12 +532,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	if (window.api.onAutoNotice) {
 		window.api.onAutoNotice((payload) => {
-			if ((payload as any)?.error) {
-				showToast(`Auto-reporte error: ${(payload as any).error}`);
-			} else if ((payload as any)?.info) {
-				showToast(String((payload as any).info));
-			} else {
-				showToast(`Auto-reporte generado (${(payload as any)?.count ?? 0})`);
+			const p: any = payload || {};
+			if (p.error) {
+				showToast(`Auto: ${p.error}`);
+			}
+			if (p.info) {
+				showToast(String(p.info));
+			}
+			if (p.A13 || p.remoto || p.manual || p.auto) {
+				showToast(`Auto-reporte generado (${p.count ?? 0})`);
 				addHistoryItem({ tag: new Date().toISOString().slice(0,10), files: [] } as any);
 			}
 		});
