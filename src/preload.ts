@@ -149,6 +149,8 @@ contextBridge.exposeInMainWorld('api', {
 		// Padrón 13
 		padron13Consultar: (cuit: number) => ipcRenderer.invoke('facturacion:padron13:consulta', { cuit }),
 		padron13Ping: () => ipcRenderer.invoke('facturacion:padron13:ping'),
+		// FECRED/MiPyME
+		fceConsultarObligado: (cuit: number) => ipcRenderer.invoke('facturacion:fce:consultar-obligado', { cuit }),
 		// Diagnóstico
 		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta')
 	},

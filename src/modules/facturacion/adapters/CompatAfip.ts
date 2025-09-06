@@ -146,6 +146,10 @@ export class CompatAfip {
 					CAEFchVto: r.caeFchVto,
 					Observaciones: r.response?.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs ?? undefined
 				};
+			},
+			consultarObligadoRecepcion: async (cuitReceptor: number) => {
+				const r: any = await svc.consultarObligadoRecepcion(cuitReceptor);
+				return r;
 			}
 		};
 	}

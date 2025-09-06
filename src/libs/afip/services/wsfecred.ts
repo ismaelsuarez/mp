@@ -67,6 +67,29 @@ export class ElectronicBillingMiPymeService extends AfipService<WsfeCredClient> 
       caeFchVto: FECAESolicitarResult.FeDetResp?.FECAEDetResponse?.[0]?.CAEFchVto,
     };
   }
+
+  /** Consulta si un CUIT receptor está obligado a recibir FCE (cuando el WS lo expone). */
+  async consultarObligadoRecepcion(cuitReceptor: number): Promise<{ supported: boolean; obligado?: boolean; desde?: string; raw?: any }> {
+    const client = await this.getClient();
+    const anyClient: any = client as any;
+    // Algunos despliegues exponen métodos específicos de FECRED. Intentamos y degradamos con supported=false
+    const candidateFns = [
+      'FECredConsultarObligadoRecepcionAsync',
+      'FECredObligadoRecepcionAsync',
+      'FECredIsObligedAsync'
+    ];
+    for (const name of candidateFns) {
+      if (typeof anyClient[name] === 'function') {
+        const [output] = await anyClient[name]({ Cuit: Number(cuitReceptor) });
+        const raw = output?.FECredConsultarObligadoRecepcionResult || output;
+        // Intentar mapear campos comunes
+        const obligado = Boolean(raw?.Obligado ?? raw?.obligado ?? raw?.EsObligado ?? raw?.Result);
+        const desde = String(raw?.Desde ?? raw?.desde ?? raw?.FechaDesde ?? '') || undefined;
+        return { supported: true, obligado, desde, raw };
+      }
+    }
+    return { supported: false };
+  }
 }
 
 

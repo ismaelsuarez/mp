@@ -1346,13 +1346,19 @@ window.addEventListener('DOMContentLoaded', () => {
 			(document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement | null)!.value = p.tipo_defecto || 'FA';
 			(document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement | null)!.value = p.pto_vta || '';
 			(document.getElementById('FAC_NUM_DEF') as HTMLInputElement | null)!.value = p.numeracion || '';
+			const emChk = document.getElementById('FAC_EMISOR_MIPYME') as HTMLInputElement | null;
+			if (emChk) emChk.checked = !!p.es_mipyme_emisor;
+			const umbralEl = document.getElementById('FAC_FCE_UMBRAL') as HTMLInputElement | null;
+			if (umbralEl) umbralEl.value = p.fce_umbral != null ? String(p.fce_umbral) : '';
 		} catch {}
 	})();
 	(document.getElementById('btnParamGuardar') as HTMLButtonElement | null)?.addEventListener('click', async () => {
 		const payload = {
 			tipo_defecto: (document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement)?.value,
 			pto_vta: Number((document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement)?.value || 0),
-			numeracion: Number((document.getElementById('FAC_NUM_DEF') as HTMLInputElement)?.value || 0)
+			numeracion: Number((document.getElementById('FAC_NUM_DEF') as HTMLInputElement)?.value || 0),
+			es_mipyme_emisor: (document.getElementById('FAC_EMISOR_MIPYME') as HTMLInputElement)?.checked ? 1 : 0,
+			fce_umbral: Number((document.getElementById('FAC_FCE_UMBRAL') as HTMLInputElement)?.value || 0)
 		};
 		const res = await (window.api as any).facturacion?.paramSave(payload);
 		const el = document.getElementById('paramStatus');
@@ -2522,7 +2528,19 @@ window.addEventListener('DOMContentLoaded', () => {
 		try {
 			const map: Record<number, number> = { 1:201, 2:202, 3:203, 6:206, 7:207, 8:208, 11:211, 12:212, 13:213 };
 			const fceTipo = map[tipoCbte] || tipoCbte;
-			if (out) { out.textContent = `FCE habilitado → Modo ${modoFin} – CbteTipo ${fceTipo}`; out.className = 'text-xs text-emerald-300'; }
+			// Consultar obligado recepción FCE si hay CUIT
+			let obligadoTxt = '';
+			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim();
+			if (window.api && cuitCliente && /^\d{11}$/.test(cuitCliente)) {
+				try {
+					const r = await (window.api as any).facturacion?.fceConsultarObligado(Number(cuitCliente));
+					if (r?.ok && r.data) {
+						const d = r.data;
+						obligadoTxt = d.supported ? (d.obligado ? ' | Receptor obligado FCE: Sí' : ' | Receptor obligado FCE: No') : ' | Receptor obligado FCE: ND';
+					}
+				} catch {}
+			}
+			if (out) { out.textContent = `FCE habilitado → Modo ${modoFin} – CbteTipo ${fceTipo}${obligadoTxt}`; out.className = 'text-xs text-emerald-300'; }
 		} catch {
 			if (out) { out.textContent = 'No fue posible previsualizar MiPyME'; out.className = 'text-xs text-red-300'; }
 		}

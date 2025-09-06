@@ -1123,6 +1123,18 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// FECRED: consultar si receptor está obligado a recibir FCE
+	ipcMain.handle('facturacion:fce:consultar-obligado', async (_e, payload: { cuit: number }) => {
+		try {
+			const afip = await (afipService as any).getAfipInstance?.();
+			if (!afip || !afip.ElectronicBillingMiPyme) throw new Error('MiPyME no disponible');
+			const res = await afip.ElectronicBillingMiPyme.consultarObligadoRecepcion(Number(payload.cuit));
+			return { ok: true, data: res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// Padrón 13: consulta
 	ipcMain.handle('facturacion:padron13:consulta', async (_e, payload: { cuit: number }) => {
 		try {

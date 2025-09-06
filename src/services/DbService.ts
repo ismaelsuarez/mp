@@ -171,8 +171,14 @@ class DbService {
 			tipo_defecto TEXT,
 			pto_vta INTEGER,
 			numeracion INTEGER,
+			es_mipyme_emisor INTEGER,
+			fce_umbral REAL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);
+
+		-- Intento de migración suave por si la tabla ya existía sin columnas nuevas
+		ALTER TABLE parametros_facturacion ADD COLUMN es_mipyme_emisor INTEGER;
+		ALTER TABLE parametros_facturacion ADD COLUMN fce_umbral REAL;
 
 		CREATE TABLE IF NOT EXISTS perfiles_config (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -386,10 +392,10 @@ class DbService {
 		return data.parametros_facturacion || null;
 	}
 
-	saveParametrosFacturacion(p: { tipo_defecto?: string; pto_vta?: number; numeracion?: number }) {
+	saveParametrosFacturacion(p: { tipo_defecto?: string; pto_vta?: number; numeracion?: number; es_mipyme_emisor?: number; fce_umbral?: number }) {
 		if (this.enabled && this.db) {
 			this.db.prepare('DELETE FROM parametros_facturacion').run();
-			this.db.prepare('INSERT INTO parametros_facturacion (tipo_defecto, pto_vta, numeracion) VALUES (@tipo_defecto,@pto_vta,@numeracion)').run(p);
+			this.db.prepare('INSERT INTO parametros_facturacion (tipo_defecto, pto_vta, numeracion, es_mipyme_emisor, fce_umbral) VALUES (@tipo_defecto,@pto_vta,@numeracion,@es_mipyme_emisor,@fce_umbral)').run(p);
 			return;
 		}
 		const data = this.readFallback();
