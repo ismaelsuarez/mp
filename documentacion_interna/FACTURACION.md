@@ -23,6 +23,26 @@ export async function consultarPadronAlcance13(cuit: number) {
 
 Validación antes de emitir: si falla la consulta de CUIT (no existe o error), no se envía a AFIP y se registra el error.
 
+### Procesamiento A13 por archivos (a13*.txt)
+
+- Disparador por archivos en carpeta remota configurable: se detectan archivos cuyo nombre cumpla el patrón:
+
+```regex
+^(mp.*|a13.*)\.txt$
+```
+
+- Para cada archivo `a13*.txt` (por ejemplo, `a13_1252.txt`) se lee la primera línea como CUIT, se consulta A13 y se generan los siguientes archivos en `C:\2_mp\reportes\A13` (o el directorio base retornado por `ReportService.getOutDir()`):
+  - `a13_1252.dbf` (estructura completa, campos <= 10 caracteres; por ejemplo `FISC_PV_ID`, `LEG_PV_ID`).
+  - `a13_1252.csv` (resumen de campos principales normalizados).
+  - `a13_1252_full.csv` (CSV aplanado con todos los subcampos del JSON).
+  - `a13_1252.raw.json` (respuesta completa cruda para auditoría).
+
+- Envío FTP: se envía únicamente el DBF con el mismo nombre base (`a13_1252.dbf`). El cliente FTP usa puerto 21.
+
+- Concurrencia: al conservar el prefijo completo del archivo de entrada (`a13_*`), los resultados no se pisan cuando llegan múltiples consultas simultáneas.
+
+- Limpieza automática: luego de cada procesamiento A13 se ejecuta una purga de archivos `a13*` con antigüedad > 1 día en la carpeta de reportes para evitar acumulación.
+
 ## Factura de Crédito MiPyME (FCE / FCEM)
 
 - Servicio agregado `src/libs/afip/services/wsfecred.ts` expuesto como `electronicBillingMiPymeService`.
