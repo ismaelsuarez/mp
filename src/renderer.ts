@@ -532,12 +532,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
 	if (window.api.onAutoNotice) {
 		window.api.onAutoNotice((payload) => {
-			if ((payload as any)?.error) {
-				showToast(`Auto-reporte error: ${(payload as any).error}`);
-			} else if ((payload as any)?.info) {
-				showToast(String((payload as any).info));
-			} else {
-				showToast(`Auto-reporte generado (${(payload as any)?.count ?? 0})`);
+			const p: any = payload || {};
+			if (p.error) {
+				showToast(`Auto: ${p.error}`);
+			}
+			if (p.info) {
+				showToast(String(p.info));
+			}
+			if (p.A13 || p.remoto || p.manual || p.auto) {
+				showToast(`Auto-reporte generado (${p.count ?? 0})`);
 				addHistoryItem({ tag: new Date().toISOString().slice(0,10), files: [] } as any);
 			}
 		});
@@ -1724,6 +1727,7 @@ window.addEventListener('DOMContentLoaded', () => {
 		});
 		
 		actualizarTotalesPrueba();
+		try { actualizarEstadoVisual(); } catch {}
 	}
 	
 	// Función para actualizar totales
@@ -1773,6 +1777,9 @@ window.addEventListener('DOMContentLoaded', () => {
 			const concepto = parseInt((document.getElementById('pruebaFacturaConcepto') as HTMLSelectElement)?.value || '1');
 			const docTipo = parseInt((document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement)?.value || '80');
 			const moneda = (document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement)?.value || 'PES';
+			// Modo MiPyME (opcional)
+			const modoFinEl = document.getElementById('pruebaFacturaModoFin') as HTMLSelectElement | null;
+			const modoFin = modoFinEl && modoFinEl.value ? (modoFinEl.value as 'ADC'|'SCA') : undefined;
 
 			// Fechas de servicio (si concepto 2 o 3)
 			const toYyyymmdd = (v?: string) => (v ? v.replace(/-/g, '') : undefined);
@@ -1787,6 +1794,22 @@ window.addEventListener('DOMContentLoaded', () => {
 			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim() || '20300123456';
 			const razonSocial = (document.getElementById('pruebaFacturaRazon') as HTMLInputElement)?.value?.trim() || 'Cliente Demo S.A.';
 			const condIvaRec = (document.getElementById('pruebaFacturaCondIvaRec') as HTMLSelectElement | null)?.value || 'CF';
+
+			// Validación Padrón 13 previa si hay CUIT y docTipo es CUIT (80)
+			if (cuitCliente && docTipo === 80) {
+				try {
+					const v = await (window.api as any).facturacion?.padron13Consultar(Number(cuitCliente));
+					if (!v?.ok || !v?.data?.idPersona) {
+						const status = document.getElementById('pruebaStatus');
+						if (status) status.innerHTML = '<span class="text-red-400">Error: CUIT no válido según Padrón 13</span>';
+						return;
+					}
+				} catch {
+					const status = document.getElementById('pruebaStatus');
+					if (status) status.innerHTML = '<span class="text-red-400">Error consultando Padrón 13</span>';
+					return;
+				}
+			}
 
 			// Validar datos
 			if (!cuitCliente || !razonSocial) {
@@ -1874,6 +1897,9 @@ window.addEventListener('DOMContentLoaded', () => {
 				FchServDesde,
 				FchServHasta,
 				FchVtoPago,
+				modoFin,
+				validarPadron13: !!(document.getElementById('chkValidarPadron13') as HTMLInputElement | null)?.checked,
+				tributos: tributosPrueba.map(t => ({ Id: t.id, Desc: t.desc, BaseImp: t.baseImp, Alic: t.alic, Importe: t.importe })),
 				comprobantesAsociados
 			});
 
@@ -2370,5 +2396,237 @@ window.addEventListener('DOMContentLoaded', () => {
 			if (status) status.textContent = `Error: ${e?.message || e}`;
 		}
 	});
+
+	let tributosPrueba: Array<{ id: number; desc: string; baseImp: number; alic: number; importe: number }> = [];
+
+	function renderTributosPrueba() {
+		const tbody = document.getElementById('tbodyTributosPrueba');
+		if (!tbody) return;
+		tbody.innerHTML = '';
+		for (let i = 0; i < tributosPrueba.length; i++) {
+			const t = tributosPrueba[i];
+			const tr = document.createElement('tr');
+			tr.innerHTML = `
+				<td class="px-2 py-1"><input type="number" class="inputTrib id" data-idx="${i}" value="${t.id}"/></td>
+				<td class="px-2 py-1"><input type="text" class="inputTrib desc" data-idx="${i}" value="${t.desc}"/></td>
+				<td class="px-2 py-1"><input type="number" step="0.01" class="inputTrib base" data-idx="${i}" value="${t.baseImp}"/></td>
+				<td class="px-2 py-1"><input type="number" step="0.01" class="inputTrib alic" data-idx="${i}" value="${t.alic}"/></td>
+				<td class="px-2 py-1"><input type="number" step="0.01" class="inputTrib imp" data-idx="${i}" value="${t.importe}"/></td>
+				<td class="px-2 py-1"><button class="btnDelTrib" data-idx="${i}">Eliminar</button></td>
+			`;
+			tbody.appendChild(tr);
+		}
+			document.querySelectorAll('.btnDelTrib').forEach(btn => {
+				btn.addEventListener('click', () => {
+					const idx = Number((btn as HTMLButtonElement).getAttribute('data-idx'));
+					tributosPrueba.splice(idx, 1);
+					renderTributosPrueba();
+				});
+			});
+			document.querySelectorAll('.inputTrib').forEach(inp => {
+				inp.addEventListener('change', () => {
+					const el = inp as HTMLInputElement;
+					const idx = Number(el.getAttribute('data-idx'));
+					if (el.classList.contains('id')) tributosPrueba[idx].id = Number(el.value || 0);
+					if (el.classList.contains('desc')) tributosPrueba[idx].desc = String(el.value || '');
+					if (el.classList.contains('base')) tributosPrueba[idx].baseImp = Number(el.value || 0);
+					if (el.classList.contains('alic')) tributosPrueba[idx].alic = Number(el.value || 0);
+					if (el.classList.contains('imp')) tributosPrueba[idx].importe = Number(el.value || 0);
+				});
+			});
+	}
+
+	(document.getElementById('btnAgregarTributo') as HTMLButtonElement | null)?.addEventListener('click', () => {
+		tributosPrueba.push({ id: 99, desc: 'Tributo', baseImp: 0, alic: 0, importe: 0 });
+		renderTributosPrueba();
+	});
+
+	// ... dentro del handler de emitir, incluir tributosPrueba si hay
+
+	(document.getElementById('btnValidarPadron13Manual') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim();
+		const out = document.getElementById('padron13StatusManual');
+		if (!cuitCliente) { if (out) out.textContent = 'Ingrese CUIT'; return; }
+		try {
+			if (out) { out.textContent = 'Consultando Padrón 13...'; out.className = 'text-xs text-blue-300'; }
+			const r = await (window.api as any).facturacion?.padron13Consultar(Number(cuitCliente));
+			if (r?.ok) {
+				if (out) { out.textContent = `OK: ${r.data?.idPersona || ''} ${(r.data?.persona?.apellido || '')}`.trim(); out.className = 'text-xs text-emerald-300'; }
+			} else {
+				if (out) { out.textContent = `Error: ${r?.error || 'No encontrado'}`; out.className = 'text-xs text-red-300'; }
+			}
+		} catch (e: any) {
+			if (out) { out.textContent = `Error: ${e?.message || e}`; out.className = 'text-xs text-red-300'; }
+		}
+	});
+
+	(document.getElementById('btnPingPadron13') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const out = document.getElementById('padron13StatusManual');
+		try {
+			if (out) { out.textContent = 'Verificando servicio Padrón 13...'; out.className = 'text-xs text-blue-300'; }
+			const r = await (window.api as any).facturacion?.padron13Ping();
+			if (r?.ok) {
+				if (out) { out.textContent = 'Padrón 13 operativo'; out.className = 'text-xs text-emerald-300'; }
+				const padDetail = document.getElementById('padron13Detail');
+				if (padDetail) { padDetail.textContent = JSON.stringify(r.status, null, 2); padDetail.classList.remove('hidden'); }
+				setChip('statusPadronChip', 'Padrón 13: OK', 'ok');
+			} else {
+				if (out) { out.textContent = `Padrón 13 fuera de servicio: ${r?.error || ''}`; out.className = 'text-xs text-rose-300'; }
+				setChip('statusPadronChip', 'Padrón 13: Error', 'err');
+			}
+		} catch (e: any) {
+			if (out) { out.textContent = `Error verificando Padrón 13: ${e?.message || e}`; out.className = 'text-xs text-rose-300'; }
+			setChip('statusPadronChip', 'Padrón 13: Error', 'err');
+		}
+	});
+
+	// Monitoreo automático de A13
+	let a13Timer: any = null;
+	async function a13PingAndUpdate() {
+		const out = document.getElementById('a13LastStatus');
+		const minutesEl = document.getElementById('a13AutoMinutes') as HTMLInputElement | null;
+		const enableEl = document.getElementById('a13AutoEnabled') as HTMLInputElement | null;
+		try {
+			const r = await (window.api as any).facturacion?.padron13Ping();
+			const stamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
+			if (r?.ok) {
+				setChip('statusPadronChip', 'Padrón 13: OK', 'ok');
+				if (out) { out.textContent = `A13: OK @ ${stamp}`; out.className = 'px-2 py-0.5 rounded border border-emerald-600 bg-emerald-900/40 text-emerald-300'; }
+			} else {
+				setChip('statusPadronChip', 'Padrón 13: Error', 'err');
+				if (out) { out.textContent = `A13: ERROR @ ${stamp} – ${r?.error || ''}`; out.className = 'px-2 py-0.5 rounded border border-rose-600 bg-rose-900/40 text-rose-300'; }
+			}
+		} catch (e: any) {
+			const stamp = new Date().toLocaleTimeString('es-AR', { hour12: false });
+			setChip('statusPadronChip', 'Padrón 13: Error', 'err');
+			if (out) { out.textContent = `A13: ERROR @ ${stamp} – ${e?.message || e}`; out.className = 'px-2 py-0.5 rounded border border-rose-600 bg-rose-900/40 text-rose-300'; }
+		}
+		// reprogramar
+		clearTimeout(a13Timer);
+		const enabled = !!(enableEl?.checked);
+		const mins = Math.max(1, Number(minutesEl?.value || 5));
+		if (enabled) a13Timer = setTimeout(a13PingAndUpdate, mins * 60 * 1000);
+	}
+	(document.getElementById('a13AutoEnabled') as HTMLInputElement | null)?.addEventListener('change', () => a13PingAndUpdate());
+	(document.getElementById('a13AutoMinutes') as HTMLInputElement | null)?.addEventListener('change', () => a13PingAndUpdate());
+	// start
+	setTimeout(a13PingAndUpdate, 500);
+
+	(document.getElementById('btnPreverMiPymeManual') as HTMLButtonElement | null)?.addEventListener('click', async () => {
+		const modoFinEl = document.getElementById('pruebaFacturaModoFin') as HTMLSelectElement | null;
+		const tipoCbte = parseInt((document.getElementById('pruebaFacturaTipoCbte') as HTMLSelectElement)?.value || '11');
+		const out = document.getElementById('mipymeStatusManual');
+		const modoFin = modoFinEl && modoFinEl.value ? modoFinEl.value : '';
+		if (!modoFin) { if (out) { out.textContent = 'No es MiPyME (modo vacío)'; out.className = 'text-xs text-slate-300'; } return; }
+		// Previsualizar: mapear cbte y mostrar tipo final
+		try {
+			const map: Record<number, number> = { 1:201, 2:202, 3:203, 6:206, 7:207, 8:208, 11:211, 12:212, 13:213 };
+			const fceTipo = map[tipoCbte] || tipoCbte;
+			if (out) { out.textContent = `FCE habilitado → Modo ${modoFin} – CbteTipo ${fceTipo}`; out.className = 'text-xs text-emerald-300'; }
+		} catch {
+			if (out) { out.textContent = 'No fue posible previsualizar MiPyME'; out.className = 'text-xs text-red-300'; }
+		}
+	});
+
+	function setChip(elId: string, text: string, color: 'neutral' | 'ok' | 'warn' | 'err') {
+		const el = document.getElementById(elId);
+		if (!el) return;
+		el.textContent = text;
+		const base = 'px-2 py-0.5 text-xs rounded border ';
+		const map: any = {
+			neutral: base + 'border-slate-600 bg-slate-900 text-slate-200',
+			ok: base + 'border-emerald-600 bg-emerald-900/40 text-emerald-300',
+			warn: base + 'border-amber-600 bg-amber-900/40 text-amber-300',
+			err: base + 'border-rose-600 bg-rose-900/40 text-rose-300'
+		};
+		el.className = map[color] || map.neutral;
+	}
+
+	async function actualizarEstadoVisual() {
+		// Padrón 13
+		let padronOk = false; let mipymeOk = false;
+		const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim();
+		const docTipo = parseInt((document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement)?.value || '99');
+		const modoFin = (document.getElementById('pruebaFacturaModoFin') as HTMLSelectElement | null)?.value || '';
+		const padDetail = document.getElementById('padron13Detail');
+		if (padDetail) padDetail.classList.add('hidden');
+		if (cuitCliente && docTipo === 80) {
+			try {
+				setChip('statusPadronChip', 'Padrón 13: consultando...', 'warn');
+				const r = await (window.api as any).facturacion?.padron13Consultar(Number(cuitCliente));
+				if (r?.ok) {
+					padronOk = true;
+					setChip('statusPadronChip', 'Padrón 13: OK', 'ok');
+					if (padDetail) padDetail.textContent = JSON.stringify(r.data, null, 2);
+				} else {
+					setChip('statusPadronChip', `Padrón 13: ${r?.error || 'No encontrado'}`, 'err');
+					if (padDetail) padDetail.textContent = String(r?.error || 'No encontrado');
+				}
+			} catch (e: any) {
+				setChip('statusPadronChip', `Padrón 13: ${e?.message || e}`, 'err');
+				if (padDetail) padDetail.textContent = String(e?.message || e);
+			}
+		} else {
+			setChip('statusPadronChip', 'Padrón 13: —', 'neutral');
+		}
+		// MiPyME
+		if (modoFin) { setChip('statusMipymeChip', `MiPyME: ${modoFin}`, 'ok'); mipymeOk = true; } else { setChip('statusMipymeChip', 'MiPyME: —', 'neutral'); }
+		// Listo para emitir
+		const itemsOk = Array.isArray(itemsPrueba) && itemsPrueba.length > 0;
+		const listo = itemsOk && (padronOk || docTipo !== 80);
+		setChip('statusReadyChip', listo ? 'Listo para emitir: Sí' : 'Listo para emitir: No', listo ? 'ok' : 'warn');
+	}
+
+	// Toggle detalle Padrón
+	(document.getElementById('btnTogglePadronDetail') as HTMLButtonElement | null)?.addEventListener('click', () => {
+		const padDetail = document.getElementById('padron13Detail');
+		if (!padDetail) return;
+		padDetail.classList.toggle('hidden');
+	});
+
+	// Recalcular estado cuando cambian insumos relevantes
+	['pruebaFacturaCuit','pruebaFacturaDocTipo','pruebaFacturaModoFin'].forEach(id => {
+		const el = document.getElementById(id) as (HTMLInputElement | HTMLSelectElement | null);
+		el?.addEventListener('change', actualizarEstadoVisual);
+	});
+
+	// Inicial
+	setTimeout(actualizarEstadoVisual, 300);
+
+	function setBadge(elId: string, ok: boolean | null, label: string) {
+		const el = document.getElementById(elId);
+		if (!el) return;
+		el.textContent = label;
+		const base = 'px-1.5 py-0.5 rounded border ';
+		if (ok === true) el.className = base + 'border-emerald-600 bg-emerald-900/40 text-emerald-300';
+		else if (ok === false) el.className = base + 'border-rose-600 bg-rose-900/40 text-rose-300';
+		else el.className = base + 'border-slate-600 text-slate-300';
+	}
+
+	async function correrChecklist() {
+		let padron: boolean | null = null;
+		let mi: boolean | null = null;
+		const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim();
+		const docTipo = parseInt((document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement)?.value || '99');
+		const modoFin = (document.getElementById('pruebaFacturaModoFin') as HTMLSelectElement | null)?.value || '';
+		const itemsOk = Array.isArray(itemsPrueba) && itemsPrueba.length > 0;
+		if (cuitCliente && docTipo === 80) {
+			try {
+				const r = await (window.api as any).facturacion?.padron13Consultar(Number(cuitCliente));
+				padron = !!(r?.ok && r?.data?.idPersona);
+			} catch { padron = false; }
+		} else {
+			padron = null; // no aplica
+		}
+		mi = modoFin ? true : null;
+		setBadge('chkPadron', padron, '• Padrón');
+		setBadge('chkMiPyme', mi, '• MiPyME');
+		setBadge('chkItems', itemsOk, '• Items');
+		const listo = (padron !== false) && itemsOk; // si padron es null (no aplica) también está ok
+		setBadge('chkReady', listo, '• Listo');
+		return listo;
+	}
+
+	(document.getElementById('btnChecklist') as HTMLButtonElement | null)?.addEventListener('click', correrChecklist);
 
 });

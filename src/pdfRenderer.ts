@@ -162,6 +162,7 @@ export type InvoiceData = {
   hora?: string; // HH:mm - Hora de emisión
   fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
   tipoComprobanteLetra?: string; // A | B | C
+  mipymeModo?: 'ADC' | 'SCA';
   atendio?: string;
   condicionPago?: string;
   referenciaInterna?: string;
@@ -382,7 +383,7 @@ export async function generateInvoicePdf({
   // Letra del comprobante
   if (data.tipoComprobanteLetra && c.comprobanteLetra) {
     drawText(
-      data.tipoComprobanteLetra,
+      data.mipymeModo ? `FCE ${data.tipoComprobanteLetra}` : data.tipoComprobanteLetra,
       c.comprobanteLetra.x,
       c.comprobanteLetra.y,
       { fontSize: c.comprobanteLetra.fontSize ?? 26, bold: true, align: 'center' },
@@ -423,7 +424,8 @@ export async function generateInvoicePdf({
   
   // Tipo de comprobante (Factura, Nota de Crédito, Remito, etc.)
   if (c.tipoComprobante) {
-    const tipoTexto = data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
+    const tipoTexto = data.mipymeModo ? `FACTURA DE CRÉDITO MiPyME – Modo: ${data.mipymeModo}` :
+                     data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
                      data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
                      data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
                      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :

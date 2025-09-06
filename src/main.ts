@@ -1122,6 +1122,28 @@ app.whenReady().then(() => {
 			return { ok: false, error: String(e?.message || e) };
 		}
 	});
+
+	// Padrón 13: consulta
+	ipcMain.handle('facturacion:padron13:consulta', async (_e, payload: { cuit: number }) => {
+		try {
+			const { consultarPadronAlcance13 } = require('./modules/facturacion/padron');
+			const data = await consultarPadronAlcance13(Number(payload?.cuit));
+			return { ok: true, data };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// Padrón 13: ping/dummy
+	ipcMain.handle('facturacion:padron13:ping', async () => {
+		try {
+			const { pingPadron13 } = require('./modules/facturacion/padron');
+			const r = await pingPadron13();
+			return r;
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
 	ipcMain.handle('facturacion:listar', async (_e, filtros: { desde?: string; hasta?: string }) => {
 		try { const rows = getDb().listFacturas(filtros?.desde, filtros?.hasta); return { ok: true, rows }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
@@ -1504,14 +1526,14 @@ app.whenReady().then(() => {
 		stopRemoteWatcher();
 		const cfg: any = store.get('config') || {};
 		if (cfg.AUTO_REMOTE_WATCH !== true) return false;
-		const dir = String(cfg.AUTO_REMOTE_DIR || 'C\\tmp');
+		const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
 			remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
 				try {
 					const name = String(filename || '');
 					if (!name) return;
-					if (!/^mp.*\.txt$/i.test(name)) return;
+					if (!/^(mp.*|a13.*)\.txt$/i.test(name)) return;
 					if (unifiedScanBusy) return;
 					unifiedScanBusy = true;
 					setTimeout(async () => {
@@ -1626,18 +1648,32 @@ app.whenReady().then(() => {
 			const cfgNow: any = store.get('config') || {};
 			const enabled = cfgNow.AUTO_REMOTE_ENABLED !== false;
 			if (!enabled) return 0;
-			const remoteDir = String(cfgNow.AUTO_REMOTE_DIR || 'C:\\tmp');
+			const remoteDir = String(cfgNow.AUTO_REMOTE_DIR || cfgNow.FTP_SRV_ROOT || 'C:\\tmp');
 			let processed = 0;
 			if (remoteDir && fs.existsSync(remoteDir)) {
 				const entries = fs.readdirSync(remoteDir);
-				const toProcess = entries.filter(name => /^mp.*\.txt$/i.test(name));
+				const toProcess = entries.filter(name => /^(mp.*|a13.*)\.txt$/i.test(name));
 				// Procesar solo el primero por ciclo para evitar contención de archivos
 				const first = toProcess[0];
 				if (first) {
-					await runReportFlowAndNotify('remoto');
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
-					try { fs.unlinkSync(path.join(remoteDir, first)); } catch {}
-					processed += 1;
+					const full = path.join(remoteDir, first);
+					if (/^a13.*\.txt$/i.test(first)) {
+						try {
+							const { processA13TriggerFile, cleanupOldA13Reports } = require('./services/A13FilesService');
+							await processA13TriggerFile(full);
+							try { cleanupOldA13Reports(1); } catch {}
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `A13 procesado: ${first}` });
+						} catch (e: any) {
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `A13 error: ${String(e?.message || e)}` });
+						}
+						try { fs.unlinkSync(full); } catch {}
+						processed += 1;
+					} else {
+						await runReportFlowAndNotify('remoto');
+						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
+						try { fs.unlinkSync(full); } catch {}
+						processed += 1;
+					}
 				}
 			}
 			return processed;

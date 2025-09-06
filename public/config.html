@@ -494,7 +494,16 @@
 											<option value="EUR">EUR - Euro</option>
 										</select>
 									</label>
+									<label class="text-xs">
+										MiPyME – ModoFin:
+										<select id="pruebaFacturaModoFin" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
+											<option value="">(No FCE)</option>
+											<option value="ADC">ADC</option>
+											<option value="SCA">SCA</option>
+										</select>
+									</label>
 								</div>
+								<label class="checkbox inline-flex items-center gap-2 mb-2"><input id="chkValidarPadron13" type="checkbox" /> Validar Padrón 13 antes de emitir</label>
 								
 								<!-- Datos del Cliente -->
 								<div class="grid grid-cols-2 gap-2 mb-3">
@@ -526,6 +535,36 @@
 										Código ARCA (IVARECEPTOR):
 										<input type="text" id="pruebaFacturaIvaRecCod" readonly class="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-700 rounded text-slate-200" />
 									</label>
+								</div>
+
+								<!-- Verificaciones manuales -->
+								<div class="flex items-center gap-2 mb-3 flex-wrap">
+									<button type="button" id="btnValidarPadron13Manual" class="px-2 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Validar Padrón 13</button>
+									<button type="button" id="btnPingPadron13" class="px-2 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Verificar Padrón 13</button>
+									<button type="button" id="btnPreverMiPymeManual" class="px-2 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Previsualizar MiPyME</button>
+									<span id="padron13StatusManual" class="text-xs text-slate-300"></span>
+									<span id="mipymeStatusManual" class="text-xs text-slate-300"></span>
+								</div>
+
+								<!-- Panel de estado visual -->
+								<div class="mb-3 p-2 rounded border border-slate-700 bg-slate-800/40">
+									<div class="flex items-center gap-2 flex-wrap">
+										<span class="text-xs">Estado:</span>
+										<span id="statusPadronChip" class="px-2 py-0.5 text-xs rounded border border-slate-600 bg-slate-900 text-slate-200">Padrón 13: —</span>
+										<button type="button" id="btnTogglePadronDetail" class="px-2 py-0.5 text-xs rounded border border-slate-600 bg-slate-900 text-slate-200">Ver detalle</button>
+										<span id="statusMipymeChip" class="px-2 py-0.5 text-xs rounded border border-slate-600 bg-slate-900 text-slate-200">MiPyME: —</span>
+										<span id="statusReadyChip" class="px-2 py-0.5 text-xs rounded border border-slate-600 bg-slate-900 text-slate-200">Listo para emitir: —</span>
+									</div>
+									<div class="mt-2 flex items-center gap-2 flex-wrap text-xs">
+										<span id="a13LastStatus" class="px-2 py-0.5 rounded border border-slate-600 bg-slate-900 text-slate-200">A13: —</span>
+										<label class="inline-flex items-center gap-1">
+											<input id="a13AutoEnabled" type="checkbox" checked /> Auto
+										</label>
+										<label class="inline-flex items-center gap-1">cada
+											<input id="a13AutoMinutes" type="number" min="1" step="1" value="5" class="w-14 text-center px-1 py-0.5 bg-slate-900 border border-slate-700 rounded" /> min
+										</label>
+									</div>
+									<pre id="padron13Detail" class="mt-2 hidden text-[11px] bg-slate-900 border border-slate-700 rounded p-2 max-h-40 overflow-auto"></pre>
 								</div>
 								
 								<!-- Tabla de Items -->
@@ -584,6 +623,14 @@
 									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
 									<button type="button" id="btnIdemList" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600" title="Listar comprobantes en proceso">Listar pendientes</button>
 									<button type="button" id="btnIdemCleanup" class="px-3 py-1.5 text-sm rounded-md bg-rose-700 text-white border-0 hover:bg-rose-600" title="Limpiar idempotencia y liberar bloqueos">Limpiar idempotencia</button>
+									<!-- Checklist compacto -->
+									<div class="ml-2 flex items-center gap-2 text-xs">
+										<button type="button" id="btnChecklist" class="px-2 py-1 text-xs rounded border border-slate-600 bg-slate-800 hover:bg-slate-700">Revisar</button>
+										<span id="chkPadron" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Padrón</span>
+										<span id="chkMiPyme" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• MiPyME</span>
+										<span id="chkItems" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Items</span>
+										<span id="chkReady" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Listo</span>
+									</div>
 								</div>
 								<div id="pruebaStatus" class="mt-2 text-xs"></div>
 								<pre id="afipPtosVtaStatus" class="mt-2 text-[11px] bg-slate-900 border border-slate-700 rounded p-2 overflow-auto" style="max-height:160px"></pre>

@@ -146,6 +146,9 @@ contextBridge.exposeInMainWorld('api', {
 		findExpiredCAE: () => ipcRenderer.invoke('facturacion:find-expired-cae'),
 		// Emisión con provincias
 		emitirConProvincias: (payload: any) => ipcRenderer.invoke('facturacion:emitir-con-provincias', payload),
+		// Padrón 13
+		padron13Consultar: (cuit: number) => ipcRenderer.invoke('facturacion:padron13:consulta', { cuit }),
+		padron13Ping: () => ipcRenderer.invoke('facturacion:padron13:ping'),
 		// Diagnóstico
 		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta')
 	},

@@ -15,6 +15,7 @@ import { getSecureStore } from '../../services/SecureStore';
 import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IProvinciaService';
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 import { validateArcaRules } from './arca/ArcaAdapter';
+import { consultarPadronAlcance13 } from './padron';
 
 // Eliminado: carga del SDK externo @afipsdk/afip.js
 
@@ -155,6 +156,22 @@ class AfipService {
 
       // VALIDACIÓN CON FEParamGet* - NUEVA FUNCIONALIDAD
       const validator = new AfipValidator(afip);
+      // Validación previa con Padrón 13 si la UI lo solicita y hay CUIT de receptor
+      const debeValidarPadron = (comprobante as any)?.validarPadron13 === true;
+      if (debeValidarPadron && comprobante?.cliente?.cuit) {
+        try {
+          const pad13 = await consultarPadronAlcance13(Number(comprobante.cliente.cuit));
+          if (!pad13 || !pad13?.idPersona) {
+            const msg = `Padrón 13: CUIT ${comprobante.cliente.cuit} no encontrado o inválido`;
+            this.logger.logError('padron13_validation', new Error(msg), { cuit: comprobante.cliente.cuit });
+            throw new Error(msg);
+          }
+        } catch (e: any) {
+          const msg = `Error validando Padrón 13: ${e?.message || e}`;
+          this.logger.logError('padron13_validation_error', e instanceof Error ? e : new Error(String(e)));
+          throw new Error(msg);
+        }
+      }
       const validationParams: ValidationParams = {
         cbteTipo: tipoCbte,
         concepto: comprobante.concepto || 1,
@@ -183,9 +200,14 @@ class AfipService {
         this.debugLog('Validación FEParamGet* warnings', validationResult.warnings);
       }
 
-      // Obtener último número autorizado con resiliencia
+      // Determinar si es MiPyME y CbteTipo aplicable
+      const isMiPyme = (comprobante as any)?.modoFin && ['ADC','SCA'].includes(String((comprobante as any).modoFin));
+      const miPymeCbteTipo = isMiPyme ? AfipHelpers.mapToMiPymeCbte(tipoCbte) : tipoCbte;
+
+      // Obtener último número autorizado con resiliencia (servicio según tipo)
       const last = await this.resilienceWrapper.execute(
-        () => afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte),
+        () => isMiPyme ? afip.ElectronicBillingMiPyme.getLastVoucher(ptoVta, miPymeCbteTipo)
+                       : afip.ElectronicBilling.getLastVoucher(ptoVta, tipoCbte),
         'getLastVoucher'
       ) as number;
       
@@ -254,7 +276,7 @@ class AfipService {
       const request: any = {
         CantReg: 1,
         PtoVta: ptoVta,
-        CbteTipo: tipoCbte,
+        CbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
         Concepto: concepto,
         DocTipo: docTipo,
         DocNro: docNro,
@@ -271,6 +293,12 @@ class AfipService {
         MonCotiz: 1,
         Iva: ivaArray
       };
+      // Tributos opcionales
+      if (Array.isArray((comprobante as any).tributos) && (comprobante as any).tributos.length > 0) {
+        request.Tributos = (comprobante as any).tributos.map((t: any) => ({
+          Id: Number(t.Id), Desc: String(t.Desc), BaseImp: Number(t.BaseImp), Alic: Number(t.Alic), Importe: Number(t.Importe)
+        }));
+      }
 
       // ARCA / Provinciales: IVARECEPTOR (si hay condición IVA del receptor)
       try {
@@ -312,9 +340,10 @@ class AfipService {
         }));
       }
 
-      // Solicitar CAE con resiliencia
+      // Solicitar CAE con resiliencia (servicio según tipo)
       const response = await this.resilienceWrapper.execute(
-        () => afip.ElectronicBilling.createVoucher(request),
+        () => isMiPyme ? afip.ElectronicBillingMiPyme.createVoucher({ ...request, ModoFin: (comprobante as any).modoFin })
+                       : afip.ElectronicBilling.createVoucher(request),
         'createVoucher'
       ) as AfipVoucherResponse;
 
