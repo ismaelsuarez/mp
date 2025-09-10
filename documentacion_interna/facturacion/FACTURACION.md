@@ -1,5 +1,42 @@
 # Facturación – Integración AFIP / ARCA
 
+## Actualización técnica – 2025-09-10
+
+- Orquestación end-to-end (real): UI → IPC (`preload.ts`) → `main.ts` → `FacturacionService.emitirFacturaYGenerarPdf` → `afipService.solicitarCAE` (SDK local vía `CompatAfip`) → construcción de QR oficial → `pdfRenderer.generateInvoicePdf` → persistencia en DB y devolución de metadatos (N°, CAE, vencimiento, ruta PDF).
+- Adaptador AFIP: se usa `src/modules/facturacion/adapters/CompatAfip.ts` (no `@afipsdk/afip.js`). Inyecta `https.Agent` con TLS ≥ 1.2, `SSL_OP_LEGACY_SERVER_CONNECT` y `@SECLEVEL=1`. Expone `ElectronicBilling`, `ElectronicBillingMiPyme` y `registerScopeThirteenService` del fork local (`src/libs/afip`).
+- Resiliencia e idempotencia: `ResilienceWrapper` envuelve llamadas WSFE (reintentos/circuit breaker); `IdempotencyManager` evita duplicados y permite devolver CAE existente si el comprobante ya fue aprobado. Hay endpoints de estadísticas en IPC.
+- Validaciones previas: `AfipValidator` (FEParamGet*); validación opcional de Padrón 13 antes de emitir cuando `validarPadron13=true` y hay CUIT receptor. Si falla Padrón 13, se aborta emisión con error claro.
+- MiPyME (FCE): si el comprobante trae `modoFin` (ADC/SCA) se mapea `CbteTipo` a FCE (1→201, 6→206, 11→211, etc.) y se usa `ElectronicBillingMiPyme`. `ModoFin` via opcional Id `2101`. IPC adicional: `facturacion:fce:consultar-obligado` (consulta si receptor está obligado a recibir FCE, si el WS lo soporta).
+- Campos soportados en request AFIP: consolidado de totales por alícuota (`Iva[]`), `ImpTotConc`, `ImpOpEx`, `ImpTrib` y `Tributos` opcionales; `CbtesAsoc` para NC/ND; fechas de servicio (`FchServDesde/Hasta` y `FchVtoPago`) cuando `Concepto` ∈ {2,3}. Se agrega `IVARECEPTOR` según condición IVA del receptor (ARCA).
+- Regla Monotributo: si empresa es MT/C y `CbteTipo` C (11/12/13), no se discrimina IVA (`ImpIVA=0` y `Iva=[]`). Si no hay CUIT receptor, se fuerza DocTipo=99 y DocNro=0.
+- Seguridad: certificados se validan con `CertificateValidator`; si no hay rutas en config, se usa `SecureStore` para escribir `.crt/.key` temporales y limpiar luego. Se valida sincronización de tiempo NTP antes de instanciar AFIP (bloquea si hay desfasaje).
+- Integración provincial: `FacturacionService.emitirFacturaConProvincias` llama `afipService.solicitarCAEConProvincias` → primero AFIP (CAE) y luego `ProvinciaManager` (ATM/AGIP/ARBA, etc.). Se guardan campos provinciales (jurisdicción, servicio, número/código) en DB y se retorna `estado` (`AFIP_OK`, `AFIP_OK_PROV_OK`, `AFIP_OK_PROV_FAIL`, `AFIP_FAIL`).
+- IPC principales: `facturacion:emitir`, `facturacion:emitir-con-provincias`, `facturacion:padron13:consulta`, `facturacion:fce:consultar-obligado`, idempotencia (`facturacion:idempotency:*`), certificados/time/health (`afip:*`).
+- PDF: fondos `templates/MiFondo-pagado.jpg`/`MiFondo.jpg` (fallback `public/Noimage.jpg`), layout `invoiceLayout.mendoza.ts`. Salida por defecto en Documentos/facturas; nombre con prefijo por tipo (`F[A|B|C]`, `NC_A/B/C`, `ND_A/B/C`). Se inserta QR oficial (URL AFIP base + payload base64). Ítems solo para PDF (AFIP recibe totales consolidados).
+
+Referencias clave:
+- `src/services/FacturacionService.ts`: orquesta emisión, genera QR y PDF; inserta en DB.
+- `src/modules/facturacion/afipService.ts`: validaciones FEParamGet*, Padrón 13 opcional, consolidación totales, MiPyME, idempotencia y resiliencia.
+- `src/modules/facturacion/adapters/CompatAfip.ts`: compatibilidad con SDK local y TLS.
+- `src/libs/afip/` y `src/libs/afip/services/wsfecred.ts`: servicios WSFE y WSFECRED locales.
+- `src/pdfRenderer.ts` y `src/invoiceLayout.mendoza.ts`: renderizado/calibración de PDF.
+- `src/preload.ts` y `src/main.ts`: IPC hacia/desde UI.
+
+Notas operativas:
+- Mantener certificados fuera del repo; usar almacén seguro. Verificar NTP/FUENTE horaria en el equipo.
+- Activar `FACTURACION_DEBUG=true` para trazas; revisar estadísticas de idempotencia y resiliencia por IPC.
+- Para FCE, corroborar obligación del receptor vía IPC cuando el WS lo soporte.
+
+
+### Marcador – 2025-09-10: Resumen de emisión AFIP
+
+- Comprobantes informados a AFIP: Facturas A/B y Notas de Crédito A/B.
+- Estructura enviada: solo totales y alícuotas de IVA (Iva[]). No se envían líneas de ítems.
+- Opcionales admitidos: ImpOpEx, ImpTrib, Tributos y CbtesAsoc (para NC/ND) cuando corresponda.
+- Facturas C (Monotributo): consolidado sin discriminar IVA (ImpIVA=0, Iva=[]). Si no hay CUIT receptor, DocTipo=99 y DocNro=0.
+- MiPyME (FCE): también se envía consolidado, mapeando a CbteTipo FCE; `ModoFin` (ADC/SCA) va como opcional Id 2101.
+
+
 ## Fork local de afip.ts
 
 - Se creó un fork local basado en el SDK `afip.ts` y se expone en `src/libs/afip/`.
