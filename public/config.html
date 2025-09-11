@@ -652,6 +652,23 @@
 							<ul id="listaPdfsAfip" class="text-xs space-y-1"></ul>
 						</div>
 					</div>
+
+					<!-- Watcher .fac -->
+					<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
+						<div class="text-sm font-semibold mb-2">Disparo por archivo .fac (FTP)</div>
+						<p class="text-xs text-slate-400 mb-2">Cuando está activo, el sistema observa una carpeta local y, al llegar un archivo <code>.fac</code>, notifica a la UI para depuración. Próximamente, mapeará estos archivos a comprobantes.</p>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label class="md:col-span-2">Carpeta a observar
+								<input id="FAC_WATCH_DIR" placeholder="C:\\tmp" />
+							</label>
+							<label class="checkbox inline-flex items-center gap-2"><input id="FAC_WATCH_ENABLED" type="checkbox" /> Activar</label>
+						</div>
+						<div class="flex items-center gap-2 mt-2 text-xs">
+							<button type="button" id="btnFacWatcherSave" class="px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Guardar</button>
+							<span id="facWatcherStatus" class="text-slate-400"></span>
+						</div>
+						<pre id="facWatcherLog" class="mt-2 hidden text-[11px] bg-slate-900 border border-slate-700 rounded p-2 max-h-40 overflow-auto"></pre>
+					</div>
 				</details>
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
@@ -1193,6 +1210,51 @@
                 const el = document.getElementById('app-version');
                 if (el && res && res.version) el.textContent = res.version;
             }
+        } catch {}
+    })();
+
+    // ===== Fac Watcher (UI) =====
+    (function setupFacWatcherUI(){
+        try {
+            const dirInput = document.getElementById('FAC_WATCH_DIR');
+            const enabledInput = document.getElementById('FAC_WATCH_ENABLED');
+            const btnSave = document.getElementById('btnFacWatcherSave');
+            const statusEl = document.getElementById('facWatcherStatus');
+            const logEl = document.getElementById('facWatcherLog');
+            if (!dirInput || !enabledInput || !btnSave) return;
+
+            // Cargar estado
+            (async()=>{
+                try {
+                    const res = await window.api.facturacion.getWatcherDir();
+                    if (res?.ok) {
+                        if (typeof res.dir === 'string') dirInput.value = res.dir;
+                        enabledInput.checked = !!res.enabled;
+                    }
+                } catch {}
+            })();
+
+            btnSave.addEventListener('click', async () => {
+                try {
+                    statusEl.textContent = 'Guardando...';
+                    const res = await window.api.facturacion.setWatcherDir(dirInput.value, enabledInput.checked);
+                    statusEl.textContent = res?.ok ? '✅ Guardado' : `❌ ${(res && res.error) || 'Error'}`;
+                } catch (e) {
+                    statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+                }
+            });
+
+            // Mostrar detecciones en log de depuración
+            try {
+                window.api.facturacion.onFacDetected?.(({ filename, rawContent }) => {
+                    try { logEl.classList.remove('hidden'); } catch {}
+                    const ts = new Date().toISOString();
+                    const msg = `[${ts}] DETECTADO: ${filename}\n${rawContent}\n---\n`;
+                    logEl.textContent = (logEl.textContent || '') + msg;
+                    logEl.scrollTop = logEl.scrollHeight;
+                    console.log('[fac] detectado', { filename, rawLength: (rawContent||'').length });
+                });
+            } catch {}
         } catch {}
     })();
     </script>

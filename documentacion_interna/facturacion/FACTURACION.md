@@ -1,5 +1,37 @@
 # Facturación – Integración AFIP / ARCA
 
+## Actualización técnica – 2025-09-11
+
+- Agregado soporte de “Disparo por archivo .fac (FTP)” con watcher local.
+- Arquitectura y puntos clave:
+  - Servicio watcher: `src/modules/facturacion/facWatcher.ts` (fs.watch, reintentos de lectura si el archivo está ocupado por FTP).
+  - Integración en main: `startFacWatcher/stopFacWatcher/restartWatchersIfNeeded` en `src/main.ts`.
+  - Evento IPC a UI: `facturacion:fac:detected` con payload `{ filename, rawContent }`.
+  - Configuración persistente en `config.json`:
+    - `FACT_FAC_DIR`: carpeta observada (por defecto `C:\\tmp`).
+    - `FACT_FAC_WATCH`: habilitación del watcher (booleano).
+  - IPC de configuración:
+    - `facturacion:config:get-watcher-dir` → `{ ok, dir, enabled }`.
+    - `facturacion:config:set-watcher-dir` → guarda y reinicia watchers.
+  - Preload expone API:
+    - `api.facturacion.getWatcherDir()` / `setWatcherDir(dir, enabled?)` / `onFacDetected(cb)`.
+  - UI (Config → Facturación): panel “Disparo por archivo .fac (FTP)” con ruta, switch Activar, botón Guardar y log de detecciones.
+  - Borrado post-lectura: tras notificar, se elimina el archivo `.fac` con reintentos (maneja `EBUSY/EACCES/EPERM`).
+  - Alcance actual: sólo detección/lectura/notificación/borrado; no procesa aún a comprobante (hook pendiente a `FacturacionService`).
+
+Ejemplo de flujo:
+
+1) Llega `C:\\tmp\\25082311322347.fac`.
+2) Watcher detecta, lee UTF-8, emite: `facturacion:fac:detected` → `{ filename:"25082311322347.fac", rawContent:"..." }`.
+3) Elimina el archivo `.fac` (si está libre o tras reintentos).
+4) La UI muestra el nombre y el contenido en el panel de depuración.
+
+Notas de implementación:
+
+- La lectura usa hasta 10 intentos, 300 ms entre intentos.
+- El borrado usa hasta 6 intentos, 300 ms entre intentos.
+- El watcher `.fac` convive con los watchers existentes (remoto/imágenes) y se controla desde `restartWatchersIfNeeded()`.
+
 ## Actualización técnica – 2025-09-10
 
 - Orquestación end-to-end (real): UI → IPC (`preload.ts`) → `main.ts` → `FacturacionService.emitirFacturaYGenerarPdf` → `afipService.solicitarCAE` (SDK local vía `CompatAfip`) → construcción de QR oficial → `pdfRenderer.generateInvoicePdf` → persistencia en DB y devolución de metadatos (N°, CAE, vencimiento, ruta PDF).
@@ -336,6 +368,22 @@ Orquestación (alto nivel): `FacturacionService.emitirFacturaYGenerarPdf` → so
 5) Render PDF con plantilla calibrada: `generateInvoicePdf` escribe datos en coordenadas del layout y coloca CAE/QR.
 6) Guardado/envío: se guarda el PDF en disco y, opcionalmente, se abre o envía por el canal requerido.
 
+
+### 5.1 Disparo por archivo `.fac`
+
+- Orígenes soportados de facturación:
+  - Manual (UI)
+  - Automática por archivo `.fac` vía FTP (watcher local)
+- Watcher configurable:
+  - Carpeta por defecto `C:\\tmp`.
+  - Claves de configuración: `FACT_FAC_DIR` (ruta), `FACT_FAC_WATCH` (booleano).
+  - IPC: `facturacion:config:get-watcher-dir` y `facturacion:config:set-watcher-dir`.
+- Detección y lectura:
+  - Reacciona cuando aparece un archivo con extensión `.fac` (ej. `25082311322347.fac`).
+  - Lee el contenido UTF-8 con reintentos si el archivo está en uso por el FTP.
+  - Emite evento IPC `facturacion:fac:detected` con `{ filename, rawContent }` para depuración en UI.
+- Preparación futura:
+  - Por ahora sólo notifica y loguea. Próximo paso: mapear `.fac` → `ComprobanteRequest` y disparar `FacturacionService`.
 
 ### 6. Tipos de comprobantes soportados
 

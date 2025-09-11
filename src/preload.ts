@@ -152,7 +152,13 @@ contextBridge.exposeInMainWorld('api', {
 		// FECRED/MiPyME
 		fceConsultarObligado: (cuit: number) => ipcRenderer.invoke('facturacion:fce:consultar-obligado', { cuit }),
 		// Diagnóstico
-		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta')
+		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta'),
+		// Watcher .fac
+		getWatcherDir: () => ipcRenderer.invoke('facturacion:config:get-watcher-dir'),
+		setWatcherDir: (dir: string, enabled?: boolean) => ipcRenderer.invoke('facturacion:config:set-watcher-dir', { dir, enabled }),
+		onFacDetected: (callback: (payload: { filename: string; rawContent: string }) => void) => {
+			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
+		}
 	},
 	// AFIP
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),

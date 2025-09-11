@@ -809,6 +809,30 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// ===== Facturación: Configuración Watcher .fac =====
+	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
+		try {
+			const cfg: any = store.get('config') || {};
+			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('facturacion:config:set-watcher-dir', async (_e, payload: { dir?: string; enabled?: boolean }) => {
+		try {
+			const { dir, enabled } = payload || ({} as any);
+			const cfg: any = store.get('config') || {};
+			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
+			if (typeof enabled === 'boolean') cfg.FACT_FAC_WATCH = enabled;
+			store.set('config', cfg);
+			restartWatchersIfNeeded();
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH === true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// Generar reporte bajo demanda
 	ipcMain.handle('generate-report', async () => {
 		logInfo('Reporte manual solicitado');
@@ -1485,6 +1509,22 @@ app.whenReady().then(() => {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
+	async function deleteWithRetry(fullPath: string, attempts: number, delayMs: number): Promise<void> {
+		for (let i = 0; i < Math.max(1, attempts); i++) {
+			try {
+				if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+				return;
+			} catch (e: any) {
+				const code = String(e?.code || '').toUpperCase();
+				if (code === 'EBUSY' || code === 'EACCES' || code === 'EPERM') {
+					try { await delay(delayMs); } catch {}
+					continue;
+				}
+				throw e;
+			}
+		}
+	}
+
 	// Timer unificado para "remoto" (prioridad) e "imagen"
 	function startRemoteTimer() {
 		stopRemoteTimer();
@@ -1589,11 +1629,55 @@ app.whenReady().then(() => {
 		}
 	}
 
+	// ===== Watcher de Facturación (.fac) =====
+	let facWatcher: fs.FSWatcher | null = null;
+	let facWatcherInstance: any = null;
+
+	function startFacWatcher(): boolean {
+		stopFacWatcher();
+		const cfg: any = store.get('config') || {};
+		const enabled = cfg.FACT_FAC_WATCH === true;
+		const dir = String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp');
+		if (!enabled) return false;
+		try {
+			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
+			const { createFacWatcher } = require('./modules/facturacion/facWatcher');
+			facWatcherInstance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
+				try {
+					logInfo('FAC detectado', { filename, fullPath });
+					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
+					// Hook futuro: mapear rawContent (.fac) -> ComprobanteRequest y llamar FacturacionService
+				} catch {}
+				try {
+					await deleteWithRetry(fullPath, 6, 300);
+				} catch {}
+			});
+			const ok = facWatcherInstance.start();
+			if (ok) {
+				try { facWatcher = (facWatcherInstance as any).watcher || null; } catch { facWatcher = null; }
+				logInfo('Fac watcher started', { dir });
+				return true;
+			}
+			return false;
+		} catch {
+			return false;
+		}
+	}
+
+	function stopFacWatcher() {
+		try { facWatcherInstance?.stop?.(); } catch {}
+		try { facWatcher?.close?.(); } catch {}
+		facWatcher = null;
+		facWatcherInstance = null;
+	}
+
 	function restartWatchersIfNeeded() {
 		stopRemoteWatcher();
 		stopImageWatcher();
+		stopFacWatcher();
 		startRemoteWatcher();
 		startImageWatcher();
+		startFacWatcher();
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI

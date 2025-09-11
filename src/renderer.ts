@@ -145,6 +145,9 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_PUBLICIDAD_ALLOWED: (el.IMAGE_PUBLICIDAD_ALLOWED as HTMLInputElement)?.checked || false,
 			IMAGE_PRODUCTO_NUEVO_ENABLED: (el.IMAGE_PRODUCTO_NUEVO_ENABLED as HTMLInputElement)?.checked || false,
 			IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS: (el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement)?.value ? Number((el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement).value) : undefined,
+			// Facturación: watcher .fac (incluir en guardado global para no perderlo)
+			FACT_FAC_DIR: (document.getElementById('FAC_WATCH_DIR') as HTMLInputElement | null)?.value || undefined,
+			FACT_FAC_WATCH: (document.getElementById('FAC_WATCH_ENABLED') as HTMLInputElement | null)?.checked || false,
 			DEFAULT_VIEW: ((): 'config'|'caja'|'imagen' => {
 				try {
 					const href = String(window.location.pathname || '').toLowerCase();
@@ -256,6 +259,13 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (ftpPasvHostEl) ftpPasvHostEl.value = cfg.FTP_SRV_PASV_HOST || '';
 		if (ftpPasvMinEl) ftpPasvMinEl.value = String(cfg.FTP_SRV_PASV_MIN || '50000');
 		if (ftpPasvMaxEl) ftpPasvMaxEl.value = String(cfg.FTP_SRV_PASV_MAX || '50100');
+		// Facturación: watcher .fac (reflejar estado si están presentes en DOM)
+		try {
+			const facDirEl = document.getElementById('FAC_WATCH_DIR') as HTMLInputElement | null;
+			const facEnabledEl = document.getElementById('FAC_WATCH_ENABLED') as HTMLInputElement | null;
+			if (facDirEl) facDirEl.value = cfg.FACT_FAC_DIR || 'C\\tmp';
+			if (facEnabledEl) facEnabledEl.checked = cfg.FACT_FAC_WATCH === true;
+		} catch {}
 		
 		// Galicia
 		const galiciaAppIdEl = document.getElementById('GALICIA_APP_ID') as HTMLInputElement | null;
