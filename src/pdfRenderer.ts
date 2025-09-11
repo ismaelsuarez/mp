@@ -161,7 +161,8 @@ export type InvoiceData = {
   fecha: string; // YYYY-MM-DD
   hora?: string; // HH:mm - Hora de emisión
   fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
-  tipoComprobanteLetra?: string; // A | B | C
+  tipoComprobanteLetra?: string; // A | B | C | NC | ND | R (se mantiene por compatibilidad)
+  tipoComprobanteLiteral?: string; // Si se setea, se imprime tal cual (ej: "RECIBO")
   mipymeModo?: 'ADC' | 'SCA';
   atendio?: string;
   condicionPago?: string;
@@ -424,14 +425,16 @@ export async function generateInvoicePdf({
   
   // Tipo de comprobante (Factura, Nota de Crédito, Remito, etc.)
   if (c.tipoComprobante) {
-    const tipoTexto = data.mipymeModo ? `FACTURA DE CRÉDITO MiPyME – Modo: ${data.mipymeModo}` :
-                     data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
-                     data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
-                     data.tipoComprobanteLetra === 'R' ? 'REMITO' :
-                     'COMPROBANTE';
+    const tipoTexto = data.tipoComprobanteLiteral ? data.tipoComprobanteLiteral : (
+      data.mipymeModo ? `FACTURA DE CRÉDITO MiPyME – Modo: ${data.mipymeModo}` :
+      data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
+      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
+      data.tipoComprobanteLetra === 'R' ? 'REMITO' :
+      'COMPROBANTE'
+    );
     drawText(tipoTexto, c.tipoComprobante.x, c.tipoComprobante.y, { 
       fontSize: c.tipoComprobante.fontSize ?? 10, 
       bold: true 
@@ -455,7 +458,7 @@ export async function generateInvoicePdf({
 
   // Campos opcionales extra del encabezado
   if (c.referenciaInterna)
-    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
+    drawLabelValue(drawText, 'Ref.Interna', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
       fontSize: c.referenciaInterna.fontSize ?? 9,
     });
   if (c.notaRecepcion)
@@ -568,9 +571,13 @@ export async function generateInvoicePdf({
     });
   }
 
-  // CAE
-  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
-  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+  // CAE (imprimir solo si hay datos)
+  if (data.cae) {
+    drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
+  }
+  if (data.caeVto) {
+    drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+  }
 
   // QR Code - preferir URL oficial (qrDataUrl). Fallback: QR simplificado con CAE
   if (c.qrCode) {
