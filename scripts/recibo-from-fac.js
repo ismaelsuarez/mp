@@ -218,6 +218,7 @@ async function main() {
     condicionPago: parsed.obs.pago || undefined,
     email: parsed.obs.mail || undefined,
     tipoComprobanteLiteral: 'RECIBO',
+    tipoComprobanteLetra: 'X',
     referenciaInterna: parsed.refInterna,
     remito: parsed.remito || undefined,
     gracias: parsed.gracias || undefined,
