@@ -1646,7 +1646,18 @@ app.whenReady().then(() => {
 				try {
 					logInfo('FAC detectado', { filename, fullPath });
 					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-					// Hook futuro: mapear rawContent (.fac) -> ComprobanteRequest y llamar FacturacionService
+					// Procesamiento automático de recibo (.fac)
+					try {
+						if (/\bTIPO:\s*RECIBO\b/i.test(String(rawContent))) {
+							const { processFacFile } = require('./modules/facturacion/facProcessor');
+							const out = await processFacFile(fullPath);
+							logInfo('Recibo generado', { output: out });
+						} else {
+							logInfo('FAC detectado no-recibo (no procesado aún)', { filename });
+						}
+					} catch (e) {
+						logWarning('Error generando Recibo desde .fac', { error: String(e?.message || e) });
+					}
 				} catch {}
 				try {
 					await deleteWithRetry(fullPath, 6, 300);

@@ -7,9 +7,9 @@ const dayjs = require('dayjs');
 // Cargar el build transpile (dist) si existe, o TS en dev
 let generateInvoicePdf;
 try {
-  ({ generateInvoicePdf } = require('../dist/src/pdfRenderer'));
+  ({ generateInvoicePdf } = require('../dist/src/pdfRenderer.js'));
 } catch {
-  ({ generateInvoicePdf } = require('../src/pdfRenderer'));
+  ({ generateInvoicePdf } = require('../src/pdfRenderer.js'));
 }
 
 function parseFacRecibo(content, fileName) {
@@ -193,12 +193,8 @@ function parseFacRecibo(content, fileName) {
   };
 }
 
-async function main() {
-  const facPath = process.argv[2];
-  if (!facPath) {
-    console.error('Uso: node scripts/recibo-from-fac.js <ruta .fac>');
-    process.exit(1);
-  }
+async function generateFromFac(facPath) {
+  if (!facPath) throw new Error('Falta ruta .fac');
   const raw = fs.readFileSync(facPath, 'utf8');
   const parsed = parseFacRecibo(raw, facPath);
   // Config de recibo (PV y contador)
@@ -332,8 +328,25 @@ async function main() {
   } catch (e) {
     console.warn('[RECIBO][WARN] No se pudo guardar el nuevo contador:', e?.message || e);
   }
+  return outPath;
 }
 
-main().catch(e => { console.error(e?.message || e); process.exit(2); });
+async function main() {
+  const facPath = process.argv[2];
+  if (!facPath) {
+    console.error('Uso: node scripts/recibo-from-fac.js <ruta .fac>');
+    process.exit(1);
+  }
+  try {
+    await generateFromFac(facPath);
+  } catch (e) {
+    console.error(e?.message || e);
+    process.exit(2);
+  }
+}
 
+if (require.main === module) {
+  main();
+}
 
+module.exports = { runReciboFromFac: generateFromFac };
