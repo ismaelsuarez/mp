@@ -129,8 +129,27 @@ function parseFacRecibo(content, fileName) {
   }
   // Observaciones
   const cab1Lines = getBlock('OBS.CABCERA1:');
-  const cab2Lines = getBlock('OBS.CABCERA2:');
-  const pieLines = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
+  const cab2LinesRaw = getBlock('OBS.CABCERA2:');
+  let remitoNum = '';
+  const cab2Lines = cab2LinesRaw.filter((ln) => {
+    const mRem = ln.match(/REMITO:\s*(.*)/i);
+    if (mRem) {
+      remitoNum = (mRem[1] || '').trim();
+      return false; // excluir línea REMITO del texto visible
+    }
+    return true;
+  });
+  const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
+  let graciasLine = '';
+  const pieLines = [];
+  for (const ln of pieAll) {
+    if (!ln || ln === '.') continue;
+    if (!graciasLine && /gracias/i.test(ln)) {
+      graciasLine = (ln || '').trim();
+      continue;
+    }
+    pieLines.push(ln);
+  }
   let atendio = '', hora = '', mail = '';
   const cab1Text = cab1Lines.join(' | ');
   const mAt = cab1Text.match(/Atendio:\s*([^|]+)/i); if (mAt) atendio = `Atendio: ${mAt[1].trim()}`;
@@ -147,7 +166,9 @@ function parseFacRecibo(content, fileName) {
     itemsRecibo,
     total: totales.total,
     totales,
-    obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieLines, atendio, hora, mail, pago }
+    obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieLines, atendio, hora, mail, pago },
+    gracias: graciasLine,
+    remito: remitoNum
   };
 }
 
@@ -195,9 +216,12 @@ async function main() {
     email: parsed.obs.mail || undefined,
     tipoComprobanteLiteral: 'RECIBO',
     referenciaInterna: parsed.refInterna,
+    remito: parsed.remito || undefined,
+    gracias: parsed.gracias || undefined,
     mipymeModo: undefined,
-    observaciones: parsed.obs.cabecera2.filter(Boolean).join(' '),
-    pieObservaciones: parsed.obs.pie.filter(Boolean).join(' '),
+    observaciones: parsed.obs.cabecera2.filter(Boolean).slice(0,2).join('\n'),
+    // Mantener orden original en pie y conservar saltos de línea
+    pieObservaciones: parsed.obs.pie.filter(Boolean).join('\n'),
     items: (parsed.itemsRecibo && parsed.itemsRecibo.length > 0)
       ? parsed.itemsRecibo.map(it => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total }))
       : parsed.pagos.map(p => ({ descripcion: `${p.medio}:${p.detalle}`, cantidad: 1, unitario: p.importe, iva: 0 })),
@@ -241,6 +265,12 @@ async function main() {
   console.log('[RECIBO] Ref.Interna:', parsed.refInterna);
   console.log('[RECIBO] Cliente:', parsed.receptor.codigo, '-', parsed.receptor.nombre);
   console.log('[RECIBO] Doc:', `${parsed.receptor.docTipoLabel || parsed.receptor.docTipo}`, parsed.receptor.docNro, '| IVA:', parsed.receptor.condicionTxt);
+  if (parsed.remito) {
+    console.log('[RECIBO] Remito:', parsed.remito);
+  }
+  if (parsed.obs && parsed.obs.cabecera2 && parsed.obs.cabecera2.length) {
+    console.log('[RECIBO] OBS.CABCERA2:', parsed.obs.cabecera2);
+  }
   if (parsed.itemsRecibo && parsed.itemsRecibo.length) {
     console.log('[RECIBO] Items (cantidad, descripción, total):', parsed.itemsRecibo);
   }

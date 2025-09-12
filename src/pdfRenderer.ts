@@ -629,29 +629,38 @@ export async function generateInvoicePdf({
   }
 
   // Textos legales / pie
-  if (c.legalDefensaConsumidor)
-    drawText(
-      'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
-      c.legalDefensaConsumidor.x,
-      c.legalDefensaConsumidor.y,
-      { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
-    );
-  if (c.legalGracias)
-    drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
-      fontSize: c.legalGracias.fontSize ?? 9,
-      maxWidth: c.legalGracias.maxWidth,
-    });
-  if (c.legalContacto)
-    drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
-      fontSize: c.legalContacto.fontSize ?? 8,
-      maxWidth: c.legalContacto.maxWidth,
-    });
-  // Observaciones dinámicas de pie (si vienen del .fac)
-  if (c.pieObservaciones && data.pieObservaciones) {
-    drawText(data.pieObservaciones, c.pieObservaciones.x, c.pieObservaciones.y, {
+  const tienePie = Boolean(data.pieObservaciones && data.pieObservaciones.trim().length > 0);
+  if (!tienePie) {
+    if (c.legalDefensaConsumidor)
+      drawText(
+        'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
+        c.legalDefensaConsumidor.x,
+        c.legalDefensaConsumidor.y,
+        { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+      );
+    if (c.legalContacto)
+      drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
+        fontSize: c.legalContacto.fontSize ?? 8,
+        maxWidth: c.legalContacto.maxWidth,
+      });
+  }
+  // Observaciones de pie unificadas (desde .fac) y gracias centrado si existe
+  if (c.pieObservaciones && tienePie) {
+    drawText(data.pieObservaciones!, c.pieObservaciones.x, c.pieObservaciones.y, {
       fontSize: c.pieObservaciones.fontSize ?? 8,
       maxWidth: c.pieObservaciones.maxWidth,
     });
+  }
+  if (c.legalGracias) {
+    const gracias = (data as any).gracias || '';
+    if (gracias) {
+      drawText(gracias, c.legalGracias.x, c.legalGracias.y, {
+        fontSize: c.legalGracias.fontSize ?? 9,
+        maxWidth: c.legalGracias.maxWidth,
+        align: 'center',
+        bold: true,
+      });
+    }
   }
     
 

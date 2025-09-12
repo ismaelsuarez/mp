@@ -96,9 +96,11 @@ const layoutMendoza: Config = {
     qrCode: { x: 115, y: 230, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
 
     // Textos Legales
-    legalDefensaConsumidor: { x: 10, y: 275, maxWidth: 170, fontSize: 7 }, // Texto de defensa del consumidor
-    legalContacto: { x: 10, y: 280, maxWidth: 170, fontSize: 8 },          // Información de contacto
-    legalGracias: { x: 100, y: 290, maxWidth: 170, fontSize: 9 },          // Mensaje de agradecimiento
+    legalDefensaConsumidor: { x: 10, y: 274, maxWidth: 170, fontSize: 7 }, // Texto de defensa del consumidor
+    legalContacto: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },          // Información de contacto
+    legalGracias: { x: 60, y: 288, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
+    // Observaciones dinámicas de pie (desde OBS.PIE)
+    pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
   },
 
   // Validación de campos requeridos
