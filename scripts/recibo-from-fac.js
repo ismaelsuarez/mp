@@ -183,6 +183,25 @@ async function main() {
   }
   const raw = fs.readFileSync(facPath, 'utf8');
   const parsed = parseFacRecibo(raw, facPath);
+  // Config de recibo (PV y contador)
+  const cfgPath = path.join(process.cwd(), 'config', 'recibo.config.json');
+  function loadReciboConfig() {
+    try {
+      const txt = fs.readFileSync(cfgPath, 'utf8');
+      const json = JSON.parse(txt || '{}');
+      return {
+        pv: Number(json.pv) || 1,
+        contador: Number(json.contador) || 1,
+      };
+    } catch {
+      return { pv: 1, contador: 1 };
+    }
+  }
+  function saveReciboConfig(cfg) {
+    try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
+    fs.writeFileSync(cfgPath, JSON.stringify({ pv: cfg.pv, contador: cfg.contador }, null, 2));
+  }
+  const reciboCfg = loadReciboConfig();
   // Render PDF recibo (reutilizamos renderer con un layout simple)
   const base = process.cwd();
   const bgCandidates = [
@@ -210,7 +229,7 @@ async function main() {
 
   const clienteNombreFull = (parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim();
   const data = {
-    empresa: { nombre: 'Empresa', domicilio: '', cuit: '', pv: 16, numero: 2846 },
+    empresa: { nombre: 'Empresa', domicilio: '', cuit: '', pv: reciboCfg.pv, numero: reciboCfg.contador },
     cliente: { nombre: clienteNombreFull, domicilio: parsed.receptor.domicilio, cuitDni: parsed.receptor.docNro, condicionIva: parsed.receptor.condicionTxt },
     fecha: parsed.fechaISO,
     hora: parsed.obs.hora || undefined,
@@ -263,6 +282,7 @@ async function main() {
     qrDataUrl: undefined
   });
   // Chequeos en consola
+  console.log('[RECIBO] PV/Numero usados:', data.empresa.pv, '-', String(data.empresa.numero).padStart(8, '0'));
   console.log('[RECIBO] Copias (COPIAS:):', isNaN(parsed.copias) ? '(no definido → 1 por defecto)' : parsed.copias);
   console.log('[RECIBO] Fondo (FONDO:):', parsed.fondo || '(no provisto)');
   console.log('[RECIBO] Fondo usado:', bgPath);
@@ -286,6 +306,14 @@ async function main() {
     console.warn('[RECIBO][WARN] El TOTAL no coincide con la suma de pagos.');
   }
   console.log('Recibo generado:', outPath);
+  // Incrementar contador y persistir
+  try {
+    const nuevo = { pv: reciboCfg.pv, contador: (data.empresa.numero || 0) + 1 };
+    saveReciboConfig(nuevo);
+    console.log('[RECIBO] Nuevo contador guardado:', nuevo);
+  } catch (e) {
+    console.warn('[RECIBO][WARN] No se pudo guardar el nuevo contador:', e?.message || e);
+  }
 }
 
 main().catch(e => { console.error(e?.message || e); process.exit(2); });

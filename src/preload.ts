@@ -160,6 +160,11 @@ contextBridge.exposeInMainWorld('api', {
 			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
 		}
 	},
+	// Recibo config (PV y contador)
+	recibo: {
+		getConfig: () => ipcRenderer.invoke('recibo:get-config'),
+		saveConfig: (cfg: { pv?: number; contador?: number }) => ipcRenderer.invoke('recibo:save-config', cfg),
+	},
 	// AFIP
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),
 	'afip:validar-certificado': () => ipcRenderer.invoke('afip:validar-certificado'),

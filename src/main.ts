@@ -2738,6 +2738,53 @@ app.whenReady().then(() => {
 	});
 });
 
+// ===== Recibo (PV y contador) =====
+function getReciboCfgPath(): string {
+  return path.join(process.cwd(), 'config', 'recibo.config.json');
+}
+function readReciboCfg(): { pv: number; contador: number } {
+  try {
+    const txt = fs.readFileSync(getReciboCfgPath(), 'utf8');
+    const json = JSON.parse(txt || '{}');
+    return { pv: Number(json.pv) || 1, contador: Number(json.contador) || 1 };
+  } catch {
+    return { pv: 1, contador: 1 };
+  }
+}
+function writeReciboCfg(cfg: { pv: number; contador: number }): { ok: boolean; error?: string } {
+  try {
+    const p = getReciboCfgPath();
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador }, null, 2));
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+ipcMain.handle('recibo:get-config', async () => {
+  try {
+    const cfg = readReciboCfg();
+    return { ok: true, config: cfg };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number }) => {
+  try {
+    const current = readReciboCfg();
+    const next = {
+      pv: typeof cfg?.pv === 'number' ? cfg.pv : current.pv,
+      contador: typeof cfg?.contador === 'number' ? cfg.contador : current.contador,
+    };
+    const res = writeReciboCfg(next);
+    return res.ok ? { ok: true } : { ok: false, error: res.error };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
 // ===== SecureStore / Importación protegida =====
 ipcMain.handle('secure:import-cert-key', async (_e, { certPath, keyPath }: { certPath: string; keyPath: string }) => {
     try {

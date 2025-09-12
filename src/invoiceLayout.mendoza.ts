@@ -103,7 +103,7 @@ const layoutMendoza: Config = {
     // Observaciones dinámicas de pie (desde OBS.PIE)
     pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
     // Observaciones fiscales (debajo de TOTAL)
-    obsFiscal: { x: 138, y: 252, maxWidth: 96, fontSize: 6, maxChars: 84 },
+    obsFiscal: { x: 114, y: 262, maxWidth: 96, fontSize: 6, maxChars: 84 },
   },
 
   // Validación de campos requeridos
