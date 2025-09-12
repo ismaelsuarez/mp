@@ -19,6 +19,7 @@ export class FacFileWatcher {
 	private directoryPath: string;
 	private watcher: fs.FSWatcher | null = null;
 	private onDetected: DetectedCallback;
+	private processing = new Set<string>();
 
 	constructor(directoryPath: string, onDetected: DetectedCallback) {
 		this.directoryPath = directoryPath || 'C\\tmp';
@@ -33,16 +34,23 @@ export class FacFileWatcher {
 		this.stop();
 		try {
 			if (!fs.existsSync(this.directoryPath) || !fs.statSync(this.directoryPath).isDirectory()) return false;
-			this.watcher = fs.watch(this.directoryPath, { persistent: true }, (_event, filename) => {
+			this.watcher = fs.watch(this.directoryPath, { persistent: true }, async (_event, filename) => {
 				try {
 					const name = String(filename || '');
 					if (!name) return;
 					if (!/\.fac$/i.test(name)) return;
 					const full = path.join(this.directoryPath, name);
-					this.readFileWithRetry(full, 10, 300).then((content) => {
-						if (content == null) return;
+					if (this.processing.has(full)) return; // evitar doble proceso
+					this.processing.add(full);
+					try {
+						const stable = await this.waitUntilStable(full, 30, 500);
+						if (!stable) { this.processing.delete(full); return; }
+						const content = await this.readFileWithRetry(full, 40, 500);
+						if (content == null) { this.processing.delete(full); return; }
 						this.onDetected({ filename: name, fullPath: full, rawContent: content });
-					}).catch(() => {});
+					} finally {
+						this.processing.delete(full);
+					}
 				} catch {}
 			});
 			return true;
@@ -71,6 +79,28 @@ export class FacFileWatcher {
 			}
 		}
 		return null;
+	}
+
+	private async waitUntilStable(fullPath: string, checks: number, intervalMs: number): Promise<boolean> {
+		let prevSize = -1;
+		let sameCount = 0;
+		for (let i = 0; i < Math.max(1, checks); i++) {
+			try {
+				const st = fs.statSync(fullPath);
+				if (st.size === prevSize) {
+					sameCount++;
+					if (sameCount >= 2) return true; // 2 lecturas consecutivas iguales
+				} else {
+					prevSize = st.size;
+					sameCount = 0;
+				}
+			} catch (e: any) {
+				const code = String(e?.code || '').toUpperCase();
+				if (code !== 'ENOENT' && code !== 'EBUSY' && code !== 'EACCES' && code !== 'EPERM') return false;
+			}
+			await this.delay(intervalMs);
+		}
+		return false;
 	}
 
 	private delay(ms: number): Promise<void> {

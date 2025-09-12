@@ -3,6 +3,7 @@ import path from 'path';
 import dayjs from 'dayjs';
 import { generateInvoicePdf } from '../../pdfRenderer';
 import layoutMendoza from '../../invoiceLayout.mendoza';
+import { sendArbitraryFile } from '../../services/FtpService';
 
 type ParsedRecibo = {
   tipo: 'RECIBO';
@@ -273,6 +274,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
   // Incrementar contador
   saveReciboConfig(cfgPath, { pv: reciboCfg.pv, contador: (data.empresa.numero || 0) + 1 });
   // Escribir respuesta .res en el mismo directorio del .fac
+  let resPath: string | null = null;
   try {
     const now = new Date();
     const fechaStr = dayjs(now).format('DD/MM/YYYY');
@@ -292,9 +294,17 @@ export async function processFacFile(fullPath: string): Promise<string> {
       `ARCHIVO PDF       : ${path.basename(outPath)}`,
       '',
     ];
-    const resPath = fullPath.replace(/\.fac$/i, '.res');
+    resPath = fullPath.replace(/\.fac$/i, '.res');
     const joined = raw.replace(/\s*$/,'') + '\n' + resLines.join('\n');
     fs.writeFileSync(resPath, joined, 'utf8');
+  } catch {}
+
+  // Enviar .res por FTP (si hay config)
+  try {
+    if (resPath && fs.existsSync(resPath)) {
+      await sendArbitraryFile(resPath, path.basename(resPath));
+      try { fs.unlinkSync(resPath); } catch {}
+    }
   } catch {}
 
   return outPath;
