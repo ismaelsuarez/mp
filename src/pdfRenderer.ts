@@ -126,6 +126,8 @@ export interface Config {
     legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     // Observaciones dinámicas de pie (desde OBS.PIE)
     pieObservaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    // Observaciones fiscales dinámicas (OBS.FISCAL)
+    obsFiscal?: { x: number; y: number; maxWidth?: number; fontSize?: number; maxChars?: number };
   };
 
   // Validación de campos requeridos
@@ -175,6 +177,8 @@ export type InvoiceData = {
   observaciones?: string;
   // Observaciones dinámicas del pie de página (p.ej. OBS.PIE)
   pieObservaciones?: string;
+  // Observaciones fiscales (nuevo OBS.FISCAL)
+  fiscal?: string;
 
   // Información adicional
   moneda?: string;
@@ -573,6 +577,28 @@ export async function generateInvoicePdf({
     }
     drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
   }
+  // OBS.FISCAL: debajo del Total
+  if (c.obsFiscal && data.fiscal) {
+    let fiscalText = data.fiscal;
+    const maxChars = (c.obsFiscal as any).maxChars as number | undefined;
+    if (maxChars && maxChars > 0) {
+      // Re-wrap a líneas duras de longitud maxChars respetando saltos existentes
+      const lines: string[] = [];
+      for (const part of fiscalText.split(/\r?\n/)) {
+        let p = part.trim();
+        while (p.length > maxChars) {
+          lines.push(p.slice(0, maxChars));
+          p = p.slice(maxChars);
+        }
+        lines.push(p);
+      }
+      fiscalText = lines.join('\n');
+    }
+    drawText(fiscalText, c.obsFiscal.x, c.obsFiscal.y, {
+      fontSize: c.obsFiscal.fontSize ?? 8,
+      maxWidth: c.obsFiscal.maxWidth,
+    });
+  }
   
   if (c.totalLabel) {
     drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
@@ -663,7 +689,13 @@ export async function generateInvoicePdf({
     }
   }
     
-
+  // Observaciones fiscales (OBS.FISCAL)
+  if (c.obsFiscal && data.fiscal) {
+    drawText(data.fiscal, c.obsFiscal.x, c.obsFiscal.y, {
+      fontSize: c.obsFiscal.fontSize ?? 9,
+      maxWidth: c.obsFiscal.maxWidth,
+    });
+  }
 
   doc.end();
   await new Promise<void>((resolve) => stream.on('finish', () => resolve()));

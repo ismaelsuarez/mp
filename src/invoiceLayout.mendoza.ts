@@ -86,6 +86,7 @@ const layoutMendoza: Config = {
     total: { x: 180, y: 245, fontSize: 12 },            // Valor del total final
     totalLabel: { x: 160, y: 245, fontSize: 12 },       // Etiqueta "TOTAL:" (izquierda)
 
+    // Total en letras
     totalEnLetras: { x: 9, y: 206, maxWidth: 120, fontSize: 9 }, // "SON PESOS: UN MIL..." (total en letras)
 
     // Información AFIP
@@ -101,6 +102,8 @@ const layoutMendoza: Config = {
     legalGracias: { x: 60, y: 288, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
     // Observaciones dinámicas de pie (desde OBS.PIE)
     pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
+    // Observaciones fiscales (debajo de TOTAL)
+    obsFiscal: { x: 138, y: 252, maxWidth: 96, fontSize: 6, maxChars: 84 },
   },
 
   // Validación de campos requeridos

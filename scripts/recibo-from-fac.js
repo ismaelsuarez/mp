@@ -140,6 +140,8 @@ function parseFacRecibo(content, fileName) {
     return true;
   });
   const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
+  // Nuevo: bloque fiscal opcional
+  const fiscalLines = getBlock('OBS.FISCAL:');
   let graciasLine = '';
   const pieLines = [];
   for (const ln of pieAll) {
@@ -168,7 +170,8 @@ function parseFacRecibo(content, fileName) {
     totales,
     obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieLines, atendio, hora, mail, pago },
     gracias: graciasLine,
-    remito: remitoNum
+    remito: remitoNum,
+    fiscal: fiscalLines
   };
 }
 
@@ -222,6 +225,7 @@ async function main() {
     observaciones: parsed.obs.cabecera2.filter(Boolean).slice(0,2).join('\n'),
     // Mantener orden original en pie y conservar saltos de línea
     pieObservaciones: parsed.obs.pie.filter(Boolean).join('\n'),
+    fiscal: (parsed.fiscal && parsed.fiscal.length) ? parsed.fiscal.join('\n') : undefined,
     items: (parsed.itemsRecibo && parsed.itemsRecibo.length > 0)
       ? parsed.itemsRecibo.map(it => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total }))
       : parsed.pagos.map(p => ({ descripcion: `${p.medio}:${p.detalle}`, cantidad: 1, unitario: p.importe, iva: 0 })),
