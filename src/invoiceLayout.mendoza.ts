@@ -29,7 +29,7 @@ const layoutMendoza: Config = {
     clienteIva: { x: 27, y: 62, fontSize: 8 },           // Condición IVA del cliente
 
     // Información del Comprobante
-    fecha: { x: 162, y: 18, fontSize: 12 },              // Fecha de emisión (formato DD/MM/YYYY)
+    fecha: { x: 160, y: 18, fontSize: 10 },              // Fecha de emisión (formato DD/MM/YYYY)
     numero: { x: 162, y: 10, fontSize: 10 },             // Número de comprobante
     tipoComprobante: { x: 165, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
     pv: { x: 160, y: 14, fontSize: 10 },                 // Punto de Venta (PV)

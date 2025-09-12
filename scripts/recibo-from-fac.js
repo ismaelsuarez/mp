@@ -14,6 +14,24 @@ try {
 
 function parseFacRecibo(content, fileName) {
   const lines = String(content || '').split(/\r?\n/);
+  const parseImporte = (raw) => {
+    const s = String(raw || '').trim();
+    if (!s) return 0;
+    // Formatos soportados:
+    //  - 100.30 (punto decimal)
+    //  - 1.234,56 (punto millares + coma decimal)
+    //  - 1234,56 (solo coma decimal)
+    if (/^\d{1,3}(\.\d{3})+,\d{2}$/.test(s)) {
+      // 1.234,56 → 1234.56
+      return Number(s.replace(/\./g, '').replace(',', '.'));
+    }
+    if (s.includes(',') && !s.includes('.')) {
+      // 1234,56 → 1234.56
+      return Number(s.replace(',', '.'));
+    }
+    // Mantener punto como decimal: 100.30 → 100.30; 0.10 → 0.10
+    return Number(s);
+  };
   const get = (key) => {
     const ln = lines.find((l) => l.startsWith(key));
     return ln ? ln.substring(key.length).trim() : '';
@@ -84,14 +102,14 @@ function parseFacRecibo(content, fileName) {
       if (mPago) {
         const medio = mPago[1].trim();
         const detalle = mPago[2].trim();
-        const imp = Number(String(mPago[3]).replace(/\./g,'').replace(',','.'));
+        const imp = parseImporte(mPago[3]);
         pagos.push({ medio, detalle, importe: imp });
       }
       // Items recibo (Cantidad, Descripción libre, Total al final de la línea)
       const mTot = l.match(/(\d+(?:[\.,]\d+)?)\s*$/);
       const mQty = l.match(/^\s*(\d+)/);
       if (mTot && mQty) {
-        const totalNum = Number(String(mTot[1]).replace(/\./g,'').replace(',','.'));
+        const totalNum = parseImporte(mTot[1]);
         const cantidadNum = Number(mQty[1]);
         let cuerpo = String(l);
         cuerpo = cuerpo.replace(/^\s*\d+\s+/, '');
@@ -115,7 +133,7 @@ function parseFacRecibo(content, fileName) {
       const kv = t.match(/^(NETO 21%|NETO 10\.5%|NETO 27%|EXENTO|IVA 21%|IVA 10\.5%|IVA 27%|TOTAL)\s*:\s*([\d\.,]+)$/i);
       if (kv) {
         const key = kv[1].toUpperCase();
-        const val = Number(kv[2].replace(/\./g, '').replace(',', '.'));
+        const val = parseImporte(kv[2]);
         if (key === 'NETO 21%') totales.neto21 = val;
         else if (key === 'NETO 10.5%') totales.neto105 = val;
         else if (key === 'NETO 27%') totales.neto27 = val;
