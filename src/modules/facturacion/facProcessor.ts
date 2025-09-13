@@ -279,7 +279,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
     const now = new Date();
     const fechaStr = dayjs(now).format('DD/MM/YYYY');
     const pvStr = String(reciboCfg.pv).padStart(5, '0').slice(-5).replace(/^0/, '0');
-    const pvOut = String(reciboCfg.pv).padStart(5, '0').slice(-5); // asegurar 4 dígitos
+    const pvOut = String(reciboCfg.pv).padStart(5, '0').slice(-5); // asegurar 5 dígitos
     const nroOut = String(data.empresa.numero).padStart(8, '0');
     const resLines = [
       'RESPUESTA AFIP    :',

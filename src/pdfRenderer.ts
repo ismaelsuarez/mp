@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 
@@ -346,14 +347,49 @@ export async function generateInvoicePdf({
   doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
 
   // Fuentes (usar Helvetica por defecto si no se registran TTF)
-  const fontRegularRegistered = false;
-  const fontBoldRegistered = false;
+  let fontRegularRegistered = false;
+  let fontBoldRegistered = false;
+
+  // Intentar registrar fuentes personalizadas desde config/pdf.config.json
+  try {
+    const cfgPath = path.join(process.cwd(), 'config', 'pdf.config.json');
+    if (fs.existsSync(cfgPath)) {
+      const cfgRaw = fs.readFileSync(cfgPath, 'utf8');
+      const cfg = JSON.parse(cfgRaw || '{}');
+      const regPath = typeof cfg.fontRegular === 'string' ? cfg.fontRegular : undefined;
+      const boldPath = typeof cfg.fontBold === 'string' ? cfg.fontBold : undefined;
+
+      if (regPath && fs.existsSync(regPath)) {
+        doc.registerFont('R', regPath);
+        fontRegularRegistered = true;
+      }
+      if (boldPath && fs.existsSync(boldPath)) {
+        doc.registerFont('B', boldPath);
+        fontBoldRegistered = true;
+      } else if (fontRegularRegistered) {
+        // Si no hay bold explícita, usar la regular también para negrita
+        doc.registerFont('B', regPath);
+        fontBoldRegistered = true;
+      }
+    }
+  } catch {
+    // Ignorar errores de carga de fuente personalizada y usar Helvetica
+  }
 
   function setFont(bold?: boolean) {
     if (!fontRegularRegistered && !fontBoldRegistered) {
       doc.font(bold ? 'Helvetica-Bold' : 'Helvetica'); // Fuente original que funcionaba
     } else {
-      doc.font(bold ? 'B' : 'R');
+      // Si se pidió bold pero no hay 'B', caer a 'R'
+      if (bold && fontBoldRegistered) {
+        doc.font('B');
+      } else if (bold && !fontBoldRegistered && fontRegularRegistered) {
+        doc.font('R');
+      } else if (!bold && fontRegularRegistered) {
+        doc.font('R');
+      } else {
+        doc.font('Helvetica');
+      }
     }
   }
 

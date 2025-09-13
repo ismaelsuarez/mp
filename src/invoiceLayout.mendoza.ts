@@ -49,7 +49,7 @@ const layoutMendoza: Config = {
     // Detalles de Entrega
     notaRecepcion: { x: 8, y: 70, fontSize: 9 },         // Número de nota de recepción
     remito: { x: 100, y: 70, fontSize: 9 },              // Número de remito
-    observaciones: { x: 8, y: 74, maxWidth: 120, fontSize: 9 }, // Observaciones generales
+    observaciones: { x: 8, y: 70, maxWidth: 120, fontSize: 9 }, // Observaciones generales
 
     // Tabla de Items
     itemsStartY: 87,                                    // Posición Y donde empiezan los items
