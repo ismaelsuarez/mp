@@ -279,13 +279,13 @@ export async function processFacFile(fullPath: string): Promise<string> {
     const now = new Date();
     const fechaStr = dayjs(now).format('DD/MM/YYYY');
     const pvStr = String(reciboCfg.pv).padStart(5, '0').slice(-5).replace(/^0/, '0');
-    const pvOut = String(reciboCfg.pv).padStart(5, '0').slice(-4); // asegurar 4 dígitos
+    const pvOut = String(reciboCfg.pv).padStart(5, '0').slice(-5); // asegurar 4 dígitos
     const nroOut = String(data.empresa.numero).padStart(8, '0');
     const resLines = [
       'RESPUESTA AFIP    :',
       'CUIT EMPRESA      : 30708673435',
       'MODO              : 0',
-      `PUNTO DE VENTA    : ${String(reciboCfg.pv).padStart(5, '0').slice(-4)}`,
+      `PUNTO DE VENTA    : ${String(reciboCfg.pv).padStart(5, '0').slice(-5)}`,
       `NUMERO COMPROBANTE: ${nroOut}`,
       `FECHA COMPROBANTE : ${fechaStr}`,
       'NUMERO CAE        :',
@@ -294,7 +294,11 @@ export async function processFacFile(fullPath: string): Promise<string> {
       `ARCHIVO PDF       : ${path.basename(outPath)}`,
       '',
     ];
-    resPath = fullPath.replace(/\.fac$/i, '.res');
+    const dir = path.dirname(fullPath);
+    const baseName = path.basename(fullPath, path.extname(fullPath));
+    const shortBase = baseName.slice(-8); // usar últimos 8 (ej.: 5421946Q). Cambiar a -12 si se requiere 12.
+    const shortBaseLower = shortBase.toLowerCase();
+    resPath = path.join(dir, `${shortBaseLower}.res`);
     const joined = raw.replace(/\s*$/,'') + '\n' + resLines.join('\n');
     fs.writeFileSync(resPath, joined, 'utf8');
   } catch {}
@@ -304,6 +308,8 @@ export async function processFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       await sendArbitraryFile(resPath, path.basename(resPath));
       try { fs.unlinkSync(resPath); } catch {}
+      // Borrar también el archivo .fac original tras envío exitoso del .res
+      try { fs.unlinkSync(fullPath); } catch {}
     }
   } catch {}
 

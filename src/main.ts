@@ -1636,8 +1636,9 @@ app.whenReady().then(() => {
 	function startFacWatcher(): boolean {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
-		const enabled = cfg.FACT_FAC_WATCH === true;
-		const dir = String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp');
+		// Sólo habilitar si el servidor FTP está activo; observar exclusivamente su ROOT
+		const enabled = cfg.FTP_SRV_ENABLED === true;
+		const dir = String(cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share');
 		if (!enabled) return false;
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
@@ -1658,9 +1659,6 @@ app.whenReady().then(() => {
 					} catch (e) {
 						logWarning('Error generando Recibo desde .fac', { error: String(e?.message || e) });
 					}
-				} catch {}
-				try {
-					await deleteWithRetry(fullPath, 6, 300);
 				} catch {}
 			});
 			const ok = facWatcherInstance.start();
@@ -1688,7 +1686,7 @@ app.whenReady().then(() => {
 		stopFacWatcher();
 		startRemoteWatcher();
 		startImageWatcher();
-		startFacWatcher();
+		startFacWatcher(); // ahora depende de FTP_SRV_ENABLED y observa FTP_SRV_ROOT
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
@@ -2409,6 +2407,7 @@ app.whenReady().then(() => {
 	// Iniciar watchers en tiempo real si están habilitados
 	startRemoteWatcher();
 	startImageWatcher();
+	startFacWatcher();
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====
 	
