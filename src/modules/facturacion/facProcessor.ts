@@ -195,18 +195,27 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
   };
 }
 
-function loadReciboConfig(cfgPath: string): { pv: number; contador: number } {
+function loadReciboConfig(cfgPath: string): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
   try {
     const txt = fs.readFileSync(cfgPath, 'utf8');
     const json = JSON.parse(txt || '{}');
-    return { pv: Number(json.pv) || 1, contador: Number(json.contador) || 1 };
+    return {
+      pv: Number(json.pv) || 1,
+      contador: Number(json.contador) || 1,
+      outLocal: typeof json.outLocal === 'string' ? json.outLocal : undefined,
+      outRed1: typeof json.outRed1 === 'string' ? json.outRed1 : undefined,
+      outRed2: typeof json.outRed2 === 'string' ? json.outRed2 : undefined,
+    };
   } catch {
     return { pv: 1, contador: 1 };
   }
 }
 function saveReciboConfig(cfgPath: string, cfg: { pv: number; contador: number }) {
   try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
-  fs.writeFileSync(cfgPath, JSON.stringify({ pv: cfg.pv, contador: cfg.contador }, null, 2));
+  let existing: any = {};
+  try { const t = fs.readFileSync(cfgPath, 'utf8'); existing = JSON.parse(t || '{}'); } catch {}
+  const next = { ...existing, pv: cfg.pv, contador: cfg.contador };
+  fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
 }
 
 export async function processFacFile(fullPath: string): Promise<string> {
@@ -236,11 +245,32 @@ export async function processFacFile(fullPath: string): Promise<string> {
   let bgPath = resolveFondoPath(parsed.fondo);
   if (!bgPath) bgPath = candidates.find((p) => fs.existsSync(p)) || path.join(base, 'public', 'Noimage.jpg');
 
-  const outDir = path.join(base, 'tmp');
-  try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+  // Construcción de carpetas destino según config (Local/red1/red2) y patrón Ventas_PVxx/FYYYYMM
   const pvStr = String(reciboCfg.pv).padStart(4, '0');
   const nroStr = String(reciboCfg.contador).padStart(8, '0');
-  const outPath = path.join(outDir, `REC_${pvStr}-${nroStr}.pdf`);
+  const fileName = `REC_${pvStr}-${nroStr}.pdf`;
+
+  function buildMonthDir(rootDir: string | undefined): string | null {
+    if (!rootDir) return null;
+    const root = String(rootDir).trim();
+    if (!root) return null;
+    const venta = path.join(root, `Ventas_PV${Number(reciboCfg.pv)}`);
+    const yyyymm = dayjs(parsed.fechaISO).format('YYYYMM');
+    const monthDir = path.join(venta, `F${yyyymm}`);
+    try { fs.mkdirSync(monthDir, { recursive: true }); } catch {}
+    return monthDir;
+  }
+
+  const outLocalDir = buildMonthDir((reciboCfg as any).outLocal || '');
+  const outRed1Dir = buildMonthDir((reciboCfg as any).outRed1 || '');
+  const outRed2Dir = buildMonthDir((reciboCfg as any).outRed2 || '');
+
+  // Directorio base para renderizado temporal si no hay local configurado
+  if (!outLocalDir) {
+    // Si no hay ruta local configurada, no generamos en tmp para respetar el requerimiento
+    throw new Error('Ruta Local no configurada para Recibos');
+  }
+  const localOutPath = path.join(outLocalDir, fileName);
 
   const clienteNombreFull = (parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim();
   const data = {
@@ -269,7 +299,28 @@ export async function processFacFile(fullPath: string): Promise<string> {
     caeVto: '',
   } as any;
 
-  await generateInvoicePdf({ bgPath, outputPath: outPath, data, config: layoutMendoza, qrDataUrl: undefined });
+  await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
+
+  // Copiar a Red1/Red2 (sin mover) desde la copia local
+  try {
+    const name = `REC_${pvStr}-${nroStr}.pdf`;
+    const tryCopy = (dstDir: string | null) => {
+      if (!dstDir) return;
+      try { fs.copyFileSync(localOutPath, path.join(dstDir, name)); } catch {}
+    };
+    tryCopy(outRed1Dir);
+    tryCopy(outRed2Dir);
+  } catch {}
+
+  // Impresión automática según COPIAS y impresora seleccionada en UI (opcional)
+  try {
+    const copies = Math.max(0, Number(parsed.copias || 0));
+    if (copies > 0) {
+      // La impresora seleccionada se puede guardar en config general (futuro). Por ahora, dejar al sistema por defecto.
+      const { printPdf } = await import('../../services/PrintService');
+      await printPdf(localOutPath, undefined, copies);
+    }
+  } catch {}
 
   // Incrementar contador
   saveReciboConfig(cfgPath, { pv: reciboCfg.pv, contador: (data.empresa.numero || 0) + 1 });
@@ -291,7 +342,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
       'NUMERO CAE        :',
       'VENCIMIENTO CAE   : 0',
       `ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,
-      `ARCHIVO PDF       : ${path.basename(outPath)}`,
+      `ARCHIVO PDF       : ${path.basename(localOutPath)}`,
       '',
     ];
     const dir = path.dirname(fullPath);
@@ -313,7 +364,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
     }
   } catch {}
 
-  return outPath;
+  return localOutPath;
 }
 
 export default { processFacFile };

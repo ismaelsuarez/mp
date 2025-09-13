@@ -32,6 +32,56 @@ Notas de implementación:
 - El borrado usa hasta 6 intentos, 300 ms entre intentos.
 - El watcher `.fac` convive con los watchers existentes (remoto/imágenes) y se controla desde `restartWatchersIfNeeded()`.
 
+## Actualización técnica – 2025-09-13
+
+- Flujo Recibo desde `.fac` (FTP):
+  - El watcher de `.fac` se inicia únicamente cuando `FTP_SRV_ENABLED === true` y observa exclusivamente `FTP_SRV_ROOT`.
+  - Se añade verificación de archivo estable (dos lecturas de tamaño idéntico) y reintentos de lectura ante `EBUSY/EACCES/EPERM` para FTP.
+  - Cuando `TIPO: RECIBO`, se invoca `processFacFile(fullPath)`.
+  - Parsing: etiquetas soportadas (DIAHORA, IP, TIPO, FONDO, COPIAS, CLIENTE, TIPODOC, NRODOC, CONDICION, IVARECEPTOR, DOMICILIO, MONEDA, ITEM, TOTALES, OBS.CABCERA1, OBS.CABCERA2, OBS.PIE, OBS.PIE:1, OBS.FISCAL).
+  - Render PDF: usa `pdfRenderer.ts` + `invoiceLayout.mendoza.ts`. Se habilitó fuente configurable mediante `config/pdf.config.json` (ver más abajo).
+  - Numeración Recibo: contador y PV internos en `config/recibo.config.json`.
+  - Nombre PDF: `REC_<PV-4>-<NUM-8>.pdf`.
+  - Rutas de salida (nuevas):
+    - Local (obligatoria) y Red 1/Red 2 (opcionales) se configuran en UI → Recibos.
+    - Estructura en destino: `Venta_PV{pv}/F{YYYYMM}/` (creación automática por mes).
+    - El PDF se genera directamente en la ruta Local y se copia a Red1/Red2.
+  - Respuesta `.res`:
+    - Se agrega bloque “RESPUESTA AFIP” al final del `.fac`, se renombra a `.res` y se envía por FTP con nombre corto: últimos 8 caracteres del `.fac` base en minúsculas (ej.: `25091215421946Q.fac` → `5421946q.res`).
+    - Tras enviar el `.res` por FTP, se borra `.res` local y el `.fac` original.
+  - No se guarda más el PDF en `tmp/`.
+
+### Fuentes PDF (novedad)
+
+- Archivo opcional `config/pdf.config.json`:
+  - `fontRegular`: ruta TTF/OTF regular.
+  - `fontBold`: ruta TTF/OTF bold. Si falta, usa la regular.
+- Ejemplo de Consolas incluida en el repositorio:
+```
+{
+  "fontRegular": "src/modules/fonts/CONSOLA.TTF",
+  "fontBold": "src/modules/fonts/CONSOLAB.TTF"
+}
+```
+
+### UI – Recibos (novedades)
+
+- Campos agregados:
+  - `Ruta Local (obligatoria)`
+  - `Ruta Red 1 (opcional)`
+  - `Ruta Red 2 (opcional)`
+- Persisten en `config/recibo.config.json` como `outLocal`, `outRed1`, `outRed2`.
+- El campo “Siguiente número” se calcula con los valores actuales guardados.
+
+### Impresión automática (novedad)
+
+- Nueva infraestructura de impresión:
+  - Servicio: `src/services/PrintService.ts` → `printPdf(filePath, printerName?, copies)` usando `webContents.print` en una ventana oculta.
+  - IPCs: `printers:list` (lista impresoras del sistema, usa `getPrintersAsync` con fallback) y `printers:print-pdf`.
+- UI Recibos: selector «Impresora para Recibos (opcional)» (carga la lista de impresoras). Botón «Probar» informativo.
+- Lógica: `COPIAS:` del `.fac` define la cantidad a imprimir. Si `COPIAS > 0`, tras generar el PDF en Local, se envía a imprimir.
+- Estado actual: la impresión usa la impresora predeterminada del sistema (persistencia de impresora elegida pendiente de habilitarse).
+
 ## Actualización técnica – 2025-09-10
 
 - Orquestación end-to-end (real): UI → IPC (`preload.ts`) → `main.ts` → `FacturacionService.emitirFacturaYGenerarPdf` → `afipService.solicitarCAE` (SDK local vía `CompatAfip`) → construcción de QR oficial → `pdfRenderer.generateInvoicePdf` → persistencia en DB y devolución de metadatos (N°, CAE, vencimiento, ruta PDF).

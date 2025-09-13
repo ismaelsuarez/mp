@@ -123,3 +123,17 @@ Notas:
 - Factura A (TIPO:1) → `src/modules/facturacion/plantilla/25082311322347.fac`
 - Factura B (TIPO:6) → `src/modules/facturacion/plantilla/25082311335147.fac`
 - Recibo (TIPO:RECIBO) → `src/modules/facturacion/plantilla/25091114433149Q.fac`
+
+## 9) Reglas de salida `.res`
+
+- Al finalizar el proceso del `.fac`, se agrega el bloque “RESPUESTA AFIP” y se renombra el archivo a `.res`.
+- Nombre corto: últimos 8 caracteres del nombre base del `.fac`, en minúsculas.
+  - Ej.: `25091215421946Q.fac` → `5421946q.res`.
+- Envío: el `.res` se envía por FTP usando la configuración del módulo FTP Cliente y luego se borra localmente junto con el `.fac` original.
+
+## 10) Salida PDF (Recibo)
+
+- Nombre: `REC_<PV-4>-<NUM-8>.pdf` (ej.: `REC_0016-01000026.pdf`).
+- Destinos: definidos en UI (Ruta Local obligatoria; Red 1 y Red 2 opcionales).
+- Estructura de carpetas por destino: `Venta_PV{pv}/F{YYYYMM}/` (creación automática por mes).
+- No se guarda en `tmp/`.

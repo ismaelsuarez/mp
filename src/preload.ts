@@ -163,7 +163,11 @@ contextBridge.exposeInMainWorld('api', {
 	// Recibo config (PV y contador)
 	recibo: {
 		getConfig: () => ipcRenderer.invoke('recibo:get-config'),
-		saveConfig: (cfg: { pv?: number; contador?: number }) => ipcRenderer.invoke('recibo:save-config', cfg),
+		saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => ipcRenderer.invoke('recibo:save-config', cfg),
+	},
+	printers: {
+		list: () => ipcRenderer.invoke('printers:list'),
+		printPdf: (filePath: string, printerName?: string, copies?: number) => ipcRenderer.invoke('printers:print-pdf', { filePath, printerName, copies }),
 	},
 	// AFIP
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),

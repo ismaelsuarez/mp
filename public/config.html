@@ -74,6 +74,25 @@
 								<input id="REC_NEXT" type="text" readonly />
 							</label>
 						</div>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Ruta Local (obligatoria)
+								<input id="REC_OUT_LOCAL" placeholder="C:\\1_AFIP" />
+							</label>
+							<label>Ruta Red 1 (opcional)
+								<input id="REC_OUT_RED1" placeholder="\\\\correo\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+							</label>
+							<label>Ruta Red 2 (opcional)
+								<input id="REC_OUT_RED2" placeholder="\\\\server2008\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+							</label>
+						</div>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Impresora para Recibos (opcional)
+								<select id="REC_PRINTER"></select>
+							</label>
+							<label>Test impresión
+								<button type="button" id="btnReciboTestPrint" class="w-full px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Probar</button>
+							</label>
+						</div>
 						<div class="flex items-center gap-2">
 							<button type="button" id="btnReciboGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar Recibo</button>
 							<span id="reciboStatus" class="text-xs text-slate-400"></span>
@@ -1296,11 +1315,45 @@
                 pvEl.value = String(res.config.pv ?? 1);
                 niEl.value = String(res.config.contador ?? 1);
                 nextEl.value = `${String(res.config.pv ?? 1).padStart(4,'0')} - ${String(res.config.contador ?? 1).padStart(8,'0')}`;
+                const outLocal = document.getElementById('REC_OUT_LOCAL');
+                const outRed1 = document.getElementById('REC_OUT_RED1');
+                const outRed2 = document.getElementById('REC_OUT_RED2');
+                if (outLocal) outLocal.value = res.config.outLocal || '';
+                if (outRed1) outRed1.value = res.config.outRed1 || '';
+                if (outRed2) outRed2.value = res.config.outRed2 || '';
+
+                // Cargar impresoras disponibles
+                try {
+                    const list = await window.api.printers.list();
+                    const sel = document.getElementById('REC_PRINTER');
+                    if (sel && list?.ok) {
+                        sel.innerHTML = '';
+                        const optDef = document.createElement('option');
+                        optDef.value = '';
+                        optDef.textContent = '(predeterminada del sistema)';
+                        sel.appendChild(optDef);
+                        for (const p of (list.printers || [])) {
+                            const o = document.createElement('option');
+                            o.value = p.name;
+                            o.textContent = p.name + (p.isDefault ? ' (predeterminada)' : '');
+                            sel.appendChild(o);
+                        }
+                    }
+                } catch {}
             }
             btn.addEventListener('click', async () => {
                 try {
                     if (status) status.textContent = 'Guardando...';
-                    const payload = { pv: Number(pvEl.value || '1'), contador: Number(niEl.value || '1') };
+                    const outLocalEl = document.getElementById('REC_OUT_LOCAL');
+                    const outRed1El = document.getElementById('REC_OUT_RED1');
+                    const outRed2El = document.getElementById('REC_OUT_RED2');
+                    const payload = {
+                        pv: Number(pvEl.value || '1'),
+                        contador: Number(niEl.value || '1'),
+                        outLocal: outLocalEl ? outLocalEl.value : undefined,
+                        outRed1: outRed1El ? outRed1El.value : undefined,
+                        outRed2: outRed2El ? outRed2El.value : undefined,
+                    };
                     const save = await window.api.recibo.saveConfig(payload);
                     if (save?.ok) {
                         if (status) status.textContent = '✅ Guardado';
@@ -1311,6 +1364,14 @@
                 } catch (e) {
                     if (status) status.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
                 }
+            });
+
+            // Test impresión (diagnóstico)
+            const btnTest = document.getElementById('btnReciboTestPrint');
+            if (btnTest) btnTest.addEventListener('click', async () => {
+                try {
+                    alert('La impresión automática se realizará luego de generar el PDF desde .fac según COPIAS:. Este botón es informativo.');
+                } catch {}
             });
         } catch {}
     })();

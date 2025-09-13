@@ -83,3 +83,30 @@ El `FacturacionService.emitirFacturaYGenerarPdf(params)` construye un `Comproban
 
 ## 5) Próximo paso
 - Implementar un parser `.fac` que devuelva la estructura intermedia del documento `FAC_FORMATO.md`, y un adaptador que convierta esa estructura a `EmitirFacturaParams` (para Factura A/B/C) o a datos de Recibo (solo PDF).
+
+## Anexo – Panel Recibos (PV/Numeración y rutas)
+
+Campos:
+- Punto de venta (PV)
+- Número inicial (NI)
+- Siguiente número (solo lectura)
+- Ruta Local (obligatoria)
+- Ruta Red 1 (opcional)
+- Ruta Red 2 (opcional)
+
+Persistencia:
+- `config/recibo.config.json`: `{ pv, contador, outLocal, outRed1, outRed2 }`
+
+Flujo al guardar:
+- IPC `recibo:save-config` fusiona claves y preserva rutas existentes
+
+Salida de PDFs (Recibo):
+- El PDF se genera como `REC_<PV-4>-<NUM-8>.pdf`
+- Ubicación: `RutaLocal/Venta_PV{pv}/F{YYYYMM}/`
+- Copias: si hay `Ruta Red 1/2`, se copian allí (misma estructura)
+- No se escribe en `tmp/`
+
+Impresión:
+- Nuevo selector de impresora (opcional) en el panel Recibos. Se lista vía IPC `printers:list`.
+- Botón «Probar» muestra aviso; la impresión real ocurre luego de generar el PDF.
+- Cantidad de copias se toma de la etiqueta `COPIAS:` del `.fac`.

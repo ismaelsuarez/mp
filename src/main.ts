@@ -23,6 +23,7 @@ import { afipService } from './modules/facturacion/afipService';
 import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 import { getSecureStore } from './services/SecureStore';
+import { printPdf } from './services/PrintService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -2752,20 +2753,26 @@ app.whenReady().then(() => {
 function getReciboCfgPath(): string {
   return path.join(process.cwd(), 'config', 'recibo.config.json');
 }
-function readReciboCfg(): { pv: number; contador: number } {
+function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
   try {
     const txt = fs.readFileSync(getReciboCfgPath(), 'utf8');
     const json = JSON.parse(txt || '{}');
-    return { pv: Number(json.pv) || 1, contador: Number(json.contador) || 1 };
+    return {
+      pv: Number(json.pv) || 1,
+      contador: Number(json.contador) || 1,
+      outLocal: (json.outLocal && String(json.outLocal)) || undefined,
+      outRed1: (json.outRed1 && String(json.outRed1)) || undefined,
+      outRed2: (json.outRed2 && String(json.outRed2)) || undefined,
+    };
   } catch {
     return { pv: 1, contador: 1 };
   }
 }
-function writeReciboCfg(cfg: { pv: number; contador: number }): { ok: boolean; error?: string } {
+function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string }): { ok: boolean; error?: string } {
   try {
     const p = getReciboCfgPath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador }, null, 2));
+    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2 }, null, 2));
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
@@ -2781,15 +2788,47 @@ ipcMain.handle('recibo:get-config', async () => {
   }
 });
 
-ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number }) => {
+ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => {
   try {
     const current = readReciboCfg();
     const next = {
       pv: typeof cfg?.pv === 'number' ? cfg.pv : current.pv,
       contador: typeof cfg?.contador === 'number' ? cfg.contador : current.contador,
+      outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
+      outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
+      outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
     };
     const res = writeReciboCfg(next);
     return res.ok ? { ok: true } : { ok: false, error: res.error };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Listar impresoras disponibles (del sistema)
+ipcMain.handle('printers:list', async () => {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    let list: any[] = [];
+    if (win) {
+      const wc: any = win.webContents as any;
+      if (typeof wc.getPrintersAsync === 'function') {
+        list = await wc.getPrintersAsync();
+      } else if (typeof wc.getPrinters === 'function') {
+        list = wc.getPrinters();
+      }
+    }
+    return { ok: true, printers: list || [] };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Imprimir PDF silenciosamente
+ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies }: { filePath: string; printerName?: string; copies?: number }) => {
+  try {
+    await printPdf(filePath, printerName, copies || 1);
+    return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
   }
