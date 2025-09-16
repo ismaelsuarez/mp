@@ -41,7 +41,19 @@ export async function sendReportEmail(subject: string, text: string, attachments
  * Extensible para otros comprobantes (Remito/Factura/NC) reusando esta función
  * y cambiando asunto/plantilla/attachments según corresponda.
  */
-export async function sendReceiptEmail(to: string, pdfPath: string, options?: { subject?: string }) {
+export async function sendReceiptEmail(
+  to: string,
+  pdfPath: string,
+  options?: {
+    subject?: string;
+    title?: string;
+    intro?: string;
+    bodyHtml?: string;
+    signatureCompany?: string;
+    signatureContact?: string;
+    logoUrl?: string;
+  }
+) {
   const cfg = getConfig();
   if (!to || !/.+@.+\..+/.test(to)) return false;
   if (!cfg.SMTP_USER || !cfg.SMTP_PASS) return false;
@@ -53,18 +65,35 @@ export async function sendReceiptEmail(to: string, pdfPath: string, options?: { 
     auth: { user: cfg.SMTP_USER, pass: cfg.SMTP_PASS }
   });
 
-  // Cargar plantilla HTML básica
-  let html = 'Estimado cliente,<br>Adjuntamos el recibo correspondiente a su pago.<br><br>Saludos cordiales,<br>Su Empresa';
-  try {
-    const base = app.getAppPath();
-    const tpl = path.join(base, 'templates', 'email', 'recibo.html');
-    if (fs.existsSync(tpl)) {
-      html = fs.readFileSync(tpl, 'utf8');
-    }
-  } catch {}
+  // Plantilla genérica con placeholders; fallback a recibo.html
+  function loadTemplate(): string {
+    try {
+      const base = app.getAppPath();
+      const docTpl = path.join(base, 'templates', 'email', 'document.html');
+      if (fs.existsSync(docTpl)) return fs.readFileSync(docTpl, 'utf8');
+      const recTpl = path.join(base, 'templates', 'email', 'recibo.html');
+      if (fs.existsSync(recTpl)) return fs.readFileSync(recTpl, 'utf8');
+    } catch {}
+    return '<h1>{{title}}</h1><p>{{intro}}</p>{{body}}<div id="signature">Saludos cordiales,<br>{{signatureCompany}}</div>';
+  }
 
   const subject = options?.subject || 'Recibo de pago';
   const fromAddr = cfg.SMTP_FROM || cfg.SMTP_USER;
+  const company = options?.signatureCompany || cfg.EMP_RAZON || 'Su Empresa';
+  const contact = options?.signatureContact || '';
+  const title = options?.title || subject;
+  const intro = options?.intro || 'Adjuntamos el comprobante correspondiente.';
+  const bodyHtml = options?.bodyHtml || '<p>Gracias por su preferencia.</p>';
+  const logoUrl = options?.logoUrl || '';
+
+  const tplHtml = loadTemplate();
+  const html = tplHtml
+    .replace(/{{\s*title\s*}}/g, title)
+    .replace(/{{\s*intro\s*}}/g, intro)
+    .replace(/{{\s*body\s*}}/g, bodyHtml)
+    .replace(/{{\s*signatureCompany\s*}}/g, company)
+    .replace(/{{\s*signatureContact\s*}}/g, contact)
+    .replace(/{{\s*logoBlock\s*}}/g, logoUrl ? `<img alt="logo" src="${logoUrl}" style="max-height:48px;">` : '');
 
   await transporter.sendMail({
     from: fromAddr,

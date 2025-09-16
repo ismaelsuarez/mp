@@ -323,7 +323,12 @@ export async function processFacFile(fullPath: string): Promise<string> {
     if (to && isValidEmail(to)) {
       try {
         const { sendReceiptEmail } = await import('../../services/EmailService');
-        await sendReceiptEmail(to, localOutPath, { subject: 'Recibo de pago' });
+        await sendReceiptEmail(to, localOutPath, {
+          subject: 'Recibo de pago',
+          title: 'Recibo de pago',
+          intro: 'Adjuntamos el recibo correspondiente.',
+          bodyHtml: '<p>Gracias por su preferencia.</p>'
+        });
       } catch (e) {
         try { console.warn('[recibo] envío de email falló:', (e as any)?.message || String(e)); } catch {}
       }

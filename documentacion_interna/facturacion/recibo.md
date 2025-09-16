@@ -11,6 +11,7 @@
 - **IPC (main process)**: `src/main.ts` — handlers para leer/guardar configuración de Recibo y listar/usar impresoras.
 - **Lógica de Recibo**: `src/modules/facturacion/facProcessor.ts` — parsea `.fac`, arma datos, genera el PDF, copia a rutas configuradas y dispara impresión silenciosa.
 - **Servicio de impresión**: `src/services/PrintService.ts` — usa `pdf-to-printer` para enviar el PDF al spooler del SO evitando el bug de “página negra”.
+- **Servicio de email**: `src/services/EmailService.ts` — envío de correo con adjunto PDF mediante SMTP. Usa plantilla HTML `templates/email/document.html` (firma fija, estilo corporativo).
 - **Generación de PDF**: `src/pdfRenderer.ts` + `src/invoiceLayout.mendoza.ts` — motor de render y layout (títulos, textos, posiciones, tipografías, fondos).
 - **Persistencia de configuración**: archivo JSON `config/recibo.config.json`.
 
@@ -20,6 +21,7 @@ Descripción textual del flujo completo:
 3) Se genera el PDF en el destino local, en una ruta con patrón: `Ventas_PV{pv}/F{YYYYMM}/REC_{PV-4}-{NUM-8}.pdf`.
 4) Desde la copia local, se realizan copias a Red1/Red2 si están configuradas.
 5) Si el `.fac` define `COPIAS: N` (N>0), se dispara la impresión silenciosa con `pdf-to-printer`. Si no se definió impresora, se usa la predeterminada del sistema.
+6) Si el `.fac` trae `EMAIL: usuario@dominio`, se envía automáticamente el PDF adjunto al correo, con asunto y cuerpo adecuados para el tipo de comprobante (en Recibo: “Recibo de pago”).
 
 ### Flujo paso a paso
 
@@ -126,6 +128,7 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
   - Copiar a rutas de red (Red1/Red2) desde la copia local.
   - Imprimir silencioso según `COPIAS:` usando `PrintService.printPdf`.
   - Generar `.res`, enviarlo por FTP y, si fue exitoso, borrar `.res` y el `.fac` original.
+  - Si se detecta `EMAIL:` en el `.fac`, enviar el PDF por email usando `EmailService.sendReceiptEmail` con plantilla corporativa.
 
 Parseo y armado de datos (extracto):
 ```50:96:src/modules/facturacion/facProcessor.ts
@@ -217,6 +220,13 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
 - QR AFIP: para Recibo no se incluye CAE ni QR fiscal (no es comprobante fiscal AFIP), pero el motor soporta QR para otros comprobantes.
 - Validaciones previas: existencia de ruta local obligatoria; creación recursiva de `Ventas_PV{pv}/F{YYYYMM}`; numeración correlativa persistida en `recibo.config.json`.
 
+### Envío por email (nuevo)
+- Detección: en el parseo de `.fac` se agrega el campo opcional `email` cuando existe una línea `EMAIL:`.
+- Servicio: `src/services/EmailService.ts` implementa `sendReceiptEmail(to, pdfPath, options)` usando `nodemailer` y configuración SMTP (host, puerto, usuario, contraseña) ya disponibles en la app.
+- Plantilla: `templates/email/document.html` con diseño corporativo y firma fija (bloque inferior izquierdo). El servicio reemplaza placeholders básicos (`{{title}}`, `{{intro}}`, `{{body}}`) y adjunta el PDF generado.
+- Recibo: se invoca con `subject/title = "Recibo de pago"`, `intro = "Adjuntamos el recibo correspondiente."`, `bodyHtml = "<p>Gracias por su preferencia.</p>"`.
+- Manejo de errores: si el envío falla, se registra una advertencia y el flujo de generación/impresión/FTP continúa sin interrumpirse.
+
 ### Impresión
 - Se realiza luego de guardar el PDF local y de copiarlo a Red1/Red2.
 - Servicio: `src/services/PrintService.ts` con `pdf-to-printer`.
@@ -245,12 +255,14 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
 - `pdf-to-printer`: impresión silenciosa a spooler nativo, evitando render Chromium.
 - `dayjs`: formateo de fechas (p. ej., carpeta `FYYYYMM`).
 - `basic-ftp` (en servicio FTP): para envío de `.res` tras generar/imprimir.
+- `nodemailer`: envío de emails con adjuntos usando SMTP.
 
 ### Consideraciones de seguridad y buenas prácticas
 - Rutas de salida: asegurar permisos de escritura en `outLocal`. Evitar rutas de red inestables para render inicial; siempre generar local y luego copiar.
 - Drivers y fuentes: validar drivers en producción; instalar fuentes requeridas por el layout para evitar sustituciones.
 - Impresión silenciosa: `pdf-to-printer` requiere colas accesibles; probar con impresoras de red autenticadas.
 - Manejo de archivos temporales: evitar imprimir desde archivos aún en escritura; el servicio valida tamaño > 0.
+- Email/seguridad: no se registran contraseñas SMTP en logs; se valida formato básico del email antes de enviar.
 
 ### Extensibilidad (patrón para otros comprobantes)
 - **Partes comunes**:
@@ -289,6 +301,7 @@ Copias a red:
   \\correo\backup\Presupuestos y Licitaciones\FACTURAS\Ventas_PV16\F202509\REC_0016-00009207.pdf
   \\server2008\backup\Presupuestos y Licitaciones\FACTURAS\Ventas_PV16\F202509\REC_0016-00009207.pdf
 Impresión: 2 copias (impresora predeterminada)
+Email: enviado a la dirección presente en `EMAIL:` si corresponde (asunto: "Recibo de pago").
 ```
 
 ---

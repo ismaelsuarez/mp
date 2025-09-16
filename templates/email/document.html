@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{title}}</title>
+    <style>
+      body { font-family: Arial, Helvetica, sans-serif; color: #0f172a; background:#f6f8fb; }
+      .wrapper { padding: 24px 0; }
+      .container { max-width: 680px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; box-shadow: 0 6px 18px rgba(2,6,23,0.08); }
+      .header { padding: 16px 22px; background: #0f172a; color: #e2e8f0; display:flex; align-items:center; gap:12px; }
+      .brand { font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+      .content { padding: 22px; }
+      h1 { font-size: 18px; margin: 0 0 12px; color:#0f172a; }
+      p { font-size: 14px; line-height: 1.7; margin: 0 0 12px; }
+      a { color:#0a66c2; text-decoration:none; }
+      a:hover { text-decoration:underline; }
+      .divider { height:1px; background:#e2e8f0; margin: 16px 0; }
+      .message { background:#ffffff; border:1px solid #e5e7eb; border-radius:8px; padding:16px 18px; }
+      .accent { border-left:4px solid #0ea5e9; padding-left:12px; }
+      .signature { margin-top: 18px; font-size: 13px; color:#334155; text-align:left; }
+      .signature .company { font-weight: 600; color:#0f172a; }
+      .small { color:#64748b; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="container">
+        <div class="header">
+          <div class="logo">{{logoBlock}}</div>
+          <div class="brand">{{title}}</div>
+        </div>
+        <div class="content">
+          <div class="message accent">
+            <p>{{intro}}</p>
+          </div>
+          <div class="divider"></div>
+          <div class="message">
+            {{body}}
+          </div>
+          <div class="signature" id="signature">
+            <!-- Firma corporativa personalizada -->
+            <table style="color:#ff0000;width:auto;border:0;border-collapse:collapse;font:13px/1.2em sans-serif;color:#ff0000">
+              <tbody>
+                <tr>
+                  <td style="font:13px/1.2em sans-serif;padding:0px 10px 0px 0px;vertical-align:top;">
+                    <div></div>
+                  </td>
+                  <td style="font:13px/1.2em sans-serif;padding:0px 10px 0px 0px;vertical-align:top;">
+                    <div></div>
+                  </td>
+                  <td style="font:13px/1.2em sans-serif;padding:5px 0px 0px 10px;vertical-align:top;border-left:1px dashed #B33D3D;">
+                    <div style="display:inline-block">
+                      <div style="text-align:left;"> Dpto. de Ventas / Servicios<span style="white-space:pre"></span></div>
+                    </div>
+                    <div style="display:inline-block">
+                      <div style="text-align:left;"> Ax Sistemas y Servicios S.A.<span style="white-space:pre"></span></div>
+                    </div>
+                    <div>
+                      <div style="margin:8px 0;">
+                        <table style="width:auto;border:0;border-collapse:collapse;font:13px/1.2em sans-serif;color:#ff0000">
+                          <tbody>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Correo electrónico:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;"><a href="mailto:ventas@tcmza.com.ar" style="color:#0066ff">ventas@tcmza.com.ar</a></td>
+                            </tr>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Página web:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;"><a href="http://www.tcmza.com.ar" style="color:#0066ff">www.tcmza.com.ar</a></td>
+                            </tr>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Teléfono:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;">261-4201555</td>
+                            </tr>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Whatsapp:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;">2613057673</td>
+                            </tr>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Dirección:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;">Montecaseros 1126 - Mendoza</td>
+                            </tr>
+                            <tr>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;color:#000000;font-weight:bold;">Ubicación:</td>
+                              <td style="vertical-align:top;padding:8px;border:none;font:13px/1.2em sans-serif;padding:0 5px 0 0;"><a href="https://maps.app.goo.gl/amwwPjyJRToEZCik6" style="color:#0066ff">https://maps.app.goo.gl/hhCaTtM8xLLuMYM59</a></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div style="margin-top:10px;color:#25ba11;font:13px/1.2em sans-serif;">Antes de imprimir este mail, piense en su responsabilidad y compromiso con el MEDIO AMBIENTE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <!-- TODO: Permitir cargar logo e información de firma desde configuración -->
+</html>
+
+
