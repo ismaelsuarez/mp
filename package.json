@@ -122,13 +122,14 @@
     "p-retry": "^7.0.0",
     "papaparse": "^5.5.3",
     "pdf-parse": "^1.1.1",
+    "pdf-to-printer": "^5.1.0",
     "pdfkit": "^0.15.2",
     "puppeteer": "^22.15.0",
     "qrcode": "^1.5.4",
     "soap": "^1.3.0",
+    "ssh2-sftp-client": "^12.0.1",
     "winston": "^3.17.0",
-    "xml2js": "^0.6.2",
-    "pdf-to-printer": "^5.1.0"
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

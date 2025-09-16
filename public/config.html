@@ -268,6 +268,52 @@
 					</div>
 				</details>
 
+				<!-- FTP WhatsApp -->
+				<details class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						FTP WhatsApp
+					</summary>
+					<div class="p-3 space-y-3">
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<label class="md:col-span-2">IP o Host
+								<input id="FTP_WHATSAPP_IP" placeholder="192.168.0.20" />
+							</label>
+							<label>Puerto
+								<input id="FTP_WHATSAPP_PORT" type="number" placeholder="21" />
+							</label>
+						</div>
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_WHATSAPP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_WHATSAPP_SFTP" type="checkbox" checked disabled /> Modo fijo: SFTP (SSH)</label>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Usuario
+								<input id="FTP_WHATSAPP_USER" placeholder="user" />
+							</label>
+							<label>Contraseña
+								<input id="FTP_WHATSAPP_PASS" type="password" placeholder="********" />
+							</label>
+							<div>
+								<button type="button" id="btnToggleFtpWPass" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 w-full">👁 Mostrar</button>
+							</div>
+						</div>
+						<label>Carpeta remota
+							<input id="FTP_WHATSAPP_DIR" placeholder="/whatsapp" />
+						</label>
+						<div class="row">
+							<button type="button" id="btnTestFtpWhatsapp" class="bg-blue-600 text-white border-transparent">Probar FTP WhatsApp</button>
+							<span id="ftpWhatsappTestStatus"></span>
+						</div>
+						<div class="flex items-center gap-2 mt-1">
+							<button type="button" id="btnSaveWhatsappCfg" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar WhatsApp</button>
+							<span id="waSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
+						<div class="row">
+							<input id="FTP_WA_SEND_FILE_PATH" type="text" placeholder="Selecciona archivo local..." class="flex-1" readonly />
+							<button type="button" id="btnPickLocalFileWa" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Elegir archivo</button>
+							<button type="button" id="btnSendLocalFileWa" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500">Enviar archivo por FTP WhatsApp</button>
+						</div>
+					</div>
+				</details>
+
 				<!-- FTP SERVER -->
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
@@ -1375,6 +1421,119 @@
             });
         } catch {}
     })();
+
+    // ... existing code ...
+    // Cargar estado (añadir WhatsApp FTP)
+    (async function loadFtpWhatsapp(){
+        try {
+            const res = await window.api.getConfig();
+            const cfg = res || {};
+            const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.value = val ?? ''; };
+            const setChk = (id, val)=>{ const el=document.getElementById(id); if(el) el.checked = !!val; };
+            set('FTP_WHATSAPP_IP', cfg.FTP_WHATSAPP_IP);
+            set('FTP_WHATSAPP_PORT', cfg.FTP_WHATSAPP_PORT);
+            set('FTP_WHATSAPP_USER', cfg.FTP_WHATSAPP_USER);
+            set('FTP_WHATSAPP_PASS', cfg.FTP_WHATSAPP_PASS);
+            setChk('FTP_WHATSAPP_SECURE', cfg.FTP_WHATSAPP_SECURE);
+            setChk('FTP_WHATSAPP_SFTP', cfg.FTP_WHATSAPP_SFTP);
+            set('FTP_WHATSAPP_DIR', cfg.FTP_WHATSAPP_DIR);
+        } catch {}
+    })();
+
+    // Guardar configuración (extender botón global)
+    document.getElementById('btnSave')?.addEventListener('click', async () => {
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+            const payload = {
+                FTP_WHATSAPP_IP: getVal('FTP_WHATSAPP_IP'),
+                FTP_WHATSAPP_PORT: Number(getVal('FTP_WHATSAPP_PORT')||'21'),
+                FTP_WHATSAPP_USER: getVal('FTP_WHATSAPP_USER'),
+                FTP_WHATSAPP_PASS: getVal('FTP_WHATSAPP_PASS'),
+                FTP_WHATSAPP_SECURE: false,
+                FTP_WHATSAPP_SFTP: true,
+                FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
+            };
+            const base = await window.api.getConfig();
+            await window.api.saveConfig({ ...(base||{}), ...payload });
+        } catch {}
+    });
+
+    // Toggle mostrar/ocultar password WhatsApp
+    document.getElementById('btnToggleFtpWPass')?.addEventListener('click', () => {
+        const input = document.getElementById('FTP_WHATSAPP_PASS');
+        const button = document.getElementById('btnToggleFtpWPass');
+        if (!input || !button) return;
+        if (input.type === 'password') { input.type = 'text'; button.textContent = '🙈 Ocultar'; }
+        else { input.type = 'password'; button.textContent = '👁 Mostrar'; }
+    });
+    // Probar FTP WhatsApp
+    document.getElementById('btnTestFtpWhatsapp')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('ftpWhatsappTestStatus');
+        try { if (statusEl) statusEl.textContent = 'Probando...'; } catch {}
+        try {
+            const res = await window.api.testFtpWhatsappConnection();
+            if (statusEl) statusEl.textContent = res?.ok ? '✅ Conexión exitosa' : `❌ ${(res && res.error) || 'Error'}`;
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Guardar solo sección WhatsApp
+    document.getElementById('btnSaveWhatsappCfg')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('waSaveStatus');
+        try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const payload = {
+                FTP_WHATSAPP_IP: getVal('FTP_WHATSAPP_IP'),
+                FTP_WHATSAPP_PORT: Number(getVal('FTP_WHATSAPP_PORT')||'21'),
+                FTP_WHATSAPP_USER: getVal('FTP_WHATSAPP_USER'),
+                FTP_WHATSAPP_PASS: getVal('FTP_WHATSAPP_PASS'),
+                FTP_WHATSAPP_SECURE: false,
+                FTP_WHATSAPP_SFTP: true,
+                FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
+            };
+            const base = await window.api.getConfig();
+            await window.api.saveConfig({ ...(base||{}), ...payload });
+            if (statusEl) statusEl.textContent = '✅ Guardado';
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Enviar archivo manual a WhatsApp FTP
+    document.getElementById('btnPickLocalFileWa')?.addEventListener('click', async () => {
+        try {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = () => {
+                const file = input.files && input.files[0];
+                if (file) {
+                    const pathInput = document.getElementById('FTP_WA_SEND_FILE_PATH');
+                    var chosenPath = file.name;
+                    try { if (file && file.path) { chosenPath = file.path; } } catch {}
+                    if (pathInput) { try { pathInput.value = chosenPath; } catch(e) { /* no-op */ } }
+                }
+            };
+            input.click();
+        } catch {}
+    });
+    document.getElementById('btnSendLocalFileWa')?.addEventListener('click', async () => {
+        const pathInput = document.getElementById('FTP_WA_SEND_FILE_PATH');
+        const statusEl = document.getElementById('ftpWhatsappTestStatus');
+        var localPath = '';
+        if (pathInput && pathInput.value) localPath = pathInput.value;
+        if (!localPath) { if (statusEl) statusEl.textContent = '❌ Seleccione un archivo'; return; }
+        try { if (statusEl) statusEl.textContent = 'Enviando...'; } catch {}
+        try {
+            const res = await window.api.ftpSendWhatsappFile(localPath);
+            if (statusEl) statusEl.textContent = res?.ok ? '✅ Enviado' : `❌ ${(res && res.error) || 'Error'}`;
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+    // ... existing code ...
     </script>
     <script src="../dist/src/renderer.js"></script>
 </body>

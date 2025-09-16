@@ -20,11 +20,17 @@ contextBridge.exposeInMainWorld('api', {
 	async testFtpConnection() {
 		return await ipcRenderer.invoke('test-ftp');
 	},
+	async testFtpWhatsappConnection() {
+		return await ipcRenderer.invoke('test-ftp-whatsapp');
+	},
 	async sendDbfViaFtp() {
 		return await ipcRenderer.invoke('send-dbf-ftp');
 	},
 	async ftpSendFile(localPath: string, remoteName?: string) {
 		return await ipcRenderer.invoke('ftp:send-file', { localPath, remoteName });
+	},
+	async ftpSendWhatsappFile(localPath: string, remoteName?: string) {
+		return await ipcRenderer.invoke('ftp:send-file-whatsapp', { localPath, remoteName });
 	},
 	async clearFtpHash() {
 		return await ipcRenderer.invoke('clear-ftp-hash');

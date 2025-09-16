@@ -14,6 +14,7 @@ type ParsedRecibo = {
   copias: number;
   moneda?: string;
   email?: string;
+  whatsapp?: string;
   receptor: {
     codigo?: string;
     nombre: string;
@@ -87,6 +88,8 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
   const moneda = get('MONEDA:') || 'PESOS';
   const emailRaw = get('EMAIL:');
   const email = (emailRaw || '').trim();
+  const whatsappRaw = get('WHATSAPP:');
+  const whatsapp = (whatsappRaw || '').trim();
 
   // Receptor
   const clienteRaw = get('CLIENTE:');
@@ -188,6 +191,7 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
     copias,
     moneda,
     email: email || undefined,
+    whatsapp: whatsapp || undefined,
     receptor: { codigo, nombre, docTipo, docNro, condicionTxt, ivaReceptor, domicilio },
     itemsRecibo,
     pagos,
@@ -331,6 +335,40 @@ export async function processFacFile(fullPath: string): Promise<string> {
         });
       } catch (e) {
         try { console.warn('[recibo] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+      }
+    }
+  } catch {}
+
+  // Si hay etiqueta WHATSAPP:, generar wfa.txt (nombre único) y enviar PDF+wfa por WhatsApp
+  try {
+    const phone = (parsed.whatsapp || '').trim();
+    if (phone) {
+      const clienteNombreFull = (parsed.receptor.nombre || '').trim();
+      // Normalizar teléfono: asegurar prefijo +54
+      const onlyDigits = phone.replace(/[^0-9]/g, '');
+      const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
+      // Crear wfa-<id>.txt en misma carpeta del PDF local (evitar colisiones)
+      const stamp = dayjs().format('HHmmss');
+      const rand = Math.random().toString(36).slice(2, 4);
+      const wfaName = `wfa${stamp}${rand}.txt`;
+      const wfaPath = path.join(outLocalDir as string, wfaName);
+      const lines = [
+        normalizedPhone,
+        clienteNombreFull,
+        path.basename(localOutPath),
+        'Que tal, somos de Todo Computacion',
+        'Adjuntamos "el recibo realizado."',
+      ];
+      try { fs.writeFileSync(wfaPath, lines.join('\n'), 'utf8'); } catch {}
+
+      // Enviar por FTP WhatsApp ambos archivos (si está configurado)
+      try {
+        const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
+        await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
+        // Tras éxito, borrar wfa.txt local
+        try { fs.unlinkSync(wfaPath); } catch {}
+      } catch (e) {
+        try { console.warn('[recibo] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
       }
     }
   } catch {}

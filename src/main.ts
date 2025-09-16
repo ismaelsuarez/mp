@@ -10,7 +10,7 @@ dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { startFtpServer, stopFtpServer, isFtpServerRunning } from './services/FtpServerService';
 import { generateFiles, getOutDir } from './services/ReportService';
-import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile } from './services/FtpService';
+import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile, testWhatsappFtp, sendWhatsappFile } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
 import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
@@ -779,7 +779,8 @@ app.whenReady().then(() => {
 	});
 	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
-			store.set('config', cfg);
+			const current = (store.get('config') as any) || {};
+			store.set('config', { ...current, ...cfg });
 			// Refrescar menú de bandeja para reflejar cambios como IMAGE_PUBLICIDAD_ALLOWED
 			try { refreshTrayMenu(); } catch {}
 			// Reiniciar timers para aplicar cambios
@@ -908,6 +909,27 @@ app.whenReady().then(() => {
 		try {
 			const ok = await testFtp();
 			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP WhatsApp: probar conexión
+	ipcMain.handle('test-ftp-whatsapp', async () => {
+		try {
+			const ok = await testWhatsappFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP WhatsApp: enviar archivo arbitrario
+	ipcMain.handle('ftp:send-file-whatsapp', async (_e, { localPath, remoteName }: { localPath: string; remoteName?: string }) => {
+		try {
+			if (!localPath) return { ok: false, error: 'Ruta local vacía' };
+			const res = await sendWhatsappFile(localPath, remoteName);
+			return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
