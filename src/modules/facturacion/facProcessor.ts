@@ -13,6 +13,7 @@ type ParsedRecibo = {
   fondo?: string;
   copias: number;
   moneda?: string;
+  email?: string;
   receptor: {
     codigo?: string;
     nombre: string;
@@ -84,6 +85,8 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
   const fondo = get('FONDO:');
   const copias = Number(get('COPIAS:') || '1');
   const moneda = get('MONEDA:') || 'PESOS';
+  const emailRaw = get('EMAIL:');
+  const email = (emailRaw || '').trim();
 
   // Receptor
   const clienteRaw = get('CLIENTE:');
@@ -184,6 +187,7 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
     fondo,
     copias,
     moneda,
+    email: email || undefined,
     receptor: { codigo, nombre, docTipo, docNro, condicionTxt, ivaReceptor, domicilio },
     itemsRecibo,
     pagos,
@@ -312,6 +316,20 @@ export async function processFacFile(fullPath: string): Promise<string> {
     tryCopy(outRed2Dir);
   } catch {}
 
+  // Envío por email si el .fac contiene EMAIL:
+  try {
+    const to = (parsed.email || '').trim();
+    const isValidEmail = (s: string) => /.+@.+\..+/.test(s);
+    if (to && isValidEmail(to)) {
+      try {
+        const { sendReceiptEmail } = await import('../../services/EmailService');
+        await sendReceiptEmail(to, localOutPath, { subject: 'Recibo de pago' });
+      } catch (e) {
+        try { console.warn('[recibo] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+      }
+    }
+  } catch {}
+
   // Impresión automática según COPIAS y impresora seleccionada en UI (opcional)
   try {
     const copies = Math.max(0, Number(parsed.copias || 0));
@@ -357,10 +375,14 @@ export async function processFacFile(fullPath: string): Promise<string> {
   // Enviar .res por FTP (si hay config)
   try {
     if (resPath && fs.existsSync(resPath)) {
+      try { console.log('[recibo] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
       try { fs.unlinkSync(resPath); } catch {}
       // Borrar también el archivo .fac original tras envío exitoso del .res
       try { fs.unlinkSync(fullPath); } catch {}
+      try { console.log('[recibo] .res enviado por FTP y archivos limpiados'); } catch {}
+    } else {
+      try { console.warn('[recibo] .res no existe al momento de enviar por FTP', { resPath }); } catch {}
     }
   } catch {}
 
