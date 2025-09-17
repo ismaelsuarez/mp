@@ -171,6 +171,10 @@ contextBridge.exposeInMainWorld('api', {
 		getConfig: () => ipcRenderer.invoke('recibo:get-config'),
 		saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => ipcRenderer.invoke('recibo:save-config', cfg),
 	},
+    remito: {
+      getConfig: () => ipcRenderer.invoke('remito:get-config'),
+      saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('remito:save-config', cfg),
+    },
 	printers: {
 		list: () => ipcRenderer.invoke('printers:list'),
 		printPdf: (filePath: string, printerName?: string, copies?: number) => ipcRenderer.invoke('printers:print-pdf', { filePath, printerName, copies }),

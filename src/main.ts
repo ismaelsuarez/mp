@@ -1684,9 +1684,20 @@ app.whenReady().then(() => {
 						continue;
 					}
 					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
-					const { processFacFile } = require('./modules/facturacion/facProcessor');
-					const out = await processFacFile(job.fullPath);
-					try { logSuccess('FAC procesamiento finalizado', { filename: job.filename, output: out }); } catch {}
+					const raw = fs.readFileSync(job.fullPath, 'utf8');
+					const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
+					const tipo = (tipoMatch?.[1] || '').toUpperCase();
+					if (tipo === 'RECIBO') {
+						const { processFacFile } = require('./modules/facturacion/facProcessor');
+						const out = await processFacFile(job.fullPath);
+						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
+					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
+						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
+						const out = await processRemitoFacFile(job.fullPath);
+						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
+					} else {
+						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
+					}
 				} catch (e) {
 					// No abortar toda la cola: registrar y continuar con el siguiente
 					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
@@ -1724,7 +1735,7 @@ app.whenReady().then(() => {
 				try {
 					logInfo('FAC detectado', { filename, fullPath });
 					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-					// Encolar archivo .fac y procesar de forma secuencial
+					// Encolar archivo .fac y procesar de forma secuencial, con ruteo por tipo
 					enqueueFacFile({ filename, fullPath, rawContent });
 					processFacQueue();
 				} catch {}
@@ -2902,6 +2913,68 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
     return { ok: false, error: e?.message || String(e) };
   }
 });
+
+	// ===== Remito config (similar a Recibo) =====
+	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
+		try {
+			const base = process.cwd();
+			const p = path.join(base, 'config', 'remito.config.json');
+			const t = fs.readFileSync(p, 'utf8');
+			const j = JSON.parse(t || '{}');
+			return {
+				pv: Number(j.pv) || 1,
+				contador: Number(j.contador) || 1,
+				outLocal: typeof j.outLocal === 'string' ? j.outLocal : undefined,
+				outRed1: typeof j.outRed1 === 'string' ? j.outRed1 : undefined,
+				outRed2: typeof j.outRed2 === 'string' ? j.outRed2 : undefined,
+				printerName: typeof j.printerName === 'string' ? j.printerName : undefined,
+			};
+		} catch {
+			return { pv: 1, contador: 1 } as any;
+		}
+	}
+
+	function writeRemitoCfg(next: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) {
+		try {
+			const base = process.cwd();
+			const p = path.join(base, 'config', 'remito.config.json');
+			try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+			let existing: any = {};
+			try { const t = fs.readFileSync(p, 'utf8'); existing = JSON.parse(t || '{}'); } catch {}
+			const merged = { ...existing, ...next };
+			fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	}
+
+	ipcMain.handle('remito:get-config', async () => {
+		try {
+			const cfg = readRemitoCfg();
+			return { ok: true, config: cfg };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	});
+
+	ipcMain.handle('remito:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => {
+		try {
+			const current = readRemitoCfg();
+			const next = {
+				pv: typeof cfg?.pv === 'number' ? cfg.pv : current.pv,
+				contador: typeof cfg?.contador === 'number' ? cfg.contador : current.contador,
+				outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
+				outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
+				outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
+				printerName: typeof cfg?.printerName === 'string' ? cfg.printerName : current.printerName,
+			};
+			const res = writeRemitoCfg(next);
+			return res.ok ? { ok: true } : { ok: false, error: res.error };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	});
 
 // ===== SecureStore / Importación protegida =====
 ipcMain.handle('secure:import-cert-key', async (_e, { certPath, keyPath }: { certPath: string; keyPath: string }) => {
