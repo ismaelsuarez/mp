@@ -102,14 +102,22 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
   const domicilio = get('DOMICILIO:');
 
   const itemsLines = getBlock('ITEM:');
-  const itemsRemito = itemsLines.map((ln) => {
-    // Reutilizamos el mismo formato que Recibo: cantidad;descripcion;importe
-    const parts = String(ln).split(';');
-    const cantidad = Number(parts[0] || '1') || 1;
-    const descripcion = (parts[1] || '').trim();
-    const total = parseImporte(parts[2] || '0');
-    return { cantidad, descripcion, total };
-  });
+  const itemsRemito = [] as Array<{ cantidad: number; descripcion: string; total: number }>;
+  for (const rawLn of itemsLines) {
+    const ln = String(rawLn || '');
+    // Soportar formato libre: "<cantidad> <descripcion> [<importe opcional>]"
+    const mQty = ln.match(/^\s*(\d+)/); // cantidad al inicio si existe
+    const mTot = ln.match(/(\d+(?:[\.,]\d+)?)\s*$/); // total al final si aparece
+    let cantidad = 1;
+    if (mQty) cantidad = Number(mQty[1]) || 1;
+    let total: number | undefined = undefined;
+    if (mTot) total = parseImporte(mTot[1]);
+    let cuerpo = ln;
+    if (mQty) cuerpo = cuerpo.replace(/^\s*\d+\s+/, '');
+    if (mTot) cuerpo = cuerpo.replace(/(\d+(?:[\.,]\d+)?)\s*$/, '');
+    const descripcion = cuerpo.trim().replace(/\s{2,}/g, ' ');
+    if (descripcion) itemsRemito.push({ cantidad, descripcion, total: (typeof total === 'number' ? total : (Number as any).NaN) });
+  }
 
   const pagosLines = getBlock('PAGO:');
   const pagos = pagosLines.map((ln) => {
@@ -137,8 +145,17 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
 
   const cab1Lines = getBlock('OBS.CABCERA1:');
   const cab2Lines = getBlock('OBS.CABCERA2:');
-  const pieLines = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
-  const graciasLine = get('GRACIAS:') || undefined;
+  // Unificar lógica de OBS.PIE con Recibo: separar "GRACIAS" del resto
+  const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
+  const fiscalLines = getBlock('OBS.FISCAL:');
+  let graciasLine: string | undefined = undefined;
+  const pieLines: string[] = [];
+  for (const lnRaw of pieAll) {
+    const ln = (lnRaw || '').trim();
+    if (!ln || ln === '.') continue; // omitir vacíos o separadores
+    if (!graciasLine && /gracias/i.test(ln)) { graciasLine = ln; continue; }
+    pieLines.push(ln);
+  }
   const remitoNum = get('REMITO:') || undefined;
 
   let atendio = '';
@@ -167,7 +184,7 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
     obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieLines, atendio, hora, mail, pago },
     gracias: graciasLine,
     remito: remitoNum,
-    fiscal: pieLines,
+    fiscal: fiscalLines,
   };
 }
 
@@ -220,6 +237,15 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     return null as string | null;
   };
   let bgPath = resolveFondoPath(parsed.fondo);
+  if (!bgPath) {
+    try {
+      const baseName = String(parsed.fondo || '').split(/[\\/]/).pop() || '';
+      if (baseName) {
+        const candidate = path.join(base, 'templates', baseName);
+        if (fs.existsSync(candidate)) bgPath = candidate;
+      }
+    } catch {}
+  }
   if (!bgPath) bgPath = candidates.find((p) => fs.existsSync(p)) || path.join(base, 'public', 'Noimage.jpg');
 
   const pvStr = String(remitoCfg.pv).padStart(4, '0');
