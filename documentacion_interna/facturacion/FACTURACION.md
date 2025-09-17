@@ -1,5 +1,144 @@
 # Facturación – Integración AFIP / ARCA
 
+## Módulo de Facturación – Documento maestro (Recibo/Remito)
+
+### Resumen ejecutivo
+Este documento consolida el estado actual del módulo de facturación que procesa Recibos y Remitos a partir de archivos `.fac`, generando PDFs sobre layouts calibrados, realizando copias a red, impresión silenciosa, envíos por Email y WhatsApp, y escribiendo archivos `.res`. Describe arquitectura, dependencias, servicios compartidos y un roadmap de extensión a Facturas A/B y Notas de Crédito A/B con AFIP/ARCA (CAE/QR).
+
+La arquitectura se sustenta en Electron: UI en `public/` (renderer), APIs expuestas por `src/preload.ts` (`window.api`), y proceso `main` para IPC, cola `.fac` y servicios (PDF/Print/Email/FTP-SFTP). Los procesadores específicos de Recibo y Remito encapsulan parseo y armado de datos para `pdfRenderer` + `invoiceLayout.mendoza`.
+
+### Índice
+- [1️⃣ Introducción y propósito](#1️⃣-introducción-y-propósito-1)
+- [2️⃣ Arquitectura general](#2️⃣-arquitectura-general-1)
+- [3️⃣ Dependencias y librerías](#3️⃣-dependencias-y-librerías-1)
+- [4️⃣ Flujo de procesamiento de .fac](#4️⃣-flujo-de-procesamiento-de-fac-1)
+- [5️⃣ Circuito de Recibo (resumen técnico)](#5️⃣-circuito-de-recibo-resumen-técnico-1)
+- [6️⃣ Circuito de Remito (resumen técnico)](#6️⃣-circuito-de-remito-resumen-técnico-1)
+- [7️⃣ Servicios compartidos](#7️⃣-servicios-compartidos-1)
+- [8️⃣ Persistencia y configuración](#8️⃣-persistencia-y-configuración-1)
+- [9️⃣ Seguridad y buenas prácticas](#9️⃣-seguridad-y-buenas-prácticas-1)
+- [1️⃣0️⃣ Extensibilidad Facturas/NC](#1️⃣0️⃣-extensibilidad-facturasnc)
+- [1️⃣1️⃣ Limitaciones actuales](#1️⃣1️⃣-limitaciones-actuales-1)
+- [1️⃣2️⃣ Recomendaciones siguientes pasos](#1️⃣2️⃣-recomendaciones-siguientes-pasos)
+
+---
+
+## 1️⃣ Introducción y propósito
+- Rol: centralizar el procesamiento de comprobantes a partir de `.fac`, generando PDF, distribuyéndolo por canales y registrando acuses (`.res`).
+- Estado actual: soporta Recibo y Remito (sin AFIP). Próxima etapa: Facturas A/B y Notas de Crédito A/B con CAE/QR.
+
+## 2️⃣ Arquitectura general
+
+```mermaid
+flowchart LR
+  UI[UI (renderer)] -- window.api --> PRELOAD[preload]
+  PRELOAD -- IPC.invoke --> MAIN[main]
+  MAIN -->|Cola .fac| PROC[Procesadores Recibo/Remito]
+  PROC --> PDF[pdfRenderer + invoiceLayout]
+  PROC --> PRINT[PrintService]
+  PROC --> EMAIL[EmailService]
+  PROC --> FTP[FtpService (FTP/SFTP)]
+```
+
+- UI: `public/config.html` expone panel “Comprobantes” (Recibos/Remitos), SMTP/Email, FTP, WhatsApp (SFTP), watcher `.fac`.
+- Preload: `src/preload.ts` (recibo/remito/printers/ftp/whatsapp/auto/errores…).
+- Main: `src/main.ts` maneja IPC; integra watcher/cola `.fac` y orquesta servicios.
+- Procesadores: `src/modules/facturacion/facProcessor.ts` (Recibo) y `src/modules/facturacion/remitoProcessor.ts` (Remito).
+- Servicios: `src/pdfRenderer.ts`, `src/services/PrintService.ts`, `src/services/EmailService.ts`, `src/services/FtpService.ts`.
+
+## 3️⃣ Dependencias y librerías
+- `pdfkit`: motor PDF (texto, imágenes, posicionamiento).
+- `pdf-to-printer`: spooler nativo para impresión silenciosa.
+- `nodemailer`: envío de emails con adjuntos y plantilla.
+- `basic-ftp`: cliente FTP (envío `.res`, pruebas manuales UI).
+- `ssh2-sftp-client`: SFTP (WhatsApp) con validación de huella y mkdir recursivo.
+- `dayjs`: fechas y carpetas `Ventas_PV{pv}/F{YYYYMM}`.
+- `electron`/`electron-store`: plataforma UI/IPC y persistencia.
+
+## 4️⃣ Flujo de procesamiento de .fac
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant W as Watcher .fac (main)
+  participant Q as Cola secuencial
+  participant P as Procesador (Recibo/Remito)
+  participant S as Servicios (PDF/Print/Email/FTP)
+  W->>Q: Detecta archivo (ruta + contenido estable)
+  Q->>P: Encola y despacha 1 a la vez
+  P->>P: Parseo etiquetas y armado de datos PDF
+  P->>S: Render + copias + impresión + envíos
+  P->>W: Escribe .res y borra .fac tras éxito
+```
+
+- Estabilidad: doble lectura de tamaño + reintentos ante `EBUSY/EACCES/EPERM`.
+- Enrutamiento por `TIPO:` (RECIBO/REMITO) o por sufijo de nombre (`R.fac` → Remito).
+- Secuencial: garantiza no perder `.fac` simultáneos.
+
+## 5️⃣ Circuito de Recibo (resumen técnico)
+- Parseo `.fac`: `DIAHORA`, `FONDO`, `COPIAS`, `CLIENTE`, `TIPODOC`, `NRODOC`, `CONDICION`, `IVARECEPTOR`, `DOMICILIO`, `MONEDA`, `ITEM`, `TOTALES`, `OBS.CABCERA1/2`, `OBS.PIE` (y `OBS.PIE:1`), `OBS.FISCAL`, `EMAIL`, `WHATSAPP`.
+- PDF: `generateInvoicePdf` + `invoiceLayout.mendoza`; ítems 3 columnas; `OBS.PIE` y “GRACIAS” impresos (sin agregar legales por defecto si hay pie).
+- Copias: genera local, copia a Red1/Red2.
+- Impresión: `COPIAS > 0` → `PrintService.printPdf(localOutPath, printerName?, copies)`.
+- Email: si `EMAIL:` válido → `EmailService.sendReceiptEmail` (plantilla corporativa).
+- WhatsApp: si `WHATSAPP:` → crear `wfa*.txt` (tel +54, cliente, nombre PDF, mensaje fijo) y enviar junto al PDF por SFTP/FTP; borrar wfa local tras éxito.
+- `.res`: concatenar bloque “RESPUESTA AFIP” al `.fac` y guardar `.res` con nombre corto; enviar por FTP y borrar `.res` + `.fac` tras éxito.
+- Reutilizable: parseo de etiquetas, esquema de carpetas, servicios compartidos.
+
+## 6️⃣ Circuito de Remito (resumen técnico)
+- Parseo `.fac` similar con diferencias:
+  - Ítems: si no hay importes → ocultar unitario/IVA/total; imprimir solo cant/desc.
+  - Totales: si todos cero → omitir bloque (incluye “Total en letras”).
+  - `OBS.PIE`: igual a Recibo (pie exacto del `.fac`; “GRACIAS” centrado). Overrides de layout `*Remito` (pie/fecha/número) para encuadre con fondos distintos.
+- Numeración local: `REM_<PV-4>-<NUM-8>.pdf` y contador en `remito.config.json`.
+- Impresión/Email/WhatsApp: análogo a Recibo.
+- `.res`: sufijo `r` minúscula para el nombre base.
+
+## 7️⃣ Servicios compartidos
+- `pdfRenderer.ts`
+  - `generateInvoicePdf({ bgPath, outputPath, data, config, qrDataUrl? })`.
+  - Comportamiento condicional por `tipoComprobanteLiteral` (RECIBO/REMITO) y merge automático de `coords.X` con `coords.XRemito`.
+- `services/PrintService.ts` → `printPdf(filePath, printerName?, copies)` (usa `pdf-to-printer`).
+- `services/EmailService.ts` → `sendReceiptEmail(to, pdfPath, { subject, title, intro, bodyHtml })`.
+- `services/FtpService.ts` → FTP `.res` y SFTP/FTP WhatsApp (`testWhatsappFtp`, `sendFilesToWhatsappFtp`, `sendWhatsappFile`).
+
+## 8️⃣ Persistencia y configuración
+- `config/recibo.config.json` y `config/remito.config.json`: `{ pv, contador, outLocal?, outRed1?, outRed2?, printerName? }`.
+- Global WhatsApp/SMTP: `FTP_WHATSAPP_*` (IP/PORT/USER/PASS/SECURE/DIR/SFTP/SSH_FP) y `SMTP_*` (HOST/PORT/USER/PASS).
+- Guardado UI: merge conservador por sección para no pisar claves ajenas.
+
+## 9️⃣ Seguridad y buenas prácticas
+- No loguear credenciales; uso de almacenamiento protegido.
+- SFTP preferente (un puerto; valida huella del host y mkdir recursivo).
+- Generar siempre local y luego copiar a red; verificar existencia/tamaño antes de imprimir/enviar.
+- Normalizar teléfonos a `+54…`; validar emails con regex básica.
+
+## 1️⃣0️⃣ Extensibilidad Facturas/NC
+Preparado:
+- Infraestructura UI/IPC/cola `.fac` y servicios PDF/Print/Email/FTP/SFTP.
+- `pdfRenderer`/`invoiceLayout` parametrizables; el repo ya incluye integración AFIP en secciones posteriores (CAE/QR) reutilizable.
+
+A incorporar:
+- Interacción AFIP/ARCA (WSAA/WSFE) para CAE/QR.
+- Layouts A/B y NC con leyendas/legales y reglas de numeración/prefijos (FA_/FB_/NC_...).
+- Parser `.fac` para Facturas/NC o factor común parametrizado por `TIPO:`.
+
+Factorización sugerida:
+- Parser base `.fac` con bloques comunes (`OBS.*`, `ITEM`, `TOTALES`) y extensiones por tipo.
+- Reutilizar servicios compartidos; inyectar políticas de totales/leyendas por comprobante.
+
+## 1️⃣1️⃣ Limitaciones actuales
+- Scripts UI inline (sin framework) pueden crecer; mitigado con acordeones y guardados por sección.
+- Listado de impresoras dependiente del OS/Electron; refresco bajo demanda recomendado.
+- Cola secuencial `.fac`: para alto volumen, considerar workers con ordenamiento por partición (directorio/cliente) y control de concurrencia.
+
+## 1️⃣2️⃣ Recomendaciones siguientes pasos
+- Integrar AFIP (WSAA/WSFE) para Facturas/NC reutilizando el fork local existente en el repo.
+- Definir layouts A/B y NC (coordenadas, textos legales) e insertar QR oficial.
+- Persistir `printerName` por tipo cuando corresponda.
+- Métricas de performance: tiempos de render/impresión/envío y tamaño promedio de PDF.
+- UX: toasts/progress para pruebas de red e impresión; accesibilidad AA (foco/contraste/labels).
+
 ## Actualización técnica – 2025-09-11
 
 - Agregado soporte de “Disparo por archivo .fac (FTP)” con watcher local.
