@@ -102,6 +102,8 @@ const layoutMendoza: Config = {
     legalGracias: { x: 60, y: 288, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
     // Observaciones dinámicas de pie (desde OBS.PIE)
     pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
+    // Variante exclusiva para Remito (fondo diferente): subir el pie
+    pieObservacionesRemito: { x: 10, y: 266, maxWidth: 170, fontSize: 8 },
     // Observaciones fiscales (debajo de TOTAL)
     obsFiscal: { x: 114, y: 262, maxWidth: 96, fontSize: 6, maxChars: 84 },
   },

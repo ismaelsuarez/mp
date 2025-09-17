@@ -117,8 +117,16 @@ function parseFacRemito(content, fileName) {
 
   const cab1Lines = []; // simplificado para pruebas
   const cab2Lines = [];
+  // Unificar con producción: OBS.PIE puede traer la línea de "GRACIAS"; separar la primera coincidencia
+  const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
   const pieLines = [];
-  const graciasLine = get('GRACIAS:') || undefined;
+  let graciasLine = undefined;
+  for (const lnRaw of pieAll) {
+    const ln = (lnRaw || '').trim();
+    if (!ln || ln === '.') continue;
+    if (!graciasLine && /gracias/i.test(ln)) { graciasLine = ln; continue; }
+    pieLines.push(ln);
+  }
   const remitoNum = get('REMITO:') || undefined;
 
   return {
@@ -197,7 +205,8 @@ async function main() {
     referenciaInterna: parsed.refInterna,
     remito: parsed.remito || undefined,
     observaciones: '',
-    pieObservaciones: '',
+    pieObservaciones: (parsed.obs && parsed.obs.pie && parsed.obs.pie.length ? parsed.obs.pie.join('\n') : ''),
+    gracias: parsed.gracias || '',
     fiscal: undefined,
     items: parsed.itemsRemito.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total })),
     netoGravado: (parsed.totales.neto21 || 0) + (parsed.totales.neto105 || 0) + (parsed.totales.neto27 || 0),

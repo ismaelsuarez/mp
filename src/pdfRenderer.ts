@@ -127,6 +127,8 @@ export interface Config {
     legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     // Observaciones dinámicas de pie (desde OBS.PIE)
     pieObservaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    // Variante exclusiva para Remito
+    pieObservacionesRemito?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     // Observaciones fiscales dinámicas (OBS.FISCAL)
     obsFiscal?: { x: number; y: number; maxWidth?: number; fontSize?: number; maxChars?: number };
   };
@@ -743,10 +745,14 @@ export async function generateInvoicePdf({
       });
   }
   // Observaciones de pie unificadas (desde .fac) y gracias centrado si existe
-  if (c.pieObservaciones && tienePie) {
-    drawText(pieText, c.pieObservaciones.x, c.pieObservaciones.y, {
-      fontSize: c.pieObservaciones.fontSize ?? 8,
-      maxWidth: c.pieObservaciones.maxWidth,
+  // Permitir coordenadas específicas para Remito si existen en el layout
+  const pieCoords: any = (isRemito && (c as any).pieObservacionesRemito)
+    ? (c as any).pieObservacionesRemito
+    : c.pieObservaciones;
+  if (pieCoords && tienePie) {
+    drawText(pieText, pieCoords.x, pieCoords.y, {
+      fontSize: (pieCoords.fontSize ?? (c.pieObservaciones?.fontSize ?? 8)),
+      maxWidth: pieCoords.maxWidth ?? c.pieObservaciones?.maxWidth,
     });
   }
   if (c.legalGracias) {
