@@ -39,6 +39,7 @@ export interface Config {
   };
   
   coords: {
+    [key: string]: any; // Permitir overrides específicos (por ejemplo, *Remito)
     // Información de la Empresa
     empresaNombre?: { x: number; y: number; fontSize?: number };
     empresaDomicilio?: { x: number; y: number; fontSize?: number };
@@ -57,6 +58,9 @@ export interface Config {
     // Fecha/hora
     fecha: { x: number; y: number; fontSize?: number };
     fechaHora?: { x: number; y: number; fontSize?: number };
+    // Overrides exclusivos para Remito
+    fechaRemito?: { x: number; y: number; fontSize?: number };
+    fechaHoraRemito?: { x: number; y: number; fontSize?: number };
     pv: { x: number; y: number; fontSize?: number };
     numero?: { x: number; y: number; fontSize?: number };
     tipoComprobante?: { x: number; y: number; fontSize?: number }; // Tipo de comprobante
@@ -425,11 +429,23 @@ export async function generateInvoicePdf({
     }
   }
 
-  const c = config.coords;
-
-  // Letra del comprobante (no imprimir en Remito, fondo ya la trae)
+  // Determinar tipo y aplicar overrides de coordenadas para Remito si existen en el layout
   const tipoLiteralHeader = (data.tipoComprobanteLiteral || '').toUpperCase();
   const isRemitoHeader = tipoLiteralHeader === 'REMITO';
+  const baseCoords: any = config.coords as any;
+  let c: any = baseCoords;
+  if (isRemitoHeader) {
+    const merged: any = { ...baseCoords };
+    for (const [key, val] of Object.entries(baseCoords)) {
+      const ov = (baseCoords as any)[`${key}Remito`];
+      if (ov && typeof ov === 'object') {
+        merged[key] = { ...(val as any), ...(ov as any) };
+      }
+    }
+    c = merged;
+  }
+
+  // Letra del comprobante (no imprimir en Remito, fondo ya la trae)
   if (!isRemitoHeader && data.tipoComprobanteLetra && c.comprobanteLetra) {
     drawText(
       data.mipymeModo ? `FCE ${data.tipoComprobanteLetra}` : data.tipoComprobanteLetra,
@@ -458,8 +474,11 @@ export async function generateInvoicePdf({
 
   // Encabezado / Comprobante
   const fechaMostrar = (data.fechaHora || data.fecha) as string;
-  if (c.fechaHora) {
-    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
+  // Overrides específicos para Remito
+  const fechaCoords: any = (isRemitoHeader && (c as any).fechaRemito) ? (c as any).fechaRemito : c.fecha;
+  const fechaHoraCoords: any = (isRemitoHeader && (c as any).fechaHoraRemito) ? (c as any).fechaHoraRemito : c.fechaHora;
+  if (fechaHoraCoords) {
+    drawText(fechaMostrar, fechaHoraCoords.x, fechaHoraCoords.y, { fontSize: (fechaHoraCoords.fontSize ?? c.fechaHora?.fontSize ?? 10) });
   } else {
     // Formatear fecha en formato argentino DD/MM/YYYY
     const fechaObj = new Date(data.fecha);
@@ -468,7 +487,7 @@ export async function generateInvoicePdf({
       month: '2-digit',
       year: 'numeric'
     });
-    drawText(`Fecha: ${fechaFormateada}`, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
+    drawText(`Fecha: ${fechaFormateada}`, fechaCoords.x, fechaCoords.y, { fontSize: (fechaCoords.fontSize ?? c.fecha.fontSize ?? 10) });
   }
   
   // Tipo de comprobante (Factura, Nota de Crédito, Remito, etc.)
@@ -491,7 +510,8 @@ export async function generateInvoicePdf({
   
   // Número de comprobante en formato "N° 0016 - 00009207"
   const numeroComprobante = `N° ${String(data.empresa.pv).padStart(4, '0')} - ${String(data.empresa.numero).padStart(8, '0')}`;
-  drawText(numeroComprobante, c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  const numCoords: any = (isRemitoHeader && c.numero) ? c.numero : c.pv;
+  drawText(numeroComprobante, numCoords.x, numCoords.y, { fontSize: (numCoords.fontSize ?? c.pv.fontSize ?? 10), bold: true });
   
   // Ya no necesitamos dibujar pv y nro por separado
   // drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });

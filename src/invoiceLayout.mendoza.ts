@@ -24,22 +24,34 @@ const layoutMendoza: Config = {
     // Encabezado de Factura
     comprobanteLetra: { x: -9, y: 8, fontSize: 26 },     // Letra A/B/C en el recuadro central
     clienteNombre: { x: 27, y: 50, fontSize: 8 },        // Nombre del cliente
+    clienteNombreRemito: { x: 27, y: 48, fontSize: 8 },  // Override Remito
     clienteDomicilio: { x: 27, y: 54, fontSize: 8 },     // Dirección del cliente
+    clienteDomicilioRemito: { x: 27, y: 52, fontSize: 8 },
     clienteCuit: { x: 27, y: 58, fontSize: 8 },          // CUIT/DNI del cliente
+    clienteCuitRemito: { x: 27, y: 56, fontSize: 8 },
     clienteIva: { x: 27, y: 62, fontSize: 8 },           // Condición IVA del cliente
+    clienteIvaRemito: { x: 27, y: 60, fontSize: 8 },
 
     // Información del Comprobante
     fecha: { x: 160, y: 20, fontSize: 12 },              // Fecha de emisión (formato DD/MM/YYYY)
     numero: { x: 162, y: 10, fontSize: 10 },             // Número de comprobante
+    numeroRemito: { x: 162, y: 14, fontSize: 8 },       // Override para Remito
     tipoComprobante: { x: 165, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
+    tipoComprobanteRemito: { x: 165, y: 8, fontSize: 14 },
     pv: { x: 160, y: 14, fontSize: 10 },                 // Punto de Venta (PV)
+    pvRemito: { x: 160, y: 14, fontSize: 9 },
     referenciaInterna: { x: 160, y: 26, fontSize: 7 },   // Referencia interna de la empresa
+    referenciaInternaRemito: { x: 160, y: 28, fontSize: 7 },
 
     // Información Comercial
     atendio: { x: 145, y: 50, fontSize: 9 },             // Quién atendió al cliente
+    atendioRemito: { x: 145, y: 48, fontSize: 9 },
     condicionPago: { x: 145, y: 54, fontSize: 9 },       // Condición de pago (contado/crédito)
+    condicionPagoRemito: { x: 145, y: 52, fontSize: 9 },
     hora: { x: 145, y: 58, fontSize: 9 },                // Hora de emisión (formato HH:mm)
+    horaRemito: { x: 145, y: 56, fontSize: 9 },
     email: { x: 145, y: 62, fontSize: 7 },               // Email del cliente
+    emailRemito: { x: 145, y: 60, fontSize: 7 },
     
     // Información Adicional
     moneda: { x: 162, y: 30, fontSize: 8 },              // Moneda de la factura (ARS, USD, etc.)
@@ -48,8 +60,11 @@ const layoutMendoza: Config = {
 
     // Detalles de Entrega
     notaRecepcion: { x: 8, y: 70, fontSize: 9 },         // Número de nota de recepción
+    notaRecepcionRemito: { x: 8, y: 68, fontSize: 9 },
     remito: { x: 100, y: 70, fontSize: 9 },              // Número de remito
+    remitoRemito: { x: 100, y: 68, fontSize: 9 },
     observaciones: { x: 8, y: 70, maxWidth: 120, fontSize: 9 }, // Observaciones generales
+    observacionesRemito: { x: 8, y: 68, maxWidth: 120, fontSize: 9 },
 
     // Tabla de Items
     itemsStartY: 87,                                    // Posición Y donde empiezan los items
@@ -88,6 +103,7 @@ const layoutMendoza: Config = {
 
     // Total en letras
     totalEnLetras: { x: 9, y: 206, maxWidth: 120, fontSize: 9 }, // "SON PESOS: UN MIL..." (total en letras)
+    totalEnLetrasRemito: { x: 9, y: 204, maxWidth: 120, fontSize: 9 },
 
     // Información AFIP
     cae: { x: 160, y: 258, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
@@ -106,6 +122,10 @@ const layoutMendoza: Config = {
     pieObservacionesRemito: { x: 10, y: 266, maxWidth: 170, fontSize: 8 },
     // Observaciones fiscales (debajo de TOTAL)
     obsFiscal: { x: 114, y: 262, maxWidth: 96, fontSize: 6, maxChars: 84 },
+
+    // Overrides exclusivos para Remito (fecha)
+    fechaRemito: { x: 160, y: 20, fontSize: 12 },
+    // Si usáramos fechaHoraRemito, también podríamos definirlo aquí
   },
 
   // Validación de campos requeridos
