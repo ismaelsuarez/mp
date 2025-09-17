@@ -1656,6 +1656,60 @@ app.whenReady().then(() => {
 	let facWatcher: fs.FSWatcher | null = null;
 	let facWatcherInstance: any = null;
 
+	// Cola de procesamiento secuencial de archivos .fac
+	let facQueue: Array<{ filename: string; fullPath: string; rawContent?: string }> = [];
+	let facQueuedSet = new Set<string>();
+	let facProcessing = false;
+
+	function enqueueFacFile(job: { filename: string; fullPath: string; rawContent?: string }) {
+		try {
+			if (!job?.fullPath) return;
+			if (facQueuedSet.has(job.fullPath)) return;
+			facQueuedSet.add(job.fullPath);
+			facQueue.push(job);
+			try { logInfo('FAC encolado', { filename: job.filename, fullPath: job.fullPath }); } catch {}
+		} catch {}
+	}
+
+	async function processFacQueue() {
+		if (facProcessing) return;
+		facProcessing = true;
+		try {
+			while (facQueue.length > 0) {
+				const job = facQueue.shift()!;
+				facQueuedSet.delete(job.fullPath);
+				try {
+					if (!fs.existsSync(job.fullPath)) {
+						try { logWarning('FAC omitido (no existe)', { filename: job.filename }); } catch {}
+						continue;
+					}
+					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
+					const { processFacFile } = require('./modules/facturacion/facProcessor');
+					const out = await processFacFile(job.fullPath);
+					try { logSuccess('FAC procesamiento finalizado', { filename: job.filename, output: out }); } catch {}
+				} catch (e) {
+					// No abortar toda la cola: registrar y continuar con el siguiente
+					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
+				}
+			}
+		} finally {
+			facProcessing = false;
+		}
+	}
+
+	function scanFacDirAndEnqueue(dir: string) {
+		try {
+			if (!dir || !fs.existsSync(dir)) return;
+			const entries = fs.readdirSync(dir);
+			const facs = entries.filter(name => name && /\.fac$/i.test(name)).sort((a, b) => a.localeCompare(b));
+			for (const name of facs) {
+				const full = path.join(dir, name);
+				enqueueFacFile({ filename: name, fullPath: full });
+			}
+			if (facs.length > 0) processFacQueue();
+		} catch {}
+	}
+
 	function startFacWatcher(): boolean {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
@@ -1670,24 +1724,17 @@ app.whenReady().then(() => {
 				try {
 					logInfo('FAC detectado', { filename, fullPath });
 					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-					// Procesamiento automático de recibo (.fac)
-					try {
-						if (/\bTIPO:\s*RECIBO\b/i.test(String(rawContent))) {
-							const { processFacFile } = require('./modules/facturacion/facProcessor');
-							const out = await processFacFile(fullPath);
-							logInfo('Recibo generado', { output: out });
-						} else {
-							logInfo('FAC detectado no-recibo (no procesado aún)', { filename });
-						}
-					} catch (e) {
-						logWarning('Error generando Recibo desde .fac', { error: String(e?.message || e) });
-					}
+					// Encolar archivo .fac y procesar de forma secuencial
+					enqueueFacFile({ filename, fullPath, rawContent });
+					processFacQueue();
 				} catch {}
 			});
 			const ok = facWatcherInstance.start();
 			if (ok) {
 				try { facWatcher = (facWatcherInstance as any).watcher || null; } catch { facWatcher = null; }
 				logInfo('Fac watcher started', { dir });
+				// Escaneo inicial de pendientes
+				scanFacDirAndEnqueue(dir);
 				return true;
 			}
 			return false;
