@@ -1161,6 +1161,31 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:guardar-config', async (_e, cfg: any) => {
 		try { getDb().saveAfipConfig(cfg); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+
+	// Configuración Factura A (merge conservador)
+	ipcMain.handle('facturaA:get-config', async () => {
+		try {
+			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
+			let json: any = {}; try { json = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+			return { ok: true, config: json };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturaA:save-config', async (_e, cfg: any) => {
+		try {
+			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
+			let current: any = {}; try { current = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+			const next = { ...current };
+			if (typeof cfg?.pv === 'number') next.pv = cfg.pv;
+			if (typeof cfg?.contador === 'number') next.contador = cfg.contador;
+			if (typeof cfg?.outLocal === 'string') next.outLocal = cfg.outLocal;
+			if (typeof cfg?.outRed1 === 'string') next.outRed1 = cfg.outRed1;
+			if (typeof cfg?.outRed2 === 'string') next.outRed2 = cfg.outRed2;
+			if (typeof cfg?.printerName === 'string') next.printerName = cfg.printerName;
+			try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
+			fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
+			return { ok: true };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
 			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
@@ -1685,8 +1710,11 @@ app.whenReady().then(() => {
 					}
 					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
 					const raw = fs.readFileSync(job.fullPath, 'utf8');
-					const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
-					const tipo = (tipoMatch?.[1] || '').toUpperCase();
+					let tipo = '';
+					try {
+						const m = raw.match(/\bTIPO:\s*(.+)/i);
+						tipo = (m?.[1] || '').trim().toUpperCase();
+					} catch {}
 					if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
@@ -1695,6 +1723,10 @@ app.whenReady().then(() => {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
+					} else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename)) {
+						const { processFacturaAFacFile } = require('./modules/facturacion/facturaAProcessor');
+						const out = await processFacturaAFacFile(job.fullPath);
+						try { logSuccess('FAC FACTURA A finalizado', { filename: job.filename, output: out }); } catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
 					}
