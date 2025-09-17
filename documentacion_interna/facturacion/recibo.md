@@ -22,6 +22,7 @@ Descripción textual del flujo completo:
 4) Desde la copia local, se realizan copias a Red1/Red2 si están configuradas.
 5) Si el `.fac` define `COPIAS: N` (N>0), se dispara la impresión silenciosa con `pdf-to-printer`. Si no se definió impresora, se usa la predeterminada del sistema.
 6) Si el `.fac` trae `EMAIL: usuario@dominio`, se envía automáticamente el PDF adjunto al correo, con asunto y cuerpo adecuados para el tipo de comprobante (en Recibo: “Recibo de pago”).
+7) Si el `.fac` trae `WHATSAPP: <numero>`, se genera un archivo `wfa*.txt` (nombre único) con: teléfono normalizado con prefijo `+54`, nombre del cliente, nombre del PDF y un mensaje fijo; luego se envían el PDF y el `wfa*.txt` al destino de WhatsApp (SFTP/FTP) y, tras éxito, se elimina el `wfa*.txt` local.
 
 ### Flujo paso a paso
 
@@ -227,6 +228,22 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
 - Recibo: se invoca con `subject/title = "Recibo de pago"`, `intro = "Adjuntamos el recibo correspondiente."`, `bodyHtml = "<p>Gracias por su preferencia.</p>"`.
 - Manejo de errores: si el envío falla, se registra una advertencia y el flujo de generación/impresión/FTP continúa sin interrumpirse.
 
+### Envío por WhatsApp (nuevo)
+- Detección: si en el `.fac` existe una línea `WHATSAPP:`, se activa el flujo de WhatsApp.
+- Normalización del teléfono: el número se normaliza agregando el prefijo `+54` si no estuviera presente.
+  - Ejemplos: `2615945032` → `+542615945032`; `+542615945032` → se mantiene.
+- Archivo de instrucción `wfa*.txt` (nombre único):
+  - Ubicación: misma carpeta local donde se genera el PDF del recibo.
+  - Nombre: `wfaHHmmssXX.txt` (hora `HHmmss` + 2 caracteres aleatorios) para evitar colisiones simultáneas.
+  - Contenido (líneas):
+    1. Teléfono normalizado (con `+54`).
+    2. Nombre del cliente (parseado del `.fac`).
+    3. Nombre del archivo PDF (con extensión).
+    4+. Mensaje fijo: `Que tal, somos de Todo Computacion` y `Adjuntamos \"el recibo realizado.\"`.
+- Envío a destino WhatsApp: se suben el PDF y el `wfa*.txt` usando `FtpService.sendFilesToWhatsappFtp(...)` por SFTP (preferente) o FTP según configuración.
+- Limpieza: tras confirmarse la subida de ambos archivos, se elimina localmente el `wfa*.txt`.
+- Robustez: si el envío falla, se registra advertencia pero no se bloquea el resto del flujo del Recibo.
+
 ### Impresión
 - Se realiza luego de guardar el PDF local y de copiarlo a Red1/Red2.
 - Servicio: `src/services/PrintService.ts` con `pdf-to-printer`.
@@ -250,11 +267,31 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
 - Lectura/escritura: vía IPC `recibo:get-config` / `recibo:save-config` (ver extractos en `src/main.ts`).
 - Nota sobre impresora: el circuito de impresión soporta `printerName` a nivel API. Para persistirlo, se puede extender `recibo.config.json` agregando el campo opcional `printerName` y adaptar `save-config` para conservarlo (sin afectar PV/NI/rutas).
 
+#### Claves de configuración para WhatsApp (en configuración global)
+Se emplea la configuración global para el canal WhatsApp vía SFTP/FTP:
+
+```json
+{
+  "FTP_WHATSAPP_IP": "149.50.143.141",
+  "FTP_WHATSAPP_PORT": 5013,
+  "FTP_WHATSAPP_USER": "root",
+  "FTP_WHATSAPP_PASS": "*****",
+  "FTP_WHATSAPP_SECURE": false,
+  "FTP_WHATSAPP_DIR": "/home/smsd/todocomputacion/sms",
+  "FTP_WHATSAPP_SFTP": true,
+  "FTP_WHATSAPP_SSH_FP": "<huella_sha256_hex>"
+}
+```
+
+- `FTP_WHATSAPP_SFTP=true` fuerza SFTP (recomendado para evitar timeouts PASV/EPSV de FTP clásico).
+- En primera conexión SFTP, se captura y persiste la huella de la clave del host (`FTP_WHATSAPP_SSH_FP`) para validarla en conexiones futuras.
+
 ### Módulos auxiliares y dependencias
 - `pdfkit`: motor de composición de PDFs (textos, fuentes, imágenes, etc.).
 - `pdf-to-printer`: impresión silenciosa a spooler nativo, evitando render Chromium.
 - `dayjs`: formateo de fechas (p. ej., carpeta `FYYYYMM`).
 - `basic-ftp` (en servicio FTP): para envío de `.res` tras generar/imprimir.
+- `ssh2-sftp-client`: canal SFTP para el destino WhatsApp (evita problemas PASV/EPSV, usa un único puerto configurable).
 - `nodemailer`: envío de emails con adjuntos usando SMTP.
 
 ### Consideraciones de seguridad y buenas prácticas
@@ -302,6 +339,7 @@ Copias a red:
   \\server2008\backup\Presupuestos y Licitaciones\FACTURAS\Ventas_PV16\F202509\REC_0016-00009207.pdf
 Impresión: 2 copias (impresora predeterminada)
 Email: enviado a la dirección presente en `EMAIL:` si corresponde (asunto: "Recibo de pago").
+WhatsApp: generado `wfa*.txt`, enviados PDF + `wfa*.txt` a destino WhatsApp y eliminado `wfa*.txt` local tras éxito.
 ```
 
 ---
