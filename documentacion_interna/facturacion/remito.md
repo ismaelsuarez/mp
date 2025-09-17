@@ -68,6 +68,36 @@ Detalles relevantes implementados:
 - Datos: empresa (pv/número), cliente, fecha/hora, ítems/pagos, totales, observaciones, remito opcional, leyendas.
 - Rutas: `Ventas_PV{pv}/F{YYYYMM}` bajo `outLocal`; copias a Red1 y Red2 si están configuradas.
 
+### Ajustes específicos implementados (últimas actualizaciones)
+- Lógica de `OBS.PIE:` alineada con Recibo:
+  - Parseo en `src/modules/facturacion/remitoProcessor.ts` separa la línea de “GRACIAS” del resto del pie (igual que Recibo).
+  - El renderer imprime únicamente el contenido de `OBS.PIE:` para Remito (no agrega textos legales por defecto).
+  - Log de diagnóstico: `[renderer] Remito pie length: N` para verificar que el pie llegó al renderer.
+- Overrides de coordenadas solo para Remito en el layout (mecanismo general):
+  - El renderer fusiona `coords.<campo>` con `coords.<campo>Remito` cuando `tipo=REMITO`.
+  - Usado actualmente para:
+    - `pieObservacionesRemito`: subir el pie en Remito (fondo distinto).
+    - `fechaRemito`/`fechaHoraRemito`: ajustar tamaño/posición de fecha.
+    - `numeroRemito`: ajustar tamaño/posición del número de comprobante (en Remito se usa `coords.numero`).
+  - Otros overrides disponibles en el layout para encuadre fino: `clienteNombreRemito`, `clienteDomicilioRemito`, `clienteCuitRemito`, `clienteIvaRemito`, `tipoComprobanteRemito`, `pvRemito`, `atendioRemito`, `condicionPagoRemito`, `horaRemito`, `emailRemito`, `notaRecepcionRemito`, `remitoRemito`, `observacionesRemito`, `totalEnLetrasRemito`.
+- Ítems sin importes en Remito:
+  - El renderer oculta columnas de unitario/IVA/total si no hay valores (>0), imprimiendo solo cantidad y descripción.
+- Totales en Remito:
+  - Si todos los totales/ivas/netos son cero, se omite por completo el bloque de totales (incluye “Total en letras”).
+
+### Archivos tocados en esta iteración
+- `src/modules/facturacion/remitoProcessor.ts`: unificación de parseo de `OBS.PIE:` con Recibo.
+- `src/pdfRenderer.ts`: mecanismo de overrides `*Remito`, uso de `coords.numero` en Remito, pie y fecha condicionados por tipo.
+- `src/invoiceLayout.mendoza.ts`: agregados `pieObservacionesRemito`, `fechaRemito`, `numeroRemito` y overrides opcionales.
+- `scripts/remito-from-fac.js`: alinea el parseo y traspaso de `pieObservaciones`/“GRACIAS” con producción para pruebas locales.
+
+### Pruebas de aceptación (añadidos)
+- Con un `.fac` de Remito que incluya `OBS.PIE:` y la línea de “GRACIAS”, verificar:
+  - El PDF resultante muestra el pie en la posición ajustada (según `pieObservacionesRemito`).
+  - La fecha usa el tamaño/posición de `fechaRemito`.
+  - El número de comprobante usa `coords.numero` con override `numeroRemito`.
+  - En consola aparece `[renderer] Remito pie length: N` (N>0).
+
 ### Envío por email
 - Detección: si existe `EMAIL:` en el `.fac`.
 - Servicio: `sendReceiptEmail(to, pdfPath, { subject: 'Remito', title: 'Remito', intro: 'Adjuntamos el remito correspondiente.', bodyHtml: '<p>Gracias por su preferencia.</p>' })`.

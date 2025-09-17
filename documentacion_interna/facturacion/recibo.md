@@ -220,6 +220,9 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
 - Fondos: se busca `FONDO:` en `.fac`. Si no hay, se usan candidatos por defecto `templates/MiFondoRe.jpg` o `templates/MiFondoRm.jpg`; fallback `public/Noimage.jpg`.
 - QR AFIP: para Recibo no se incluye CAE ni QR fiscal (no es comprobante fiscal AFIP), pero el motor soporta QR para otros comprobantes.
 - Validaciones previas: existencia de ruta local obligatoria; creación recursiva de `Ventas_PV{pv}/F{YYYYMM}`; numeración correlativa persistida en `recibo.config.json`.
+- Nota de compatibilidad: los overrides de coordenadas `*Remito` no afectan Recibo.
+- Ítems: en Recibo se imprimen 3 columnas (cantidad, descripción, total). En Remito (no aplica aquí) se ocultan columnas si no hay valores.
+- OBS.PIE: si viene en el `.fac`, se imprime tal cual; si no viene, se agregan legales por defecto solo en Recibo.
 
 ### Envío por email (nuevo)
 - Detección: en el parseo de `.fac` se agrega el campo opcional `email` cuando existe una línea `EMAIL:`.
@@ -239,7 +242,7 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
     1. Teléfono normalizado (con `+54`).
     2. Nombre del cliente (parseado del `.fac`).
     3. Nombre del archivo PDF (con extensión).
-    4+. Mensaje fijo: `Que tal, somos de Todo Computacion` y `Adjuntamos \"el recibo realizado.\"`.
+    4+. Mensaje fijo: `Que tal, somos de Todo Computacion` y `Adjuntamos "el recibo realizado."`.
 - Envío a destino WhatsApp: se suben el PDF y el `wfa*.txt` usando `FtpService.sendFilesToWhatsappFtp(...)` por SFTP (preferente) o FTP según configuración.
 - Limpieza: tras confirmarse la subida de ambos archivos, se elimina localmente el `wfa*.txt`.
 - Robustez: si el envío falla, se registra advertencia pero no se bloquea el resto del flujo del Recibo.
