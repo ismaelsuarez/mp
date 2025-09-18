@@ -247,6 +247,14 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     tryPaths.push(trimmed);
     tryPaths.push(trimmed.replace(/\\/g, path.sep).replace(/\//g, path.sep));
     tryPaths.push(path.resolve(trimmed));
+    // Buscar por el nombre del archivo en templates (dev y empaquetado)
+    try {
+      const baseName = trimmed.split(/[\\\/]/).pop() || '';
+      if (baseName) {
+        tryPaths.push(path.join(base, 'templates', baseName));
+        try { tryPaths.push(path.join(app.getAppPath(), 'templates', baseName)); } catch {}
+      }
+    } catch {}
     for (const p of tryPaths) { try { if (p && fs.existsSync(p)) return p; } catch {} }
     return null as string | null;
   };
