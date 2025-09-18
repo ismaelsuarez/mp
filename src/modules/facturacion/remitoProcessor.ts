@@ -214,8 +214,33 @@ function saveRemitoConfig(cfgPath: string, cfg: { pv: number; contador: number }
   fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
 }
 
+function readTextSmart(filePath: string): string {
+  const buf = fs.readFileSync(filePath);
+  let txtUtf8 = buf.toString('utf8');
+  const badUtf = (txtUtf8.match(/\uFFFD/g) || []).length;
+  if (badUtf === 0) return txtUtf8;
+  let txtL1 = buf.toString('latin1');
+  const cp1252Map: Record<number, string> = {
+    0x80: '\u20AC', 0x82: '\u201A', 0x83: '\u0192', 0x84: '\u201E', 0x85: '\u2026', 0x86: '\u2020', 0x87: '\u2021',
+    0x88: '\u02C6', 0x89: '\u2030', 0x8A: '\u0160', 0x8B: '\u2039', 0x8C: '\u0152', 0x8E: '\u017D',
+    0x91: '\u2018', 0x92: '\u2019', 0x93: '\u201C', 0x94: '\u201D', 0x95: '\u2022', 0x96: '\u2013', 0x97: '\u2014',
+    0x98: '\u02DC', 0x99: '\u2122', 0x9A: '\u0161', 0x9B: '\u203A', 0x9C: '\u0153', 0x9E: '\u017E', 0x9F: '\u0178'
+  };
+  let out = '';
+  for (let i = 0; i < txtL1.length; i++) {
+    const code = txtL1.charCodeAt(i);
+    if (code >= 0x80 && code <= 0x9F && cp1252Map[code]) {
+      out += JSON.parse('"' + cp1252Map[code] + '"');
+    } else {
+      out += txtL1[i];
+    }
+  }
+  try { out = out.normalize('NFC'); } catch {}
+  return out;
+}
+
 export async function processRemitoFacFile(fullPath: string): Promise<string> {
-  const raw = fs.readFileSync(fullPath, 'utf8');
+  const raw = readTextSmart(fullPath);
   const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
   const tipo = (tipoMatch?.[1] || '').toUpperCase();
   if (tipo !== 'REMITO') throw new Error('FAC no REMITO (aún no soportado)');
