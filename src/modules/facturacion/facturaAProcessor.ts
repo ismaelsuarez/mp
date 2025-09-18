@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import dayjs from 'dayjs';
 import { generateInvoicePdf } from '../../pdfRenderer';
 import layoutMendoza from '../../invoiceLayout.mendoza';
@@ -115,8 +116,8 @@ export async function processFacturaAFacFile(fullPath: string): Promise<string> 
     caeVto = res?.caeVto || '';
   } catch {}
 
-  const base = process.cwd();
-  const cfgPath = path.join(base, 'config', 'facturaA.config.json');
+  const cfgBase = (() => { try { return app.getPath('userData'); } catch { return process.cwd(); } })();
+  const cfgPath = path.join(cfgBase, 'config', 'facturaA.config.json');
   function buildMonthDir(rootDir?: string): string | null { if (!rootDir) return null; const venta = path.join(String(rootDir), `Ventas_PV${Number(pv)}`); const yyyymm = dayjs(fechaISO).format('YYYYMM'); const monthDir = path.join(venta, `F${yyyymm}`); try { fs.mkdirSync(monthDir, { recursive: true }); } catch {} return monthDir; }
   let cfg: any = {}; try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
   const outLocalDir = buildMonthDir(cfg.outLocal || ''); if (!outLocalDir) throw new Error('Ruta Local no configurada para Factura A');
@@ -145,7 +146,8 @@ export async function processFacturaAFacFile(fullPath: string): Promise<string> 
     pieObservaciones: (obsPie && obsPie.length ? obsPie.join('\n') : ''),
   };
 
-  await generateInvoicePdf({ bgPath: (fondo && fs.existsSync(fondo) ? fondo : path.join(base, 'public', 'Noimage.jpg')), outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
+  const appBase = (() => { try { return app.getAppPath(); } catch { return process.cwd(); } })();
+  await generateInvoicePdf({ bgPath: (fondo && fs.existsSync(fondo) ? fondo : path.join(appBase, 'public', 'Noimage.jpg')), outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
 
   // Copias a red
   try { if (outRed1Dir) fs.copyFileSync(localOutPath, path.join(outRed1Dir, fileName)); } catch {}

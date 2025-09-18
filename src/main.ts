@@ -2912,7 +2912,12 @@ app.whenReady().then(() => {
 
 // ===== Recibo (PV y contador) =====
 function getReciboCfgPath(): string {
-  return path.join(process.cwd(), 'config', 'recibo.config.json');
+  try {
+    const base = app.getPath('userData');
+    return path.join(base, 'config', 'recibo.config.json');
+  } catch {
+    return path.join(process.cwd(), 'config', 'recibo.config.json');
+  }
 }
 function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
   try {
@@ -2932,7 +2937,7 @@ function readReciboCfg(): { pv: number; contador: number; outLocal?: string; out
 function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string }): { ok: boolean; error?: string } {
   try {
     const p = getReciboCfgPath();
-    fs.mkdirSync(path.dirname(p), { recursive: true });
+    try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
     fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2 }, null, 2));
     return { ok: true };
   } catch (e: any) {
@@ -2998,8 +3003,9 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
 	// ===== Remito config (similar a Recibo) =====
 	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
 		try {
-			const base = process.cwd();
-			const p = path.join(base, 'config', 'remito.config.json');
+    let p: string;
+    try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
+    catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
 			const t = fs.readFileSync(p, 'utf8');
 			const j = JSON.parse(t || '{}');
 			return {
@@ -3017,8 +3023,9 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
 
 	function writeRemitoCfg(next: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) {
 		try {
-			const base = process.cwd();
-			const p = path.join(base, 'config', 'remito.config.json');
+      let p: string;
+      try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
+      catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
 			try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
 			let existing: any = {};
 			try { const t = fs.readFileSync(p, 'utf8'); existing = JSON.parse(t || '{}'); } catch {}

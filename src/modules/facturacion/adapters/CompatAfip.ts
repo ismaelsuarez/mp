@@ -92,6 +92,15 @@ export class CompatAfip {
 			cert: certContent,
 			key: keyContent,
 			handleTicket: false,
+			// Guardar tickets (TA-*.json) en carpeta de datos del usuario para evitar permisos en Program Files
+			ticketPath: (() => {
+				try {
+					const base = (process as any).env?.APPDATA || (process as any).env?.LOCALAPPDATA || __dirname;
+					const dir = path.resolve(String(base), 'Tc-Mp', 'afip', 'tickets');
+					try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch {}
+					return dir;
+				} catch { return undefined as any; }
+			})(),
 			// Inyectar agente HTTPS personalizado a afip.ts
 			httpsAgent
 		};

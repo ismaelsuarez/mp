@@ -19,12 +19,12 @@ function getEncryptionKey(): string | undefined {
 }
 
 function getConfig() {
-	const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    const store = new Store<{ config?: any }>({ name: 'settings', cwd: (()=>{ try { return app.getPath('userData'); } catch { return undefined; } })(), encryptionKey: getEncryptionKey() });
 	return (store.get('config') as any) || {};
 }
 
 function setConfigPartial(partial: Record<string, unknown>) {
-	const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    const store = new Store<{ config?: any }>({ name: 'settings', cwd: (()=>{ try { return app.getPath('userData'); } catch { return undefined; } })(), encryptionKey: getEncryptionKey() });
 	const current = (store.get('config') as any) || {};
 	store.set('config', { ...current, ...partial });
 }
