@@ -1773,10 +1773,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
-					} else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename)) {
-						const { processFacturaAFacFile } = require('./modules/facturacion/facturaAProcessor');
-						const out = await processFacturaAFacFile(job.fullPath);
-						try { logSuccess('FAC FACTURA A finalizado', { filename: job.filename, output: out }); } catch {}
+                    } else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename) || tipo === 'FACTURA B' || /B\.fac$/i.test(job.filename) || /^(NOTA CREDITO|NOTA DEBITO)/i.test(tipo)) {
+                        const { FacturaElectronicaProcessor } = require('./modules/facturacion/FacturaElectronicaProcessor');
+                        const { getFacturacionService } = require('./services/FacturacionService');
+                        const proc = new FacturaElectronicaProcessor(() => getFacturacionService());
+                        const out = await proc.processFromFac({ fullPath: job.fullPath, raw: raw });
+                        try { logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out }); } catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
 					}
@@ -3029,6 +3031,57 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
     return { ok: false, error: e?.message || String(e) };
   }
 });
+
+  // ===== Facturas (FA/FB/NCA/NCB/NDA/NDB) config =====
+  function getFacturasCfgPath(): string {
+    try { return path.join(app.getPath('userData'), 'config', 'facturas.config.json'); } catch { return path.join(process.cwd(), 'config', 'facturas.config.json'); }
+  }
+  function readFacturasCfg(): { pv: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string; [k: string]: any } {
+    try {
+      const pUser = getFacturasCfgPath();
+      let txt: string | undefined;
+      try { txt = fs.readFileSync(pUser, 'utf8'); }
+      catch {
+        const legacy = path.join(process.cwd(), 'config', 'facturas.config.json');
+        if (fs.existsSync(legacy)) {
+          try { const t2 = fs.readFileSync(legacy, 'utf8'); fs.mkdirSync(path.dirname(pUser), { recursive: true }); fs.writeFileSync(pUser, t2); txt = t2; } catch {}
+        }
+        if (!txt) throw new Error('no-config');
+      }
+      const j = JSON.parse(txt || '{}');
+      return {
+        pv: Number(j.pv) || 1,
+        outLocal: typeof j.outLocal === 'string' ? j.outLocal : undefined,
+        outRed1: typeof j.outRed1 === 'string' ? j.outRed1 : undefined,
+        outRed2: typeof j.outRed2 === 'string' ? j.outRed2 : undefined,
+        printerName: typeof j.printerName === 'string' ? j.printerName : undefined,
+        ...j,
+      };
+    } catch { return { pv: 1 } as any; }
+  }
+  function writeFacturasCfg(next: any) {
+    try {
+      const p = getFacturasCfgPath();
+      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+      let existing: any = {};
+      try { existing = JSON.parse(fs.readFileSync(p, 'utf8') || '{}'); } catch {}
+      const merged = { ...existing, ...next };
+      fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: e?.message || String(e) }; }
+  }
+
+  ipcMain.handle('facturas:get-config', async () => {
+    try { const cfg = readFacturasCfg(); return { ok: true, config: cfg }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('facturas:save-config', async (_e, cfg: any) => {
+    try {
+      const current = readFacturasCfg();
+      const next = { ...current, ...(cfg || {}) };
+      const res = writeFacturasCfg(next);
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
 
 	// ===== Remito config (similar a Recibo) =====
 	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
