@@ -7,8 +7,23 @@ import path from 'path';
 
 function ensureWsdlAssets() {
 	try {
-		const src = path.resolve(process.cwd(), 'sdk/afip.ts-main/src/soap/wsdl');
+		// Destino donde el SDK local espera encontrar los WSDL en tiempo de ejecución (dentro de dist)
 		const dest = path.resolve(__dirname, '../../../..', 'sdk/afip.ts-main/src/soap/wsdl');
+		// Candidatos de origen (dev, empaquetado, asar-unpacked)
+		const srcCandidates = [
+			path.resolve(process.cwd(), 'sdk/afip.ts-main/src/soap/wsdl'),
+			path.resolve(__dirname, '../../../../sdk/afip.ts-main/src/soap/wsdl'),
+			path.resolve(__dirname, '../../../../../sdk/afip.ts-main/src/soap/wsdl'),
+			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app', 'sdk/afip.ts-main/src/soap/wsdl') : '',
+			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app.asar.unpacked', 'sdk/afip.ts-main/src/soap/wsdl') : '',
+		].filter(Boolean);
+		let src = srcCandidates.find(p => {
+			try { return fs.existsSync(p); } catch { return false; }
+		});
+		if (!src) {
+			// Si no hay origen válido, salir silenciosamente (el SDK podría resolver internamente)
+			return;
+		}
 		if (!fs.existsSync(dest)) {
 			fs.mkdirSync(dest, { recursive: true });
 		}

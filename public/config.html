@@ -340,6 +340,11 @@
 							<button type="button" id="btnTestFtp" class="bg-blue-600 text-white border-transparent">Probar FTP</button>
 							<span id="ftpTestStatus"></span>
 						</div>
+						<!-- Guardar configuración FTP Cliente -->
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnSaveFtp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar FTP Cliente</button>
+							<span id="ftpSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
 						<!-- Enviar archivo arbitrario por FTP -->
 						<div class="row">
 							<input id="FTP_SEND_FILE_PATH" type="text" placeholder="Selecciona archivo local..." class="flex-1" readonly />
@@ -1745,6 +1750,29 @@
                 FTP_WHATSAPP_SECURE: false,
                 FTP_WHATSAPP_SFTP: true,
                 FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
+            };
+            const base = await window.api.getConfig();
+            await window.api.saveConfig({ ...(base||{}), ...payload });
+            if (statusEl) statusEl.textContent = '✅ Guardado';
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Guardar solo FTP Cliente
+    document.getElementById('btnSaveFtp')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('ftpSaveStatus');
+        try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+            const payload = {
+                FTP_IP: getVal('FTP_IP'),
+                FTP_PORT: Number(getVal('FTP_PORT')||'21'),
+                FTP_USER: getVal('FTP_USER'),
+                FTP_PASS: getVal('FTP_PASS'),
+                FTP_SECURE: getChk('FTP_SECURE'),
+                FTP_DIR: getVal('FTP_DIR')
             };
             const base = await window.api.getConfig();
             await window.api.saveConfig({ ...(base||{}), ...payload });
