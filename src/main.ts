@@ -10,7 +10,7 @@ dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { startFtpServer, stopFtpServer, isFtpServerRunning } from './services/FtpServerService';
 import { generateFiles, getOutDir } from './services/ReportService';
-import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile } from './services/FtpService';
+import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile, testWhatsappFtp, sendWhatsappFile } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
 import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
@@ -23,6 +23,7 @@ import { afipService } from './modules/facturacion/afipService';
 import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 import { getSecureStore } from './services/SecureStore';
+import { printPdf } from './services/PrintService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -778,7 +779,8 @@ app.whenReady().then(() => {
 	});
 	ipcMain.handle('save-config', (_event, cfg: Record<string, unknown>) => {
 		if (cfg && typeof cfg === 'object') {
-			store.set('config', cfg);
+			const current = (store.get('config') as any) || {};
+			store.set('config', { ...current, ...cfg });
 			// Refrescar menú de bandeja para reflejar cambios como IMAGE_PUBLICIDAD_ALLOWED
 			try { refreshTrayMenu(); } catch {}
 			// Reiniciar timers para aplicar cambios
@@ -806,6 +808,30 @@ app.whenReady().then(() => {
 			return { ok: true, exists, isDir };
 		} catch (e: any) {
 			return { ok: false, exists: false, isDir: false, error: String(e?.message || e) };
+		}
+	});
+
+	// ===== Facturación: Configuración Watcher .fac =====
+	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
+		try {
+			const cfg: any = store.get('config') || {};
+			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('facturacion:config:set-watcher-dir', async (_e, payload: { dir?: string; enabled?: boolean }) => {
+		try {
+			const { dir, enabled } = payload || ({} as any);
+			const cfg: any = store.get('config') || {};
+			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
+			if (typeof enabled === 'boolean') cfg.FACT_FAC_WATCH = enabled;
+			store.set('config', cfg);
+			restartWatchersIfNeeded();
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH === true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
 		}
 	});
 
@@ -888,11 +914,80 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// FTP WhatsApp: probar conexión
+	ipcMain.handle('test-ftp-whatsapp', async () => {
+		try {
+			const ok = await testWhatsappFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP WhatsApp: enviar archivo arbitrario
+	ipcMain.handle('ftp:send-file-whatsapp', async (_e, { localPath, remoteName }: { localPath: string; remoteName?: string }) => {
+		try {
+			if (!localPath) return { ok: false, error: 'Ruta local vacía' };
+			const res = await sendWhatsappFile(localPath, remoteName);
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// FTP: enviar DBF del día
 	ipcMain.handle('send-dbf-ftp', async () => {
 		try {
 			const res = await sendTodayDbf();
 			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FTP Mercado Pago: test conexión y envío mp.dbf
+	ipcMain.handle('mp-ftp:test', async () => {
+		try {
+			const { testMpFtp } = require('./services/FtpService');
+			const ok = await testMpFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+ipcMain.handle('mp-ftp:send-dbf', async () => {
+		try {
+			const { sendMpDbf } = require('./services/FtpService');
+			const res = await sendMpDbf(undefined, undefined, { force: true });
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('mp-ftp:get-config', async () => {
+		try {
+			const { getMpFtpConfig } = require('./services/FtpService');
+			const c = getMpFtpConfig();
+			return { ok: true, config: {
+				MP_FTP_IP: c.host,
+				MP_FTP_PORT: c.port,
+				MP_FTP_SECURE: c.secure,
+				MP_FTP_USER: c.user,
+				MP_FTP_PASS: c.pass,
+				MP_FTP_DIR: c.dir,
+			}};
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('mp-ftp:save-config', async (_e, partial) => {
+		try {
+			const { saveMpFtpConfig } = require('./services/FtpService');
+			await saveMpFtpConfig(partial || {});
+			return { ok: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1114,10 +1209,47 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:guardar-config', async (_e, cfg: any) => {
 		try { getDb().saveAfipConfig(cfg); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+
+	// Configuración Factura A (merge conservador)
+	ipcMain.handle('facturaA:get-config', async () => {
+		try {
+			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
+			let json: any = {}; try { json = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+			return { ok: true, config: json };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+	ipcMain.handle('facturaA:save-config', async (_e, cfg: any) => {
+		try {
+			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
+			let current: any = {}; try { current = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
+			const next = { ...current };
+			if (typeof cfg?.pv === 'number') next.pv = cfg.pv;
+			if (typeof cfg?.contador === 'number') next.contador = cfg.contador;
+			if (typeof cfg?.outLocal === 'string') next.outLocal = cfg.outLocal;
+			if (typeof cfg?.outRed1 === 'string') next.outRed1 = cfg.outRed1;
+			if (typeof cfg?.outRed2 === 'string') next.outRed2 = cfg.outRed2;
+			if (typeof cfg?.printerName === 'string') next.printerName = cfg.printerName;
+			try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
+			fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
+			return { ok: true };
+		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
 			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
 			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// FECRED: consultar si receptor está obligado a recibir FCE
+	ipcMain.handle('facturacion:fce:consultar-obligado', async (_e, payload: { cuit: number }) => {
+		try {
+			const afip = await (afipService as any).getAfipInstance?.();
+			if (!afip || !afip.ElectronicBillingMiPyme) throw new Error('MiPyME no disponible');
+			const res = await afip.ElectronicBillingMiPyme.consultarObligadoRecepcion(Number(payload.cuit));
+			return { ok: true, data: res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1473,6 +1605,22 @@ app.whenReady().then(() => {
 		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
+	async function deleteWithRetry(fullPath: string, attempts: number, delayMs: number): Promise<void> {
+		for (let i = 0; i < Math.max(1, attempts); i++) {
+			try {
+				if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+				return;
+			} catch (e: any) {
+				const code = String(e?.code || '').toUpperCase();
+				if (code === 'EBUSY' || code === 'EACCES' || code === 'EPERM') {
+					try { await delay(delayMs); } catch {}
+					continue;
+				}
+				throw e;
+			}
+		}
+	}
+
 	// Timer unificado para "remoto" (prioridad) e "imagen"
 	function startRemoteTimer() {
 		stopRemoteTimer();
@@ -1577,11 +1725,129 @@ app.whenReady().then(() => {
 		}
 	}
 
+	// ===== Watcher de Facturación (.fac) =====
+	let facWatcher: fs.FSWatcher | null = null;
+	let facWatcherInstance: any = null;
+
+	// Cola de procesamiento secuencial de archivos .fac
+	let facQueue: Array<{ filename: string; fullPath: string; rawContent?: string }> = [];
+	let facQueuedSet = new Set<string>();
+	let facProcessing = false;
+
+	function enqueueFacFile(job: { filename: string; fullPath: string; rawContent?: string }) {
+		try {
+			if (!job?.fullPath) return;
+			if (facQueuedSet.has(job.fullPath)) return;
+			facQueuedSet.add(job.fullPath);
+			facQueue.push(job);
+			try { logInfo('FAC encolado', { filename: job.filename, fullPath: job.fullPath }); } catch {}
+		} catch {}
+	}
+
+	async function processFacQueue() {
+		if (facProcessing) return;
+		facProcessing = true;
+		try {
+			while (facQueue.length > 0) {
+				const job = facQueue.shift()!;
+				facQueuedSet.delete(job.fullPath);
+				try {
+					if (!fs.existsSync(job.fullPath)) {
+						try { logWarning('FAC omitido (no existe)', { filename: job.filename }); } catch {}
+						continue;
+					}
+					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
+					const raw = fs.readFileSync(job.fullPath, 'utf8');
+					let tipo = '';
+					try {
+						const m = raw.match(/\bTIPO:\s*(.+)/i);
+						tipo = (m?.[1] || '').trim().toUpperCase();
+					} catch {}
+					if (tipo === 'RECIBO') {
+						const { processFacFile } = require('./modules/facturacion/facProcessor');
+						const out = await processFacFile(job.fullPath);
+						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
+					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
+						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
+						const out = await processRemitoFacFile(job.fullPath);
+						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
+					} else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename)) {
+						const { processFacturaAFacFile } = require('./modules/facturacion/facturaAProcessor');
+						const out = await processFacturaAFacFile(job.fullPath);
+						try { logSuccess('FAC FACTURA A finalizado', { filename: job.filename, output: out }); } catch {}
+					} else {
+						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
+					}
+				} catch (e) {
+					// No abortar toda la cola: registrar y continuar con el siguiente
+					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
+				}
+			}
+		} finally {
+			facProcessing = false;
+		}
+	}
+
+	function scanFacDirAndEnqueue(dir: string) {
+		try {
+			if (!dir || !fs.existsSync(dir)) return;
+			const entries = fs.readdirSync(dir);
+			const facs = entries.filter(name => name && /\.fac$/i.test(name)).sort((a, b) => a.localeCompare(b));
+			for (const name of facs) {
+				const full = path.join(dir, name);
+				enqueueFacFile({ filename: name, fullPath: full });
+			}
+			if (facs.length > 0) processFacQueue();
+		} catch {}
+	}
+
+	function startFacWatcher(): boolean {
+		stopFacWatcher();
+		const cfg: any = store.get('config') || {};
+		// Sólo habilitar si el servidor FTP está activo; observar exclusivamente su ROOT
+		const enabled = cfg.FTP_SRV_ENABLED === true;
+		const dir = String(cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share');
+		if (!enabled) return false;
+		try {
+			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
+			const { createFacWatcher } = require('./modules/facturacion/facWatcher');
+			facWatcherInstance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
+				try {
+					logInfo('FAC detectado', { filename, fullPath });
+					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
+					// Encolar archivo .fac y procesar de forma secuencial, con ruteo por tipo
+					enqueueFacFile({ filename, fullPath, rawContent });
+					processFacQueue();
+				} catch {}
+			});
+			const ok = facWatcherInstance.start();
+			if (ok) {
+				try { facWatcher = (facWatcherInstance as any).watcher || null; } catch { facWatcher = null; }
+				logInfo('Fac watcher started', { dir });
+				// Escaneo inicial de pendientes
+				scanFacDirAndEnqueue(dir);
+				return true;
+			}
+			return false;
+		} catch {
+			return false;
+		}
+	}
+
+	function stopFacWatcher() {
+		try { facWatcherInstance?.stop?.(); } catch {}
+		try { facWatcher?.close?.(); } catch {}
+		facWatcher = null;
+		facWatcherInstance = null;
+	}
+
 	function restartWatchersIfNeeded() {
 		stopRemoteWatcher();
 		stopImageWatcher();
+		stopFacWatcher();
 		startRemoteWatcher();
 		startImageWatcher();
+		startFacWatcher(); // ahora depende de FTP_SRV_ENABLED y observa FTP_SRV_ROOT
 	}
 
 	// Función reutilizable: ejecutar flujo de reporte y notificar a la UI
@@ -1611,7 +1877,8 @@ app.whenReady().then(() => {
 			const mpPath = (result as any)?.files?.mpDbfPath;
 			if (mpPath && fs.existsSync(mpPath)) {
 				ftpAttempted = true;
-				const ftpResult = await sendDbf(mpPath, 'mp.dbf', { force: true });
+				const { sendMpDbf } = require('./services/FtpService');
+				const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
 				if (ftpResult.skipped) {
 					ftpSkipped = true;
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
@@ -2302,6 +2569,7 @@ app.whenReady().then(() => {
 	// Iniciar watchers en tiempo real si están habilitados
 	startRemoteWatcher();
 	startImageWatcher();
+	startFacWatcher();
 
 	// ===== HANDLERS DE AUTENTICACIÓN =====
 	
@@ -2641,6 +2909,160 @@ app.whenReady().then(() => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
 });
+
+// ===== Recibo (PV y contador) =====
+function getReciboCfgPath(): string {
+  try {
+    const base = app.getPath('userData');
+    return path.join(base, 'config', 'recibo.config.json');
+  } catch {
+    return path.join(process.cwd(), 'config', 'recibo.config.json');
+  }
+}
+function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
+  try {
+    const txt = fs.readFileSync(getReciboCfgPath(), 'utf8');
+    const json = JSON.parse(txt || '{}');
+    return {
+      pv: Number(json.pv) || 1,
+      contador: Number(json.contador) || 1,
+      outLocal: (json.outLocal && String(json.outLocal)) || undefined,
+      outRed1: (json.outRed1 && String(json.outRed1)) || undefined,
+      outRed2: (json.outRed2 && String(json.outRed2)) || undefined,
+    };
+  } catch {
+    return { pv: 1, contador: 1 };
+  }
+}
+function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string }): { ok: boolean; error?: string } {
+  try {
+    const p = getReciboCfgPath();
+    try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2 }, null, 2));
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+}
+
+ipcMain.handle('recibo:get-config', async () => {
+  try {
+    const cfg = readReciboCfg();
+    return { ok: true, config: cfg };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => {
+  try {
+    const current = readReciboCfg();
+    const next = {
+      pv: typeof cfg?.pv === 'number' ? cfg.pv : current.pv,
+      contador: typeof cfg?.contador === 'number' ? cfg.contador : current.contador,
+      outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
+      outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
+      outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
+    };
+    const res = writeReciboCfg(next);
+    return res.ok ? { ok: true } : { ok: false, error: res.error };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Listar impresoras disponibles (del sistema)
+ipcMain.handle('printers:list', async () => {
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    let list: any[] = [];
+    if (win) {
+      const wc: any = win.webContents as any;
+      if (typeof wc.getPrintersAsync === 'function') {
+        list = await wc.getPrintersAsync();
+      } else if (typeof wc.getPrinters === 'function') {
+        list = wc.getPrinters();
+      }
+    }
+    return { ok: true, printers: list || [] };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Imprimir PDF silenciosamente
+ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies }: { filePath: string; printerName?: string; copies?: number }) => {
+  try {
+    await printPdf(filePath, printerName, copies || 1);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+	// ===== Remito config (similar a Recibo) =====
+	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
+		try {
+    let p: string;
+    try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
+    catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
+			const t = fs.readFileSync(p, 'utf8');
+			const j = JSON.parse(t || '{}');
+			return {
+				pv: Number(j.pv) || 1,
+				contador: Number(j.contador) || 1,
+				outLocal: typeof j.outLocal === 'string' ? j.outLocal : undefined,
+				outRed1: typeof j.outRed1 === 'string' ? j.outRed1 : undefined,
+				outRed2: typeof j.outRed2 === 'string' ? j.outRed2 : undefined,
+				printerName: typeof j.printerName === 'string' ? j.printerName : undefined,
+			};
+		} catch {
+			return { pv: 1, contador: 1 } as any;
+		}
+	}
+
+	function writeRemitoCfg(next: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) {
+		try {
+      let p: string;
+      try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
+      catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
+			try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+			let existing: any = {};
+			try { const t = fs.readFileSync(p, 'utf8'); existing = JSON.parse(t || '{}'); } catch {}
+			const merged = { ...existing, ...next };
+			fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	}
+
+	ipcMain.handle('remito:get-config', async () => {
+		try {
+			const cfg = readRemitoCfg();
+			return { ok: true, config: cfg };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	});
+
+	ipcMain.handle('remito:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => {
+		try {
+			const current = readRemitoCfg();
+			const next = {
+				pv: typeof cfg?.pv === 'number' ? cfg.pv : current.pv,
+				contador: typeof cfg?.contador === 'number' ? cfg.contador : current.contador,
+				outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
+				outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
+				outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
+				printerName: typeof cfg?.printerName === 'string' ? cfg.printerName : current.printerName,
+			};
+			const res = writeRemitoCfg(next);
+			return res.ok ? { ok: true } : { ok: false, error: res.error };
+		} catch (e: any) {
+			return { ok: false, error: e?.message || String(e) };
+		}
+	});
 
 // ===== SecureStore / Importación protegida =====
 ipcMain.handle('secure:import-cert-key', async (_e, { certPath, keyPath }: { certPath: string; keyPath: string }) => {

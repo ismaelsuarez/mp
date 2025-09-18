@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { app } from 'electron';
 import { getOutDir } from './ReportService';
 import { DBFFile } from 'dbffile';
-import { sendArbitraryFile } from './FtpService';
+import { sendMpDbf } from './FtpService';
 
 // Carga datos de A13 usando el servicio padron.ts
 export async function fetchPadron13Data(cuit: number): Promise<any> {
@@ -306,8 +306,9 @@ export async function processA13TriggerFile(controlPath: string) {
   const persona = await fetchPadron13Data(cuit);
   const files = await writeA13CsvAndDbf(cuit, persona, baseName);
 
-  // Enviar solo DBF por FTP con el mismo nombre
-  try { await sendArbitraryFile(files.dbfPath, `${files.baseName}.dbf`); } catch {}
+  // Enviar solo DBF por FTP usando la configuración de FTP Mercado Pago
+  // Importante: enviar exactamente el archivo generado (no mp.dbf)
+  try { await sendMpDbf(files.dbfPath, `${files.baseName}.dbf`, { force: true }); } catch {}
 
   return files;
 }

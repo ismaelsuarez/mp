@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 
@@ -38,6 +39,7 @@ export interface Config {
   };
   
   coords: {
+    [key: string]: any; // Permitir overrides específicos (por ejemplo, *Remito)
     // Información de la Empresa
     empresaNombre?: { x: number; y: number; fontSize?: number };
     empresaDomicilio?: { x: number; y: number; fontSize?: number };
@@ -56,6 +58,9 @@ export interface Config {
     // Fecha/hora
     fecha: { x: number; y: number; fontSize?: number };
     fechaHora?: { x: number; y: number; fontSize?: number };
+    // Overrides exclusivos para Remito
+    fechaRemito?: { x: number; y: number; fontSize?: number };
+    fechaHoraRemito?: { x: number; y: number; fontSize?: number };
     pv: { x: number; y: number; fontSize?: number };
     numero?: { x: number; y: number; fontSize?: number };
     tipoComprobante?: { x: number; y: number; fontSize?: number }; // Tipo de comprobante
@@ -124,6 +129,12 @@ export interface Config {
     legalDefensaConsumidor?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     legalGracias?: { x: number; y: number; maxWidth?: number; fontSize?: number };
     legalContacto?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    // Observaciones dinámicas de pie (desde OBS.PIE)
+    pieObservaciones?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    // Variante exclusiva para Remito
+    pieObservacionesRemito?: { x: number; y: number; maxWidth?: number; fontSize?: number };
+    // Observaciones fiscales dinámicas (OBS.FISCAL)
+    obsFiscal?: { x: number; y: number; maxWidth?: number; fontSize?: number; maxChars?: number };
   };
 
   // Validación de campos requeridos
@@ -161,7 +172,8 @@ export type InvoiceData = {
   fecha: string; // YYYY-MM-DD
   hora?: string; // HH:mm - Hora de emisión
   fechaHora?: string; // YYYY-MM-DD HH:mm (opcional)
-  tipoComprobanteLetra?: string; // A | B | C
+  tipoComprobanteLetra?: string; // A | B | C | NC | ND | R (se mantiene por compatibilidad)
+  tipoComprobanteLiteral?: string; // Si se setea, se imprime tal cual (ej: "RECIBO")
   mipymeModo?: 'ADC' | 'SCA';
   atendio?: string;
   condicionPago?: string;
@@ -170,6 +182,10 @@ export type InvoiceData = {
   remito?: string;
   email?: string;
   observaciones?: string;
+  // Observaciones dinámicas del pie de página (p.ej. OBS.PIE)
+  pieObservaciones?: string;
+  // Observaciones fiscales (nuevo OBS.FISCAL)
+  fiscal?: string;
 
   // Información adicional
   moneda?: string;
@@ -337,14 +353,49 @@ export async function generateInvoicePdf({
   doc.image(bgPath, 0, 0, { width: pageW, height: pageH });
 
   // Fuentes (usar Helvetica por defecto si no se registran TTF)
-  const fontRegularRegistered = false;
-  const fontBoldRegistered = false;
+  let fontRegularRegistered = false;
+  let fontBoldRegistered = false;
+
+  // Intentar registrar fuentes personalizadas desde config/pdf.config.json
+  try {
+    const cfgPath = path.join(process.cwd(), 'config', 'pdf.config.json');
+    if (fs.existsSync(cfgPath)) {
+      const cfgRaw = fs.readFileSync(cfgPath, 'utf8');
+      const cfg = JSON.parse(cfgRaw || '{}');
+      const regPath = typeof cfg.fontRegular === 'string' ? cfg.fontRegular : undefined;
+      const boldPath = typeof cfg.fontBold === 'string' ? cfg.fontBold : undefined;
+
+      if (regPath && fs.existsSync(regPath)) {
+        doc.registerFont('R', regPath);
+        fontRegularRegistered = true;
+      }
+      if (boldPath && fs.existsSync(boldPath)) {
+        doc.registerFont('B', boldPath);
+        fontBoldRegistered = true;
+      } else if (fontRegularRegistered) {
+        // Si no hay bold explícita, usar la regular también para negrita
+        doc.registerFont('B', regPath);
+        fontBoldRegistered = true;
+      }
+    }
+  } catch {
+    // Ignorar errores de carga de fuente personalizada y usar Helvetica
+  }
 
   function setFont(bold?: boolean) {
     if (!fontRegularRegistered && !fontBoldRegistered) {
       doc.font(bold ? 'Helvetica-Bold' : 'Helvetica'); // Fuente original que funcionaba
     } else {
-      doc.font(bold ? 'B' : 'R');
+      // Si se pidió bold pero no hay 'B', caer a 'R'
+      if (bold && fontBoldRegistered) {
+        doc.font('B');
+      } else if (bold && !fontBoldRegistered && fontRegularRegistered) {
+        doc.font('R');
+      } else if (!bold && fontRegularRegistered) {
+        doc.font('R');
+      } else {
+        doc.font('Helvetica');
+      }
     }
   }
 
@@ -378,10 +429,24 @@ export async function generateInvoicePdf({
     }
   }
 
-  const c = config.coords;
+  // Determinar tipo y aplicar overrides de coordenadas para Remito si existen en el layout
+  const tipoLiteralHeader = (data.tipoComprobanteLiteral || '').toUpperCase();
+  const isRemitoHeader = tipoLiteralHeader === 'REMITO';
+  const baseCoords: any = config.coords as any;
+  let c: any = baseCoords;
+  if (isRemitoHeader) {
+    const merged: any = { ...baseCoords };
+    for (const [key, val] of Object.entries(baseCoords)) {
+      const ov = (baseCoords as any)[`${key}Remito`];
+      if (ov && typeof ov === 'object') {
+        merged[key] = { ...(val as any), ...(ov as any) };
+      }
+    }
+    c = merged;
+  }
 
-  // Letra del comprobante
-  if (data.tipoComprobanteLetra && c.comprobanteLetra) {
+  // Letra del comprobante (no imprimir en Remito, fondo ya la trae)
+  if (!isRemitoHeader && data.tipoComprobanteLetra && c.comprobanteLetra) {
     drawText(
       data.mipymeModo ? `FCE ${data.tipoComprobanteLetra}` : data.tipoComprobanteLetra,
       c.comprobanteLetra.x,
@@ -409,8 +474,11 @@ export async function generateInvoicePdf({
 
   // Encabezado / Comprobante
   const fechaMostrar = (data.fechaHora || data.fecha) as string;
-  if (c.fechaHora) {
-    drawText(fechaMostrar, c.fechaHora.x, c.fechaHora.y, { fontSize: c.fechaHora.fontSize ?? 10 });
+  // Overrides específicos para Remito
+  const fechaCoords: any = (isRemitoHeader && (c as any).fechaRemito) ? (c as any).fechaRemito : c.fecha;
+  const fechaHoraCoords: any = (isRemitoHeader && (c as any).fechaHoraRemito) ? (c as any).fechaHoraRemito : c.fechaHora;
+  if (fechaHoraCoords) {
+    drawText(fechaMostrar, fechaHoraCoords.x, fechaHoraCoords.y, { fontSize: (fechaHoraCoords.fontSize ?? c.fechaHora?.fontSize ?? 10) });
   } else {
     // Formatear fecha en formato argentino DD/MM/YYYY
     const fechaObj = new Date(data.fecha);
@@ -419,19 +487,21 @@ export async function generateInvoicePdf({
       month: '2-digit',
       year: 'numeric'
     });
-    drawText(`Fecha: ${fechaFormateada}`, c.fecha.x, c.fecha.y, { fontSize: c.fecha.fontSize ?? 10 });
+    drawText(`Fecha: ${fechaFormateada}`, fechaCoords.x, fechaCoords.y, { fontSize: (fechaCoords.fontSize ?? c.fecha.fontSize ?? 10) });
   }
   
   // Tipo de comprobante (Factura, Nota de Crédito, Remito, etc.)
   if (c.tipoComprobante) {
-    const tipoTexto = data.mipymeModo ? `FACTURA DE CRÉDITO MiPyME – Modo: ${data.mipymeModo}` :
-                     data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
-                     data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
-                     data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
-                     data.tipoComprobanteLetra === 'R' ? 'REMITO' :
-                     'COMPROBANTE';
+    const tipoTexto = data.tipoComprobanteLiteral ? data.tipoComprobanteLiteral : (
+      data.mipymeModo ? `FACTURA DE CRÉDITO MiPyME – Modo: ${data.mipymeModo}` :
+      data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
+      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
+      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
+      data.tipoComprobanteLetra === 'R' ? 'REMITO' :
+      'COMPROBANTE'
+    );
     drawText(tipoTexto, c.tipoComprobante.x, c.tipoComprobante.y, { 
       fontSize: c.tipoComprobante.fontSize ?? 10, 
       bold: true 
@@ -440,22 +510,28 @@ export async function generateInvoicePdf({
   
   // Número de comprobante en formato "N° 0016 - 00009207"
   const numeroComprobante = `N° ${String(data.empresa.pv).padStart(4, '0')} - ${String(data.empresa.numero).padStart(8, '0')}`;
-  drawText(numeroComprobante, c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
+  const numCoords: any = (isRemitoHeader && c.numero) ? c.numero : c.pv;
+  drawText(numeroComprobante, numCoords.x, numCoords.y, { fontSize: (numCoords.fontSize ?? c.pv.fontSize ?? 10), bold: true });
   
   // Ya no necesitamos dibujar pv y nro por separado
   // drawText(String(data.empresa.pv).padStart(4, '0'), c.pv.x, c.pv.y, { fontSize: c.pv.fontSize ?? 10, bold: true });
   // drawText(String(data.empresa.numero).padStart(8, '0'), c.nro.x, c.nro.y, { fontSize: c.nro.fontSize ?? 10, bold: true });
 
-  if (data.atendio && c.atendio)
-    drawText(data.atendio, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
-  if (data.condicionPago && c.condicionPago)
-    drawText(data.condicionPago, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
-  if (data.hora && c.hora)
-    drawText(data.hora, c.hora.x, c.hora.y, { fontSize: c.hora.fontSize ?? 9 });
+  if (c.atendio) {
+    const atendioValue = (data.atendio || '').replace(/^Atendio:\s*/i, '').trim();
+    drawText(`Atendio: ${atendioValue}`, c.atendio.x, c.atendio.y, { fontSize: c.atendio.fontSize ?? 9 });
+  }
+  if (c.hora) {
+    const horaValue = (data.hora || '').replace(/^Hora:\s*/i, '').trim();
+    drawText(`Hora: ${horaValue}`, c.hora.x, c.hora.y, { fontSize: c.hora.fontSize ?? 9 });
+  }
+  if (c.condicionPago) {
+    drawText(`Pago: ${data.condicionPago || ''}`, c.condicionPago.x, c.condicionPago.y, { fontSize: c.condicionPago.fontSize ?? 9 });
+  }
 
   // Campos opcionales extra del encabezado
   if (c.referenciaInterna)
-    drawLabelValue(drawText, 'REF', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
+    drawLabelValue(drawText, 'Ref.Interna', data.referenciaInterna, c.referenciaInterna.x, c.referenciaInterna.y, {
       fontSize: c.referenciaInterna.fontSize ?? 9,
     });
   if (c.notaRecepcion)
@@ -464,8 +540,9 @@ export async function generateInvoicePdf({
     });
   if (c.remito)
     drawLabelValue(drawText, 'REMITO', data.remito, c.remito.x, c.remito.y, { fontSize: c.remito.fontSize ?? 9 });
-  if (c.email)
-    drawLabelValue(drawText, 'EMAIL', data.email, c.email.x, c.email.y, { fontSize: c.email.fontSize ?? 9 });
+  if (c.email) {
+    drawText(`Mail: ${data.email || ''}`, c.email.x, c.email.y, { fontSize: c.email.fontSize ?? 9 });
+  }
   if (c.observaciones && data.observaciones)
     drawText(data.observaciones, c.observaciones.x, c.observaciones.y, {
       fontSize: c.observaciones.fontSize ?? 9,
@@ -476,30 +553,52 @@ export async function generateInvoicePdf({
   let rowY = c.itemsStartY;
   const rowHeight = c.itemsRowHeight;
   const itemsFontSize = c.itemsFontSize ?? 9;
+  const isReciboItems = (data.tipoComprobanteLiteral || '').toUpperCase() === 'RECIBO';
   for (const it of data.items) {
-    const total = typeof it.total === 'number' ? it.total : it.cantidad * it.unitario;
-    drawRow(
-      [
+    if (isReciboItems) {
+      const total = typeof it.total === 'number' ? it.total : it.cantidad * (it.unitario || 0);
+      const cells = [
         { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
         { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
-        { text: formatNumberEsAr(it.unitario), x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
-        { text: `${it.iva}%`, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
         { text: formatNumberEsAr(total), x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
-      ],
-      rowY,
-    );
+      ];
+      drawRow(cells as any, rowY);
+      rowY += rowHeight;
+      continue;
+    }
+
+    const hasUnit = typeof it.unitario === 'number' && !Number.isNaN(it.unitario) && Math.abs(it.unitario) > 0;
+    const hasIva = typeof it.iva === 'number' && !Number.isNaN(it.iva) && Math.abs(it.iva) > 0;
+    const hasTotal = typeof it.total === 'number' && !Number.isNaN(it.total) && Math.abs(it.total) > 0;
+    const totalCalc = hasTotal ? it.total! : (hasUnit ? (it.cantidad * it.unitario) : undefined);
+    const showUnitCols = (hasUnit || hasIva || typeof totalCalc === 'number');
+
+    const cells = showUnitCols
+      ? [
+          { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+          { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+          { text: hasUnit ? formatNumberEsAr(it.unitario) : '', x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+          { text: hasIva ? `${it.iva}%` : '', x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+          { text: typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '', x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+        ]
+      : [
+          { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+          { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+          { text: '', x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+        ];
+    drawRow(cells as any, rowY);
     rowY += rowHeight;
   }
 
   // Totales - Dibujar etiquetas y valores por separado (como en el sistema viejo)
   console.log('🔍 DEBUG NETO:', { x: c.neto.x, y: c.neto.y, value: data.netoGravado });
   console.log('🔍 DEBUG NETO - Coordenadas convertidas:', { x: mm(c.neto.x), y: mm(c.neto.y) });
-  
-  // Dibujar etiqueta y valor por separado
-  if (c.netoLabel) {
-    drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
-  }
-  drawText(formatNumberEsAr(data.netoGravado), c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+  const tipoLiteral = (data.tipoComprobanteLiteral || '').toUpperCase();
+  const isRecibo = tipoLiteral === 'RECIBO';
+  const isRemito = tipoLiteral === 'REMITO';
+  const hasValue = (n?: number) => typeof n === 'number' && Math.abs(n) > 0.000001;
+
+  // Postergamos el dibujo de NETO hasta evaluar si debe omitirse para Remito con totales cero
 
   const iva21 = data.ivaPorAlicuota['21'] || 0;
   const iva105 = data.ivaPorAlicuota['10.5'] || data.ivaPorAlicuota['10,5'] || 0;
@@ -509,21 +608,31 @@ export async function generateInvoicePdf({
   const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
   const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
 
-  if (c.neto21 && typeof neto21 === 'number') {
+  const skipTotalsForZeroRemito = isRemito && !hasValue(data.netoGravado) && !hasValue(iva21) && !hasValue(iva105) && !hasValue(iva27) && !hasValue(data.ivaTotal) && !hasValue(data.total) && !hasValue(neto21) && !hasValue(neto105) && !hasValue(neto27);
+
+  // Dibujar etiqueta y valor de NETO sólo si corresponde
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado))) {
+    if (c.netoLabel) {
+      drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(data.netoGravado), c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+  }
+
+  if (!skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
     console.log('🔍 DEBUG NETO21:', { x: c.neto21.x, y: c.neto21.y, value: neto21 });
     if (c.neto21Label) {
       drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
     }
     drawText(formatNumberEsAr(neto21), c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
   }
-  if (c.neto105 && typeof neto105 === 'number') {
+  if (!skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
     console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
     if (c.neto105Label) {
       drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
     }
     drawText(formatNumberEsAr(neto105), c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
   }
-  if (c.neto27 && typeof neto27 === 'number') {
+  if (!skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
     console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
     if (c.neto27Label) {
       drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
@@ -531,36 +640,64 @@ export async function generateInvoicePdf({
     drawText(formatNumberEsAr(neto27), c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
   }
 
-  if (c.iva21) {
+  if (!skipTotalsForZeroRemito && c.iva21 && (!isRecibo || hasValue(iva21))) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
     drawText(formatNumberEsAr(iva21), c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
   }
-  if (c.iva105) {
+  if (!skipTotalsForZeroRemito && c.iva105 && (!isRecibo || hasValue(iva105))) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
     drawText(formatNumberEsAr(iva105), c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
   }
-  if (c.iva27) {
+  if (!skipTotalsForZeroRemito && c.iva27 && (!isRecibo || hasValue(iva27))) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
     drawText(formatNumberEsAr(iva27), c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
   }
 
-  if (c.impIvaTotalLabel) {
-    drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
-  }
-  drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
-  
-  if (c.totalLabel) {
-    drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
-  }
-  drawText(formatNumberEsAr(data.total), c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+  // (ya definido arriba)
 
-  if (c.totalEnLetras) {
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal))) {
+    if (c.impIvaTotalLabel) {
+      drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
+    }
+    drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+  }
+  // OBS.FISCAL: debajo del Total
+  if (c.obsFiscal && data.fiscal) {
+    let fiscalText = data.fiscal;
+    const maxChars = (c.obsFiscal as any).maxChars as number | undefined;
+    if (maxChars && maxChars > 0) {
+      // Re-wrap a líneas duras de longitud maxChars respetando saltos existentes
+      const lines: string[] = [];
+      for (const part of fiscalText.split(/\r?\n/)) {
+        let p = part.trim();
+        while (p.length > maxChars) {
+          lines.push(p.slice(0, maxChars));
+          p = p.slice(maxChars);
+        }
+        lines.push(p);
+      }
+      fiscalText = lines.join('\n');
+    }
+    drawText(fiscalText, c.obsFiscal.x, c.obsFiscal.y, {
+      fontSize: c.obsFiscal.fontSize ?? 8,
+      maxWidth: c.obsFiscal.maxWidth,
+    });
+  }
+  
+  if (!skipTotalsForZeroRemito) {
+    if (c.totalLabel) {
+      drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
+    }
+    drawText(formatNumberEsAr(data.total), c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+  }
+
+  if (c.totalEnLetras && !skipTotalsForZeroRemito) {
     drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
       fontSize: c.totalEnLetras.fontSize ?? 9,
       bold: true,
@@ -568,9 +705,13 @@ export async function generateInvoicePdf({
     });
   }
 
-  // CAE
-  drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
-  drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+  // CAE (imprimir solo si hay datos)
+  if (data.cae) {
+    drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
+  }
+  if (data.caeVto) {
+    drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+  }
 
   // QR Code - preferir URL oficial (qrDataUrl). Fallback: QR simplificado con CAE
   if (c.qrCode) {
@@ -606,25 +747,53 @@ export async function generateInvoicePdf({
   }
 
   // Textos legales / pie
-  if (c.legalDefensaConsumidor)
-    drawText(
-      'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
-      c.legalDefensaConsumidor.x,
-      c.legalDefensaConsumidor.y,
-      { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
-    );
-  if (c.legalGracias)
-    drawText('Gracias por su compra.', c.legalGracias.x, c.legalGracias.y, {
-      fontSize: c.legalGracias.fontSize ?? 9,
-      maxWidth: c.legalGracias.maxWidth,
+  const pieText = ((data.pieObservaciones as string) || '').trim();
+  try { if ((data.tipoComprobanteLiteral||'').toUpperCase()==='REMITO') console.log('[renderer] Remito pie length:', pieText.length); } catch {}
+  const tienePie = pieText.length > 0;
+  if (!tienePie && !isRemito) {
+    if (c.legalDefensaConsumidor)
+      drawText(
+        'DEFENSA DEL CONSUMIDOR: Para reclamos, consulte en www.argentina.gob.ar/defensadelconsumidor',
+        c.legalDefensaConsumidor.x,
+        c.legalDefensaConsumidor.y,
+        { fontSize: c.legalDefensaConsumidor.fontSize ?? 7, maxWidth: c.legalDefensaConsumidor.maxWidth },
+      );
+    if (c.legalContacto)
+      drawText('', c.legalContacto.x, c.legalContacto.y, {
+        fontSize: c.legalContacto.fontSize ?? 8,
+        maxWidth: c.legalContacto.maxWidth,
+      });
+  }
+  // Observaciones de pie unificadas (desde .fac) y gracias centrado si existe
+  // Permitir coordenadas específicas para Remito si existen en el layout
+  const pieCoords: any = (isRemito && (c as any).pieObservacionesRemito)
+    ? (c as any).pieObservacionesRemito
+    : c.pieObservaciones;
+  if (pieCoords && tienePie) {
+    drawText(pieText, pieCoords.x, pieCoords.y, {
+      fontSize: (pieCoords.fontSize ?? (c.pieObservaciones?.fontSize ?? 8)),
+      maxWidth: pieCoords.maxWidth ?? c.pieObservaciones?.maxWidth,
     });
-  if (c.legalContacto)
-    drawText('Contacto: (261) 555-0000  -  www.tcmza.com.ar  -  soporte@tcmza.com.ar', c.legalContacto.x, c.legalContacto.y, {
-      fontSize: c.legalContacto.fontSize ?? 8,
-      maxWidth: c.legalContacto.maxWidth,
-    });
+  }
+  if (c.legalGracias) {
+    const gracias = (data as any).gracias || '';
+    if (gracias) {
+      drawText(gracias, c.legalGracias.x, c.legalGracias.y, {
+        fontSize: c.legalGracias.fontSize ?? 9,
+        maxWidth: c.legalGracias.maxWidth,
+        align: 'center',
+        bold: true,
+      });
+    }
+  }
     
-
+  // Observaciones fiscales (OBS.FISCAL)
+  if (c.obsFiscal && data.fiscal) {
+    drawText(data.fiscal, c.obsFiscal.x, c.obsFiscal.y, {
+      fontSize: c.obsFiscal.fontSize ?? 9,
+      maxWidth: c.obsFiscal.maxWidth,
+    });
+  }
 
   doc.end();
   await new Promise<void>((resolve) => stream.on('finish', () => resolve()));

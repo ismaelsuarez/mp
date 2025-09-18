@@ -7,8 +7,26 @@ import path from 'path';
 
 function ensureWsdlAssets() {
 	try {
-		const src = path.resolve(process.cwd(), 'sdk/afip.ts-main/src/soap/wsdl');
+		// Destino donde el SDK local espera encontrar los WSDL en tiempo de ejecución (dentro de dist)
 		const dest = path.resolve(__dirname, '../../../..', 'sdk/afip.ts-main/src/soap/wsdl');
+		// Candidatos de origen (dev, empaquetado, asar-unpacked)
+		const srcCandidates = [
+			path.resolve(process.cwd(), 'sdk/afip.ts-main/src/soap/wsdl'),
+			path.resolve(__dirname, '../../../../sdk/afip.ts-main/src/soap/wsdl'),
+			path.resolve(__dirname, '../../../../../sdk/afip.ts-main/src/soap/wsdl'),
+			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app', 'sdk/afip.ts-main/src/soap/wsdl') : '',
+			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app.asar.unpacked', 'sdk/afip.ts-main/src/soap/wsdl') : '',
+			// Instalado por defecto en Windows (C:\\Program Files\\Tc-Mp\\resources\\app...)
+			'C:/Program Files/Tc-Mp/resources/app/sdk/afip.ts-main/src/soap/wsdl',
+			'C:/Program Files/Tc-Mp/resources/app.asar.unpacked/sdk/afip.ts-main/src/soap/wsdl',
+		].filter(Boolean);
+		let src = srcCandidates.find(p => {
+			try { return fs.existsSync(p); } catch { return false; }
+		});
+		if (!src) {
+			// Si no hay origen válido, salir silenciosamente (el SDK podría resolver internamente)
+			return;
+		}
 		if (!fs.existsSync(dest)) {
 			fs.mkdirSync(dest, { recursive: true });
 		}
@@ -74,6 +92,15 @@ export class CompatAfip {
 			cert: certContent,
 			key: keyContent,
 			handleTicket: false,
+			// Guardar tickets (TA-*.json) en carpeta de datos del usuario para evitar permisos en Program Files
+			ticketPath: (() => {
+				try {
+					const base = (process as any).env?.APPDATA || (process as any).env?.LOCALAPPDATA || __dirname;
+					const dir = path.resolve(String(base), 'Tc-Mp', 'afip', 'tickets');
+					try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); } catch {}
+					return dir;
+				} catch { return undefined as any; }
+			})(),
 			// Inyectar agente HTTPS personalizado a afip.ts
 			httpsAgent
 		};
@@ -146,6 +173,10 @@ export class CompatAfip {
 					CAEFchVto: r.caeFchVto,
 					Observaciones: r.response?.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs ?? undefined
 				};
+			},
+			consultarObligadoRecepcion: async (cuitReceptor: number) => {
+				const r: any = await svc.consultarObligadoRecepcion(cuitReceptor);
+				return r;
 			}
 		};
 	}

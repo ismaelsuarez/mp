@@ -19,8 +19,14 @@ function getEncryptionKey(): string | undefined {
 }
 
 function getConfig() {
-	const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    const store = new Store<{ config?: any }>({ name: 'settings', cwd: (()=>{ try { return app.getPath('userData'); } catch { return undefined; } })(), encryptionKey: getEncryptionKey() });
 	return (store.get('config') as any) || {};
+}
+
+function setConfigPartial(partial: Record<string, unknown>) {
+    const store = new Store<{ config?: any }>({ name: 'settings', cwd: (()=>{ try { return app.getPath('userData'); } catch { return undefined; } })(), encryptionKey: getEncryptionKey() });
+	const current = (store.get('config') as any) || {};
+	store.set('config', { ...current, ...partial });
 }
 
 function normalizeDir(dir: string | undefined): string | undefined {
@@ -32,6 +38,115 @@ function normalizeDir(dir: string | undefined): string | undefined {
     return d;
 }
 
+// ===== SFTP (SSH) helpers =====
+async function ensureSftpDir(sftp: any, dir: string | undefined) {
+    if (!dir) return;
+    const normalized = String(dir).replace(/\\/g, '/');
+    try { await sftp.mkdir(normalized, true); } catch {}
+}
+
+async function testWhatsappSftpInternal(cfg: any) {
+    let SFTPClient: any;
+    try { SFTPClient = require('ssh2-sftp-client'); } catch { throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); }
+    const sftp = new SFTPClient();
+    try {
+        logFtp('WA SFTP: conectando...', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
+        await sftp.connect({
+            host: String(cfg.FTP_WHATSAPP_IP),
+            port: Number(cfg.FTP_WHATSAPP_PORT || 22),
+            username: String(cfg.FTP_WHATSAPP_USER),
+            password: String(cfg.FTP_WHATSAPP_PASS),
+            hostHash: 'sha256',
+            hostVerifier: (hash: string) => {
+                try {
+                    const fp = cfg.FTP_WHATSAPP_SSH_FP;
+                    if (!fp) { setConfigPartial({ FTP_WHATSAPP_SSH_FP: hash }); return true; }
+                    return String(fp) === String(hash);
+                } catch { return true; }
+            }
+        } as any);
+        logFtp('WA SFTP: conectado');
+        const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR) || '/';
+        await ensureSftpDir(sftp, dir);
+        logFtp('WA SFTP: ensureDir OK', { dir });
+        return true;
+    } catch (e: any) {
+        logWarning('WA SFTP: error de prueba', { error: String(e?.message || e) });
+        throw e;
+    } finally { try { await sftp.end(); } catch {} }
+}
+
+async function sendWhatsappFilesSftpInternal(cfg: any, filePaths: string[], remoteNames?: string[]) {
+    let SFTPClient: any;
+    try { SFTPClient = require('ssh2-sftp-client'); } catch { throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); }
+    const sftp = new SFTPClient();
+    try {
+        logFtp('WA SFTP: conectando para envío múltiple...', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
+        await sftp.connect({
+            host: String(cfg.FTP_WHATSAPP_IP),
+            port: Number(cfg.FTP_WHATSAPP_PORT || 22),
+            username: String(cfg.FTP_WHATSAPP_USER),
+            password: String(cfg.FTP_WHATSAPP_PASS),
+            hostHash: 'sha256',
+            hostVerifier: (hash: string) => {
+                try {
+                    const fp = cfg.FTP_WHATSAPP_SSH_FP;
+                    if (!fp) { setConfigPartial({ FTP_WHATSAPP_SSH_FP: hash }); return true; }
+                    return String(fp) === String(hash);
+                } catch { return true; }
+            }
+        } as any);
+        const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR) || '/';
+        await ensureSftpDir(sftp, dir);
+        for (let i = 0; i < filePaths.length; i++) {
+            const local = filePaths[i];
+            if (!local || !fs.existsSync(local)) continue;
+            const rn = (remoteNames && remoteNames[i]) ? remoteNames[i] : path.basename(local);
+            const remotePath = (dir.endsWith('/') ? dir : dir + '/') + rn;
+            logFtp('WA SFTP: subiendo archivo', { local, remote: remotePath });
+            await sftp.put(local, remotePath);
+            logSuccess('WA SFTP: archivo enviado', { local, remote: remotePath });
+        }
+        return { ok: true };
+    } catch (e: any) {
+        logWarning('WA SFTP: error envío múltiple', { error: String(e?.message || e) });
+        throw e;
+    } finally { try { await sftp.end(); } catch {} }
+}
+
+async function sendWhatsappFileSftpInternal(cfg: any, localPath: string, remoteName?: string) {
+    let SFTPClient: any;
+    try { SFTPClient = require('ssh2-sftp-client'); } catch { throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); }
+    const sftp = new SFTPClient();
+    try {
+        logFtp('WA SFTP: conectando para envío individual...', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
+        await sftp.connect({
+            host: String(cfg.FTP_WHATSAPP_IP),
+            port: Number(cfg.FTP_WHATSAPP_PORT || 22),
+            username: String(cfg.FTP_WHATSAPP_USER),
+            password: String(cfg.FTP_WHATSAPP_PASS),
+            hostHash: 'sha256',
+            hostVerifier: (hash: string) => {
+                try {
+                    const fp = cfg.FTP_WHATSAPP_SSH_FP;
+                    if (!fp) { setConfigPartial({ FTP_WHATSAPP_SSH_FP: hash }); return true; }
+                    return String(fp) === String(hash);
+                } catch { return true; }
+            }
+        } as any);
+        const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR) || '/';
+        await ensureSftpDir(sftp, dir);
+        const rn = String(remoteName || path.basename(localPath));
+        const remotePath = (dir.endsWith('/') ? dir : dir + '/') + rn;
+        logFtp('WA SFTP: subiendo archivo', { localPath, remote: remotePath });
+        await sftp.put(localPath, remotePath);
+        logSuccess('WA SFTP: archivo enviado', { localPath, remote: remotePath });
+        return { remoteDir: dir || '/', remoteFile: rn };
+    } catch (e: any) {
+        logWarning('WA SFTP: error envío individual', { error: String(e?.message || e) });
+        throw e;
+    } finally { try { await sftp.end(); } catch {} }
+}
 // Función para calcular hash MD5 de un archivo
 function calculateFileHash(filePath: string): string {
     const fileBuffer = fs.readFileSync(filePath);
@@ -100,6 +215,38 @@ export async function testFtp() {
 	} finally {
 		client.close();
 	}
+}
+
+export async function testWhatsappFtp() {
+    const cfg = getConfig();
+    if (!cfg.FTP_WHATSAPP_IP || !cfg.FTP_WHATSAPP_USER || !cfg.FTP_WHATSAPP_PASS) {
+        recordError('FTP_WA_CONFIG', 'Configuración FTP WhatsApp incompleta', { config: { hasIp: !!cfg.FTP_WHATSAPP_IP, hasUser: !!cfg.FTP_WHATSAPP_USER, hasPass: !!cfg.FTP_WHATSAPP_PASS } });
+        throw new Error('Config FTP WhatsApp incompleta');
+    }
+    // Si se activa SFTP o el puerto no es 21, probamos por SSH en lugar de FTP
+    if (cfg.FTP_WHATSAPP_SFTP || Number(cfg.FTP_WHATSAPP_PORT || 0) !== 21) {
+        logFtp('WA Test: usando SFTP (SSH)', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
+        return await testWhatsappSftpInternal(cfg);
+    }
+    logFtp('WA Test: usando FTP', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
+    // Intento 1: PASV clásico (useEPSV=false), luego fallback a EPSV si falla
+    const attempt = async (preferEPSV: boolean) => {
+        const c = new Client();
+        try {
+            await c.access({
+                host: String(cfg.FTP_WHATSAPP_IP),
+                port: Number(cfg.FTP_WHATSAPP_PORT || 21),
+                user: String(cfg.FTP_WHATSAPP_USER),
+                password: String(cfg.FTP_WHATSAPP_PASS),
+                secure: !!cfg.FTP_WHATSAPP_SECURE,
+            });
+            try { (c as any).ftp.useEPSV = preferEPSV; } catch {}
+            const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR);
+            if (dir) await c.ensureDir(dir);
+            return true;
+        } finally { c.close(); }
+    };
+    try { return await attempt(false); } catch { return await attempt(true); }
 }
 
 export async function sendTodayDbf() {
@@ -194,6 +341,126 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	}
 }
 
+// ===== FTP Mercado Pago (config separada) =====
+export function getMpFtpConfig() {
+  const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  const cfg: any = (store.get('config') as any) || {};
+  return {
+    host: cfg.MP_FTP_IP,
+    port: Number(cfg.MP_FTP_PORT || 21),
+    user: cfg.MP_FTP_USER,
+    pass: cfg.MP_FTP_PASS,
+    secure: !!cfg.MP_FTP_SECURE,
+    dir: cfg.MP_FTP_DIR,
+  };
+}
+
+export async function saveMpFtpConfig(partial: any) {
+  const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  const current = (store.get('config') as any) || {};
+  store.set('config', { ...current, ...partial });
+  return true;
+}
+
+export async function testMpFtp() {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    return true;
+  } finally { client.close(); }
+}
+
+// Hash separado para MP (evitar colisión con FTP general)
+function getLastMpDbfHash(): string | null {
+  const store = new Store<{ config?: any; lastMpDbfHashDedicated?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  return (store.get('lastMpDbfHashDedicated') as string) || null;
+}
+function saveLastMpDbfHash(hash: string): void {
+  const store = new Store<{ config?: any; lastMpDbfHashDedicated?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  store.set('lastMpDbfHashDedicated', hash);
+}
+
+export async function sendMpDbf(localPath?: string, remoteFileName?: string, options?: { force?: boolean }) {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta para envío', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  // Local: preferir outDir de ReportService
+  let lp = localPath;
+  if (!lp) {
+    try {
+      const { getOutDir } = require('./ReportService');
+      const outDir = getOutDir();
+      lp = path.join(outDir, 'mp.dbf');
+    } catch {}
+  }
+  if (!lp || !fs.existsSync(lp)) throw new Error(`No existe archivo DBF local: ${lp}`);
+
+  const forceSend = !!(options && options.force);
+  const remoteName = (remoteFileName && String(remoteFileName).trim().length > 0)
+    ? String(remoteFileName).toLowerCase()
+    : 'mp.dbf';
+  const useDedup = !forceSend && remoteName === 'mp.dbf';
+  if (useDedup) {
+    const currentHash = calculateFileHash(lp);
+    const lastHash = getLastMpDbfHash();
+    if (lastHash && lastHash === currentHash) {
+      logFtp('MP FTP: mp.dbf sin cambios - omitiendo envío');
+      return { skipped: true, reason: 'sin cambios' } as any;
+    }
+  }
+
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    await client.uploadFrom(lp, remoteName);
+    const h = calculateFileHash(lp);
+    if (remoteName === 'mp.dbf') saveLastMpDbfHash(h);
+    logSuccess('MP FTP: archivo enviado', { remote: `${dir || '/'}${remoteName}` });
+    return { skipped: false, remoteDir: dir || '/', remoteFile: remoteName };
+  } finally { client.close(); }
+}
+
+// Alias semántico más versátil para reutilizar el canal FTP-MP desde otros flujos
+export async function sendMpFtpFile(localPath: string, remoteFileName?: string, options?: { force?: boolean }) {
+  return await sendMpDbf(localPath, remoteFileName, options);
+}
+
+// Enviar múltiples archivos usando configuración FTP-MP
+export async function sendMpFtpFiles(filePaths: string[], remoteNames?: string[]) {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta para envío múltiple', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    const results: any[] = [];
+    for (let i = 0; i < filePaths.length; i++) {
+      const local = filePaths[i];
+      if (!local || !fs.existsSync(local)) continue;
+      const rn = (remoteNames && remoteNames[i]) ? String(remoteNames[i]) : path.basename(local);
+      await client.uploadFrom(local, rn);
+      logSuccess('MP FTP: archivo enviado', { local, remote: `${dir || '/'}${rn}` });
+      results.push({ local, remote: `${dir || '/'}${rn}` });
+    }
+    return { ok: true, results };
+  } finally { client.close(); }
+}
+
 
 // Enviar un archivo arbitrario por FTP (sin hash/skip)
 export async function sendArbitraryFile(localPath: string, remoteFileName?: string) {
@@ -227,4 +494,85 @@ export async function sendArbitraryFile(localPath: string, remoteFileName?: stri
     }
 }
 
+
+// Enviar múltiples archivos al FTP de WhatsApp
+export async function sendFilesToWhatsappFtp(filePaths: string[], remoteNames?: string[]) {
+    const cfg = getConfig();
+    const wip = cfg.FTP_WHATSAPP_IP;
+    const wuser = cfg.FTP_WHATSAPP_USER;
+    const wpass = cfg.FTP_WHATSAPP_PASS;
+    if (!wip || !wuser || !wpass) {
+        logWarning('Config FTP WhatsApp incompleta - se omite envío', { hasIp: !!wip, hasUser: !!wuser, hasPass: !!wpass });
+        return { ok: false, skipped: true, reason: 'config incompleta' } as any;
+    }
+    // Si está habilitado SFTP en config, usar SSH2-SFTP
+    if (cfg.FTP_WHATSAPP_SFTP) {
+        return await (async () => await sendWhatsappFilesSftpInternal(cfg, filePaths, remoteNames))();
+    }
+    const tryMode = async (preferEPSV: boolean) => {
+        const c = new Client();
+        try {
+            await c.access({
+                host: String(wip),
+                port: Number(cfg.FTP_WHATSAPP_PORT || 21),
+                user: String(wuser),
+                password: String(wpass),
+                secure: !!cfg.FTP_WHATSAPP_SECURE,
+            });
+            try { (c as any).ftp.useEPSV = preferEPSV; } catch {}
+            const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR);
+            if (dir) await c.ensureDir(dir);
+            for (let i = 0; i < filePaths.length; i++) {
+                const local = filePaths[i];
+                if (!local || !fs.existsSync(local)) continue;
+                const rn = (remoteNames && remoteNames[i]) ? remoteNames[i] : path.basename(local);
+                logFtp('WA FTP: subiendo archivo', { local, remote: `${dir || '/'}${rn}` });
+                await c.uploadFrom(local, rn);
+                logSuccess('WA FTP: archivo enviado', { local, remote: `${dir || '/'}${rn}` });
+            }
+            return { ok: true };
+        } finally { c.close(); }
+    };
+    try { return await tryMode(false); } catch { return await tryMode(true); }
+}
+
+// Enviar un archivo individual al FTP de WhatsApp
+export async function sendWhatsappFile(localPath: string, remoteFileName?: string) {
+    const cfg = getConfig();
+    const wip = cfg.FTP_WHATSAPP_IP;
+    const wuser = cfg.FTP_WHATSAPP_USER;
+    const wpass = cfg.FTP_WHATSAPP_PASS;
+    if (!wip || !wuser || !wpass) {
+        recordError('FTP_WA_CONFIG', 'Configuración FTP WhatsApp incompleta', { config: { hasIp: !!wip, hasUser: !!wuser, hasPass: !!wpass } });
+        throw new Error('Config FTP WhatsApp incompleta');
+    }
+    if (!fs.existsSync(localPath)) {
+        recordError('FTP_FILE', 'Archivo local no encontrado (WA)', { localPath });
+        throw new Error(`No existe archivo local: ${localPath}`);
+    }
+    if (cfg.FTP_WHATSAPP_SFTP) {
+        return await (async () => await sendWhatsappFileSftpInternal(cfg, localPath, remoteFileName))();
+    }
+    const sendWith = async (preferEPSV: boolean) => {
+        const c = new Client();
+        try {
+            await c.access({
+                host: String(wip),
+                port: Number(cfg.FTP_WHATSAPP_PORT || 21),
+                user: String(wuser),
+                password: String(wpass),
+                secure: !!cfg.FTP_WHATSAPP_SECURE,
+            });
+            try { (c as any).ftp.useEPSV = preferEPSV; } catch {}
+            const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR);
+            if (dir) await c.ensureDir(dir);
+            const remoteName = String(remoteFileName || path.basename(localPath));
+            logFtp('WA FTP: subiendo archivo', { localPath, remote: `${dir || '/'}${remoteName}` });
+            await c.uploadFrom(localPath, remoteName);
+            logSuccess('WA FTP: archivo enviado', { localPath, remote: `${dir || '/'}${remoteName}` });
+            return { remoteDir: dir || '/', remoteFile: remoteName };
+        } finally { c.close(); }
+    };
+    try { return await sendWith(false); } catch { return await sendWith(true); }
+}
 

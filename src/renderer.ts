@@ -145,6 +145,9 @@ window.addEventListener('DOMContentLoaded', () => {
 			IMAGE_PUBLICIDAD_ALLOWED: (el.IMAGE_PUBLICIDAD_ALLOWED as HTMLInputElement)?.checked || false,
 			IMAGE_PRODUCTO_NUEVO_ENABLED: (el.IMAGE_PRODUCTO_NUEVO_ENABLED as HTMLInputElement)?.checked || false,
 			IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS: (el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement)?.value ? Number((el.IMAGE_PRODUCTO_NUEVO_WAIT_SECONDS as HTMLInputElement).value) : undefined,
+			// Facturación: watcher .fac (incluir en guardado global para no perderlo)
+			FACT_FAC_DIR: (document.getElementById('FAC_WATCH_DIR') as HTMLInputElement | null)?.value || undefined,
+			FACT_FAC_WATCH: (document.getElementById('FAC_WATCH_ENABLED') as HTMLInputElement | null)?.checked || false,
 			DEFAULT_VIEW: ((): 'config'|'caja'|'imagen' => {
 				try {
 					const href = String(window.location.pathname || '').toLowerCase();
@@ -256,6 +259,13 @@ window.addEventListener('DOMContentLoaded', () => {
 		if (ftpPasvHostEl) ftpPasvHostEl.value = cfg.FTP_SRV_PASV_HOST || '';
 		if (ftpPasvMinEl) ftpPasvMinEl.value = String(cfg.FTP_SRV_PASV_MIN || '50000');
 		if (ftpPasvMaxEl) ftpPasvMaxEl.value = String(cfg.FTP_SRV_PASV_MAX || '50100');
+		// Facturación: watcher .fac (reflejar estado si están presentes en DOM)
+		try {
+			const facDirEl = document.getElementById('FAC_WATCH_DIR') as HTMLInputElement | null;
+			const facEnabledEl = document.getElementById('FAC_WATCH_ENABLED') as HTMLInputElement | null;
+			if (facDirEl) facDirEl.value = cfg.FACT_FAC_DIR || 'C\\tmp';
+			if (facEnabledEl) facEnabledEl.checked = cfg.FACT_FAC_WATCH === true;
+		} catch {}
 		
 		// Galicia
 		const galiciaAppIdEl = document.getElementById('GALICIA_APP_ID') as HTMLInputElement | null;
@@ -1346,13 +1356,19 @@ window.addEventListener('DOMContentLoaded', () => {
 			(document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement | null)!.value = p.tipo_defecto || 'FA';
 			(document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement | null)!.value = p.pto_vta || '';
 			(document.getElementById('FAC_NUM_DEF') as HTMLInputElement | null)!.value = p.numeracion || '';
+			const emChk = document.getElementById('FAC_EMISOR_MIPYME') as HTMLInputElement | null;
+			if (emChk) emChk.checked = !!p.es_mipyme_emisor;
+			const umbralEl = document.getElementById('FAC_FCE_UMBRAL') as HTMLInputElement | null;
+			if (umbralEl) umbralEl.value = p.fce_umbral != null ? String(p.fce_umbral) : '';
 		} catch {}
 	})();
 	(document.getElementById('btnParamGuardar') as HTMLButtonElement | null)?.addEventListener('click', async () => {
 		const payload = {
 			tipo_defecto: (document.getElementById('FAC_TIPO_DEF') as HTMLSelectElement)?.value,
 			pto_vta: Number((document.getElementById('FAC_PTO_VTA_DEF') as HTMLInputElement)?.value || 0),
-			numeracion: Number((document.getElementById('FAC_NUM_DEF') as HTMLInputElement)?.value || 0)
+			numeracion: Number((document.getElementById('FAC_NUM_DEF') as HTMLInputElement)?.value || 0),
+			es_mipyme_emisor: (document.getElementById('FAC_EMISOR_MIPYME') as HTMLInputElement)?.checked ? 1 : 0,
+			fce_umbral: Number((document.getElementById('FAC_FCE_UMBRAL') as HTMLInputElement)?.value || 0)
 		};
 		const res = await (window.api as any).facturacion?.paramSave(payload);
 		const el = document.getElementById('paramStatus');
@@ -2522,7 +2538,19 @@ window.addEventListener('DOMContentLoaded', () => {
 		try {
 			const map: Record<number, number> = { 1:201, 2:202, 3:203, 6:206, 7:207, 8:208, 11:211, 12:212, 13:213 };
 			const fceTipo = map[tipoCbte] || tipoCbte;
-			if (out) { out.textContent = `FCE habilitado → Modo ${modoFin} – CbteTipo ${fceTipo}`; out.className = 'text-xs text-emerald-300'; }
+			// Consultar obligado recepción FCE si hay CUIT
+			let obligadoTxt = '';
+			const cuitCliente = (document.getElementById('pruebaFacturaCuit') as HTMLInputElement)?.value?.trim();
+			if (window.api && cuitCliente && /^\d{11}$/.test(cuitCliente)) {
+				try {
+					const r = await (window.api as any).facturacion?.fceConsultarObligado(Number(cuitCliente));
+					if (r?.ok && r.data) {
+						const d = r.data;
+						obligadoTxt = d.supported ? (d.obligado ? ' | Receptor obligado FCE: Sí' : ' | Receptor obligado FCE: No') : ' | Receptor obligado FCE: ND';
+					}
+				} catch {}
+			}
+			if (out) { out.textContent = `FCE habilitado → Modo ${modoFin} – CbteTipo ${fceTipo}${obligadoTxt}`; out.className = 'text-xs text-emerald-300'; }
 		} catch {
 			if (out) { out.textContent = 'No fue posible previsualizar MiPyME'; out.className = 'text-xs text-red-300'; }
 		}

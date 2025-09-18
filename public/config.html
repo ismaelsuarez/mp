@@ -56,6 +56,92 @@
 						</div>
 					</div>
 				</details>
+
+				<!-- Comprobantes (agrupa Recibos y Remitos) -->
+				<details id="sec-comprobantes" class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">Comprobantes</summary>
+					<div class="p-3 space-y-6">
+						<!-- Recibos (PV y Numeración) -->
+						<details id="sec-recibos" class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">Recibos</summary>
+							<div class="p-3 space-y-3">
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Punto de venta (PV)
+										<input id="REC_PV" type="number" placeholder="1" />
+									</label>
+									<label>Número inicial (NI)
+										<input id="REC_NI" type="number" placeholder="1" />
+									</label>
+									<label class="text-sm">Siguiente número
+										<input id="REC_NEXT" type="text" readonly />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Ruta Local (obligatoria)
+										<input id="REC_OUT_LOCAL" placeholder="C:\\1_AFIP" />
+									</label>
+									<label>Ruta Red 1 (opcional)
+										<input id="REC_OUT_RED1" placeholder="\\\\correo\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+									</label>
+									<label>Ruta Red 2 (opcional)
+										<input id="REC_OUT_RED2" placeholder="\\\\server2008\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Impresora para Recibos (opcional)
+										<select id="REC_PRINTER"></select>
+									</label>
+									<label>Test impresión
+										<button type="button" id="btnReciboTestPrint" class="w-full px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border-0 hover:bg-slate-600">Probar</button>
+									</label>
+								</div>
+								<div class="flex items-center gap-2">
+									<button type="button" id="btnReciboGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar Recibo</button>
+									<span id="reciboStatus" class="text-xs text-slate-400"></span>
+								</div>
+							</div>
+						</details>
+
+						<!-- Remitos (PV y Numeración) -->
+						<details id="sec-remitos" class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">Remitos</summary>
+							<div class="p-3 space-y-3">
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Punto de venta (PV)
+										<input id="REM_PV" type="number" placeholder="1" />
+									</label>
+									<label>Número inicial (NI)
+										<input id="REM_NI" type="number" placeholder="1" />
+									</label>
+									<label class="text-sm">Siguiente número
+										<input id="REM_NEXT" type="text" readonly />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Ruta Local (obligatoria)
+										<input id="REM_OUT_LOCAL" placeholder="C:\\1_AFIP" />
+									</label>
+									<label>Ruta Red 1 (opcional)
+										<input id="REM_OUT_RED1" placeholder="\\\\correo\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+									</label>
+									<label>Ruta Red 2 (opcional)
+										<input id="REM_OUT_RED2" placeholder="\\\\server2008\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+									<label>Impresora para Remitos (opcional)
+										<select id="REM_PRINTER"></select>
+									</label>
+								</div>
+								<div class="flex items-center gap-2">
+									<button type="button" id="btnRemitoGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar Remito</button>
+									<span id="remitoStatus" class="text-xs text-slate-400"></span>
+								</div>
+							</div>
+						</details>
+					</div>
+				</details>
+
 				<details id="sec-mercado-pago" class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Mercado Pago
@@ -170,10 +256,48 @@
 					</div>
 				</details>
 
-				<details class="group mb-4 border border-slate-700 rounded-md">
+				<!-- Grupo: FTP-Configuraciones (contiene subpaneles FTP Cliente, MP, WhatsApp y Servidor) -->
+				<details id="sec-ftp-config" class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP
+						FTP-Configuraciones
 					</summary>
+                    <div class="p-3 space-y-3">
+                <!-- Subpanel: FTP-Server (1) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">1) FTP-Server (carpeta local)</summary>
+                    <div class="p-3 space-y-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label>Host <input id="FTP_SRV_HOST" placeholder="0.0.0.0" /></label>
+                            <label>Puerto <input id="FTP_SRV_PORT" type="number" placeholder="2121" /></label>
+                            <label>Usuario <input id="FTP_SRV_USER" placeholder="user" /></label>
+                            <label>Contraseña <input id="FTP_SRV_PASS" type="password" placeholder="pass" /></label>
+                            <label class="md:col-span-2">Carpeta raíz <input id="FTP_SRV_ROOT" placeholder="C:\\tmp\\ftp_share" /></label>
+                            <label>PASV Host (IP anunciada)
+                                <input id="FTP_SRV_PASV_HOST" placeholder="IP LAN o Pública (ej. 192.168.x.x)" />
+                            </label>
+                            <label>Rango PASV (mín)
+                                <input id="FTP_SRV_PASV_MIN" type="number" placeholder="50000" />
+                            </label>
+                            <label>Rango PASV (máx)
+                                <input id="FTP_SRV_PASV_MAX" type="number" placeholder="50100" />
+                            </label>
+                        </div>
+                        <p class="text-xs text-slate-500">Host: deja 0.0.0.0 para escuchar en todas las IPs de esta PC. Usa 127.0.0.1 para solo local, o tu IP LAN (ej. 192.168.x.x) para restringir.</p>
+                        <p class="text-xs text-slate-500">Puerto: por defecto 2121. Usa 21 solo si no hay otro servicio activo en ese puerto (IIS/FileZilla) y el firewall lo permite.</p>
+                        <p class="text-xs text-slate-500">PASV: si hay firewalls/NAT o clientes externos, define PASV Host (IP LAN o pública) y abre el Rango en el firewall/router.</p>
+                        <label class="checkbox inline-flex items-center gap-2"><input id="FTP_SRV_ENABLED" type="checkbox" /> Habilitado (autoarranque)</label>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" id="btnFtpSrvToggle" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Iniciar servidor FTP</button>
+                            <button type="button" id="btnFtpCopyUrl" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Copiar URL</button>
+                            <button type="button" id="btnFtpOpenRoot" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Abrir carpeta</button>
+                            <span id="ftpSrvStatus" class="text-xs text-slate-400"></span>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Subpanel: FTP Cliente (2) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">2) FTP-Cliente (envíos generales y comprobantes)</summary>
 					<div class="p-3 space-y-3">
 						<!-- Host / Puerto -->
 						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -216,6 +340,11 @@
 							<button type="button" id="btnTestFtp" class="bg-blue-600 text-white border-transparent">Probar FTP</button>
 							<span id="ftpTestStatus"></span>
 						</div>
+						<!-- Guardar configuración FTP Cliente -->
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnSaveFtp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar FTP Cliente</button>
+							<span id="ftpSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
 						<!-- Enviar archivo arbitrario por FTP -->
 						<div class="row">
 							<input id="FTP_SEND_FILE_PATH" type="text" placeholder="Selecciona archivo local..." class="flex-1" readonly />
@@ -225,11 +354,95 @@
 					</div>
 				</details>
 
-				<!-- FTP SERVER -->
-				<details class="group mb-4 border border-slate-700 rounded-md">
-					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP Server
-					</summary>
+                <!-- Subpanel: FTP Mercado Pago (4) -->
+                <details id="sec-ftp-mp" class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">4) FTP-Mercado Pago (envío .dbf)</summary>
+					<div class="p-3 space-y-3">
+						<div class="text-xs text-slate-400">Configuración exclusiva para el envío del archivo <code>mp.dbf</code> de Mercado Pago a un servidor distinto del FTP general.</div>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+						<label class="md:col-span-2">IP o Host
+								<input id="MP_FTP_IP" placeholder="192.168.0.30" />
+							</label>
+						<label>Puerto
+							<input id="MP_FTP_PORT" type="number" placeholder="21" />
+							</label>
+						</div>
+						<label class="checkbox inline-flex items-center gap-2"><input id="MP_FTP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Usuario
+								<input id="MP_FTP_USER" placeholder="usuario" />
+							</label>
+							<label>Contraseña
+								<input id="MP_FTP_PASS" type="password" placeholder="********" />
+							</label>
+							<div>
+								<button type="button" id="btnToggleMpFtpPass" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 w-full">👁 Mostrar</button>
+							</div>
+						</div>
+						<label>Carpeta remota
+							<input id="MP_FTP_DIR" placeholder="/reportes-mp" />
+						</label>
+						<div class="row">
+							<button type="button" id="btnTestMpFtp" class="bg-blue-600 text-white border-transparent">Probar FTP MP</button>
+							<span id="ftpMpTestStatus"></span>
+						</div>
+						<div class="row">
+							<button type="button" id="btnSendMpDbf" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500">Enviar mp.dbf (FTP MP)</button>
+						</div>
+						<div class="flex items-center gap-2 mt-1">
+							<button type="button" id="btnSaveMpFtp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar FTP Mercado Pago</button>
+							<span id="mpFtpSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
+					</div>
+				</details>
+
+                <!-- Subpanel: FTP WhatsApp (3) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">3) FTP-WhatsApp (envío .txt a servidor nube)</summary>
+					<div class="p-3 space-y-3">
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+							<label class="md:col-span-2">IP o Host
+								<input id="FTP_WHATSAPP_IP" placeholder="192.168.0.20" />
+							</label>
+							<label>Puerto
+								<input id="FTP_WHATSAPP_PORT" type="number" placeholder="21" />
+							</label>
+						</div>
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_WHATSAPP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+						<label class="checkbox inline-flex items-center gap-2"><input id="FTP_WHATSAPP_SFTP" type="checkbox" checked disabled /> Modo fijo: SFTP (SSH)</label>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Usuario
+								<input id="FTP_WHATSAPP_USER" placeholder="user" />
+							</label>
+							<label>Contraseña
+								<input id="FTP_WHATSAPP_PASS" type="password" placeholder="********" />
+							</label>
+							<div>
+								<button type="button" id="btnToggleFtpWPass" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 w-full">👁 Mostrar</button>
+							</div>
+						</div>
+						<label>Carpeta remota
+							<input id="FTP_WHATSAPP_DIR" placeholder="/whatsapp" />
+						</label>
+						<div class="row">
+							<button type="button" id="btnTestFtpWhatsapp" class="bg-blue-600 text-white border-transparent">Probar FTP WhatsApp</button>
+							<span id="ftpWhatsappTestStatus"></span>
+						</div>
+						<div class="flex items-center gap-2 mt-1">
+							<button type="button" id="btnSaveWhatsappCfg" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar WhatsApp</button>
+							<span id="waSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
+						<div class="row">
+							<input id="FTP_WA_SEND_FILE_PATH" type="text" placeholder="Selecciona archivo local..." class="flex-1" readonly />
+							<button type="button" id="btnPickLocalFileWa" class="text-xs px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Elegir archivo</button>
+							<button type="button" id="btnSendLocalFileWa" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500">Enviar archivo por FTP WhatsApp</button>
+						</div>
+					</div>
+				</details>
+
+                <!-- Subpanel: FTP SERVER (1, movido al inicio del grupo) -->
+                <details class="group mb-4 border border-slate-700 rounded-md hidden">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">1) FTP-Server (carpeta local)</summary>
 					<div class="p-3 space-y-3">
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 							<label>Host <input id="FTP_SRV_HOST" placeholder="0.0.0.0" /></label>
@@ -261,6 +474,8 @@
 						</div>
 						<p class="text-xs text-slate-400">El servidor FTP se ejecuta en paralelo, valida credenciales y expone la carpeta raíz configurada.</p>
 					</div>
+				</details>
+				</div>
 				</details>
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
@@ -373,6 +588,12 @@
 								</label>
 								<label>Numeración
 									<input id="FAC_NUM_DEF" type="number" placeholder="1" />
+								</label>
+							</div>
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+								<label class="checkbox inline-flex items-center gap-2"><input id="FAC_EMISOR_MIPYME" type="checkbox" /> Emisor es MiPyME</label>
+								<label>Umbral FCE (monto)
+									<input id="FAC_FCE_UMBRAL" type="number" step="0.01" placeholder="3958316" />
 								</label>
 							</div>
 							<div class="flex items-center gap-2 mt-2">
@@ -645,6 +866,23 @@
 							</div>
 							<ul id="listaPdfsAfip" class="text-xs space-y-1"></ul>
 						</div>
+					</div>
+
+					<!-- Watcher .fac -->
+					<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
+						<div class="text-sm font-semibold mb-2">Disparo por archivo .fac (FTP)</div>
+						<p class="text-xs text-slate-400 mb-2">Cuando está activo, el sistema observa una carpeta local y, al llegar un archivo <code>.fac</code>, notifica a la UI para depuración. Próximamente, mapeará estos archivos a comprobantes.</p>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label class="md:col-span-2">Carpeta a observar
+								<input id="FAC_WATCH_DIR" placeholder="C:\\tmp" />
+							</label>
+							<label class="checkbox inline-flex items-center gap-2"><input id="FAC_WATCH_ENABLED" type="checkbox" /> Activar</label>
+						</div>
+						<div class="flex items-center gap-2 mt-2 text-xs">
+							<button type="button" id="btnFacWatcherSave" class="px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Guardar</button>
+							<span id="facWatcherStatus" class="text-slate-400"></span>
+						</div>
+						<pre id="facWatcherLog" class="mt-2 hidden text-[11px] bg-slate-900 border border-slate-700 rounded p-2 max-h-40 overflow-auto"></pre>
 					</div>
 				</details>
 
@@ -1189,6 +1427,393 @@
             }
         } catch {}
     })();
+
+    // ===== Fac Watcher (UI) =====
+    (function setupFacWatcherUI(){
+        try {
+            const dirInput = document.getElementById('FAC_WATCH_DIR');
+            const enabledInput = document.getElementById('FAC_WATCH_ENABLED');
+            const btnSave = document.getElementById('btnFacWatcherSave');
+            const statusEl = document.getElementById('facWatcherStatus');
+            const logEl = document.getElementById('facWatcherLog');
+            if (!dirInput || !enabledInput || !btnSave) return;
+
+            // Cargar estado
+            (async()=>{
+                try {
+                    const res = await window.api.facturacion.getWatcherDir();
+                    if (res?.ok) {
+                        if (typeof res.dir === 'string') dirInput.value = res.dir;
+                        enabledInput.checked = !!res.enabled;
+                    }
+                } catch {}
+            })();
+
+            btnSave.addEventListener('click', async () => {
+                try {
+                    statusEl.textContent = 'Guardando...';
+                    const res = await window.api.facturacion.setWatcherDir(dirInput.value, enabledInput.checked);
+                    statusEl.textContent = res?.ok ? '✅ Guardado' : `❌ ${(res && res.error) || 'Error'}`;
+                } catch (e) {
+                    statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+                }
+            });
+
+            // Mostrar detecciones en log de depuración
+            try {
+                window.api.facturacion.onFacDetected?.(({ filename, rawContent }) => {
+                    try { logEl.classList.remove('hidden'); } catch {}
+                    const ts = new Date().toISOString();
+                    const msg = `[${ts}] DETECTADO: ${filename}\n${rawContent}\n---\n`;
+                    logEl.textContent = (logEl.textContent || '') + msg;
+                    logEl.scrollTop = logEl.scrollHeight;
+                    console.log('[fac] detectado', { filename, rawLength: (rawContent||'').length });
+                });
+            } catch {}
+        } catch {}
+    })();
+
+    // ===== Recibo Config (PV y contador) =====
+    (async function setupReciboUI(){
+        try {
+            const pvEl = document.getElementById('REC_PV');
+            const niEl = document.getElementById('REC_NI');
+            const nextEl = document.getElementById('REC_NEXT');
+            const btn = document.getElementById('btnReciboGuardar');
+            const status = document.getElementById('reciboStatus');
+            if (!pvEl || !niEl || !nextEl || !btn) return;
+            const res = await window.api.recibo.getConfig();
+            if (res?.ok && res.config) {
+                pvEl.value = String(res.config.pv ?? 1);
+                niEl.value = String(res.config.contador ?? 1);
+                nextEl.value = `${String(res.config.pv ?? 1).padStart(4,'0')} - ${String(res.config.contador ?? 1).padStart(8,'0')}`;
+                const outLocal = document.getElementById('REC_OUT_LOCAL');
+                const outRed1 = document.getElementById('REC_OUT_RED1');
+                const outRed2 = document.getElementById('REC_OUT_RED2');
+                if (outLocal) outLocal.value = res.config.outLocal || '';
+                if (outRed1) outRed1.value = res.config.outRed1 || '';
+                if (outRed2) outRed2.value = res.config.outRed2 || '';
+
+                // Cargar impresoras disponibles
+                try {
+                    const list = await window.api.printers.list();
+                    const sel = document.getElementById('REC_PRINTER');
+                    if (sel && list?.ok) {
+                        sel.innerHTML = '';
+                        const optDef = document.createElement('option');
+                        optDef.value = '';
+                        optDef.textContent = '(predeterminada del sistema)';
+                        sel.appendChild(optDef);
+                        for (const p of (list.printers || [])) {
+                            const o = document.createElement('option');
+                            o.value = p.name;
+                            o.textContent = p.name + (p.isDefault ? ' (predeterminada)' : '');
+                            sel.appendChild(o);
+                        }
+                    }
+                } catch {}
+            }
+            btn.addEventListener('click', async () => {
+                try {
+                    if (status) status.textContent = 'Guardando...';
+                    const outLocalEl = document.getElementById('REC_OUT_LOCAL');
+                    const outRed1El = document.getElementById('REC_OUT_RED1');
+                    const outRed2El = document.getElementById('REC_OUT_RED2');
+                    const payload = {
+                        pv: Number(pvEl.value || '1'),
+                        contador: Number(niEl.value || '1'),
+                        outLocal: outLocalEl ? outLocalEl.value : undefined,
+                        outRed1: outRed1El ? outRed1El.value : undefined,
+                        outRed2: outRed2El ? outRed2El.value : undefined,
+                    };
+                    const save = await window.api.recibo.saveConfig(payload);
+                    if (save?.ok) {
+                        if (status) status.textContent = '✅ Guardado';
+                        nextEl.value = `${String(payload.pv).padStart(4,'0')} - ${String(payload.contador).padStart(8,'0')}`;
+                    } else {
+                        if (status) status.textContent = `❌ ${(save && save.error) || 'Error'}`;
+                    }
+                } catch (e) {
+                    if (status) status.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+                }
+            });
+
+            // Test impresión (diagnóstico)
+            const btnTest = document.getElementById('btnReciboTestPrint');
+            if (btnTest) btnTest.addEventListener('click', async () => {
+                try {
+                    alert('La impresión automática se realizará luego de generar el PDF desde .fac según COPIAS:. Este botón es informativo.');
+                } catch {}
+            });
+        } catch {}
+    })();
+
+    // ===== Remito Config (PV y contador) =====
+    (async function setupRemitoUI(){
+        try {
+            const printers = await window.api.printers.list().catch(() => ({ ok:false, printers: [] }));
+            const sel = document.getElementById('REM_PRINTER');
+            if (sel && printers && Array.isArray(printers.printers)) {
+                sel.innerHTML = '<option value="">(predeterminada del sistema)</option>' + printers.printers.map((p)=>`<option value="${(p.name||'').replace(/"/g,'&quot;')}">${p.name||''}</option>`).join('');
+            }
+        } catch {}
+
+        const btn = document.getElementById('btnRemitoGuardar');
+        const status = document.getElementById('remitoStatus');
+        try {
+            const res = await window.api.remito.getConfig();
+            const cfg = (res && res.config) || {};
+            const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v ?? ''); };
+            setVal('REM_PV', cfg.pv);
+            setVal('REM_NI', cfg.contador);
+            setVal('REM_OUT_LOCAL', cfg.outLocal);
+            setVal('REM_OUT_RED1', cfg.outRed1);
+            setVal('REM_OUT_RED2', cfg.outRed2);
+            const next = Number(cfg.contador || 0);
+            setVal('REM_NEXT', String(next).padStart(8,'0'));
+            if (cfg.printerName) {
+                const sel2 = document.getElementById('REM_PRINTER');
+                if (sel2) sel2.value = String(cfg.printerName);
+            }
+        } catch {}
+
+        if (btn) btn.addEventListener('click', async () => {
+            try { if (status) status.textContent = 'Guardando...'; } catch {}
+            try {
+                const getVal = (id)=>{ const el = document.getElementById(id); return el ? (el.value ?? '') : ''; };
+                const payload = {
+                    pv: Number(getVal('REM_PV')||'0')||0,
+                    contador: Number(getVal('REM_NI')||'0')||0,
+                    outLocal: getVal('REM_OUT_LOCAL'),
+                    outRed1: getVal('REM_OUT_RED1'),
+                    outRed2: getVal('REM_OUT_RED2')
+                };
+                const printerName = getVal('REM_PRINTER');
+                if (printerName) payload.printerName = printerName;
+                const save = await window.api.remito.saveConfig(payload);
+                if (save && save.ok) {
+                    if (status) status.textContent = '✅ Guardado';
+                } else {
+                    if (status) status.textContent = `❌ ${(save && save.error) || 'Error'}`;
+                }
+            } catch (e) {
+                if (status) status.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+            }
+        });
+    })();
+
+    // ... existing code ...
+    // Cargar estado (añadir WhatsApp FTP)
+    (async function loadFtpWhatsapp(){
+        try {
+            const res = await window.api.getConfig();
+            const cfg = res || {};
+            const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.value = val ?? ''; };
+            const setChk = (id, val)=>{ const el=document.getElementById(id); if(el) el.checked = !!val; };
+            set('FTP_WHATSAPP_IP', cfg.FTP_WHATSAPP_IP);
+            set('FTP_WHATSAPP_PORT', cfg.FTP_WHATSAPP_PORT);
+            set('FTP_WHATSAPP_USER', cfg.FTP_WHATSAPP_USER);
+            set('FTP_WHATSAPP_PASS', cfg.FTP_WHATSAPP_PASS);
+            setChk('FTP_WHATSAPP_SECURE', cfg.FTP_WHATSAPP_SECURE);
+            setChk('FTP_WHATSAPP_SFTP', cfg.FTP_WHATSAPP_SFTP);
+            set('FTP_WHATSAPP_DIR', cfg.FTP_WHATSAPP_DIR);
+        } catch {}
+    })();
+
+    // Guardar configuración (extender botón global)
+    document.getElementById('btnSave')?.addEventListener('click', async () => {
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+			const payload = {
+                FTP_WHATSAPP_IP: getVal('FTP_WHATSAPP_IP'),
+                FTP_WHATSAPP_PORT: Number(getVal('FTP_WHATSAPP_PORT')||'21'),
+                FTP_WHATSAPP_USER: getVal('FTP_WHATSAPP_USER'),
+                FTP_WHATSAPP_PASS: getVal('FTP_WHATSAPP_PASS'),
+                FTP_WHATSAPP_SECURE: false,
+                FTP_WHATSAPP_SFTP: true,
+                FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
+            };
+			const base = await window.api.getConfig();
+			await window.api.saveConfig({ ...(base||{}), ...payload });
+
+			// Guardar también FTP Mercado Pago
+			await window.api.mpFtp.saveConfig({
+				MP_FTP_IP: getVal('MP_FTP_IP'),
+				MP_FTP_PORT: Number(getVal('MP_FTP_PORT')||'21'),
+				MP_FTP_SECURE: getChk('MP_FTP_SECURE'),
+				MP_FTP_USER: getVal('MP_FTP_USER'),
+				MP_FTP_PASS: getVal('MP_FTP_PASS'),
+				MP_FTP_DIR: getVal('MP_FTP_DIR'),
+			});
+        } catch {}
+    });
+	// Toggle mostrar/ocultar password FTP MP
+	document.getElementById('btnToggleMpFtpPass')?.addEventListener('click', () => {
+		const input = document.getElementById('MP_FTP_PASS');
+		const button = document.getElementById('btnToggleMpFtpPass');
+		if (!input || !button) return;
+		if (input.type === 'password') { input.type = 'text'; button.textContent = '🙈 Ocultar'; }
+		else { input.type = 'password'; button.textContent = '👁 Mostrar'; }
+	});
+
+	// Cargar config FTP MP
+	(async function loadMpFtp(){
+		try {
+			const res = await window.api.mpFtp.getConfig();
+			const cfg = (res && res.config) || {};
+			const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.value = val ?? ''; };
+			const setChk = (id, val)=>{ const el=document.getElementById(id); if(el) el.checked = !!val; };
+			set('MP_FTP_IP', cfg.MP_FTP_IP);
+			set('MP_FTP_PORT', cfg.MP_FTP_PORT ?? 21);
+			setChk('MP_FTP_SECURE', cfg.MP_FTP_SECURE);
+			set('MP_FTP_USER', cfg.MP_FTP_USER);
+			set('MP_FTP_PASS', cfg.MP_FTP_PASS);
+			set('MP_FTP_DIR', cfg.MP_FTP_DIR);
+		} catch {}
+	})();
+
+	// Probar FTP MP
+	document.getElementById('btnTestMpFtp')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('ftpMpTestStatus');
+		try { if (statusEl) statusEl.textContent = 'Probando...'; } catch {}
+		try {
+			const res = await window.api.mpFtp.test();
+			if (statusEl) statusEl.textContent = res?.ok ? '✅ Conexión exitosa' : `❌ ${(res && res.error) || 'Error'}`;
+		} catch (e) {
+			if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+		}
+	});
+
+	// Enviar mp.dbf por FTP MP
+	document.getElementById('btnSendMpDbf')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('ftpMpTestStatus');
+		try { if (statusEl) statusEl.textContent = 'Enviando mp.dbf...'; } catch {}
+		try {
+			const res = await window.api.mpFtp.sendMpDbf();
+			if (statusEl) statusEl.textContent = res?.ok ? (res.skipped ? '⚠️ Sin cambios - omitido' : '✅ Enviado') : `❌ ${(res && res.error) || 'Error'}`;
+		} catch (e) {
+			if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+		}
+	});
+
+	// Guardar solo FTP MP
+	document.getElementById('btnSaveMpFtp')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('mpFtpSaveStatus');
+		try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+		try {
+			const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+			const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+			await window.api.mpFtp.saveConfig({
+				MP_FTP_IP: getVal('MP_FTP_IP'),
+				MP_FTP_PORT: Number(getVal('MP_FTP_PORT')||'21'),
+				MP_FTP_SECURE: getChk('MP_FTP_SECURE'),
+				MP_FTP_USER: getVal('MP_FTP_USER'),
+				MP_FTP_PASS: getVal('MP_FTP_PASS'),
+				MP_FTP_DIR: getVal('MP_FTP_DIR'),
+			});
+			if (statusEl) statusEl.textContent = '✅ Guardado';
+		} catch (e) { if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`; }
+	});
+
+    // Toggle mostrar/ocultar password WhatsApp
+    document.getElementById('btnToggleFtpWPass')?.addEventListener('click', () => {
+        const input = document.getElementById('FTP_WHATSAPP_PASS');
+        const button = document.getElementById('btnToggleFtpWPass');
+        if (!input || !button) return;
+        if (input.type === 'password') { input.type = 'text'; button.textContent = '🙈 Ocultar'; }
+        else { input.type = 'password'; button.textContent = '👁 Mostrar'; }
+    });
+    // Probar FTP WhatsApp
+    document.getElementById('btnTestFtpWhatsapp')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('ftpWhatsappTestStatus');
+        try { if (statusEl) statusEl.textContent = 'Probando...'; } catch {}
+        try {
+            const res = await window.api.testFtpWhatsappConnection();
+            if (statusEl) statusEl.textContent = res?.ok ? '✅ Conexión exitosa' : `❌ ${(res && res.error) || 'Error'}`;
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Guardar solo sección WhatsApp
+    document.getElementById('btnSaveWhatsappCfg')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('waSaveStatus');
+        try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const payload = {
+                FTP_WHATSAPP_IP: getVal('FTP_WHATSAPP_IP'),
+                FTP_WHATSAPP_PORT: Number(getVal('FTP_WHATSAPP_PORT')||'21'),
+                FTP_WHATSAPP_USER: getVal('FTP_WHATSAPP_USER'),
+                FTP_WHATSAPP_PASS: getVal('FTP_WHATSAPP_PASS'),
+                FTP_WHATSAPP_SECURE: false,
+                FTP_WHATSAPP_SFTP: true,
+                FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
+            };
+            const base = await window.api.getConfig();
+            await window.api.saveConfig({ ...(base||{}), ...payload });
+            if (statusEl) statusEl.textContent = '✅ Guardado';
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Guardar solo FTP Cliente
+    document.getElementById('btnSaveFtp')?.addEventListener('click', async () => {
+        const statusEl = document.getElementById('ftpSaveStatus');
+        try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+        try {
+            const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+            const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+            const payload = {
+                FTP_IP: getVal('FTP_IP'),
+                FTP_PORT: Number(getVal('FTP_PORT')||'21'),
+                FTP_USER: getVal('FTP_USER'),
+                FTP_PASS: getVal('FTP_PASS'),
+                FTP_SECURE: getChk('FTP_SECURE'),
+                FTP_DIR: getVal('FTP_DIR')
+            };
+            const base = await window.api.getConfig();
+            await window.api.saveConfig({ ...(base||{}), ...payload });
+            if (statusEl) statusEl.textContent = '✅ Guardado';
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+
+    // Enviar archivo manual a WhatsApp FTP
+    document.getElementById('btnPickLocalFileWa')?.addEventListener('click', async () => {
+        try {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.onchange = () => {
+                const file = input.files && input.files[0];
+                if (file) {
+                    const pathInput = document.getElementById('FTP_WA_SEND_FILE_PATH');
+                    var chosenPath = file.name;
+                    try { if (file && file.path) { chosenPath = file.path; } } catch {}
+                    if (pathInput) { try { pathInput.value = chosenPath; } catch(e) { /* no-op */ } }
+                }
+            };
+            input.click();
+        } catch {}
+    });
+    document.getElementById('btnSendLocalFileWa')?.addEventListener('click', async () => {
+        const pathInput = document.getElementById('FTP_WA_SEND_FILE_PATH');
+        const statusEl = document.getElementById('ftpWhatsappTestStatus');
+        var localPath = '';
+        if (pathInput && pathInput.value) localPath = pathInput.value;
+        if (!localPath) { if (statusEl) statusEl.textContent = '❌ Seleccione un archivo'; return; }
+        try { if (statusEl) statusEl.textContent = 'Enviando...'; } catch {}
+        try {
+            const res = await window.api.ftpSendWhatsappFile(localPath);
+            if (statusEl) statusEl.textContent = res?.ok ? '✅ Enviado' : `❌ ${(res && res.error) || 'Error'}`;
+        } catch (e) {
+            if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+        }
+    });
+    // ... existing code ...
     </script>
     <script src="../dist/src/renderer.js"></script>
 </body>

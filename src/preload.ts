@@ -20,14 +20,27 @@ contextBridge.exposeInMainWorld('api', {
 	async testFtpConnection() {
 		return await ipcRenderer.invoke('test-ftp');
 	},
+	async testFtpWhatsappConnection() {
+		return await ipcRenderer.invoke('test-ftp-whatsapp');
+	},
 	async sendDbfViaFtp() {
 		return await ipcRenderer.invoke('send-dbf-ftp');
 	},
 	async ftpSendFile(localPath: string, remoteName?: string) {
 		return await ipcRenderer.invoke('ftp:send-file', { localPath, remoteName });
 	},
+	async ftpSendWhatsappFile(localPath: string, remoteName?: string) {
+		return await ipcRenderer.invoke('ftp:send-file-whatsapp', { localPath, remoteName });
+	},
 	async clearFtpHash() {
 		return await ipcRenderer.invoke('clear-ftp-hash');
+	},
+	// FTP Mercado Pago (config separada)
+	mpFtp: {
+		test: () => ipcRenderer.invoke('mp-ftp:test'),
+		sendMpDbf: () => ipcRenderer.invoke('mp-ftp:send-dbf'),
+		saveConfig: (cfg: any) => ipcRenderer.invoke('mp-ftp:save-config', cfg),
+		getConfig: () => ipcRenderer.invoke('mp-ftp:get-config'),
 	},
 	// Error Notifications
 	async getErrorNotificationConfig() {
@@ -149,8 +162,33 @@ contextBridge.exposeInMainWorld('api', {
 		// Padrón 13
 		padron13Consultar: (cuit: number) => ipcRenderer.invoke('facturacion:padron13:consulta', { cuit }),
 		padron13Ping: () => ipcRenderer.invoke('facturacion:padron13:ping'),
+		// FECRED/MiPyME
+		fceConsultarObligado: (cuit: number) => ipcRenderer.invoke('facturacion:fce:consultar-obligado', { cuit }),
 		// Diagnóstico
-		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta')
+		listarPuntosDeVenta: () => ipcRenderer.invoke('facturacion:listar-ptos-vta'),
+		// Watcher .fac
+		getWatcherDir: () => ipcRenderer.invoke('facturacion:config:get-watcher-dir'),
+		setWatcherDir: (dir: string, enabled?: boolean) => ipcRenderer.invoke('facturacion:config:set-watcher-dir', { dir, enabled }),
+		onFacDetected: (callback: (payload: { filename: string; rawContent: string }) => void) => {
+			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
+		}
+	},
+	// Recibo config (PV y contador)
+	recibo: {
+		getConfig: () => ipcRenderer.invoke('recibo:get-config'),
+		saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => ipcRenderer.invoke('recibo:save-config', cfg),
+	},
+    remito: {
+      getConfig: () => ipcRenderer.invoke('remito:get-config'),
+      saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('remito:save-config', cfg),
+    },
+		facturaA: {
+		  getConfig: () => ipcRenderer.invoke('facturaA:get-config'),
+		  saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('facturaA:save-config', cfg),
+		},
+	printers: {
+		list: () => ipcRenderer.invoke('printers:list'),
+		printPdf: (filePath: string, printerName?: string, copies?: number) => ipcRenderer.invoke('printers:print-pdf', { filePath, printerName, copies }),
 	},
 	// AFIP
 	'afip:check-server-status': () => ipcRenderer.invoke('afip:check-server-status'),
