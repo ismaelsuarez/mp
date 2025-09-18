@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import dayjs from 'dayjs';
 import { generateInvoicePdf } from '../../pdfRenderer';
 import layoutMendoza from '../../invoiceLayout.mendoza';
@@ -222,10 +223,23 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   const parsed = parseFacRemito(raw, fullPath);
 
   const base = process.cwd();
-  const cfgPath = path.join(base, 'config', 'remito.config.json');
+  // Usar carpeta de datos del usuario en instalación (permite escritura). Migrar si existe legacy.
+  let cfgPath = (() => { try { return path.join(app.getPath('userData'), 'config', 'remito.config.json'); } catch { return path.join(base, 'config', 'remito.config.json'); } })();
+  try {
+    const userPath = cfgPath;
+    const legacy = path.join(base, 'config', 'remito.config.json');
+    if (!fs.existsSync(userPath) && fs.existsSync(legacy)) {
+      try { fs.mkdirSync(path.dirname(userPath), { recursive: true }); fs.copyFileSync(legacy, userPath); } catch {}
+    }
+  } catch {}
   const remitoCfg = loadRemitoConfig(cfgPath);
 
-  const candidates = [path.join(base, 'templates', 'MiFondoRe.jpg'), path.join(base, 'templates', 'MiFondoRm.jpg')];
+  const candidates = [
+    path.join(base, 'templates', 'MiFondoRe.jpg'),
+    path.join(base, 'templates', 'MiFondoRm.jpg'),
+    (()=>{ try { return path.join(app.getAppPath(), 'templates', 'MiFondoRe.jpg'); } catch { return ''; } })(),
+    (()=>{ try { return path.join(app.getAppPath(), 'templates', 'MiFondoRm.jpg'); } catch { return ''; } })()
+  ].filter(Boolean as any);
   const resolveFondoPath = (fondoRaw?: string | null) => {
     if (!fondoRaw) return null as string | null;
     const tryPaths: string[] = [];
@@ -233,6 +247,14 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     tryPaths.push(trimmed);
     tryPaths.push(trimmed.replace(/\\/g, path.sep).replace(/\//g, path.sep));
     tryPaths.push(path.resolve(trimmed));
+    // Buscar por el nombre del archivo en templates (dev y empaquetado)
+    try {
+      const baseName = trimmed.split(/[\\\/]/).pop() || '';
+      if (baseName) {
+        tryPaths.push(path.join(base, 'templates', baseName));
+        try { tryPaths.push(path.join(app.getAppPath(), 'templates', baseName)); } catch {}
+      }
+    } catch {}
     for (const p of tryPaths) { try { if (p && fs.existsSync(p)) return p; } catch {} }
     return null as string | null;
   };
@@ -246,7 +268,10 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
       }
     } catch {}
   }
-  if (!bgPath) bgPath = candidates.find((p) => fs.existsSync(p)) || path.join(base, 'public', 'Noimage.jpg');
+  if (!bgPath) {
+    const fallbackPublic = (() => { try { return path.join(app.getAppPath(), 'public', 'Noimage.jpg'); } catch { return path.join(base, 'public', 'Noimage.jpg'); } })();
+    bgPath = candidates.find((p) => fs.existsSync(p)) || fallbackPublic;
+  }
 
   const pvStr = String(remitoCfg.pv).padStart(4, '0');
   const nroStr = String(remitoCfg.contador).padStart(8, '0');

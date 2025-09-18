@@ -815,7 +815,7 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
 		try {
 			const cfg: any = store.get('config') || {};
-			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
+			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -826,10 +826,11 @@ app.whenReady().then(() => {
 			const { dir, enabled } = payload || ({} as any);
 			const cfg: any = store.get('config') || {};
 			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
-			if (typeof enabled === 'boolean') cfg.FACT_FAC_WATCH = enabled;
+			// Forzar activado por defecto
+			cfg.FACT_FAC_WATCH = true;
 			store.set('config', cfg);
 			restartWatchersIfNeeded();
-			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH === true };
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1726,8 +1727,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	}
 
 	// ===== Watcher de Facturación (.fac) =====
-	let facWatcher: fs.FSWatcher | null = null;
-	let facWatcherInstance: any = null;
+	let facWatcher: fs.FSWatcher | null = null; // compat: primer watcher
+	let facWatcherInstance: any = null; // compat: primer watcher
+	let facWatcherGroup: Array<{ instance: any; watcher: fs.FSWatcher | null; dir: string }> = [];
 
 	// Cola de procesamiento secuencial de archivos .fac
 	let facQueue: Array<{ filename: string; fullPath: string; rawContent?: string }> = [];
@@ -1804,39 +1806,52 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	function startFacWatcher(): boolean {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
-		// Sólo habilitar si el servidor FTP está activo; observar exclusivamente su ROOT
-		const enabled = cfg.FTP_SRV_ENABLED === true;
-		const dir = String(cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share');
+		// Modo dual: observar múltiples carpetas si corresponde
+		const dedicatedEnabled = cfg.FACT_FAC_WATCH !== false; // activado por defecto
+		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
+		const enabled = dedicatedEnabled || ftpCoupledEnabled;
 		if (!enabled) return false;
-		try {
-			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
-			const { createFacWatcher } = require('./modules/facturacion/facWatcher');
-			facWatcherInstance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
-				try {
-					logInfo('FAC detectado', { filename, fullPath });
-					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-					// Encolar archivo .fac y procesar de forma secuencial, con ruteo por tipo
-					enqueueFacFile({ filename, fullPath, rawContent });
-					processFacQueue();
-				} catch {}
-			});
-			const ok = facWatcherInstance.start();
-			if (ok) {
-				try { facWatcher = (facWatcherInstance as any).watcher || null; } catch { facWatcher = null; }
-				logInfo('Fac watcher started', { dir });
-				// Escaneo inicial de pendientes
-				scanFacDirAndEnqueue(dir);
-				return true;
-			}
-			return false;
-		} catch {
-			return false;
+		const dirsSet = new Set<string>();
+		const addDir = (d?: string) => {
+			const dir = String(d || '').trim();
+			if (dir) dirsSet.add(dir);
+		};
+		if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C\\tmp');
+		if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C\\tmp');
+		if (dirsSet.size === 0) addDir('C\\tmp');
+		const { createFacWatcher } = require('./modules/facturacion/facWatcher');
+		let anyOk = false;
+		for (const dirRaw of Array.from(dirsSet)) {
+			const dir = String(dirRaw);
+			try {
+				if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { continue; }
+				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
+					try {
+						logInfo('FAC detectado', { filename, fullPath });
+						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
+						enqueueFacFile({ filename, fullPath, rawContent });
+						processFacQueue();
+					} catch {}
+				});
+				const ok = instance.start();
+				if (ok) {
+					const handle = (instance as any).watcher || null;
+					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
+					facWatcherGroup.push({ instance, watcher: handle, dir });
+					logInfo('Fac watcher started', { dir });
+					try { scanFacDirAndEnqueue(dir); } catch {}
+					anyOk = true;
+				}
+			} catch {}
 		}
+		return anyOk;
 	}
 
 	function stopFacWatcher() {
 		try { facWatcherInstance?.stop?.(); } catch {}
 		try { facWatcher?.close?.(); } catch {}
+		for (const w of facWatcherGroup) { try { w.instance?.stop?.(); } catch {}; try { w.watcher?.close?.(); } catch {} }
+		facWatcherGroup = [];
 		facWatcher = null;
 		facWatcherInstance = null;
 	}
@@ -2921,7 +2936,22 @@ function getReciboCfgPath(): string {
 }
 function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
   try {
-    const txt = fs.readFileSync(getReciboCfgPath(), 'utf8');
+    const pUser = getReciboCfgPath();
+    let txt: string | undefined;
+    try { txt = fs.readFileSync(pUser, 'utf8'); }
+    catch {
+      // Migración automática desde cwd/config si existe allí
+      const legacy = path.join(process.cwd(), 'config', 'recibo.config.json');
+      if (fs.existsSync(legacy)) {
+        try {
+          const t2 = fs.readFileSync(legacy, 'utf8');
+          fs.mkdirSync(path.dirname(pUser), { recursive: true });
+          fs.writeFileSync(pUser, t2);
+          txt = t2;
+        } catch {}
+      }
+      if (!txt) throw new Error('no-config');
+    }
     const json = JSON.parse(txt || '{}');
     return {
       pv: Number(json.pv) || 1,
@@ -3003,10 +3033,22 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
 	// ===== Remito config (similar a Recibo) =====
 	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
 		try {
-    let p: string;
-    try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
-    catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
-			const t = fs.readFileSync(p, 'utf8');
+    let p = path.join(app.getPath('userData'), 'config', 'remito.config.json');
+    let t: string | undefined;
+    try { t = fs.readFileSync(p, 'utf8'); }
+    catch {
+      // Migración automática desde cwd/config si existe
+      const legacy = path.join(process.cwd(), 'config', 'remito.config.json');
+      if (fs.existsSync(legacy)) {
+        try {
+          const t2 = fs.readFileSync(legacy, 'utf8');
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          fs.writeFileSync(p, t2);
+          t = t2;
+        } catch {}
+      }
+      if (!t) throw new Error('no-config');
+    }
 			const j = JSON.parse(t || '{}');
 			return {
 				pv: Number(j.pv) || 1,
