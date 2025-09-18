@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import dayjs from 'dayjs';
 import { generateInvoicePdf } from '../../pdfRenderer';
 import layoutMendoza from '../../invoiceLayout.mendoza';
@@ -235,11 +236,25 @@ export async function processFacFile(fullPath: string): Promise<string> {
   const parsed = parseFacRecibo(raw, fullPath);
 
   const base = process.cwd();
-  const cfgPath = path.join(base, 'config', 'recibo.config.json');
+  // Usar carpeta de datos del usuario en instalación (permite escritura). Migrar si existe legacy.
+  let cfgPath = (() => { try { return path.join(app.getPath('userData'), 'config', 'recibo.config.json'); } catch { return path.join(base, 'config', 'recibo.config.json'); } })();
+  try {
+    const userPath = cfgPath;
+    const legacy = path.join(base, 'config', 'recibo.config.json');
+    if (!fs.existsSync(userPath) && fs.existsSync(legacy)) {
+      try { fs.mkdirSync(path.dirname(userPath), { recursive: true }); fs.copyFileSync(legacy, userPath); } catch {}
+    }
+  } catch {}
   const reciboCfg = loadReciboConfig(cfgPath);
 
   // Fondo
-  const candidates = [path.join(base, 'templates', 'MiFondoRe.jpg'), path.join(base, 'templates', 'MiFondoRm.jpg')];
+  const candidates = [
+    path.join(base, 'templates', 'MiFondoRe.jpg'),
+    path.join(base, 'templates', 'MiFondoRm.jpg'),
+    // empaquetado
+    (()=>{ try { return path.join(app.getAppPath(), 'templates', 'MiFondoRe.jpg'); } catch { return ''; } })(),
+    (()=>{ try { return path.join(app.getAppPath(), 'templates', 'MiFondoRm.jpg'); } catch { return ''; } })()
+  ].filter(Boolean as any);
   const resolveFondoPath = (fondoRaw?: string | null) => {
     if (!fondoRaw) return null as string | null;
     const tryPaths: string[] = [];
@@ -251,7 +266,10 @@ export async function processFacFile(fullPath: string): Promise<string> {
     return null as string | null;
   };
   let bgPath = resolveFondoPath(parsed.fondo);
-  if (!bgPath) bgPath = candidates.find((p) => fs.existsSync(p)) || path.join(base, 'public', 'Noimage.jpg');
+  if (!bgPath) {
+    const fallbackPublic = (() => { try { return path.join(app.getAppPath(), 'public', 'Noimage.jpg'); } catch { return path.join(base, 'public', 'Noimage.jpg'); } })();
+    bgPath = candidates.find((p) => fs.existsSync(p)) || fallbackPublic;
+  }
 
   // Construcción de carpetas destino según config (Local/red1/red2) y patrón Ventas_PVxx/FYYYYMM
   const pvStr = String(reciboCfg.pv).padStart(4, '0');

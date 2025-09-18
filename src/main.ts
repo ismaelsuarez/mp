@@ -815,7 +815,7 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
 		try {
 			const cfg: any = store.get('config') || {};
-			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
+			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -826,10 +826,11 @@ app.whenReady().then(() => {
 			const { dir, enabled } = payload || ({} as any);
 			const cfg: any = store.get('config') || {};
 			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
-			if (typeof enabled === 'boolean') cfg.FACT_FAC_WATCH = enabled;
+			// Forzar activado por defecto
+			cfg.FACT_FAC_WATCH = true;
 			store.set('config', cfg);
 			restartWatchersIfNeeded();
-			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH === true };
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1806,7 +1807,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
 		// Modo dual: observar múltiples carpetas si corresponde
-		const dedicatedEnabled = cfg.FACT_FAC_WATCH === true;
+		const dedicatedEnabled = cfg.FACT_FAC_WATCH !== false; // activado por defecto
 		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
 		const enabled = dedicatedEnabled || ftpCoupledEnabled;
 		if (!enabled) return false;
