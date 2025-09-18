@@ -60,10 +60,17 @@
       "dist/**/*",
       "docs/**/*",
       "templates/**/*",
+      { "from": "sdk/afip.ts-main/src/soap/wsdl", "to": "dist/sdk/afip.ts-main/src/soap/wsdl", "filter": ["**/*.wsdl"] },
       "build/icon.ico",
       "package.json"
     ],
-    "extraResources": [],
+    "extraResources": [
+      {
+        "from": "sdk/afip.ts-main/src/soap/wsdl",
+        "to": "sdk/afip.ts-main/src/soap/wsdl",
+        "filter": ["**/*.wsdl"]
+      }
+    ],
     "directories": {
       "buildResources": "build"
     },

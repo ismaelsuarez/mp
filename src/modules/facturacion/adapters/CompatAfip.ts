@@ -16,6 +16,9 @@ function ensureWsdlAssets() {
 			path.resolve(__dirname, '../../../../../sdk/afip.ts-main/src/soap/wsdl'),
 			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app', 'sdk/afip.ts-main/src/soap/wsdl') : '',
 			(process as any).resourcesPath ? path.resolve((process as any).resourcesPath, 'app.asar.unpacked', 'sdk/afip.ts-main/src/soap/wsdl') : '',
+			// Instalado por defecto en Windows (C:\\Program Files\\Tc-Mp\\resources\\app...)
+			'C:/Program Files/Tc-Mp/resources/app/sdk/afip.ts-main/src/soap/wsdl',
+			'C:/Program Files/Tc-Mp/resources/app.asar.unpacked/sdk/afip.ts-main/src/soap/wsdl',
 		].filter(Boolean);
 		let src = srcCandidates.find(p => {
 			try { return fs.existsSync(p); } catch { return false; }
