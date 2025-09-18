@@ -256,10 +256,48 @@
 					</div>
 				</details>
 
-				<details class="group mb-4 border border-slate-700 rounded-md">
+				<!-- Grupo: FTP-Configuraciones (contiene subpaneles FTP Cliente, MP, WhatsApp y Servidor) -->
+				<details id="sec-ftp-config" class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP
+						FTP-Configuraciones
 					</summary>
+                    <div class="p-3 space-y-3">
+                <!-- Subpanel: FTP-Server (1) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">1) FTP-Server (carpeta local)</summary>
+                    <div class="p-3 space-y-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label>Host <input id="FTP_SRV_HOST" placeholder="0.0.0.0" /></label>
+                            <label>Puerto <input id="FTP_SRV_PORT" type="number" placeholder="2121" /></label>
+                            <label>Usuario <input id="FTP_SRV_USER" placeholder="user" /></label>
+                            <label>Contraseña <input id="FTP_SRV_PASS" type="password" placeholder="pass" /></label>
+                            <label class="md:col-span-2">Carpeta raíz <input id="FTP_SRV_ROOT" placeholder="C:\\tmp\\ftp_share" /></label>
+                            <label>PASV Host (IP anunciada)
+                                <input id="FTP_SRV_PASV_HOST" placeholder="IP LAN o Pública (ej. 192.168.x.x)" />
+                            </label>
+                            <label>Rango PASV (mín)
+                                <input id="FTP_SRV_PASV_MIN" type="number" placeholder="50000" />
+                            </label>
+                            <label>Rango PASV (máx)
+                                <input id="FTP_SRV_PASV_MAX" type="number" placeholder="50100" />
+                            </label>
+                        </div>
+                        <p class="text-xs text-slate-500">Host: deja 0.0.0.0 para escuchar en todas las IPs de esta PC. Usa 127.0.0.1 para solo local, o tu IP LAN (ej. 192.168.x.x) para restringir.</p>
+                        <p class="text-xs text-slate-500">Puerto: por defecto 2121. Usa 21 solo si no hay otro servicio activo en ese puerto (IIS/FileZilla) y el firewall lo permite.</p>
+                        <p class="text-xs text-slate-500">PASV: si hay firewalls/NAT o clientes externos, define PASV Host (IP LAN o pública) y abre el Rango en el firewall/router.</p>
+                        <label class="checkbox inline-flex items-center gap-2"><input id="FTP_SRV_ENABLED" type="checkbox" /> Habilitado (autoarranque)</label>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <button type="button" id="btnFtpSrvToggle" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Iniciar servidor FTP</button>
+                            <button type="button" id="btnFtpCopyUrl" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Copiar URL</button>
+                            <button type="button" id="btnFtpOpenRoot" class="px-2.5 py-1 text-xs rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600">Abrir carpeta</button>
+                            <span id="ftpSrvStatus" class="text-xs text-slate-400"></span>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Subpanel: FTP Cliente (2) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">2) FTP-Cliente (envíos generales y comprobantes)</summary>
 					<div class="p-3 space-y-3">
 						<!-- Host / Puerto -->
 						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -311,11 +349,9 @@
 					</div>
 				</details>
 
-				<!-- FTP Mercado Pago (config independiente para mp.dbf) -->
-				<details id="sec-ftp-mp" class="group mb-4 border border-slate-700 rounded-md">
-					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP Mercado Pago
-					</summary>
+                <!-- Subpanel: FTP Mercado Pago (4) -->
+                <details id="sec-ftp-mp" class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">4) FTP-Mercado Pago (envío .dbf)</summary>
 					<div class="p-3 space-y-3">
 						<div class="text-xs text-slate-400">Configuración exclusiva para el envío del archivo <code>mp.dbf</code> de Mercado Pago a un servidor distinto del FTP general.</div>
 					<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -355,11 +391,9 @@
 					</div>
 				</details>
 
-				<!-- FTP WhatsApp -->
-				<details class="group mb-4 border border-slate-700 rounded-md">
-					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP WhatsApp
-					</summary>
+                <!-- Subpanel: FTP WhatsApp (3) -->
+                <details class="group mb-4 border border-slate-700 rounded-md">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">3) FTP-WhatsApp (envío .txt a servidor nube)</summary>
 					<div class="p-3 space-y-3">
 						<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
 							<label class="md:col-span-2">IP o Host
@@ -401,11 +435,9 @@
 					</div>
 				</details>
 
-				<!-- FTP SERVER -->
-				<details class="group mb-4 border border-slate-700 rounded-md">
-					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						FTP Server
-					</summary>
+                <!-- Subpanel: FTP SERVER (1, movido al inicio del grupo) -->
+                <details class="group mb-4 border border-slate-700 rounded-md hidden">
+                    <summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">1) FTP-Server (carpeta local)</summary>
 					<div class="p-3 space-y-3">
 						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 							<label>Host <input id="FTP_SRV_HOST" placeholder="0.0.0.0" /></label>
@@ -437,6 +469,8 @@
 						</div>
 						<p class="text-xs text-slate-400">El servidor FTP se ejecuta en paralelo, valida credenciales y expone la carpeta raíz configurada.</p>
 					</div>
+				</details>
+				</div>
 				</details>
 
 				<details class="group mb-4 border border-slate-700 rounded-md">

@@ -3,7 +3,7 @@
 ## Resumen ejecutivo
 La UI es el centro operativo para configurar, diagnosticar y ejecutar los flujos de generación y distribución de comprobantes (Recibos, Remitos, y extensible a Facturas/Notas), además de servicios auxiliares (SMTP/Email, FTP/SFTP, servidor FTP interno, modo Imagen, Galicia). Está construida en HTML/CSS/JavaScript nativo sobre Electron. La UI vive en el proceso renderer y se comunica con el backend (proceso main) mediante un puente seguro (`preload`) y llamadas IPC. La creación de PDFs, impresión y transferencias se realizan en el backend; la UI orquesta entradas del usuario, valida y presenta feedback.
 
- Los módulos principales visibles en `public/config.html` son: “Comprobantes” (submódulos Recibos y Remitos, contraídos por defecto), SMTP/Email, FTP cliente, FTP Mercado Pago (nuevo, dedicado a `mp.dbf`), FTP WhatsApp (SFTP preferente), Servidor FTP interno, Automatización (watcher `.fac`), Imagen y Galicia. Las vistas consumen `window.api/*` expuesto por `src/preload.ts`, siguiendo el flujo UI → preload → main → servicios.
+ Los módulos principales visibles en `public/config.html` son: “Comprobantes” (submódulos Recibos y Remitos, contraídos por defecto), “FTP-Configuraciones” (grupo con 4 subpaneles: 1) FTP-Server, 2) FTP-Cliente, 3) FTP-WhatsApp, 4) FTP-Mercado Pago), SMTP/Email, Automatización (watcher `.fac`), Imagen y Galicia. Las vistas consumen `window.api/*` expuesto por `src/preload.ts`, siguiendo el flujo UI → preload → main → servicios.
 
 ## Índice (Tabla de contenidos)
 - [1️⃣ Introducción](#1️⃣-introducción)
@@ -327,10 +327,11 @@ Manejo de errores:
   - Inputs: `pv`, `contador`, `outLocal`, `outRed1`, `outRed2`, `printerName`.
   - Acciones: guardar, listar impresoras; test WhatsApp (SFTP preferente); enviar archivo manual a WhatsApp.
 - SMTP/Email: host, puerto, usuario, password; probar desde backend.
-- FTP cliente: host, port, user, pass, secure, dir; testear; enviar manual.
-- FTP WhatsApp: IP/port/user/pass/dir; SFTP forzado; testear; enviar manual.
-- FTP Mercado Pago (nuevo): IP/puerto/usuario/clave/dir (puerto configurable; FTPS opcional). Test y envío manual exclusivo de `mp.dbf`.
-- Servidor FTP interno: puerto, user, pass, root; start/stop/status.
+- FTP-Configuraciones (grupo):
+  1) FTP-Server (carpeta local): host, puerto, usuario, contraseña, root, pasv host y rango; start/stop.
+  2) FTP-Cliente: host, puerto, usuario, pass, FTPS opcional, dir y archivo; test y envío manual.
+  3) FTP-WhatsApp: IP/puerto/user/pass/dir; SFTP preferente (bandera), test y envío manual.
+  4) FTP-Mercado Pago: IP/puerto/usuario/clave/dir (puerto configurable; FTPS opcional). Test y envío de `mp.dbf`.
 - Automatización: watcher `.fac` (dir, habilitar, abrir dir, abrir log, histórico).
 - Imagen y Galicia: controles específicos de sus módulos.
 
@@ -446,14 +447,15 @@ Comprobantes:
 - Recibos: `#sec-comprobantes`, `#sec-recibos`, `#REC_PV`, `#REC_NI`, `#REC_NEXT`, `#REC_OUT_LOCAL`, `#REC_OUT_RED1`, `#REC_OUT_RED2`, `#REC_PRINTER`, `#btnReciboTestPrint`, `#btnReciboGuardar`, `#reciboStatus`.
 - Remitos: `#sec-remitos`, `#REM_PV`, `#REM_NI`, `#REM_NEXT`, `#REM_OUT_LOCAL`, `#REM_OUT_RED1`, `#REM_OUT_RED2`, `#REM_PRINTER`, `#btnRemitoGuardar`, `#remitoStatus`.
 
-FTP cliente:
+FTP-Configuraciones:
+1) FTP-Server:
+- `#FTP_SRV_HOST`, `#FTP_SRV_PORT`, `#FTP_SRV_USER`, `#FTP_SRV_PASS`, `#FTP_SRV_ROOT`, `#FTP_SRV_ENABLED`, `#FTP_SRV_PASV_HOST`, `#FTP_SRV_PASV_MIN`, `#FTP_SRV_PASV_MAX`, `#btnFtpSrvToggle`, `#btnFtpCopyUrl`, `#btnFtpOpenRoot`, `#ftpSrvStatus`.
+2) FTP-Cliente:
 - `#FTP_IP`, `#FTP_PORT`, `#FTP_SECURE`, `#FTP_USER`, `#FTP_PASS`, `#btnToggleFtpPass`, `#FTP_DIR`, `#FTP_FILE`, `#btnTestFtp`, `#ftpTestStatus`, `#FTP_SEND_FILE_PATH`, `#btnPickLocalFile`, `#btnSendLocalFile`.
-
-FTP WhatsApp:
-FTP Mercado Pago:
-- `#sec-ftp-mp`, `#MP_FTP_IP`, `#MP_FTP_PORT`, `#MP_FTP_SECURE`, `#MP_FTP_USER`, `#MP_FTP_PASS`, `#btnToggleMpFtpPass`, `#MP_FTP_DIR`, `#btnTestMpFtp`, `#ftpMpTestStatus`, `#btnSendMpDbf`, `#btnSaveMpFtp`, `#mpFtpSaveStatus`.
-
+3) FTP-WhatsApp:
 - `#FTP_WHATSAPP_IP`, `#FTP_WHATSAPP_PORT`, `#FTP_WHATSAPP_SECURE`, `#FTP_WHATSAPP_SFTP`, `#FTP_WHATSAPP_USER`, `#FTP_WHATSAPP_PASS`, `#btnToggleFtpWPass`, `#FTP_WHATSAPP_DIR`, `#btnTestFtpWhatsapp`, `#ftpWhatsappTestStatus`, `#btnSaveWhatsappCfg`, `#waSaveStatus`, `#FTP_WA_SEND_FILE_PATH`, `#btnPickLocalFileWa`, `#btnSendLocalFileWa`.
+4) FTP-Mercado Pago:
+- `#sec-ftp-mp`, `#MP_FTP_IP`, `#MP_FTP_PORT`, `#MP_FTP_SECURE`, `#MP_FTP_USER`, `#MP_FTP_PASS`, `#btnToggleMpFtpPass`, `#MP_FTP_DIR`, `#btnTestMpFtp`, `#ftpMpTestStatus`, `#btnSendMpDbf`, `#btnSaveMpFtp`, `#mpFtpSaveStatus`.
 
 SMTP/Email:
 - `#EMAIL_REPORT`, `#EMAIL_REPORT_HELP`, `#SMTP_HOST`, `#SMTP_PORT`, `#SMTP_USER`, `#SMTP_PASS`, `#btnToggleSmtpPass`.
