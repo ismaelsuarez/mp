@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { app } from 'electron';
 import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 
@@ -358,28 +359,87 @@ export async function generateInvoicePdf({
 
   // Intentar registrar fuentes personalizadas desde config/pdf.config.json
   try {
-    const cfgPath = path.join(process.cwd(), 'config', 'pdf.config.json');
-    if (fs.existsSync(cfgPath)) {
+    // Resolver ubicación del archivo de configuración en producción (userData) o dev (cwd)
+    let cfgPath = '';
+    try { cfgPath = path.join(app.getPath('userData'), 'config', 'pdf.config.json'); } catch {}
+    if (!cfgPath || !fs.existsSync(cfgPath)) {
+      const alt = path.join(process.cwd(), 'config', 'pdf.config.json');
+      if (fs.existsSync(alt)) cfgPath = alt;
+    }
+    if (cfgPath && fs.existsSync(cfgPath)) {
       const cfgRaw = fs.readFileSync(cfgPath, 'utf8');
       const cfg = JSON.parse(cfgRaw || '{}');
-      const regPath = typeof cfg.fontRegular === 'string' ? cfg.fontRegular : undefined;
-      const boldPath = typeof cfg.fontBold === 'string' ? cfg.fontBold : undefined;
 
-      if (regPath && fs.existsSync(regPath)) {
-        doc.registerFont('R', regPath);
+      function resolveFontPath(p?: string): string | undefined {
+        if (!p || typeof p !== 'string') return undefined;
+        const candidates: string[] = [];
+        // 1) Usar tal cual si es absoluta
+        if (path.isAbsolute(p)) candidates.push(p);
+        // 2) Relativa a cwd (dev)
+        candidates.push(path.join(process.cwd(), p));
+        // 3) Relativa a app.getAppPath() (instalado)
+        try { candidates.push(path.join(app.getAppPath(), p)); } catch {}
+        // 4) Si apunta a src/modules/fonts/<file>, probar por nombre dentro de templates de fuentes del app
+        try {
+          const baseName = path.basename(p);
+          if (baseName) {
+            try { candidates.push(path.join(app.getAppPath(), 'src', 'modules', 'fonts', baseName)); } catch {}
+            candidates.push(path.join(process.cwd(), 'src', 'modules', 'fonts', baseName));
+            // Otras ubicaciones comunes de empaquetado
+            try { candidates.push(path.join(app.getAppPath(), 'modules', 'fonts', baseName)); } catch {}
+            try { candidates.push(path.join(app.getAppPath(), 'public', 'fonts', baseName)); } catch {}
+          }
+        } catch {}
+        for (const c of candidates) {
+          try { if (c && fs.existsSync(c)) return c; } catch {}
+        }
+        return undefined;
+      }
+
+      const regResolved = resolveFontPath(cfg.fontRegular);
+      const boldResolved = resolveFontPath(cfg.fontBold);
+
+      if (regResolved && fs.existsSync(regResolved)) {
+        doc.registerFont('R', regResolved);
         fontRegularRegistered = true;
       }
-      if (boldPath && fs.existsSync(boldPath)) {
-        doc.registerFont('B', boldPath);
+      if (boldResolved && fs.existsSync(boldResolved)) {
+        doc.registerFont('B', boldResolved);
         fontBoldRegistered = true;
       } else if (fontRegularRegistered) {
         // Si no hay bold explícita, usar la regular también para negrita
-        doc.registerFont('B', regPath);
+        doc.registerFont('B', regResolved as string);
         fontBoldRegistered = true;
       }
     }
   } catch {
     // Ignorar errores de carga de fuente personalizada y usar Helvetica
+  }
+
+  // Si no hay fuentes personalizadas, intentar registrar las fuentes bundled (Consolas)
+  if (!fontRegularRegistered || !fontBoldRegistered) {
+    try {
+      const tryFiles = (names: string[]): string | undefined => {
+        for (const n of names) {
+          const cands: string[] = [];
+          cands.push(path.join(process.cwd(), 'src', 'modules', 'fonts', n));
+          try { cands.push(path.join(app.getAppPath(), 'src', 'modules', 'fonts', n)); } catch {}
+          try { cands.push(path.join(app.getAppPath(), 'modules', 'fonts', n)); } catch {}
+          try { cands.push(path.join(app.getAppPath(), 'fonts', n)); } catch {}
+          for (const c of cands) { try { if (fs.existsSync(c)) return c; } catch {} }
+        }
+        return undefined;
+      };
+      if (!fontRegularRegistered) {
+        const regular = tryFiles(['CONSOLA.TTF', 'Consola.ttf']);
+        if (regular) { doc.registerFont('R', regular); fontRegularRegistered = true; }
+      }
+      if (!fontBoldRegistered) {
+        const bold = tryFiles(['CONSOLAB.TTF', 'ConsolaB.ttf', 'Consola-Bold.ttf']);
+        if (bold) { doc.registerFont('B', bold); fontBoldRegistered = true; }
+        else if (fontRegularRegistered) { doc.registerFont('B', (doc as any)._fontFamilies['R']?.path || (doc as any)._font?.font?.path); fontBoldRegistered = true; }
+      }
+    } catch {}
   }
 
   function setFont(bold?: boolean) {
