@@ -1804,9 +1804,11 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	function startFacWatcher(): boolean {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
-		// Sólo habilitar si el servidor FTP está activo; observar exclusivamente su ROOT
-		const enabled = cfg.FTP_SRV_ENABLED === true;
-		const dir = String(cfg.FTP_SRV_ROOT || 'C\\tmp\\ftp_share');
+		// Modo dual: dedicado (FACT_FAC_WATCH/FACT_FAC_DIR) o acoplado al FTP embebido (FTP_SRV_ENABLED/FTP_SRV_ROOT)
+		const dedicatedEnabled = cfg.FACT_FAC_WATCH === true;
+		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
+		const enabled = dedicatedEnabled || ftpCoupledEnabled;
+		const dir = String((cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'));
 		if (!enabled) return false;
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
@@ -2921,7 +2923,22 @@ function getReciboCfgPath(): string {
 }
 function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
   try {
-    const txt = fs.readFileSync(getReciboCfgPath(), 'utf8');
+    const pUser = getReciboCfgPath();
+    let txt: string | undefined;
+    try { txt = fs.readFileSync(pUser, 'utf8'); }
+    catch {
+      // Migración automática desde cwd/config si existe allí
+      const legacy = path.join(process.cwd(), 'config', 'recibo.config.json');
+      if (fs.existsSync(legacy)) {
+        try {
+          const t2 = fs.readFileSync(legacy, 'utf8');
+          fs.mkdirSync(path.dirname(pUser), { recursive: true });
+          fs.writeFileSync(pUser, t2);
+          txt = t2;
+        } catch {}
+      }
+      if (!txt) throw new Error('no-config');
+    }
     const json = JSON.parse(txt || '{}');
     return {
       pv: Number(json.pv) || 1,
@@ -3003,10 +3020,22 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
 	// ===== Remito config (similar a Recibo) =====
 	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
 		try {
-    let p: string;
-    try { p = path.join(app.getPath('userData'), 'config', 'remito.config.json'); }
-    catch { const base = process.cwd(); p = path.join(base, 'config', 'remito.config.json'); }
-			const t = fs.readFileSync(p, 'utf8');
+    let p = path.join(app.getPath('userData'), 'config', 'remito.config.json');
+    let t: string | undefined;
+    try { t = fs.readFileSync(p, 'utf8'); }
+    catch {
+      // Migración automática desde cwd/config si existe
+      const legacy = path.join(process.cwd(), 'config', 'remito.config.json');
+      if (fs.existsSync(legacy)) {
+        try {
+          const t2 = fs.readFileSync(legacy, 'utf8');
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          fs.writeFileSync(p, t2);
+          t = t2;
+        } catch {}
+      }
+      if (!t) throw new Error('no-config');
+    }
 			const j = JSON.parse(t || '{}');
 			return {
 				pv: Number(j.pv) || 1,
