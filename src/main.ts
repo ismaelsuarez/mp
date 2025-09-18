@@ -815,7 +815,7 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
 		try {
 			const cfg: any = store.get('config') || {};
-			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
+			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: cfg.FACT_FAC_WATCH === true };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1726,8 +1726,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	}
 
 	// ===== Watcher de Facturación (.fac) =====
-	let facWatcher: fs.FSWatcher | null = null;
-	let facWatcherInstance: any = null;
+	let facWatcher: fs.FSWatcher | null = null; // compat: primer watcher
+	let facWatcherInstance: any = null; // compat: primer watcher
+	let facWatcherGroup: Array<{ instance: any; watcher: fs.FSWatcher | null; dir: string }> = [];
 
 	// Cola de procesamiento secuencial de archivos .fac
 	let facQueue: Array<{ filename: string; fullPath: string; rawContent?: string }> = [];
@@ -1804,41 +1805,52 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	function startFacWatcher(): boolean {
 		stopFacWatcher();
 		const cfg: any = store.get('config') || {};
-		// Modo dual: dedicado (FACT_FAC_WATCH/FACT_FAC_DIR) o acoplado al FTP embebido (FTP_SRV_ENABLED/FTP_SRV_ROOT)
+		// Modo dual: observar múltiples carpetas si corresponde
 		const dedicatedEnabled = cfg.FACT_FAC_WATCH === true;
 		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
 		const enabled = dedicatedEnabled || ftpCoupledEnabled;
-		const dir = String((cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp'));
 		if (!enabled) return false;
-		try {
-			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
-			const { createFacWatcher } = require('./modules/facturacion/facWatcher');
-			facWatcherInstance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
-				try {
-					logInfo('FAC detectado', { filename, fullPath });
-					if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-					// Encolar archivo .fac y procesar de forma secuencial, con ruteo por tipo
-					enqueueFacFile({ filename, fullPath, rawContent });
-					processFacQueue();
-				} catch {}
-			});
-			const ok = facWatcherInstance.start();
-			if (ok) {
-				try { facWatcher = (facWatcherInstance as any).watcher || null; } catch { facWatcher = null; }
-				logInfo('Fac watcher started', { dir });
-				// Escaneo inicial de pendientes
-				scanFacDirAndEnqueue(dir);
-				return true;
-			}
-			return false;
-		} catch {
-			return false;
+		const dirsSet = new Set<string>();
+		const addDir = (d?: string) => {
+			const dir = String(d || '').trim();
+			if (dir) dirsSet.add(dir);
+		};
+		if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C\\tmp');
+		if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C\\tmp');
+		if (dirsSet.size === 0) addDir('C\\tmp');
+		const { createFacWatcher } = require('./modules/facturacion/facWatcher');
+		let anyOk = false;
+		for (const dirRaw of Array.from(dirsSet)) {
+			const dir = String(dirRaw);
+			try {
+				if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { continue; }
+				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
+					try {
+						logInfo('FAC detectado', { filename, fullPath });
+						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
+						enqueueFacFile({ filename, fullPath, rawContent });
+						processFacQueue();
+					} catch {}
+				});
+				const ok = instance.start();
+				if (ok) {
+					const handle = (instance as any).watcher || null;
+					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
+					facWatcherGroup.push({ instance, watcher: handle, dir });
+					logInfo('Fac watcher started', { dir });
+					try { scanFacDirAndEnqueue(dir); } catch {}
+					anyOk = true;
+				}
+			} catch {}
 		}
+		return anyOk;
 	}
 
 	function stopFacWatcher() {
 		try { facWatcherInstance?.stop?.(); } catch {}
 		try { facWatcher?.close?.(); } catch {}
+		for (const w of facWatcherGroup) { try { w.instance?.stop?.(); } catch {}; try { w.watcher?.close?.(); } catch {} }
+		facWatcherGroup = [];
 		facWatcher = null;
 		facWatcherInstance = null;
 	}
