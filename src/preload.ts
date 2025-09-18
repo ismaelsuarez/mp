@@ -35,6 +35,13 @@ contextBridge.exposeInMainWorld('api', {
 	async clearFtpHash() {
 		return await ipcRenderer.invoke('clear-ftp-hash');
 	},
+	// FTP Mercado Pago (config separada)
+	mpFtp: {
+		test: () => ipcRenderer.invoke('mp-ftp:test'),
+		sendMpDbf: () => ipcRenderer.invoke('mp-ftp:send-dbf'),
+		saveConfig: (cfg: any) => ipcRenderer.invoke('mp-ftp:save-config', cfg),
+		getConfig: () => ipcRenderer.invoke('mp-ftp:get-config'),
+	},
 	// Error Notifications
 	async getErrorNotificationConfig() {
 		return await ipcRenderer.invoke('error-notifications:get-config');

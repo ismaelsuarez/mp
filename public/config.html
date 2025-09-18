@@ -311,6 +311,50 @@
 					</div>
 				</details>
 
+				<!-- FTP Mercado Pago (config independiente para mp.dbf) -->
+				<details id="sec-ftp-mp" class="group mb-4 border border-slate-700 rounded-md">
+					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+						FTP Mercado Pago
+					</summary>
+					<div class="p-3 space-y-3">
+						<div class="text-xs text-slate-400">Configuración exclusiva para el envío del archivo <code>mp.dbf</code> de Mercado Pago a un servidor distinto del FTP general.</div>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+						<label class="md:col-span-2">IP o Host
+								<input id="MP_FTP_IP" placeholder="192.168.0.30" />
+							</label>
+						<label>Puerto
+							<input id="MP_FTP_PORT" type="number" placeholder="21" />
+							</label>
+						</div>
+						<label class="checkbox inline-flex items-center gap-2"><input id="MP_FTP_SECURE" type="checkbox" /> Usar FTPS (explícito)</label>
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+							<label>Usuario
+								<input id="MP_FTP_USER" placeholder="usuario" />
+							</label>
+							<label>Contraseña
+								<input id="MP_FTP_PASS" type="password" placeholder="********" />
+							</label>
+							<div>
+								<button type="button" id="btnToggleMpFtpPass" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700 w-full">👁 Mostrar</button>
+							</div>
+						</div>
+						<label>Carpeta remota
+							<input id="MP_FTP_DIR" placeholder="/reportes-mp" />
+						</label>
+						<div class="row">
+							<button type="button" id="btnTestMpFtp" class="bg-blue-600 text-white border-transparent">Probar FTP MP</button>
+							<span id="ftpMpTestStatus"></span>
+						</div>
+						<div class="row">
+							<button type="button" id="btnSendMpDbf" class="text-xs px-2 py-1 rounded bg-emerald-600 text-white border border-emerald-700 hover:bg-emerald-500">Enviar mp.dbf (FTP MP)</button>
+						</div>
+						<div class="flex items-center gap-2 mt-1">
+							<button type="button" id="btnSaveMpFtp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar FTP Mercado Pago</button>
+							<span id="mpFtpSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
+					</div>
+				</details>
+
 				<!-- FTP WhatsApp -->
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
@@ -1542,7 +1586,7 @@
         try {
             const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
             const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
-            const payload = {
+			const payload = {
                 FTP_WHATSAPP_IP: getVal('FTP_WHATSAPP_IP'),
                 FTP_WHATSAPP_PORT: Number(getVal('FTP_WHATSAPP_PORT')||'21'),
                 FTP_WHATSAPP_USER: getVal('FTP_WHATSAPP_USER'),
@@ -1551,10 +1595,87 @@
                 FTP_WHATSAPP_SFTP: true,
                 FTP_WHATSAPP_DIR: getVal('FTP_WHATSAPP_DIR'),
             };
-            const base = await window.api.getConfig();
-            await window.api.saveConfig({ ...(base||{}), ...payload });
+			const base = await window.api.getConfig();
+			await window.api.saveConfig({ ...(base||{}), ...payload });
+
+			// Guardar también FTP Mercado Pago
+			await window.api.mpFtp.saveConfig({
+				MP_FTP_IP: getVal('MP_FTP_IP'),
+				MP_FTP_PORT: Number(getVal('MP_FTP_PORT')||'21'),
+				MP_FTP_SECURE: getChk('MP_FTP_SECURE'),
+				MP_FTP_USER: getVal('MP_FTP_USER'),
+				MP_FTP_PASS: getVal('MP_FTP_PASS'),
+				MP_FTP_DIR: getVal('MP_FTP_DIR'),
+			});
         } catch {}
     });
+	// Toggle mostrar/ocultar password FTP MP
+	document.getElementById('btnToggleMpFtpPass')?.addEventListener('click', () => {
+		const input = document.getElementById('MP_FTP_PASS');
+		const button = document.getElementById('btnToggleMpFtpPass');
+		if (!input || !button) return;
+		if (input.type === 'password') { input.type = 'text'; button.textContent = '🙈 Ocultar'; }
+		else { input.type = 'password'; button.textContent = '👁 Mostrar'; }
+	});
+
+	// Cargar config FTP MP
+	(async function loadMpFtp(){
+		try {
+			const res = await window.api.mpFtp.getConfig();
+			const cfg = (res && res.config) || {};
+			const set = (id, val)=>{ const el=document.getElementById(id); if(el) el.value = val ?? ''; };
+			const setChk = (id, val)=>{ const el=document.getElementById(id); if(el) el.checked = !!val; };
+			set('MP_FTP_IP', cfg.MP_FTP_IP);
+			set('MP_FTP_PORT', cfg.MP_FTP_PORT ?? 21);
+			setChk('MP_FTP_SECURE', cfg.MP_FTP_SECURE);
+			set('MP_FTP_USER', cfg.MP_FTP_USER);
+			set('MP_FTP_PASS', cfg.MP_FTP_PASS);
+			set('MP_FTP_DIR', cfg.MP_FTP_DIR);
+		} catch {}
+	})();
+
+	// Probar FTP MP
+	document.getElementById('btnTestMpFtp')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('ftpMpTestStatus');
+		try { if (statusEl) statusEl.textContent = 'Probando...'; } catch {}
+		try {
+			const res = await window.api.mpFtp.test();
+			if (statusEl) statusEl.textContent = res?.ok ? '✅ Conexión exitosa' : `❌ ${(res && res.error) || 'Error'}`;
+		} catch (e) {
+			if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+		}
+	});
+
+	// Enviar mp.dbf por FTP MP
+	document.getElementById('btnSendMpDbf')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('ftpMpTestStatus');
+		try { if (statusEl) statusEl.textContent = 'Enviando mp.dbf...'; } catch {}
+		try {
+			const res = await window.api.mpFtp.sendMpDbf();
+			if (statusEl) statusEl.textContent = res?.ok ? (res.skipped ? '⚠️ Sin cambios - omitido' : '✅ Enviado') : `❌ ${(res && res.error) || 'Error'}`;
+		} catch (e) {
+			if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`;
+		}
+	});
+
+	// Guardar solo FTP MP
+	document.getElementById('btnSaveMpFtp')?.addEventListener('click', async () => {
+		const statusEl = document.getElementById('mpFtpSaveStatus');
+		try { if (statusEl) statusEl.textContent = 'Guardando...'; } catch {}
+		try {
+			const getVal = (id)=>{ const el=document.getElementById(id); return el ? (el.value ?? '') : ''; };
+			const getChk = (id)=>{ const el=document.getElementById(id); return el ? !!el.checked : false; };
+			await window.api.mpFtp.saveConfig({
+				MP_FTP_IP: getVal('MP_FTP_IP'),
+				MP_FTP_PORT: Number(getVal('MP_FTP_PORT')||'21'),
+				MP_FTP_SECURE: getChk('MP_FTP_SECURE'),
+				MP_FTP_USER: getVal('MP_FTP_USER'),
+				MP_FTP_PASS: getVal('MP_FTP_PASS'),
+				MP_FTP_DIR: getVal('MP_FTP_DIR'),
+			});
+			if (statusEl) statusEl.textContent = '✅ Guardado';
+		} catch (e) { if (statusEl) statusEl.textContent = `❌ ${e && e.message ? e.message : 'Error'}`; }
+	});
 
     // Toggle mostrar/ocultar password WhatsApp
     document.getElementById('btnToggleFtpWPass')?.addEventListener('click', () => {

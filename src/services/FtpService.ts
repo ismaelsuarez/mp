@@ -341,6 +341,93 @@ export async function sendDbf(localPath: string, remoteFileName: string = 'mp.db
 	}
 }
 
+// ===== FTP Mercado Pago (config separada) =====
+export function getMpFtpConfig() {
+  const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  const cfg: any = (store.get('config') as any) || {};
+  return {
+    host: cfg.MP_FTP_IP,
+    port: Number(cfg.MP_FTP_PORT || 21),
+    user: cfg.MP_FTP_USER,
+    pass: cfg.MP_FTP_PASS,
+    secure: !!cfg.MP_FTP_SECURE,
+    dir: cfg.MP_FTP_DIR,
+  };
+}
+
+export async function saveMpFtpConfig(partial: any) {
+  const store = new Store<{ config?: any }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  const current = (store.get('config') as any) || {};
+  store.set('config', { ...current, ...partial });
+  return true;
+}
+
+export async function testMpFtp() {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    return true;
+  } finally { client.close(); }
+}
+
+// Hash separado para MP (evitar colisión con FTP general)
+function getLastMpDbfHash(): string | null {
+  const store = new Store<{ config?: any; lastMpDbfHashDedicated?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  return (store.get('lastMpDbfHashDedicated') as string) || null;
+}
+function saveLastMpDbfHash(hash: string): void {
+  const store = new Store<{ config?: any; lastMpDbfHashDedicated?: string }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+  store.set('lastMpDbfHashDedicated', hash);
+}
+
+export async function sendMpDbf(localPath?: string, options?: { force?: boolean }) {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta para envío', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  // Local: preferir outDir de ReportService
+  let lp = localPath;
+  if (!lp) {
+    try {
+      const { getOutDir } = require('./ReportService');
+      const outDir = getOutDir();
+      lp = path.join(outDir, 'mp.dbf');
+    } catch {}
+  }
+  if (!lp || !fs.existsSync(lp)) throw new Error(`No existe archivo DBF local: ${lp}`);
+
+  const forceSend = !!(options && options.force);
+  if (!forceSend) {
+    const currentHash = calculateFileHash(lp);
+    const lastHash = getLastMpDbfHash();
+    if (lastHash && lastHash === currentHash) {
+      logFtp('MP FTP: mp.dbf sin cambios - omitiendo envío');
+      return { skipped: true, reason: 'sin cambios' } as any;
+    }
+  }
+
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    const remoteName = 'mp.dbf';
+    await client.uploadFrom(lp, remoteName);
+    const h = calculateFileHash(lp);
+    saveLastMpDbfHash(h);
+    logSuccess('MP FTP: mp.dbf enviado', { remote: `${dir || '/'}${remoteName}` });
+    return { skipped: false, remoteDir: dir || '/', remoteFile: remoteName };
+  } finally { client.close(); }
+}
+
 
 // Enviar un archivo arbitrario por FTP (sin hash/skip)
 export async function sendArbitraryFile(localPath: string, remoteFileName?: string) {

@@ -62,14 +62,17 @@ export async function processFacturaAFacFile(fullPath: string): Promise<string> 
 
   // Ítems: sólo para PDF
   const itemsLines = getBlock('ITEM:');
-  const items = itemsLines.map(l => {
-    const qty = (l.match(/^\s*(\d+)/)?.[1] || '1');
+  const items: ParsedFacturaA['items'] = itemsLines.map(l => {
+    const qtyStr = (l.match(/^\s*(\d+)/)?.[1] || '1');
+    const cantidad = Number(qtyStr) || 1;
     let cuerpo = String(l);
     cuerpo = cuerpo.replace(/^\s*\d+\s+/, '');
     const mTot = cuerpo.match(/(\d+(?:[\.,]\d+)?)\s*$/);
     let total: number | undefined = undefined;
     if (mTot) { total = parseImporte(mTot[1]); cuerpo = cuerpo.replace(/(\d+(?:[\.,]\d+)?)\s*$/, ''); }
-    return { cantidad: Number(qty) || 1, descripcion: cuerpo.trim().replace(/\s{2,}/g, ' '), total };
+    const unitario = total != null ? (cantidad > 0 ? total / cantidad : total) : undefined;
+    const descripcion = cuerpo.trim().replace(/\s{2,}/g, ' ');
+    return { cantidad, descripcion, unitario, iva: undefined, total };
   });
 
   // Totales consolidados

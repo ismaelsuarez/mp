@@ -3,7 +3,7 @@
 ## Resumen ejecutivo
 La UI es el centro operativo para configurar, diagnosticar y ejecutar los flujos de generación y distribución de comprobantes (Recibos, Remitos, y extensible a Facturas/Notas), además de servicios auxiliares (SMTP/Email, FTP/SFTP, servidor FTP interno, modo Imagen, Galicia). Está construida en HTML/CSS/JavaScript nativo sobre Electron. La UI vive en el proceso renderer y se comunica con el backend (proceso main) mediante un puente seguro (`preload`) y llamadas IPC. La creación de PDFs, impresión y transferencias se realizan en el backend; la UI orquesta entradas del usuario, valida y presenta feedback.
 
-Los módulos principales visibles en `public/config.html` son: “Comprobantes” (submódulos Recibos y Remitos, contraídos por defecto), SMTP/Email, FTP cliente, FTP WhatsApp (SFTP preferente), Servidor FTP interno, Automatización (watcher `.fac`), Imagen y Galicia. Las vistas consumen `window.api/*` expuesto por `src/preload.ts`, siguiendo el flujo UI → preload → main → servicios.
+ Los módulos principales visibles en `public/config.html` son: “Comprobantes” (submódulos Recibos y Remitos, contraídos por defecto), SMTP/Email, FTP cliente, FTP Mercado Pago (nuevo, dedicado a `mp.dbf`), FTP WhatsApp (SFTP preferente), Servidor FTP interno, Automatización (watcher `.fac`), Imagen y Galicia. Las vistas consumen `window.api/*` expuesto por `src/preload.ts`, siguiendo el flujo UI → preload → main → servicios.
 
 ## Índice (Tabla de contenidos)
 - [1️⃣ Introducción](#1️⃣-introducción)
@@ -28,6 +28,7 @@ Los módulos principales visibles en `public/config.html` son: “Comprobantes�
   - [B) Mapeo evento de UI → llamada IPC → servicio](#b-mapeo-evento-de-ui--llamada-ipc--servicio)
   - [C) Ejemplos de código (UI)](#c-ejemplos-de-código-ui)
   - [D) Inventario de IDs en public/config.html (resumen)](#d-inventario-de-ids-en-publicconfightml-resumen)
+  - [E) FTP Mercado Pago (UI + IPC)](#e-ftp-mercado-pago-ui--ipc)
 
 ## 1️⃣ Introducción
 - Propósito: La UI es el punto de orquestación y control del sistema. Permite configurar PV/NI/rutas, disparar flujos automáticos (watcher .fac), monitorear estados y ejecutar utilidades (FTP, email, impresión, imagen, Galicia, etc.).
@@ -328,6 +329,7 @@ Manejo de errores:
 - SMTP/Email: host, puerto, usuario, password; probar desde backend.
 - FTP cliente: host, port, user, pass, secure, dir; testear; enviar manual.
 - FTP WhatsApp: IP/port/user/pass/dir; SFTP forzado; testear; enviar manual.
+- FTP Mercado Pago (nuevo): IP/puerto/usuario/clave/dir (puerto configurable; FTPS opcional). Test y envío manual exclusivo de `mp.dbf`.
 - Servidor FTP interno: puerto, user, pass, root; start/stop/status.
 - Automatización: watcher `.fac` (dir, habilitar, abrir dir, abrir log, histórico).
 - Imagen y Galicia: controles específicos de sus módulos.
@@ -336,6 +338,7 @@ Manejo de errores:
 - Impresión: UI lista impresoras y puede disparar `printers.printPdf` (pruebas). La impresión productiva ocurre tras generar PDF (backend/PrintService).
 - Email: UI configura SMTP; envío se dispara automáticamente desde backend cuando el `.fac` trae `EMAIL:`.
 - FTP/SFTP: UI configura y prueba credenciales; el backend realiza envíos (normales y WhatsApp SFTP/FTP) según flujos de Recibo/Remito.
+  - Para Mercado Pago: el envío de `mp.dbf` usa configuración dedicada (FTP Mercado Pago) y funciones separadas en backend.
 
 ## 🔟 Limitaciones actuales de la UI
 - Sin framework de UI: mantenimiento de scripts inline puede crecer en complejidad.
@@ -399,6 +402,10 @@ sequenceDiagram
 - Listar impresoras → `printers:list` → `webContents.getPrinters*` en main.
 - Probar FTP WhatsApp → `test-ftp-whatsapp` → `FtpService.testWhatsappFtp`.
 - Enviar archivo a WhatsApp → `ftp:send-file-whatsapp` → `FtpService.sendWhatsappFile`.
+- FTP Mercado Pago
+  - Probar FTP MP → `mp-ftp:test` → `FtpService.testMpFtp`.
+  - Guardar FTP MP → `mp-ftp:save-config` → `FtpService.saveMpFtpConfig`.
+  - Enviar `mp.dbf` (manual) → `mp-ftp:send-dbf` → `FtpService.sendMpDbf`.
 - Abrir PDF/dir/log → `open-path`/handlers dedicados en main.
 
 ### C) Ejemplos de código (UI)
@@ -420,6 +427,19 @@ sequenceDiagram
 </script>
 ```
 
+Ejemplo (preload → nuevas APIs FTP MP):
+```ts
+// src/preload.ts
+contextBridge.exposeInMainWorld('api', {
+  mpFtp: {
+    getConfig: () => ipcRenderer.invoke('mp-ftp:get-config'),
+    saveConfig: (cfg) => ipcRenderer.invoke('mp-ftp:save-config', cfg),
+    test: () => ipcRenderer.invoke('mp-ftp:test'),
+    sendMpDbf: () => ipcRenderer.invoke('mp-ftp:send-dbf'),
+  }
+});
+```
+
 ### D) Inventario de IDs en `public/config.html` (resumen)
 
 Comprobantes:
@@ -430,6 +450,9 @@ FTP cliente:
 - `#FTP_IP`, `#FTP_PORT`, `#FTP_SECURE`, `#FTP_USER`, `#FTP_PASS`, `#btnToggleFtpPass`, `#FTP_DIR`, `#FTP_FILE`, `#btnTestFtp`, `#ftpTestStatus`, `#FTP_SEND_FILE_PATH`, `#btnPickLocalFile`, `#btnSendLocalFile`.
 
 FTP WhatsApp:
+FTP Mercado Pago:
+- `#sec-ftp-mp`, `#MP_FTP_IP`, `#MP_FTP_PORT`, `#MP_FTP_SECURE`, `#MP_FTP_USER`, `#MP_FTP_PASS`, `#btnToggleMpFtpPass`, `#MP_FTP_DIR`, `#btnTestMpFtp`, `#ftpMpTestStatus`, `#btnSendMpDbf`, `#btnSaveMpFtp`, `#mpFtpSaveStatus`.
+
 - `#FTP_WHATSAPP_IP`, `#FTP_WHATSAPP_PORT`, `#FTP_WHATSAPP_SECURE`, `#FTP_WHATSAPP_SFTP`, `#FTP_WHATSAPP_USER`, `#FTP_WHATSAPP_PASS`, `#btnToggleFtpWPass`, `#FTP_WHATSAPP_DIR`, `#btnTestFtpWhatsapp`, `#ftpWhatsappTestStatus`, `#btnSaveWhatsappCfg`, `#waSaveStatus`, `#FTP_WA_SEND_FILE_PATH`, `#btnPickLocalFileWa`, `#btnSendLocalFileWa`.
 
 SMTP/Email:

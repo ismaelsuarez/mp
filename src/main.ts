@@ -945,6 +945,54 @@ app.whenReady().then(() => {
 		}
 	});
 
+	// FTP Mercado Pago: test conexión y envío mp.dbf
+	ipcMain.handle('mp-ftp:test', async () => {
+		try {
+			const { testMpFtp } = require('./services/FtpService');
+			const ok = await testMpFtp();
+			return { ok };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('mp-ftp:send-dbf', async () => {
+		try {
+			const { sendMpDbf } = require('./services/FtpService');
+			const res = await sendMpDbf(undefined, { force: true });
+			return { ok: true, ...res };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('mp-ftp:get-config', async () => {
+		try {
+			const { getMpFtpConfig } = require('./services/FtpService');
+			const c = getMpFtpConfig();
+			return { ok: true, config: {
+				MP_FTP_IP: c.host,
+				MP_FTP_PORT: c.port,
+				MP_FTP_SECURE: c.secure,
+				MP_FTP_USER: c.user,
+				MP_FTP_PASS: c.pass,
+				MP_FTP_DIR: c.dir,
+			}};
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	ipcMain.handle('mp-ftp:save-config', async (_e, partial) => {
+		try {
+			const { saveMpFtpConfig } = require('./services/FtpService');
+			await saveMpFtpConfig(partial || {});
+			return { ok: true };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// FTP: enviar archivo arbitrario seleccionado en disco
 	ipcMain.handle('ftp:send-file', async (_e, { localPath, remoteName }: { localPath: string; remoteName?: string }) => {
 		try {
@@ -1829,7 +1877,8 @@ app.whenReady().then(() => {
 			const mpPath = (result as any)?.files?.mpDbfPath;
 			if (mpPath && fs.existsSync(mpPath)) {
 				ftpAttempted = true;
-				const ftpResult = await sendDbf(mpPath, 'mp.dbf', { force: true });
+				const { sendMpDbf } = require('./services/FtpService');
+				const ftpResult = await sendMpDbf(mpPath, { force: true });
 				if (ftpResult.skipped) {
 					ftpSkipped = true;
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
