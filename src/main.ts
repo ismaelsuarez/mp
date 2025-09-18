@@ -956,10 +956,10 @@ app.whenReady().then(() => {
 		}
 	});
 
-	ipcMain.handle('mp-ftp:send-dbf', async () => {
+ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try {
 			const { sendMpDbf } = require('./services/FtpService');
-			const res = await sendMpDbf(undefined, { force: true });
+			const res = await sendMpDbf(undefined, undefined, { force: true });
 			return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
@@ -1878,7 +1878,7 @@ app.whenReady().then(() => {
 			if (mpPath && fs.existsSync(mpPath)) {
 				ftpAttempted = true;
 				const { sendMpDbf } = require('./services/FtpService');
-				const ftpResult = await sendMpDbf(mpPath, { force: true });
+				const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
 				if (ftpResult.skipped) {
 					ftpSkipped = true;
 					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });

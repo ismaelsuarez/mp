@@ -307,7 +307,8 @@ export async function processA13TriggerFile(controlPath: string) {
   const files = await writeA13CsvAndDbf(cuit, persona, baseName);
 
   // Enviar solo DBF por FTP usando la configuración de FTP Mercado Pago
-  try { await sendMpDbf(files.dbfPath, { force: true }); } catch {}
+  // Importante: enviar exactamente el archivo generado (no mp.dbf)
+  try { await sendMpDbf(files.dbfPath, `${files.baseName}.dbf`, { force: true }); } catch {}
 
   return files;
 }

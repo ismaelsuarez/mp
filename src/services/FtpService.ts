@@ -387,7 +387,7 @@ function saveLastMpDbfHash(hash: string): void {
   store.set('lastMpDbfHashDedicated', hash);
 }
 
-export async function sendMpDbf(localPath?: string, options?: { force?: boolean }) {
+export async function sendMpDbf(localPath?: string, remoteFileName?: string, options?: { force?: boolean }) {
   const cfg = getMpFtpConfig();
   if (!cfg.host || !cfg.user || !cfg.pass) {
     recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta para envío', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
@@ -405,7 +405,11 @@ export async function sendMpDbf(localPath?: string, options?: { force?: boolean 
   if (!lp || !fs.existsSync(lp)) throw new Error(`No existe archivo DBF local: ${lp}`);
 
   const forceSend = !!(options && options.force);
-  if (!forceSend) {
+  const remoteName = (remoteFileName && String(remoteFileName).trim().length > 0)
+    ? String(remoteFileName).toLowerCase()
+    : 'mp.dbf';
+  const useDedup = !forceSend && remoteName === 'mp.dbf';
+  if (useDedup) {
     const currentHash = calculateFileHash(lp);
     const lastHash = getLastMpDbfHash();
     if (lastHash && lastHash === currentHash) {
@@ -419,12 +423,41 @@ export async function sendMpDbf(localPath?: string, options?: { force?: boolean 
     await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
     const dir = normalizeDir(cfg.dir);
     if (dir) await client.ensureDir(dir);
-    const remoteName = 'mp.dbf';
     await client.uploadFrom(lp, remoteName);
     const h = calculateFileHash(lp);
-    saveLastMpDbfHash(h);
-    logSuccess('MP FTP: mp.dbf enviado', { remote: `${dir || '/'}${remoteName}` });
+    if (remoteName === 'mp.dbf') saveLastMpDbfHash(h);
+    logSuccess('MP FTP: archivo enviado', { remote: `${dir || '/'}${remoteName}` });
     return { skipped: false, remoteDir: dir || '/', remoteFile: remoteName };
+  } finally { client.close(); }
+}
+
+// Alias semántico más versátil para reutilizar el canal FTP-MP desde otros flujos
+export async function sendMpFtpFile(localPath: string, remoteFileName?: string, options?: { force?: boolean }) {
+  return await sendMpDbf(localPath, remoteFileName, options);
+}
+
+// Enviar múltiples archivos usando configuración FTP-MP
+export async function sendMpFtpFiles(filePaths: string[], remoteNames?: string[]) {
+  const cfg = getMpFtpConfig();
+  if (!cfg.host || !cfg.user || !cfg.pass) {
+    recordError('MP_FTP_CONFIG', 'Config MP FTP incompleta para envío múltiple', { hasIp: !!cfg.host, hasUser: !!cfg.user, hasPass: !!cfg.pass });
+    throw new Error('Config MP FTP incompleta');
+  }
+  const client = new Client();
+  try {
+    await client.access({ host: String(cfg.host), port: Number(cfg.port || 21), user: String(cfg.user), password: String(cfg.pass), secure: !!cfg.secure });
+    const dir = normalizeDir(cfg.dir);
+    if (dir) await client.ensureDir(dir);
+    const results: any[] = [];
+    for (let i = 0; i < filePaths.length; i++) {
+      const local = filePaths[i];
+      if (!local || !fs.existsSync(local)) continue;
+      const rn = (remoteNames && remoteNames[i]) ? String(remoteNames[i]) : path.basename(local);
+      await client.uploadFrom(local, rn);
+      logSuccess('MP FTP: archivo enviado', { local, remote: `${dir || '/'}${rn}` });
+      results.push({ local, remote: `${dir || '/'}${rn}` });
+    }
+    return { ok: true, results };
   } finally { client.close(); }
 }
 
