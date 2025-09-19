@@ -50,3 +50,14 @@ Garantia:6 meses; Exepto:Fuente,auricular,teclado,mouse,reloj,game-pad,joystick 
 Cambios dentro de las 48hs -
 Defensa del consumidor Mendoza:08002226678 o al 148 opcion 3
 ** GRACIAS POR SU COMPRA **
+RESPUESTA AFIP    :
+CUIT EMPRESA      :
+MODO              : 0
+PUNTO DE VENTA    : 00016
+NUMERO COMPROBANTE: 12345678
+FECHA COMPROBANTE : 19/09/2025
+NUMERO CAE        : 00000000000000
+VENCIMIENTO CAE   : 2099-12-31
+IMPORTE TOTAL     : 100.000.000,10
+ARCHIVO REFERENCIA: 25082311335147.fac
+ARCHIVO PDF       : FB_0016-12345678.pdf

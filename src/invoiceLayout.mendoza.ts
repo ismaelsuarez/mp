@@ -79,35 +79,35 @@ const layoutMendoza: Config = {
     },
 
     // Subtotales por Alícuota
-    subtotal21: { x: 160, y: 216, fontSize: 9 },        // Subtotal para IVA 21%
-    subtotal105: { x: 160, y: 220, fontSize: 9 },       // Subtotal para IVA 10.5%
-    subtotal27: { x: 160, y: 224, fontSize: 9 },        // Subtotal para IVA 27%
+    subtotal21: { x: 160, y: 216, fontSize: 10 },        // Subtotal para IVA 21%
+    subtotal105: { x: 160, y: 220, fontSize: 10 },       // Subtotal para IVA 10.5%
+    subtotal27: { x: 160, y: 224, fontSize: 10 },        // Subtotal para IVA 27%
 
     // Totales e Impuestos - Etiquetas (izquierda) y Valores (derecha)
-    neto: { x: 180, y: 212, fontSize: 9 },              // Valor del neto gravado total
-    netoLabel: { x: 160, y: 212, fontSize: 9 },         // Etiqueta "Neto:" (izquierda)
-    neto21: { x: 180, y: 216, fontSize: 9 },            // Valor del neto con IVA 21%
-    neto21Label: { x: 160, y: 216, fontSize: 9 },       // Etiqueta "Neto 21%:" (izquierda)
-    neto105: { x: 180, y: 220, fontSize: 9 },           // Valor del neto con IVA 10.5%
-    neto105Label: { x: 160, y: 220, fontSize: 9 },      // Etiqueta "Neto 10.5%:" (izquierda)
-    neto27: { x: 180, y: 224, fontSize: 9 },            // Valor del neto con IVA 27%
-    neto27Label: { x: 160, y: 224, fontSize: 9 },       // Etiqueta "Neto 27%:" (izquierda)
-    iva21: { x: 180, y: 228, fontSize: 9 },             // Valor del IVA 21%
-    iva21Label: { x: 160, y: 228, fontSize: 9 },        // Etiqueta "IVA 21%:" (izquierda)
-    iva105: { x: 180, y: 232, fontSize: 9 },            // Valor del IVA 10.5%
-    iva105Label: { x: 160, y: 232, fontSize: 9 },       // Etiqueta "IVA 10.5%:" (izquierda)
-    impIvaTotal: { x: 180, y: 236, fontSize: 9 },       // Valor del IVA total
-    impIvaTotalLabel: { x: 160, y: 236, fontSize: 9 },  // Etiqueta "IVA Total:" (izquierda)
-    total: { x: 180, y: 245, fontSize: 12 },            // Valor del total final
-    totalLabel: { x: 160, y: 245, fontSize: 12 },       // Etiqueta "TOTAL:" (izquierda)
+    neto: { x: 177, y: 212, fontSize: 10},              // Valor del neto gravado total
+    netoLabel: { x: 157, y: 212, fontSize: 10 },         // Etiqueta "Neto:" (izquierda)
+    neto21: { x: 177, y: 216, fontSize: 10 },            // Valor del neto con IVA 21%
+    neto21Label: { x: 157, y: 216, fontSize: 10 },       // Etiqueta "Neto 21%:" (izquierda)
+    neto105: { x: 177, y: 220, fontSize: 10 },           // Valor del neto con IVA 10.5%
+    neto105Label: { x: 157, y: 220, fontSize: 10 },      // Etiqueta "Neto 10.5%:" (izquierda)
+    neto27: { x: 177, y: 224, fontSize: 10 },            // Valor del neto con IVA 27%
+    neto27Label: { x: 157, y: 224, fontSize: 10 },       // Etiqueta "Neto 27%:" (izquierda)
+    iva21: { x: 177, y: 228, fontSize: 10 },             // Valor del IVA 21%
+    iva21Label: { x: 157, y: 228, fontSize: 10 },        // Etiqueta "IVA 21%:" (izquierda)
+    iva105: { x: 177, y: 232, fontSize: 10 },            // Valor del IVA 10.5%
+    iva105Label: { x: 157, y: 232, fontSize: 10 },       // Etiqueta "IVA 10.5%:" (izquierda)
+    impIvaTotal: { x: 177, y: 236, fontSize: 10 },       // Valor del IVA total
+    impIvaTotalLabel: { x: 157, y: 236, fontSize: 10 },  // Etiqueta "IVA Total:" (izquierda)
+    total: { x: 170, y: 250, fontSize: 12 },            // Valor del total final
+    totalLabel: { x: 153, y: 250, fontSize: 12 },       // Etiqueta "TOTAL:" (izquierda)
 
     // Total en letras
     totalEnLetras: { x: 9, y: 206, maxWidth: 120, fontSize: 9 }, // "SON PESOS: UN MIL..." (total en letras)
     totalEnLetrasRemito: { x: 9, y: 204, maxWidth: 120, fontSize: 9 },
 
     // Información AFIP
-    cae: { x: 160, y: 254, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
-    caeVto: { x: 160, y: 258, fontSize: 8 },                     // Fecha de vencimiento del CAE
+    cae: { x: 115, y: 252, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
+    caeVto: { x: 115, y: 256, fontSize: 8 },                     // Fecha de vencimiento del CAE
 
     // QR Code - Al lado del CAE
     qrCode: { x: 115, y: 210, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)

@@ -79,7 +79,17 @@ async function main() {
           return { sendReceiptEmail: async (to: string, pdf: string) => { console.log('[SANDBOX] email omitido', { to, pdf }); } };
         }
         if (/services[\\\/]FtpService$/.test(request) || request.endsWith('/services/FtpService')) {
-          return { sendArbitraryFile: async (p: string) => { console.log('[SANDBOX] FTP omitido', { p }); }, sendFilesToWhatsappFtp: async (arr: string[]) => { console.log('[SANDBOX] WhatsApp FTP omitido', { files: arr }); } };
+          // Forzar error de FTP en SANDBOX para que NO se elimine el .res
+          return {
+            sendArbitraryFile: async (p: string) => {
+              console.log('[SANDBOX] FTP simulado con error para conservar .res', { p });
+              throw new Error('SANDBOX_SKIP_FTP');
+            },
+            sendFilesToWhatsappFtp: async (arr: string[]) => {
+              console.log('[SANDBOX] WhatsApp FTP omitido', { files: arr });
+              throw new Error('SANDBOX_SKIP_WA_FTP');
+            }
+          };
         }
         // eslint-disable-next-line prefer-rest-params
         return originalLoad.apply(this, arguments as any);
@@ -110,7 +120,14 @@ async function main() {
         const recent = files
           .map((n) => ({ n, t: fs.statSync(path.join(dir, n)).mtimeMs }))
           .sort((a, b) => b.t - a.t)[0];
-        if (recent) console.log('[SANDBOX] .res reciente:', path.join(dir, recent.n));
+        if (recent) {
+          const full = path.join(dir, recent.n);
+          console.log('[SANDBOX] .res reciente:', full);
+          try {
+            const txt = fs.readFileSync(full, 'utf8');
+            console.log('\n----- .res contenido -----\n' + txt + '\n--------------------------\n');
+          } catch {}
+        }
       } catch {}
     } else {
       // eslint-disable-next-line no-console
