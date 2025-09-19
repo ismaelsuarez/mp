@@ -623,7 +623,18 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   let atendio = '', hora = '', mail = '', pago = '';
   try { const mAt = cab1Text.match(/Atendio:\s*([^|]+)/i); if (mAt) atendio = `Atendio: ${mAt[1].trim()}`; } catch {}
   try { const mHr = cab1Text.match(/Hora:\s*([^|]+)/i); if (mHr) hora = `Hora: ${mHr[1].trim()}`; } catch {}
-  try { const mMl = cab1Text.match(/Mail:\s*([^|]+)/i); if (mMl) mail = mMl[1].trim(); } catch {}
+  try { const mMl = cab1Text.match(/Mail:\s*([^|]+)/i); if (mMl) mail = (mMl[1] || '').trim(); } catch {}
+  if (!mail) {
+    try {
+      const cab2Text = cab2Lines.join(' | ');
+      const mMl2 = cab2Text.match(/Mail:\s*([^|]+)/i);
+      if (mMl2) mail = (mMl2[1] || '').trim();
+    } catch {}
+  }
+  if (!mail) {
+    const emailTag = get('EMAIL:');
+    if (emailTag) mail = emailTag.trim();
+  }
   try { const mPg = cab1Text.match(/Pago:\s*([^|]+)/i); if (mPg) pago = mPg[1].trim(); } catch {}
 
   const itemStart = lines.findIndex(l => l.trim() === 'ITEM:');
@@ -633,7 +644,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const end = totStart > itemStart ? totStart : lines.length;
     for (let i=itemStart+1;i<end;i++) {
       const row = lines[i]; if (!row || !row.trim()) continue;
-      const m = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+(\d{1,2}(?:[.,]\d{1,2})?)%\s+([0-9.,]+)\s*$/);
+      // Caso 1: cantidad + descripcion + unitario + alicuota% + total
+      let m = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+(\d{1,2}(?:[.,]\d{1,2})?)%\s+([0-9.,]+)\s*$/);
       if (m) {
         const cantidad = Number(m[1]);
         const descripcion = m[2].replace(/\s+$/,'');
@@ -641,6 +653,24 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
         const iva = Number((m[4] || '0').replace(',', '.'));
         const totalLinea = parseNumAr(m[5]);
         items.push({ cantidad, descripcion, unitario, iva, total: totalLinea, displayUnit: (m[3]||'').trim(), displayAlic: ((m[4]||'').trim().replace(',', '.'))+'%', displayTotal: (m[5]||'').trim() });
+        continue;
+      }
+      // Caso 2: cantidad + descripcion + unitario + total (sin alícuota explícita)
+      m = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+([0-9.,]+)\s*$/);
+      if (m) {
+        const cantidad = Number(m[1]);
+        const descripcion = m[2].replace(/\s+$/,'');
+        const unitario = parseNumAr(m[3]);
+        const totalLinea = parseNumAr(m[4]);
+        items.push({ cantidad, descripcion, unitario, iva: 0, total: totalLinea, displayUnit: (m[3]||'').trim(), displayTotal: (m[4]||'').trim() });
+        continue;
+      }
+      // Caso 3: cantidad + descripción únicamente (sin importes en la línea)
+      m = row.match(/^\s*(\d+)\s+(.*\S)\s*$/);
+      if (m) {
+        const cantidad = Number(m[1]);
+        const descripcion = (m[2] || '').trim();
+        items.push({ cantidad, descripcion });
         continue;
       }
       const fallback = row.trim();

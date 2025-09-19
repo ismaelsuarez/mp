@@ -106,8 +106,8 @@ const layoutMendoza: Config = {
     totalEnLetrasRemito: { x: 9, y: 204, maxWidth: 120, fontSize: 9 },
 
     // Información AFIP
-    cae: { x: 160, y: 258, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
-    caeVto: { x: 160, y: 262, fontSize: 8 },                     // Fecha de vencimiento del CAE
+    cae: { x: 160, y: 254, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
+    caeVto: { x: 160, y: 258, fontSize: 8 },                     // Fecha de vencimiento del CAE
 
     // QR Code - Al lado del CAE
     qrCode: { x: 115, y: 210, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
