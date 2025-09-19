@@ -28,12 +28,12 @@ ITEM:
      1  .......................................................                              
      1  ....................................................FIN                        0.10                   0.10
 TOTALES:
-NETO 21%  :100000000.08
-NETO 10.5%:100000000.00
-EXENTO    :100000000.00
-IVA 21%   :100000000.02
-IVA 10.5% :100000000.00
-TOTAL     :100000000.10
+NETO 21%  :    40000.08
+NETO 10.5%:      100.10
+EXENTO    :        0.01
+IVA 21%   :        0.02
+IVA 10.5% :        0.01
+TOTAL     :     1000.10
 OBS.CABCERA1:
 Atendio: root    
 Hora: 11:34:17
@@ -43,7 +43,8 @@ OBS.CABCERA2:
                     REMITO:
 Factura emitida conforme a datos proporcionados por el cliente
 OBS.FISCAL:
-*Regimen de Transparencia Fiscal al Consumidor(Ley 27743) IVA CONTENIDO: 0.02   
+*Regimen de Transparencia Fiscal al Consumidor(Ley 27743) 
+                                                          IVA CONTENIDO: 0.02
 OBS.PIE:
 Por la garantia ir a Montecaseros 1126,cdad-EXCEPTO notebook,tablet,impresoras comunicarse al 0800 de cada Marca
 Garantia:6 meses; Exepto:Fuente,auricular,teclado,mouse,reloj,game-pad,joystick que es de 3 meses

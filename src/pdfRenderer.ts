@@ -471,7 +471,8 @@ export async function generateInvoicePdf({
 
   function drawNumber(value: number, xRightMM: number, yMM: number, opts: TextOpts = {}) {
     const text = formatNumberEsAr(value);
-    drawText(text, xRightMM, yMM, { ...opts, align: opts.align ?? 'right' });
+    const widthMM = typeof opts.maxWidth === 'number' && opts.maxWidth > 0 ? opts.maxWidth : 28;
+    drawText(text, xRightMM, yMM, { ...opts, align: 'right', maxWidth: widthMM });
   }
 
   function drawImage(img: string | Buffer, xMM: number, yMM: number, wMM?: number) {
@@ -671,15 +672,16 @@ export async function generateInvoicePdf({
   const neto21 = (data.netoPorAlicuota && (data.netoPorAlicuota['21'] || 0)) || undefined;
   const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
   const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
+  const exento = (data as any).exento || 0;
 
   const skipTotalsForZeroRemito = isRemito && !hasValue(data.netoGravado) && !hasValue(iva21) && !hasValue(iva105) && !hasValue(iva27) && !hasValue(data.ivaTotal) && !hasValue(data.total) && !hasValue(neto21) && !hasValue(neto105) && !hasValue(neto27);
 
   // Dibujar etiqueta y valor de NETO sólo si corresponde
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado))) {
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado)) && ((data as any).showNetoTotal || (c.netoLabel))) {
     if (c.netoLabel) {
       drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(data.netoGravado), c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+    drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true, maxWidth: 30 });
   }
 
   if (!skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
@@ -687,59 +689,72 @@ export async function generateInvoicePdf({
     if (c.neto21Label) {
       drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto21), c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+    drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
     console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
     if (c.neto105Label) {
       drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto105), c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+    drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
     console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
     if (c.neto27Label) {
       drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto27), c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+    drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9, maxWidth: 30 });
+  }
+  // EXENTO
+  if (!skipTotalsForZeroRemito && hasValue(exento)) {
+    if ((c as any).exentoLabel && (c as any).exento) {
+      drawText('Exento:', (c as any).exentoLabel.x, (c as any).exentoLabel.y, { fontSize: (c as any).exentoLabel.fontSize ?? 9 });
+      drawNumber(exento, (c as any).exento.x, (c as any).exento.y, { fontSize: (c as any).exento.fontSize ?? 9, maxWidth: 30 });
+    } else if (c.neto27) {
+      // Si no hay coords específicas, dibujar debajo de Neto 27%
+      const y = c.neto27.y + 4;
+      drawText('Exento:', c.neto27Label ? c.neto27Label.x : c.netoLabel?.x || c.neto.x - 20, y, { fontSize: 9 });
+      drawNumber(exento, c.neto27.x, y, { fontSize: 9, maxWidth: 30 });
+    }
   }
 
   if (!skipTotalsForZeroRemito && c.iva21 && (!isRecibo || hasValue(iva21))) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva21), c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+    drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.iva105 && (!isRecibo || hasValue(iva105))) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva105), c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+    drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.iva27 && (!isRecibo || hasValue(iva27))) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva27), c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+    drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9, maxWidth: 30 });
   }
 
   // (ya definido arriba)
 
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal))) {
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal)) && (data as any).showIvaTotal) {
     if (c.impIvaTotalLabel) {
       drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+    drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10, maxWidth: 30 });
   }
   // OBS.FISCAL: debajo del Total
   if (c.obsFiscal && data.fiscal) {
-    let fiscalText = data.fiscal;
+    // Respetar espacios iniciales: no aplicar trim
+    let fiscalText = String(data.fiscal).replace(/\r?\n/g, '\n');
     const maxChars = (c.obsFiscal as any).maxChars as number | undefined;
     if (maxChars && maxChars > 0) {
       // Re-wrap a líneas duras de longitud maxChars respetando saltos existentes
       const lines: string[] = [];
-      for (const part of fiscalText.split(/\r?\n/)) {
-        let p = part.trim();
+      for (const part of fiscalText.split(/\n/)) {
+        let p = part.replace(/\s+$/,''); // solo trim derecha, mantener indentación izquierda
         while (p.length > maxChars) {
           lines.push(p.slice(0, maxChars));
           p = p.slice(maxChars);
@@ -758,7 +773,7 @@ export async function generateInvoicePdf({
     if (c.totalLabel) {
       drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
     }
-    drawText(formatNumberEsAr(data.total), c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+    drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true, maxWidth: 34 });
   }
 
   if (c.totalEnLetras && !skipTotalsForZeroRemito) {

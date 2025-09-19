@@ -618,7 +618,19 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   const cab1Lines = getBlock('OBS.CABCERA1:');
   const cab2Lines = getBlock('OBS.CABCERA2:');
   const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
-  const fiscalLines = getBlock('OBS.FISCAL:');
+  const getBlockRaw = (startKey: string) => {
+    const startIdx = lines.findIndex((l) => l.trim().startsWith(startKey));
+    if (startIdx < 0) return [] as string[];
+    const out: string[] = [];
+    for (let i = startIdx + 1; i < lines.length; i++) {
+      const raw = lines[i];
+      const tTrim = raw.trim();
+      if (/^(OBS\.|ITEM:|TOTALES:|IP:|TIPO:|FONDO:|COPIAS:|CLIENTE:|TIPODOC:|NRODOC:|CONDICION:|IVARECEPTOR:|DOMICILIO:|MONEDA:|DIAHORA:)/.test(tTrim)) break;
+      if (tTrim) out.push(raw.replace(/\s+$/,'') /* trim solo derecha */);
+    }
+    return out;
+  };
+  const fiscalLines = getBlockRaw('OBS.FISCAL:');
   const cab1Text = cab1Lines.join(' | ');
   let atendio = '', hora = '', mail = '', pago = '';
   try { const mAt = cab1Text.match(/Atendio:\s*([^|]+)/i); if (mAt) atendio = `Atendio: ${mAt[1].trim()}`; } catch {}
@@ -679,15 +691,19 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   }
 
   let neto21=0, neto105=0, neto27=0, exento=0, iva21=0, iva105=0, iva27=0, total=0;
+  let ivaTotalFlag = false;
+  let netoTotalFlag = false;
+  let netoTotalParsed: number | null = null;
   const startTotals = totStart;
   if (startTotals>=0){
     for (let i=startTotals+1;i<lines.length;i++){
       const t = lines[i].trim();
       if (!t || /^(OBS\.|ITEM:|IP:|TIPO:|FONDO:|COPIAS:|CLIENTE:|TIPODOC:|NRODOC:|CONDICION:|IVARECEPTOR:|DOMICILIO:|MONEDA:|DIAHORA:|TOTALES:$)/.test(t)) break;
-      const m = t.match(/^(NETO 21%|NETO 10\.5%|NETO 27%|EXENTO|IVA 21%|IVA 10\.5%|IVA 27%|TOTAL)\s*:\s*([\d\.,]+)$/i);
+      const m = t.match(/^(NETO TOTAL|NETO 21%|NETO 10\.5%|NETO 27%|EXENTO|IVA 21%|IVA 10\.5%|IVA 27%|IVA TOTAL|TOTAL)\s*:\s*([\d\.,]+)$/i);
       if (!m) continue; const key=m[1].toUpperCase(); const val=parseNumAr(m[2]);
-      if (key==='NETO 21%') neto21=val; else if (key==='NETO 10.5%') neto105=val; else if (key==='NETO 27%') neto27=val; else if (key==='EXENTO') exento=val;
-      else if (key==='IVA 21%') iva21=val; else if (key==='IVA 10.5%') iva105=val; else if (key==='IVA 27%') iva27=val; else if (key==='TOTAL') total=val;
+      if (key==='NETO TOTAL') { netoTotalFlag=true; netoTotalParsed=val; }
+      else if (key==='NETO 21%') neto21=val; else if (key==='NETO 10.5%') neto105=val; else if (key==='NETO 27%') neto27=val; else if (key==='EXENTO') exento=val;
+      else if (key==='IVA 21%') iva21=val; else if (key==='IVA 10.5%') iva105=val; else if (key==='IVA 27%') iva27=val; else if (key==='IVA TOTAL') ivaTotalFlag=true; else if (key==='TOTAL') total=val;
     }
   }
 
@@ -760,10 +776,13 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     pieObservaciones: pieWrapped.join('\n') || undefined,
     gracias: graciasLine || undefined,
     fiscal: (fiscalLines && fiscalLines.length) ? fiscalLines.join('\n') : undefined,
-    netoGravado: neto21+neto105+neto27,
+    netoGravado: (netoTotalParsed ?? (neto21+neto105+neto27)),
+    exento,
     ivaPorAlicuota,
     netoPorAlicuota,
     ivaTotal: iva21+iva105+iva27,
+    showIvaTotal: ivaTotalFlag,
+    showNetoTotal: netoTotalFlag,
     total,
     cae: String(r?.cae||''),
     caeVto: String(r?.caeVto||''),

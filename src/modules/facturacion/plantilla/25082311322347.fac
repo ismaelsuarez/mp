@@ -15,7 +15,7 @@ ITEM:
 TOTALES:
 NETO 21%  :        0.08
 NETO 10.5%:        0.09
-EXENTO    :        0.00
+EXENTO    :        0.10
 IVA 21%   :        0.02
 IVA 10.5% :        0.01
 TOTAL     :        0.20
