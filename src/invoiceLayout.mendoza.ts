@@ -35,8 +35,10 @@ const layoutMendoza: Config = {
     // Información del Comprobante
     fecha: { x: 160, y: 20, fontSize: 12 },              // Fecha de emisión (formato DD/MM/YYYY)
     numero: { x: 162, y: 10, fontSize: 10 },             // Número de comprobante
-    numeroRemito: { x: 162, y: 14, fontSize: 8 },       // Override para Remito
-    tipoComprobante: { x: 165, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
+    numeroRemito: { x: 160, y: 14, fontSize: 8 },       // Override para Remito
+    tipoComprobante: { x: 160, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
+    // Ajuste específico para NOTA DE CRÉDITO (texto más largo)
+    tipoComprobanteNC: { x: 150, y: 8, fontSize: 14 },
     tipoComprobanteRemito: { x: 165, y: 8, fontSize: 14 },
     pv: { x: 160, y: 14, fontSize: 10 },                 // Punto de Venta (PV)
     pvRemito: { x: 160, y: 14, fontSize: 9 },

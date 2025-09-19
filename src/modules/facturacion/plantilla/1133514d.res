@@ -1,6 +1,6 @@
 DIAHORA:23/08/25 11:33:51 yp47
 IP:192.168.48.88
-TIPO:7
+TIPO:8
 FONDO:C:\1_OLDFacturador\MiFondo-pagado.jpg
 COPIAS:1
 CLIENTE:(000000)CONSUMIDOR FINAL                        
@@ -51,3 +51,14 @@ Garantia:6 meses; Exepto:Fuente,auricular,teclado,mouse,reloj,game-pad,joystick 
 Cambios dentro de las 48hs -
 Defensa del consumidor Mendoza:08002226678 o al 148 opcion 3
 ** GRACIAS POR SU COMPRA **
+RESPUESTA AFIP    :
+CUIT EMPRESA      :
+MODO              : 0
+PUNTO DE VENTA    : 00016
+NUMERO COMPROBANTE: 12345678
+FECHA COMPROBANTE : 19/09/2025
+NUMERO CAE        : 00000000000000
+VENCIMIENTO CAE   : 2099-12-31
+IMPORTE TOTAL     : 1.000,10
+ARCHIVO REFERENCIA: 25082311335147.fac
+ARCHIVO PDF       : NCB_0016-12345678.pdf

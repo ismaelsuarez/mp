@@ -730,7 +730,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   const pvStr = String(pv).padStart(4,'0'); const nroStr = String(nroAfip).padStart(8,'0');
   const prefix = ((): string => { if (tipo==='FA') return 'FA'; if (tipo==='FB') return 'FB'; if (tipo==='NCA') return 'NCA'; if (tipo==='NCB') return 'NCB'; if (tipo==='NDA') return 'NDA'; return 'NDB'; })();
   const letra = (tipo==='FA'||tipo==='NCA'||tipo==='NDA') ? 'A' : 'B';
-  const literal = (tipo.startsWith('NC') ? 'NOTA DE CRÉDITO' : (tipo.startsWith('ND') ? 'NOTA DE DÉBITO' : 'FACTURA'));
+  const literal = (tipo.startsWith('NC') ? 'NOTA DE CREDITO' : (tipo.startsWith('ND') ? 'NOTA DE DEBITO' : 'FACTURA'));
   const fileName = `${prefix}_${pvStr}-${nroStr}.pdf`;
   const localOutPath = path.join(outLocalDir, fileName);
   const bgFromFac = ((): string => { const m = lines.find(l=>l.startsWith('FONDO:')); return m? m.substring('FONDO:'.length).trim():''; })();

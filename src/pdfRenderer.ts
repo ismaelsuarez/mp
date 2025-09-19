@@ -558,12 +558,15 @@ export async function generateInvoicePdf({
       data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
       data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
       data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
-      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
-      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
+      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CREDITO' :
+      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DEBITO' :
       data.tipoComprobanteLetra === 'R' ? 'REMITO' :
       'COMPROBANTE'
     );
-    drawText(tipoTexto, c.tipoComprobante.x, c.tipoComprobante.y, { 
+    // Usar coordenadas específicas para NOTA DE CRÉDITO si existen
+    const isNC = tipoTexto.toUpperCase().includes('NOTA DE CRÉDITO');
+    const tc = (isNC && (c as any).tipoComprobanteNC) ? (c as any).tipoComprobanteNC : c.tipoComprobante;
+    drawText(tipoTexto, tc.x, tc.y, { 
       fontSize: c.tipoComprobante.fontSize ?? 10, 
       bold: true 
     });
