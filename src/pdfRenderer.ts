@@ -633,13 +633,17 @@ export async function generateInvoicePdf({
     const totalCalc = hasTotal ? it.total! : (hasUnit ? (it.cantidad * it.unitario) : undefined);
     const showUnitCols = (hasUnit || hasIva || typeof totalCalc === 'number');
 
+    const unitText = (it as any).displayUnit ?? (hasUnit ? formatNumberEsAr(it.unitario) : '');
+    const alicText = (it as any).displayAlic ?? (hasIva ? `${it.iva}%` : '');
+    const totalText = (it as any).displayTotal ?? (typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '');
+
     const cells = showUnitCols
       ? [
           { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
           { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
-          { text: hasUnit ? formatNumberEsAr(it.unitario) : '', x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
-          { text: hasIva ? `${it.iva}%` : '', x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
-          { text: typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '', x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+          { text: unitText, x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+          { text: alicText, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+          { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
         ]
       : [
           { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },

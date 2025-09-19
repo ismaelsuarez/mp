@@ -182,10 +182,13 @@ contextBridge.exposeInMainWorld('api', {
       getConfig: () => ipcRenderer.invoke('remito:get-config'),
       saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('remito:save-config', cfg),
     },
-		facturaA: {
-		  getConfig: () => ipcRenderer.invoke('facturaA:get-config'),
-		  saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('facturaA:save-config', cfg),
+		// Configuración unificada de Facturas (A/B y Notas)
+		facturas: {
+			getConfig: () => ipcRenderer.invoke('facturas:get-config'),
+			saveConfig: (cfg: { pv?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('facturas:save-config', cfg),
+			emitirUi: (payload: any) => ipcRenderer.invoke('facturas:emitir-ui', payload),
 		},
+    		// [limpieza] Se elimina objeto legacy facturaA (UI usa window.api.facturas)
 	printers: {
 		list: () => ipcRenderer.invoke('printers:list'),
 		printPdf: (filePath: string, printerName?: string, copies?: number) => ipcRenderer.invoke('printers:print-pdf', { filePath, printerName, copies }),

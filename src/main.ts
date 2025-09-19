@@ -1211,30 +1211,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try { getDb().saveAfipConfig(cfg); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
 
-	// Configuración Factura A (merge conservador)
-	ipcMain.handle('facturaA:get-config', async () => {
-		try {
-			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
-			let json: any = {}; try { json = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
-			return { ok: true, config: json };
-		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
-	});
-	ipcMain.handle('facturaA:save-config', async (_e, cfg: any) => {
-		try {
-			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
-			let current: any = {}; try { current = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
-			const next = { ...current };
-			if (typeof cfg?.pv === 'number') next.pv = cfg.pv;
-			if (typeof cfg?.contador === 'number') next.contador = cfg.contador;
-			if (typeof cfg?.outLocal === 'string') next.outLocal = cfg.outLocal;
-			if (typeof cfg?.outRed1 === 'string') next.outRed1 = cfg.outRed1;
-			if (typeof cfg?.outRed2 === 'string') next.outRed2 = cfg.outRed2;
-			if (typeof cfg?.printerName === 'string') next.printerName = cfg.printerName;
-			try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
-			fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
-			return { ok: true };
-		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
-	});
+    // [limpieza] Se eliminan IPCs legacy facturaA:get-config/save-config (UI migra a facturas:get-config/save-config)
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
 			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
@@ -1283,6 +1260,46 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	ipcMain.handle('facturacion:abrir-pdf', async (_e, filePath: string) => {
 		try { await getFacturacionService().abrirPdf(filePath); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+  // Emisión unificada desde UI → usa el mismo pipeline que .fac
+  ipcMain.handle('facturas:emitir-ui', async (_e, payload: any) => {
+    try {
+      // Construir un pseudo .fac en memoria para reusar el pipeline
+      const lines: string[] = [];
+      const tipo: string = String(payload?.tipo || '').toUpperCase();
+      lines.push(`TIPO: ${tipo}`);
+      if (payload?.cliente?.nombre) lines.push(`CLIENTE: ${payload.cliente.nombre}`);
+      if (payload?.cliente?.domicilio) lines.push(`DOMICILIO: ${payload.cliente.domicilio}`);
+      if (payload?.cliente?.docTipo) lines.push(`TIPODOC: ${payload.cliente.docTipo}`);
+      if (payload?.cliente?.docNro) lines.push(`NRODOC: ${payload.cliente.docNro}`);
+      if (payload?.cliente?.condicion) lines.push(`CONDICION: ${payload.cliente.condicion}`);
+      if (payload?.email) lines.push(`EMAIL: ${payload.email}`);
+      if (payload?.whatsapp) lines.push(`WHATSAPP: ${payload.whatsapp}`);
+      if (payload?.fondo) lines.push(`FONDO: ${payload.fondo}`);
+      lines.push('TOTALES:');
+      if (payload?.neto21) lines.push(`NETO 21%: ${Number(payload.neto21).toFixed(2)}`);
+      if (payload?.neto105) lines.push(`NETO 10.5%: ${Number(payload.neto105).toFixed(2)}`);
+      if (payload?.neto27) lines.push(`NETO 27%: ${Number(payload.neto27).toFixed(2)}`);
+      if (payload?.exento) lines.push(`EXENTO: ${Number(payload.exento).toFixed(2)}`);
+      if (payload?.iva21) lines.push(`IVA 21%: ${Number(payload.iva21).toFixed(2)}`);
+      if (payload?.iva105) lines.push(`IVA 10.5%: ${Number(payload.iva105).toFixed(2)}`);
+      if (payload?.iva27) lines.push(`IVA 27%: ${Number(payload.iva27).toFixed(2)}`);
+      if (payload?.total) lines.push(`TOTAL: ${Number(payload.total).toFixed(2)}`);
+      const raw = lines.join('\n');
+
+      // Crear archivo temporal .fac dentro de userData/tmp para que el pipeline genere .res y limpieza igual que watcher
+      const baseDir = path.join(app.getPath('userData'), 'tmp');
+      try { fs.mkdirSync(baseDir, { recursive: true }); } catch {}
+      const stamp = Date.now();
+      const tmpPath = path.join(baseDir, `ui_${stamp}.fac`);
+      fs.writeFileSync(tmpPath, raw, 'utf8');
+
+      const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+      const result = await processFacturaFacFile(tmpPath);
+      return { ok: true, result };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
 	// Idempotencia: listar y limpiar
 	ipcMain.handle('facturacion:idempotency:list', async () => {
 		try {
@@ -1774,10 +1791,8 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
                     } else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename) || tipo === 'FACTURA B' || /B\.fac$/i.test(job.filename) || /^(NOTA CREDITO|NOTA DEBITO)/i.test(tipo)) {
-                        const { FacturaElectronicaProcessor } = require('./modules/facturacion/FacturaElectronicaProcessor');
-                        const { getFacturacionService } = require('./services/FacturacionService');
-                        const proc = new FacturaElectronicaProcessor(() => getFacturacionService());
-                        const out = await proc.processFromFac({ fullPath: job.fullPath, raw: raw });
+                        const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+                        const out = await processFacturaFacFile(job.fullPath);
                         try { logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out }); } catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}

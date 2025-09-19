@@ -110,16 +110,16 @@ const layoutMendoza: Config = {
     caeVto: { x: 160, y: 262, fontSize: 8 },                     // Fecha de vencimiento del CAE
 
     // QR Code - Al lado del CAE
-    qrCode: { x: 115, y: 230, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
+    qrCode: { x: 115, y: 210, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
 
     // Textos Legales
-    legalDefensaConsumidor: { x: 10, y: 274, maxWidth: 170, fontSize: 7 }, // Texto de defensa del consumidor
-    legalContacto: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },          // Información de contacto
-    legalGracias: { x: 60, y: 288, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
+    legalDefensaConsumidor: { x: 10, y: 274, maxWidth: 190, fontSize: 7 }, // Texto de defensa del consumidor
+    legalContacto: { x: 10, y: 274, maxWidth: 190, fontSize: 8 },          // Información de contacto
+    legalGracias: { x: 60, y: 289, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
     // Observaciones dinámicas de pie (desde OBS.PIE)
-    pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
+    pieObservaciones: { x: 10, y: 273, maxWidth: 190, fontSize: 8 },
     // Variante exclusiva para Remito (fondo diferente): subir el pie
-    pieObservacionesRemito: { x: 10, y: 266, maxWidth: 170, fontSize: 8 },
+    pieObservacionesRemito: { x: 10, y: 266, maxWidth: 190, fontSize: 8 },
     // Observaciones fiscales (debajo de TOTAL)
     obsFiscal: { x: 114, y: 262, maxWidth: 96, fontSize: 6, maxChars: 84 },
 
