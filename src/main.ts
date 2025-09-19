@@ -1692,7 +1692,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		stopRemoteWatcher();
 		const cfg: any = store.get('config') || {};
 		if (cfg.AUTO_REMOTE_WATCH !== true) return false;
-		const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp');
+    const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
 			remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
@@ -1719,7 +1719,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		stopImageWatcher();
 		const cfg: any = store.get('config') || {};
 		if (cfg.IMAGE_WATCH !== true) return false;
-		const dir = String(cfg.IMAGE_CONTROL_DIR || 'C\\tmp');
+    const dir = String(cfg.IMAGE_CONTROL_DIR || 'C:\\tmp');
 		const controlFile = String(cfg.IMAGE_CONTROL_FILE || 'direccion.txt');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
@@ -1790,7 +1790,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
-                    } else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename) || tipo === 'FACTURA B' || /B\.fac$/i.test(job.filename) || /^(NOTA CREDITO|NOTA DEBITO)/i.test(tipo)) {
+                    } else if (
+                        tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
+                        tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
+                        /^(NOTA\s+(DE\s+)?CREDITO|NOTA\s+(DE\s+)?DEBITO)/i.test(tipo) ||
+                        /^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo)
+                    ) {
                         const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
                         const out = await processFacturaFacFile(job.fullPath);
                         try { logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out }); } catch {}
@@ -1833,9 +1838,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 			const dir = String(d || '').trim();
 			if (dir) dirsSet.add(dir);
 		};
-		if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C\\tmp');
-		if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C\\tmp');
-		if (dirsSet.size === 0) addDir('C\\tmp');
+    if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C:\\tmp');
+    if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C:\\tmp');
+    if (dirsSet.size === 0) addDir('C:\\tmp');
 		const { createFacWatcher } = require('./modules/facturacion/facWatcher');
 		let anyOk = false;
 		for (const dirRaw of Array.from(dirsSet)) {
