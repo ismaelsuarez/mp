@@ -792,7 +792,8 @@ export async function generateInvoicePdf({
     drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
   }
   if (data.caeVto) {
-    drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+    const label = `FECHA VTO: ${data.caeVto}`;
+    drawText(label, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
   }
 
   // QR Code - preferir URL oficial (qrDataUrl). Fallback: QR simplificado con CAE
