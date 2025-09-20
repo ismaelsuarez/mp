@@ -573,9 +573,11 @@ async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: an
   return null;
 }
 
-export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boolean; pdfPath?: string; numero?: number; cae?: string; caeVto?: string }> {
+export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boolean; pdfPath?: string; numero?: number; cae?: string; caeVto?: string; reason?: string }> {
   const raw = readTextSmartFactura(fullPath);
+  try { console.warn('[FAC][PIPE] read:file', { fullPath, size: raw?.length || 0 }); } catch {}
   const tipo = detectTipoFactura(raw, path.basename(fullPath));
+  try { console.warn('[FAC][PIPE] detect:tipo', { tipo }); } catch {}
   if (!tipo) throw new Error('FAC no es tipo factura/nota A/B');
 
   const lines = String(raw||'').split(/\r?\n/);
@@ -612,6 +614,14 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   const docTipo = Number(get('TIPODOC:')||'0');
   const docNro = get('NRODOC:');
   const condicionTxt = get('CONDICION:');
+  const condicionIvaReceptor = ((): string | undefined => {
+    const t = String(condicionTxt || '').toUpperCase();
+    if (/CONSUMIDOR\s+FINAL/.test(t) || t === 'CF') return 'CF';
+    if (/RESPONSABLE/.test(t) || t === 'RI') return 'RI';
+    if (/MONOTRIB/.test(t) || t === 'MT' || t === 'MONO') return 'MT';
+    if (/EXENTO/.test(t) || t === 'EX') return 'EX';
+    return undefined;
+  })();
   const email = get('EMAIL:');
   const whatsapp = get('WHATSAPP:');
   // Observaciones (como Recibo)
@@ -706,18 +716,62 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
       else if (key==='IVA 21%') iva21=val; else if (key==='IVA 10.5%') iva105=val; else if (key==='IVA 27%') iva27=val; else if (key==='IVA TOTAL') ivaTotalFlag=true; else if (key==='TOTAL') total=val;
     }
   }
+  try { console.warn('[FAC][PIPE] parsed:totales', { neto21, neto105, neto27, exento, iva21, iva105, iva27, total, ivaTotalFlag, netoTotalFlag }); } catch {}
 
   // Validación NTP
-  try { const ntp = await validateSystemTime(); if (!ntp.isValid) return { ok:false } as any; } catch {}
+  try {
+    const ntp = await validateSystemTime();
+    if (!ntp.isValid) return { ok:false, reason: 'NTP_INVALID' } as any;
+  } catch {
+    // Si hay error en NTP, no bloquear pero informar razón
+    return { ok:false, reason: 'NTP_ERROR' } as any;
+  }
 
   // Emisión AFIP con retry
   const cfg = readFacturasConfig();
+  if (!cfg || !cfg.outLocal) {
+    return { ok:false, reason: 'CFG_OUTLOCAL_MISSING' } as any;
+  }
   const pv = Number(cfg.pv || 1);
-  const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: docTipo===80? docNro: undefined, doc_tipo: docTipo||undefined, razon_social_receptor:nombre } as any;
-  const r = await emitirAfipWithRetry(params, fullPath);
-  if (!r || !r.cae) return { ok:false } as any;
+  if (!total || total <= 0) {
+    return { ok:false, reason: 'TOTAL_INVALID' } as any;
+  }
+  // Normalizar items para AFIP (como hace la UI)
+  const detalle = (items || []).map((it:any)=>{
+    const cantidad = Number(it.cantidad || 1);
+    const precioUnitario = (typeof it.unitario === 'number' && isFinite(it.unitario))
+      ? it.unitario
+      : ((typeof it.total === 'number' && isFinite(it.total) && cantidad>0) ? (it.total / cantidad) : 0);
+    const alicuotaIva = (typeof it.iva === 'number' && isFinite(it.iva)) ? it.iva : 0;
+    return {
+      descripcion: String(it.descripcion || '').trim() || 'ITEM',
+      cantidad,
+      precioUnitario,
+      alicuotaIva
+    };
+  }).filter((d:any)=> d && d.cantidad>0 && isFinite(d.precioUnitario));
+  if (!detalle.length) {
+    try { console.warn('[FAC][PIPE] items:empty'); } catch {}
+    return { ok:false, reason: 'ITEMS_EMPTY' } as any;
+  }
+  const cuitODocReceptor = ((): string | undefined => {
+    if (docTipo === 99) return undefined;
+    if (docNro) return String(docNro);
+    return undefined;
+  })();
+  const ivareceptor = ((): number | undefined => {
+    const n = Number(String(get('IVARECEPTOR:')||'').trim());
+    return Number.isFinite(n) && n>0 ? n : undefined;
+  })();
+  const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: cuitODocReceptor, doc_tipo: docTipo||undefined, razon_social_receptor:nombre, condicion_iva_receptor: condicionIvaReceptor, ivareceptor, detalle } as any;
+  try { console.warn('[FAC][PIPE] afip:params', { pto_vta: params.pto_vta, tipo_cbte: params.tipo_cbte, total: params.total, doc_tipo: params.doc_tipo, cuit_receptor: params.cuit_receptor, condicion_iva_receptor: params.condicion_iva_receptor, ivareceptor: params.ivareceptor, detalle_len: (params.detalle||[]).length }); } catch {}
+  const r = await emitirAfipWithRetry(params, fullPath, (evt:any)=>{ try { console.warn('[FAC][AFIP]', evt); } catch {} });
+  if (!r || !r.cae) return { ok:false, reason: 'AFIP_NO_CAE' } as any;
   const nroAfip = Number((r as any)?.numero ?? (r as any)?.cbteDesde ?? (r as any)?.nroComprobante ?? 0);
-  if (!nroAfip) return { ok:false } as any;
+  if (!nroAfip) return { ok:false, reason: 'AFIP_NO_NUMERO' } as any;
+  const caeStr: string = String((r as any)?.cae || '').trim();
+  const caeVtoRaw: any = (r as any)?.caeVto || (r as any)?.cae_vto || (r as any)?.caeVencimiento || (r as any)?.cae_vencimiento || (r as any)?.vencimientoCAE || '';
+  const caeVtoStr = ((): string => { const s=String(caeVtoRaw||'').trim(); if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; return s; })();
 
   // Directorios salida
   const makeMonthDir = (root?: string): string | null => {
@@ -784,8 +838,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     showIvaTotal: ivaTotalFlag,
     showNetoTotal: netoTotalFlag,
     total,
-    cae: String(r?.cae||''),
-    caeVto: String(r?.caeVto||''),
+    cae: caeStr,
+    caeVto: caeVtoStr,
     items
   };
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: r?.qrDataUrl });
@@ -802,13 +856,13 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   // .res por tipo
   const suf = ((): string => { switch (tipo) { case 'FA': return 'a'; case 'FB': return 'b'; case 'NCA': return 'c'; case 'NCB': return 'd'; case 'NDA': return 'e'; case 'NDB': return 'f'; default: return 'a'; } })();
   let resPath: string | null = null;
-  try { const dir=path.dirname(fullPath); const baseName=path.basename(fullPath, path.extname(fullPath)); const shortLower=baseName.slice(-8).toLowerCase().replace(/.$/,suf); resPath=path.join(dir, `${shortLower}.res`); const fechaStr=dayjs().format('DD/MM/YYYY'); const totalFmt= new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total); const resLines=['RESPUESTA AFIP    :','CUIT EMPRESA      :','MODO              : 0',`PUNTO DE VENTA    : ${String(pv).padStart(5,'0').slice(-5)}`,`NUMERO COMPROBANTE: ${String(nroAfip).padStart(8,'0')}`,`FECHA COMPROBANTE : ${fechaStr}`,`NUMERO CAE        : ${String(r?.cae||'')}`,`VENCIMIENTO CAE   : ${String(r?.caeVto||'0')}`,`IMPORTE TOTAL     : ${totalFmt}`,`ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,`ARCHIVO PDF       : ${path.basename(localOutPath)}`,'']; const joined=raw.replace(/\s*$/,'')+'\n'+resLines.join('\n'); fs.writeFileSync(resPath, joined, 'utf8'); } catch {}
+  try { const dir=path.dirname(fullPath); const baseName=path.basename(fullPath, path.extname(fullPath)); const shortLower=baseName.slice(-8).toLowerCase().replace(/.$/,suf); resPath=path.join(dir, `${shortLower}.res`); const fechaStr=dayjs().format('DD/MM/YYYY'); const totalFmt= new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total); const resLines=['RESPUESTA AFIP    :','CUIT EMPRESA      :','MODO              : 0',`PUNTO DE VENTA    : ${String(pv).padStart(5,'0').slice(-5)}`,`NUMERO COMPROBANTE: ${String(nroAfip).padStart(8,'0')}`,`FECHA COMPROBANTE : ${fechaStr}`,`NUMERO CAE        : ${caeStr}`,`VENCIMIENTO CAE   : ${caeVtoStr || '0'}`,`IMPORTE TOTAL     : ${totalFmt}`,`ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,`ARCHIVO PDF       : ${path.basename(localOutPath)}`,'']; const joined=raw.replace(/\s*$/,'')+'\n'+resLines.join('\n'); fs.writeFileSync(resPath, joined, 'utf8'); } catch {}
 
   // Enviar .res con reintentos
   const sendWithRetries = async (localPath: string, remoteName?: string): Promise<boolean> => { const attempts=[0,1000,3000]; for (let i=0;i<attempts.length;i++){ try { await sendArbitraryFile(localPath, remoteName||path.basename(localPath)); return true; } catch {} await new Promise(res=>setTimeout(res, attempts[i])); } return false; };
   let resSent=false; if (resPath && fs.existsSync(resPath)) { resSent = await sendWithRetries(resPath, path.basename(resPath)); if (resSent) { try { fs.unlinkSync(resPath); } catch {} try { fs.unlinkSync(fullPath); } catch {} } }
 
-  return { ok:true, pdfPath: localOutPath, numero: nroAfip, cae: String(r?.cae||''), caeVto: String(r?.caeVto||'') } as any;
+  return { ok:true, pdfPath: localOutPath, numero: nroAfip, cae: caeStr, caeVto: caeVtoStr } as any;
 }
 
 

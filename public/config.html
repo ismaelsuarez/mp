@@ -578,12 +578,10 @@
 									<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
 								</label>
 								<label>Condición IVA
-									<select id="EMP_IVA">
-										<option value="RI">Responsable Inscripto</option>
-										<option value="MT">Monotributo</option>
-										<option value="EX">Exento</option>
-										<option value="CF">Consumidor Final</option>
-									</select>
+								<select id="EMP_IVA">
+									<option value="RI">Responsable Inscripto</option>
+									<option value="CF">Consumidor Final</option>
+								</select>
 								</label>
 								<label>Logo (ruta)
 									<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
@@ -645,20 +643,11 @@
 							<label>Entorno
 								<select id="AFIP_ENTORNO">
 									<option value="homologacion">Homologación</option>
-									<option value="produccion">Producción</option>
+									<option value="produccion" selected>Producción</option>
 								</select>
 							</label>
 						</div>
-						<!-- Importación segura integrada en AFIP (CUIT Emisor) -->
-						<div class="mt-2">
-							<div class="text-xs font-semibold mb-1">Importar Cert/Key</div>
-							<div class="flex flex-wrap items-center gap-2">
-								<input id="secureImportCert" type="text" placeholder="Ruta .crt/.pem" class="w-56 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white" />
-								<input id="secureImportKey" type="text" placeholder="Ruta .key/.pem" class="w-56 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white" />
-								<button type="button" id="btnSecureImport" class="px-2 py-1 text-xs rounded-md bg-slate-600 text-white border-0 hover:bg-slate-500">Importar seguro</button>
-							</div>
-							<div class="text-[11px] text-slate-400 mt-1">Si usas Importación Segura, deja vacíos los campos de Certificado y Clave para activar el modo 100% seguro.</div>
-						</div>
+                        <!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
 						<div class="flex items-center gap-2">
 							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
 							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
@@ -704,14 +693,10 @@
 										<select id="pruebaFacturaTipoCbte" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
 											<option value="1">Factura A (1)</option>
 											<option value="6">Factura B (6)</option>
-											<option value="11" selected>Factura C (11)</option>
-											<option value="19">Factura E (19)</option>
 											<option value="2">Nota de Débito A (2)</option>
 											<option value="7">Nota de Débito B (7)</option>
-											<option value="12">Nota de Débito C (12)</option>
 											<option value="3">Nota de Crédito A (3)</option>
 											<option value="8">Nota de Crédito B (8)</option>
-											<option value="13">Nota de Crédito C (13)</option>
 											<option value="4">Recibo (4)</option>
 										</select>
 									</label>
@@ -766,15 +751,6 @@
 										Condición IVA Receptor:
 										<select id="pruebaFacturaCondIvaRec" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
 											<option value="RI">Responsable Inscripto (1)</option>
-											<option value="MT">Monotributo (6)</option>
-											<option value="MONOTRIBUTO SOCIAL">Monotributista Social (13)</option>
-											<option value="MONOTRIBUTO TRABAJADOR INDEPENDIENTE PROMOVIDO">Monotributo Trab. Indep. Promovido (16)</option>
-											<option value="EX">Exento (4)</option>
-											<option value="SNC">Sujeto No Categorizado (7)</option>
-											<option value="PROVEEDOR DEL EXTERIOR">Proveedor del Exterior (8)</option>
-											<option value="CLIENTE DEL EXTERIOR">Cliente del Exterior (9)</option>
-											<option value="LIBERADO 19640">IVA Liberado – Ley 19.640 (10)</option>
-											<option value="NO ALCANZADO">IVA No Alcanzado (15)</option>
 											<option value="CF" selected>Consumidor Final (5)</option>
 										</select>
 									</label>

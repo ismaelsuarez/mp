@@ -293,6 +293,13 @@ class AfipService {
         MonCotiz: 1,
         Iva: ivaArray
       };
+      // Regla general: si ImpIVA es 0, no informar Iva/AlicIva (evita obs 10018)
+      try {
+        const impIvaNum = Number(request.ImpIVA);
+        if (!impIvaNum || impIvaNum === 0) {
+          delete request.Iva;
+        }
+      } catch {}
       // Tributos opcionales
       if (Array.isArray((comprobante as any).tributos) && (comprobante as any).tributos.length > 0) {
         request.Tributos = (comprobante as any).tributos.map((t: any) => ({
@@ -306,19 +313,7 @@ class AfipService {
         if (ivarc !== undefined) (request as any).IVARECEPTOR = ivarc;
       } catch {}
 
-      // Ajustes para monotributo con comprobantes C: no discrimina IVA
-      try {
-        const cfgEmpresa = getDb().getEmpresaConfig?.();
-        const cond = String(cfgEmpresa?.condicion_iva || '').toUpperCase();
-        if ((cond === 'MT' || cond === 'MONO') && [11,12,13].includes(tipoCbte)) {
-          request.ImpIVA = 0;
-          request.Iva = [];
-          if (!comprobante.cliente?.cuit) {
-            request.DocTipo = 99;
-            request.DocNro = 0;
-          }
-        }
-      } catch {}
+      // Política actual: solo RI. No se aplican ajustes especiales para Monotributo.
 
       // Fechas de servicio: obligatorias si Concepto es 2 o 3
       if (Number(request.Concepto) === 2 || Number(request.Concepto) === 3) {

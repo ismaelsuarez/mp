@@ -138,7 +138,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	// Facturación
 	facturacion: {
-		guardarConfig: (cfg: any) => ipcRenderer.invoke('facturacion:guardar-config', cfg),
+		// Configuración AFIP persistente (RI)
+		afipGet: () => ipcRenderer.invoke('facturacion:afip:get'),
+		afipSave: (cfg: any) => ipcRenderer.invoke('facturacion:afip:save', cfg),
 		emitir: (payload: any) => ipcRenderer.invoke('facturacion:emitir', payload),
 		listar: (filtros?: { desde?: string; hasta?: string }) => ipcRenderer.invoke('facturacion:listar', filtros || {}),
 		abrirPdf: (filePath: string) => ipcRenderer.invoke('facturacion:abrir-pdf', filePath),

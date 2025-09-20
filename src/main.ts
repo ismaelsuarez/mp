@@ -1266,12 +1266,14 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       // Construir un pseudo .fac en memoria para reusar el pipeline
       const lines: string[] = [];
       const tipo: string = String(payload?.tipo || '').toUpperCase();
+      try { logInfo('UI_EMIT:build:start', { tipo, hasCliente: !!payload?.cliente, hasTotales: !!payload?.total }); } catch {}
       lines.push(`TIPO: ${tipo}`);
       if (payload?.cliente?.nombre) lines.push(`CLIENTE: ${payload.cliente.nombre}`);
       if (payload?.cliente?.domicilio) lines.push(`DOMICILIO: ${payload.cliente.domicilio}`);
       if (payload?.cliente?.docTipo) lines.push(`TIPODOC: ${payload.cliente.docTipo}`);
       if (payload?.cliente?.docNro) lines.push(`NRODOC: ${payload.cliente.docNro}`);
       if (payload?.cliente?.condicion) lines.push(`CONDICION: ${payload.cliente.condicion}`);
+      if (payload?.cliente?.ivareceptor) lines.push(`IVARECEPTOR: ${payload.cliente.ivareceptor}`);
       if (payload?.email) lines.push(`EMAIL: ${payload.email}`);
       if (payload?.whatsapp) lines.push(`WHATSAPP: ${payload.whatsapp}`);
       if (payload?.fondo) lines.push(`FONDO: ${payload.fondo}`);
@@ -1292,11 +1294,18 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       const stamp = Date.now();
       const tmpPath = path.join(baseDir, `ui_${stamp}.fac`);
       fs.writeFileSync(tmpPath, raw, 'utf8');
+      try { logInfo('UI_EMIT:tmp:written', { tmpPath, bytes: Buffer.byteLength(raw, 'utf8') }); } catch {}
 
       const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+      try { logInfo('UI_EMIT:process:start', { tmpPath }); } catch {}
       const result = await processFacturaFacFile(tmpPath);
+      try {
+        if (result?.ok) logSuccess('UI_EMIT:process:ok', { result });
+        else logWarning('UI_EMIT:process:fail', { result });
+      } catch {}
       return { ok: true, result };
     } catch (e: any) {
+      try { logWarning('UI_EMIT:error', { error: String(e?.message || e) }); } catch {}
       return { ok: false, error: String(e?.message || e) };
     }
   });
@@ -1320,6 +1329,23 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	ipcMain.handle('facturacion:empresa:save', async (_e, data: any) => {
 		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+  // Configuración AFIP (persistente)
+  ipcMain.handle('facturacion:afip:get', async () => {
+    try { const cfg = getDb().getAfipConfig(); return { ok: true, config: cfg }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('facturacion:afip:save', async (_e, cfg: any) => {
+    try {
+      const next = {
+        cuit: String(cfg?.cuit || ''),
+        pto_vta: Number(cfg?.pto_vta || 0),
+        cert_path: String(cfg?.cert_path || ''),
+        key_path: String(cfg?.key_path || ''),
+        entorno: String(cfg?.entorno || 'produccion')
+      } as any;
+      getDb().saveAfipConfig(next);
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
 	ipcMain.handle('facturacion:param:get', async () => {
 		try { return { ok: true, data: getDb().getParametrosFacturacion() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
@@ -1791,14 +1817,21 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
                     } else if (
-                        tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
-                        tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
-                        /^(NOTA\s+(DE\s+)?CREDITO|NOTA\s+(DE\s+)?DEBITO)/i.test(tipo) ||
-                        /^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo)
+						tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
+						tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
+						/^(NOTA\s+(DE\s+)?CREDITO|NOTA\s+(DE\s+)?DEBITO)/i.test(tipo) ||
+						/^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo) ||
+						/^(1|6|2|7|3|8)$/.test(tipo)
                     ) {
-                        const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
-                        const out = await processFacturaFacFile(job.fullPath);
-                        try { logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out }); } catch {}
+						const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+						const out = await processFacturaFacFile(job.fullPath);
+						try {
+							if (out && out.ok) {
+								logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out });
+							} else {
+								logWarning('FAC FACTURA/NOTA falló', { filename: job.filename, output: out });
+							}
+						} catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
 					}

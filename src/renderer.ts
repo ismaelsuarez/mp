@@ -1270,19 +1270,31 @@ window.addEventListener('DOMContentLoaded', () => {
 	})();
 
 	// Facturación – Configuración AFIP y listado
-	const btnAfipGuardar = document.getElementById('btnAfipGuardar') as HTMLButtonElement | null;
-	const afipCfgStatus = document.getElementById('afipCfgStatus');
-	btnAfipGuardar?.addEventListener('click', async () => {
-		const cfg = {
-			cuit: (document.getElementById('AFIP_CUIT') as HTMLInputElement)?.value?.trim(),
-			pto_vta: Number((document.getElementById('AFIP_PTO_VTA') as HTMLInputElement)?.value || 0),
-			cert_path: (document.getElementById('AFIP_CERT_PATH') as HTMLInputElement)?.value?.trim(),
-			key_path: (document.getElementById('AFIP_KEY_PATH') as HTMLInputElement)?.value?.trim(),
-			entorno: (document.getElementById('AFIP_ENTORNO') as HTMLSelectElement)?.value as any
-		};
-		const res = await (window.api as any).facturacion?.guardarConfig(cfg);
-		if (afipCfgStatus) afipCfgStatus.textContent = res?.ok ? 'Configuración guardada' : `Error: ${res?.error || ''}`;
-	});
+  // Cargar configuración AFIP al abrir
+  (async function loadAfipCfg(){
+    try {
+      const r = await (window.api as any).facturacion?.afipGet();
+      const cfg = r?.config || {};
+      (document.getElementById('AFIP_CUIT') as HTMLInputElement).value = cfg.cuit || '';
+      (document.getElementById('AFIP_PTO_VTA') as HTMLInputElement).value = cfg.pto_vta || '';
+      (document.getElementById('AFIP_CERT_PATH') as HTMLInputElement).value = cfg.cert_path || '';
+      (document.getElementById('AFIP_KEY_PATH') as HTMLInputElement).value = cfg.key_path || '';
+      (document.getElementById('AFIP_ENTORNO') as HTMLSelectElement).value = cfg.entorno || 'produccion';
+    } catch {}
+  })();
+  const btnAfipGuardar = document.getElementById('btnAfipGuardar') as HTMLButtonElement | null;
+  const afipCfgStatus = document.getElementById('afipCfgStatus');
+  btnAfipGuardar?.addEventListener('click', async () => {
+    const cfg = {
+      cuit: (document.getElementById('AFIP_CUIT') as HTMLInputElement)?.value?.trim(),
+      pto_vta: Number((document.getElementById('AFIP_PTO_VTA') as HTMLInputElement)?.value || 0),
+      cert_path: (document.getElementById('AFIP_CERT_PATH') as HTMLInputElement)?.value?.trim(),
+      key_path: (document.getElementById('AFIP_KEY_PATH') as HTMLInputElement)?.value?.trim(),
+      entorno: ((document.getElementById('AFIP_ENTORNO') as HTMLSelectElement)?.value as any) || 'produccion'
+    };
+    const res = await (window.api as any).facturacion?.afipSave(cfg);
+    if (afipCfgStatus) afipCfgStatus.textContent = res?.ok ? 'Configuración guardada' : `Error: ${res?.error || ''}`;
+  });
 
 	async function cargarListadoFacturas() {
 		const desde = (document.getElementById('AFIP_FILTRO_DESDE') as HTMLInputElement)?.value?.trim();
@@ -2130,7 +2142,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			'CF': 5,
 			'CONSUMIDOR FINAL': 5
 		};
-		const update = () => { const v = (sel.value || '').toUpperCase(); out.value = String(map[v] ?? ''); };
+    const update = () => { const v = (sel.value || 'RI').toUpperCase(); out.value = String((v==='RI'||v==='RESPONSABLE INSCRIPTO') ? 1 : (v==='CF'||v==='CONSUMIDOR FINAL') ? 5 : 1); };
 		sel.addEventListener('change', update);
 		update();
 	})();
