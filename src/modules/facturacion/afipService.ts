@@ -66,18 +66,12 @@ class AfipService {
       throw new Error(`Error de sincronización de tiempo: ${errorMessage}`);
     }
 
-    // Resolver origen de cert/key: modo seguro (SecureStore) o rutas configuradas
-    let resolvedCertPath = cfg.cert_path;
-    let resolvedKeyPath = cfg.key_path;
-    const useSecure = (!resolvedCertPath || String(resolvedCertPath).trim() === '') && (!resolvedKeyPath || String(resolvedKeyPath).trim() === '');
-    if (useSecure) {
-      this.debugLog('Modo 100% seguro activo: usando SecureStore para cert/key temporales');
-      const { certPath, keyPath, cleanup } = getSecureStore().writeTempFilesForAfip();
-      resolvedCertPath = certPath;
-      resolvedKeyPath = keyPath;
-      // Guardar cleanup para limpiar al renovar/limpiar instancia
-      this.tempCleanup?.();
-      this.tempCleanup = cleanup;
+    // Cert/key obligatorios: si faltan, abortar (no usar fallback SecureStore de forma automática)
+    const resolvedCertPath = String(cfg.cert_path || '').trim();
+    const resolvedKeyPath = String(cfg.key_path || '').trim();
+    if (!resolvedCertPath || !resolvedKeyPath) {
+      this.logger.logError('config_afip_incompleta', new Error('Faltan cert_path/key_path'));
+      throw new Error('Configuración AFIP incompleta: debe configurar Certificado (.crt/.pem) y Clave privada (.key)');
     }
 
     // Validar certificado antes de crear instancia (usar ruta resuelta)
@@ -138,12 +132,8 @@ class AfipService {
       }
 
       const isArca = (process.env.AFIP_MODE || '').toLowerCase() === 'arca';
-
-      // Si ARCA está activo, no usar WSFE: ir por flujo ARCA
-      if (isArca) {
-        this.debugLog('AFIP_MODE=arca → usar flujo WSBFEv1');
-        return await this.solicitarCAEArca(comprobante);
-      }
+      // Si ARCA está activo, por ahora reutilizamos flujo WSFE (consolidado) incluyendo IVARECEPTOR
+      if (isArca) this.debugLog('AFIP_MODE=arca → usando flujo consolidado WSFE con IVARECEPTOR (compat)');
 
       const afip = await this.getAfipInstance();
       const cfg = getDb().getAfipConfig()!;
