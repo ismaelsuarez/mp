@@ -771,7 +771,12 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   if (!nroAfip) return { ok:false, reason: 'AFIP_NO_NUMERO' } as any;
   const caeStr: string = String((r as any)?.cae || '').trim();
   const caeVtoRaw: any = (r as any)?.caeVto || (r as any)?.cae_vto || (r as any)?.caeVencimiento || (r as any)?.cae_vencimiento || (r as any)?.vencimientoCAE || '';
-  const caeVtoStr = ((): string => { const s=String(caeVtoRaw||'').trim(); if (/^\d{8}$/.test(s)) return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; return s; })();
+  const caeVtoStr = ((): string => {
+    const s = String(caeVtoRaw || '').trim();
+    if (/^\d{8}$/.test(s)) return `${s.slice(6,8)}/${s.slice(4,6)}/${s.slice(0,4)}`; // DD/MM/AAAA
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}`;
+    return s;
+  })();
 
   // Directorios salida
   const makeMonthDir = (root?: string): string | null => {
@@ -842,7 +847,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     caeVto: caeVtoStr,
     items
   };
-  await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: r?.qrDataUrl });
+  await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: (r as any)?.qrData });
   try { if (outRed1Dir) fs.copyFileSync(localOutPath, path.join(outRed1Dir, fileName)); } catch {}
   try { if (outRed2Dir) fs.copyFileSync(localOutPath, path.join(outRed2Dir, fileName)); } catch {}
 
