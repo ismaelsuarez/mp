@@ -558,13 +558,17 @@ function readFacturasConfig(): { pv: number; outLocal?: string; outRed1?: string
 async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: any)=>void) {
   const delays = [500, 1500, 4000];
   let lastErr: any = null;
+  // Volver al flujo estable: usar FacturacionService para emitir (CAE + QR oficial)
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getFacturacionService } = require('../../services/FacturacionService');
   const svc = getFacturacionService();
   for (let i=0;i<delays.length;i++) {
     try {
-      const r = await svc.emitirFacturaYGenerarPdf(params);
-      if (r && r.cae) return r;
+      logger?.({ stage:'AFIP_EMIT_ATTEMPT', attempt:i+1, facPath });
+      const r: any = await svc.emitirFacturaYGenerarPdf(params);
+      if (r && r.cae) {
+        return { cae: String(r.cae), caeVto: String(r.cae_vencimiento||r.caeVencimiento||''), qrData: r.qr_url, numero: Number(r.numero||0) } as any;
+      }
       lastErr = new Error('AFIP sin CAE');
     } catch (e: any) { lastErr = e; }
     try { logger?.({ stage:'AFIP_EMIT_RETRY', attempt:i+1, reason:String(lastErr?.message||lastErr), facPath }); } catch {}
