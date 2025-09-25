@@ -1211,30 +1211,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try { getDb().saveAfipConfig(cfg); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
 
-	// Configuración Factura A (merge conservador)
-	ipcMain.handle('facturaA:get-config', async () => {
-		try {
-			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
-			let json: any = {}; try { json = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
-			return { ok: true, config: json };
-		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
-	});
-	ipcMain.handle('facturaA:save-config', async (_e, cfg: any) => {
-		try {
-			const cfgPath = path.join(process.cwd(), 'config', 'facturaA.config.json');
-			let current: any = {}; try { current = JSON.parse(fs.readFileSync(cfgPath, 'utf8') || '{}'); } catch {}
-			const next = { ...current };
-			if (typeof cfg?.pv === 'number') next.pv = cfg.pv;
-			if (typeof cfg?.contador === 'number') next.contador = cfg.contador;
-			if (typeof cfg?.outLocal === 'string') next.outLocal = cfg.outLocal;
-			if (typeof cfg?.outRed1 === 'string') next.outRed1 = cfg.outRed1;
-			if (typeof cfg?.outRed2 === 'string') next.outRed2 = cfg.outRed2;
-			if (typeof cfg?.printerName === 'string') next.printerName = cfg.printerName;
-			try { fs.mkdirSync(path.dirname(cfgPath), { recursive: true }); } catch {}
-			fs.writeFileSync(cfgPath, JSON.stringify(next, null, 2));
-			return { ok: true };
-		} catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
-	});
+    // [limpieza] Se eliminan IPCs legacy facturaA:get-config/save-config (UI migra a facturas:get-config/save-config)
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
 			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
@@ -1283,6 +1260,55 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	ipcMain.handle('facturacion:abrir-pdf', async (_e, filePath: string) => {
 		try { await getFacturacionService().abrirPdf(filePath); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+  // Emisión unificada desde UI → usa el mismo pipeline que .fac
+  ipcMain.handle('facturas:emitir-ui', async (_e, payload: any) => {
+    try {
+      // Construir un pseudo .fac en memoria para reusar el pipeline
+      const lines: string[] = [];
+      const tipo: string = String(payload?.tipo || '').toUpperCase();
+      try { logInfo('UI_EMIT:build:start', { tipo, hasCliente: !!payload?.cliente, hasTotales: !!payload?.total }); } catch {}
+      lines.push(`TIPO: ${tipo}`);
+      if (payload?.cliente?.nombre) lines.push(`CLIENTE: ${payload.cliente.nombre}`);
+      if (payload?.cliente?.domicilio) lines.push(`DOMICILIO: ${payload.cliente.domicilio}`);
+      if (payload?.cliente?.docTipo) lines.push(`TIPODOC: ${payload.cliente.docTipo}`);
+      if (payload?.cliente?.docNro) lines.push(`NRODOC: ${payload.cliente.docNro}`);
+      if (payload?.cliente?.condicion) lines.push(`CONDICION: ${payload.cliente.condicion}`);
+      if (payload?.cliente?.ivareceptor) lines.push(`IVARECEPTOR: ${payload.cliente.ivareceptor}`);
+      if (payload?.email) lines.push(`EMAIL: ${payload.email}`);
+      if (payload?.whatsapp) lines.push(`WHATSAPP: ${payload.whatsapp}`);
+      if (payload?.fondo) lines.push(`FONDO: ${payload.fondo}`);
+      lines.push('TOTALES:');
+      if (payload?.neto21) lines.push(`NETO 21%: ${Number(payload.neto21).toFixed(2)}`);
+      if (payload?.neto105) lines.push(`NETO 10.5%: ${Number(payload.neto105).toFixed(2)}`);
+      if (payload?.neto27) lines.push(`NETO 27%: ${Number(payload.neto27).toFixed(2)}`);
+      if (payload?.exento) lines.push(`EXENTO: ${Number(payload.exento).toFixed(2)}`);
+      if (payload?.iva21) lines.push(`IVA 21%: ${Number(payload.iva21).toFixed(2)}`);
+      if (payload?.iva105) lines.push(`IVA 10.5%: ${Number(payload.iva105).toFixed(2)}`);
+      if (payload?.iva27) lines.push(`IVA 27%: ${Number(payload.iva27).toFixed(2)}`);
+      if (payload?.total) lines.push(`TOTAL: ${Number(payload.total).toFixed(2)}`);
+      const raw = lines.join('\n');
+
+      // Crear archivo temporal .fac dentro de userData/tmp para que el pipeline genere .res y limpieza igual que watcher
+      const baseDir = path.join(app.getPath('userData'), 'tmp');
+      try { fs.mkdirSync(baseDir, { recursive: true }); } catch {}
+      const stamp = Date.now();
+      const tmpPath = path.join(baseDir, `ui_${stamp}.fac`);
+      fs.writeFileSync(tmpPath, raw, 'utf8');
+      try { logInfo('UI_EMIT:tmp:written', { tmpPath, bytes: Buffer.byteLength(raw, 'utf8') }); } catch {}
+
+      const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+      try { logInfo('UI_EMIT:process:start', { tmpPath }); } catch {}
+      const result = await processFacturaFacFile(tmpPath);
+      try {
+        if (result?.ok) logSuccess('UI_EMIT:process:ok', { result });
+        else logWarning('UI_EMIT:process:fail', { result });
+      } catch {}
+      return { ok: true, result };
+    } catch (e: any) {
+      try { logWarning('UI_EMIT:error', { error: String(e?.message || e) }); } catch {}
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
 	// Idempotencia: listar y limpiar
 	ipcMain.handle('facturacion:idempotency:list', async () => {
 		try {
@@ -1303,6 +1329,23 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	ipcMain.handle('facturacion:empresa:save', async (_e, data: any) => {
 		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+  // Configuración AFIP (persistente)
+  ipcMain.handle('facturacion:afip:get', async () => {
+    try { const cfg = getDb().getAfipConfig(); return { ok: true, config: cfg }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('facturacion:afip:save', async (_e, cfg: any) => {
+    try {
+      const next = {
+        cuit: String(cfg?.cuit || ''),
+        pto_vta: Number(cfg?.pto_vta || 0),
+        cert_path: String(cfg?.cert_path || ''),
+        key_path: String(cfg?.key_path || ''),
+        entorno: String(cfg?.entorno || 'produccion')
+      } as any;
+      getDb().saveAfipConfig(next);
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
 	ipcMain.handle('facturacion:param:get', async () => {
 		try { return { ok: true, data: getDb().getParametrosFacturacion() }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
@@ -1675,7 +1718,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		stopRemoteWatcher();
 		const cfg: any = store.get('config') || {};
 		if (cfg.AUTO_REMOTE_WATCH !== true) return false;
-		const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C\\tmp');
+    const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
 			remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
@@ -1702,7 +1745,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		stopImageWatcher();
 		const cfg: any = store.get('config') || {};
 		if (cfg.IMAGE_WATCH !== true) return false;
-		const dir = String(cfg.IMAGE_CONTROL_DIR || 'C\\tmp');
+    const dir = String(cfg.IMAGE_CONTROL_DIR || 'C:\\tmp');
 		const controlFile = String(cfg.IMAGE_CONTROL_FILE || 'direccion.txt');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
@@ -1773,10 +1816,22 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
-					} else if (tipo === 'FACTURA A' || /A\.fac$/i.test(job.filename)) {
-						const { processFacturaAFacFile } = require('./modules/facturacion/facturaAProcessor');
-						const out = await processFacturaAFacFile(job.fullPath);
-						try { logSuccess('FAC FACTURA A finalizado', { filename: job.filename, output: out }); } catch {}
+                    } else if (
+						tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
+						tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
+						/^(NOTA\s+(DE\s+)?CREDITO|NOTA\s+(DE\s+)?DEBITO)/i.test(tipo) ||
+						/^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo) ||
+						/^(1|6|2|7|3|8)$/.test(tipo)
+                    ) {
+						const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+						const out = await processFacturaFacFile(job.fullPath);
+						try {
+							if (out && out.ok) {
+								logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out });
+							} else {
+								logWarning('FAC FACTURA/NOTA falló', { filename: job.filename, output: out });
+							}
+						} catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
 					}
@@ -1816,9 +1871,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 			const dir = String(d || '').trim();
 			if (dir) dirsSet.add(dir);
 		};
-		if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C\\tmp');
-		if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C\\tmp');
-		if (dirsSet.size === 0) addDir('C\\tmp');
+    if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C:\\tmp');
+    if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C:\\tmp');
+    if (dirsSet.size === 0) addDir('C:\\tmp');
 		const { createFacWatcher } = require('./modules/facturacion/facWatcher');
 		let anyOk = false;
 		for (const dirRaw of Array.from(dirsSet)) {
@@ -3029,6 +3084,57 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
     return { ok: false, error: e?.message || String(e) };
   }
 });
+
+  // ===== Facturas (FA/FB/NCA/NCB/NDA/NDB) config =====
+  function getFacturasCfgPath(): string {
+    try { return path.join(app.getPath('userData'), 'config', 'facturas.config.json'); } catch { return path.join(process.cwd(), 'config', 'facturas.config.json'); }
+  }
+  function readFacturasCfg(): { pv: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string; [k: string]: any } {
+    try {
+      const pUser = getFacturasCfgPath();
+      let txt: string | undefined;
+      try { txt = fs.readFileSync(pUser, 'utf8'); }
+      catch {
+        const legacy = path.join(process.cwd(), 'config', 'facturas.config.json');
+        if (fs.existsSync(legacy)) {
+          try { const t2 = fs.readFileSync(legacy, 'utf8'); fs.mkdirSync(path.dirname(pUser), { recursive: true }); fs.writeFileSync(pUser, t2); txt = t2; } catch {}
+        }
+        if (!txt) throw new Error('no-config');
+      }
+      const j = JSON.parse(txt || '{}');
+      return {
+        pv: Number(j.pv) || 1,
+        outLocal: typeof j.outLocal === 'string' ? j.outLocal : undefined,
+        outRed1: typeof j.outRed1 === 'string' ? j.outRed1 : undefined,
+        outRed2: typeof j.outRed2 === 'string' ? j.outRed2 : undefined,
+        printerName: typeof j.printerName === 'string' ? j.printerName : undefined,
+        ...j,
+      };
+    } catch { return { pv: 1 } as any; }
+  }
+  function writeFacturasCfg(next: any) {
+    try {
+      const p = getFacturasCfgPath();
+      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+      let existing: any = {};
+      try { existing = JSON.parse(fs.readFileSync(p, 'utf8') || '{}'); } catch {}
+      const merged = { ...existing, ...next };
+      fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: e?.message || String(e) }; }
+  }
+
+  ipcMain.handle('facturas:get-config', async () => {
+    try { const cfg = readFacturasCfg(); return { ok: true, config: cfg }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('facturas:save-config', async (_e, cfg: any) => {
+    try {
+      const current = readFacturasCfg();
+      const next = { ...current, ...(cfg || {}) };
+      const res = writeFacturasCfg(next);
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
 
 	// ===== Remito config (similar a Recibo) =====
 	function readRemitoCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {

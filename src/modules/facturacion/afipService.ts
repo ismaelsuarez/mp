@@ -16,6 +16,7 @@ import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IP
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 import { validateArcaRules } from './arca/ArcaAdapter';
 import { consultarPadronAlcance13 } from './padron';
+import { getCondicionIvaReceptorId } from '../../services/afip/wsfe/catalogs';
 
 // Eliminado: carga del SDK externo @afipsdk/afip.js
 
@@ -66,18 +67,12 @@ class AfipService {
       throw new Error(`Error de sincronización de tiempo: ${errorMessage}`);
     }
 
-    // Resolver origen de cert/key: modo seguro (SecureStore) o rutas configuradas
-    let resolvedCertPath = cfg.cert_path;
-    let resolvedKeyPath = cfg.key_path;
-    const useSecure = (!resolvedCertPath || String(resolvedCertPath).trim() === '') && (!resolvedKeyPath || String(resolvedKeyPath).trim() === '');
-    if (useSecure) {
-      this.debugLog('Modo 100% seguro activo: usando SecureStore para cert/key temporales');
-      const { certPath, keyPath, cleanup } = getSecureStore().writeTempFilesForAfip();
-      resolvedCertPath = certPath;
-      resolvedKeyPath = keyPath;
-      // Guardar cleanup para limpiar al renovar/limpiar instancia
-      this.tempCleanup?.();
-      this.tempCleanup = cleanup;
+    // Cert/key obligatorios: si faltan, abortar (no usar fallback SecureStore de forma automática)
+    const resolvedCertPath = String(cfg.cert_path || '').trim();
+    const resolvedKeyPath = String(cfg.key_path || '').trim();
+    if (!resolvedCertPath || !resolvedKeyPath) {
+      this.logger.logError('config_afip_incompleta', new Error('Faltan cert_path/key_path'));
+      throw new Error('Configuración AFIP incompleta: debe configurar Certificado (.crt/.pem) y Clave privada (.key)');
     }
 
     // Validar certificado antes de crear instancia (usar ruta resuelta)
@@ -138,12 +133,8 @@ class AfipService {
       }
 
       const isArca = (process.env.AFIP_MODE || '').toLowerCase() === 'arca';
-
-      // Si ARCA está activo, no usar WSFE: ir por flujo ARCA
-      if (isArca) {
-        this.debugLog('AFIP_MODE=arca → usar flujo WSBFEv1');
-        return await this.solicitarCAEArca(comprobante);
-      }
+      // Si ARCA está activo, por ahora reutilizamos flujo WSFE (consolidado) incluyendo IVARECEPTOR
+      if (isArca) this.debugLog('AFIP_MODE=arca → usando flujo consolidado WSFE con IVARECEPTOR (compat)');
 
       const afip = await this.getAfipInstance();
       const cfg = getDb().getAfipConfig()!;
@@ -293,6 +284,39 @@ class AfipService {
         MonCotiz: 1,
         Iva: ivaArray
       };
+      // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
+      try {
+        const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
+          const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
+          if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
+          if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
+          if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
+          if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
+          // Inferir CF si DocTipo=99 y DocNro=0
+          if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
+          return undefined;
+        })();
+        const condId = await getCondicionIvaReceptorId({
+          afip,
+          cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
+          receptorHint: { docTipo, docNro, categoria }
+        });
+        if (typeof condId === 'number' && Number.isFinite(condId)) {
+          (request as any).CondicionIVAReceptorId = Number(condId);
+        }
+      } catch {
+        // Fallback mínimo: CF → 5 (para no bloquear si catálogo falla)
+        if (docTipo === 99 && Number(docNro||0) === 0) {
+          (request as any).CondicionIVAReceptorId = 5;
+        }
+      }
+      // Regla general: si ImpIVA es 0, no informar Iva/AlicIva (evita obs 10018)
+      try {
+        const impIvaNum = Number(request.ImpIVA);
+        if (!impIvaNum || impIvaNum === 0) {
+          delete request.Iva;
+        }
+      } catch {}
       // Tributos opcionales
       if (Array.isArray((comprobante as any).tributos) && (comprobante as any).tributos.length > 0) {
         request.Tributos = (comprobante as any).tributos.map((t: any) => ({
@@ -306,19 +330,7 @@ class AfipService {
         if (ivarc !== undefined) (request as any).IVARECEPTOR = ivarc;
       } catch {}
 
-      // Ajustes para monotributo con comprobantes C: no discrimina IVA
-      try {
-        const cfgEmpresa = getDb().getEmpresaConfig?.();
-        const cond = String(cfgEmpresa?.condicion_iva || '').toUpperCase();
-        if ((cond === 'MT' || cond === 'MONO') && [11,12,13].includes(tipoCbte)) {
-          request.ImpIVA = 0;
-          request.Iva = [];
-          if (!comprobante.cliente?.cuit) {
-            request.DocTipo = 99;
-            request.DocNro = 0;
-          }
-        }
-      } catch {}
+      // Política actual: solo RI. No se aplican ajustes especiales para Monotributo.
 
       // Fechas de servicio: obligatorias si Concepto es 2 o 3
       if (Number(request.Concepto) === 2 || Number(request.Concepto) === 3) {

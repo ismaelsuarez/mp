@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-scripts",
+    "rootDir": ".",
+    "noEmitOnError": true,
+    "allowJs": false
+  },
+  "include": [
+    "scripts/afip-homo-selftest.ts",
+    "src/services/afip/wsfe/builders.ts",
+    "src/services/afip/wsfe/catalogs.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-scripts"
+  ]
+}
+
+

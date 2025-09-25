@@ -139,6 +139,33 @@
 								</div>
 							</div>
 						</details>
+
+					<!-- Facturas A/B y Notas (unificado) -->
+					<details id="sec-facturas-ab" class="group border border-slate-700 rounded-md">
+						<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">Facturas A/B y Notas</summary>
+                        <div class="p-3 space-y-3">
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+								<label>Ruta Local (obligatoria)
+									<input id="FAC_OUT_LOCAL" placeholder="C:\\1_AFIP" />
+								</label>
+								<label>Ruta Red 1 (opcional)
+									<input id="FAC_OUT_RED1" placeholder="\\\\correo\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+								</label>
+								<label>Ruta Red 2 (opcional)
+									<input id="FAC_OUT_RED2" placeholder="\\\\server2008\\backup\\Presupuestos y Licitaciones\\FACTURAS" />
+								</label>
+							</div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                                <label>Impresora (opcional)
+                                    <select id="FAC_PRINTER"></select>
+                                </label>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" id="btnFacturasSave" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar</button>
+                                <span id="facturasStatus" class="text-xs text-slate-400"></span>
+                            </div>
+						</div>
+					</details>
 					</div>
 				</details>
 
@@ -220,8 +247,7 @@
 						<p class="text-xs text-slate-500 -mt-2">"Campo de fecha" define qué timestamp usa el filtro (sugerido: "Última actualización"). "Estado" permite elegir un estado específico o "Todos".</p>
 					</div>
 				</details>
-
-
+                            
 				<details id="sec-facturacion" class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
 						Email / SMTP
@@ -552,12 +578,10 @@
 									<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
 								</label>
 								<label>Condición IVA
-									<select id="EMP_IVA">
-										<option value="RI">Responsable Inscripto</option>
-										<option value="MT">Monotributo</option>
-										<option value="EX">Exento</option>
-										<option value="CF">Consumidor Final</option>
-									</select>
+								<select id="EMP_IVA">
+									<option value="RI">Responsable Inscripto</option>
+									<option value="CF">Consumidor Final</option>
+								</select>
 								</label>
 								<label>Logo (ruta)
 									<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
@@ -619,20 +643,11 @@
 							<label>Entorno
 								<select id="AFIP_ENTORNO">
 									<option value="homologacion">Homologación</option>
-									<option value="produccion">Producción</option>
+									<option value="produccion" selected>Producción</option>
 								</select>
 							</label>
 						</div>
-						<!-- Importación segura integrada en AFIP (CUIT Emisor) -->
-						<div class="mt-2">
-							<div class="text-xs font-semibold mb-1">Importar Cert/Key</div>
-							<div class="flex flex-wrap items-center gap-2">
-								<input id="secureImportCert" type="text" placeholder="Ruta .crt/.pem" class="w-56 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white" />
-								<input id="secureImportKey" type="text" placeholder="Ruta .key/.pem" class="w-56 px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white" />
-								<button type="button" id="btnSecureImport" class="px-2 py-1 text-xs rounded-md bg-slate-600 text-white border-0 hover:bg-slate-500">Importar seguro</button>
-							</div>
-							<div class="text-[11px] text-slate-400 mt-1">Si usas Importación Segura, deja vacíos los campos de Certificado y Clave para activar el modo 100% seguro.</div>
-						</div>
+                        <!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
 						<div class="flex items-center gap-2">
 							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
 							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
@@ -678,14 +693,10 @@
 										<select id="pruebaFacturaTipoCbte" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
 											<option value="1">Factura A (1)</option>
 											<option value="6">Factura B (6)</option>
-											<option value="11" selected>Factura C (11)</option>
-											<option value="19">Factura E (19)</option>
 											<option value="2">Nota de Débito A (2)</option>
 											<option value="7">Nota de Débito B (7)</option>
-											<option value="12">Nota de Débito C (12)</option>
 											<option value="3">Nota de Crédito A (3)</option>
 											<option value="8">Nota de Crédito B (8)</option>
-											<option value="13">Nota de Crédito C (13)</option>
 											<option value="4">Recibo (4)</option>
 										</select>
 									</label>
@@ -740,15 +751,6 @@
 										Condición IVA Receptor:
 										<select id="pruebaFacturaCondIvaRec" class="w-full px-2 py-1 text-xs bg-slate-700 border border-slate-600 rounded text-white">
 											<option value="RI">Responsable Inscripto (1)</option>
-											<option value="MT">Monotributo (6)</option>
-											<option value="MONOTRIBUTO SOCIAL">Monotributista Social (13)</option>
-											<option value="MONOTRIBUTO TRABAJADOR INDEPENDIENTE PROMOVIDO">Monotributo Trab. Indep. Promovido (16)</option>
-											<option value="EX">Exento (4)</option>
-											<option value="SNC">Sujeto No Categorizado (7)</option>
-											<option value="PROVEEDOR DEL EXTERIOR">Proveedor del Exterior (8)</option>
-											<option value="CLIENTE DEL EXTERIOR">Cliente del Exterior (9)</option>
-											<option value="LIBERADO 19640">IVA Liberado – Ley 19.640 (10)</option>
-											<option value="NO ALCANZADO">IVA No Alcanzado (15)</option>
 											<option value="CF" selected>Consumidor Final (5)</option>
 										</select>
 									</label>
@@ -1814,6 +1816,139 @@
         }
     });
     // ... existing code ...
+
+    // ===== HANDLERS FACTURAS (A/B y Notas) =====
+    (function setupFacturasAbPanel(){
+      const selPrinter = document.getElementById('FAC_PRINTER');
+      const btnLoad = document.getElementById('btnFacturasLoad');
+      const btnSave = document.getElementById('btnFacturasSave');
+      const btnTestPrint = document.getElementById('btnFacturasTestPrint');
+      const btnPdfsRefresh = document.getElementById('btnFacturasPdfsRefresh');
+      const ulPdfs = document.getElementById('listaPdfsFacturas');
+      const btnOpenLocal = document.getElementById('btnOpenFacLocal');
+      const btnOpenRed1 = document.getElementById('btnOpenFacRed1');
+      const btnOpenRed2 = document.getElementById('btnOpenFacRed2');
+      const statusEl = document.getElementById('facturasStatus');
+      const getEl = (id) => document.getElementById(id);
+      const setStatus = (msg, ok=true) => { if(statusEl){ statusEl.textContent = msg; statusEl.className = ok? 'text-emerald-400 text-xs' : 'text-red-400 text-xs'; } };
+
+      async function loadPrinters(){
+        try {
+          if (!selPrinter || !window.api?.printers?.list) return;
+          const res = await window.api.printers.list();
+          const arr = Array.isArray(res) ? res : (Array.isArray(res?.printers) ? res.printers : []);
+          selPrinter.innerHTML = '<option value="">(Sin impresora)</option>';
+          for (const p of (arr||[])) {
+            const name = (p && (p.name || p.displayName)) ? (p.name || p.displayName) : String(p || '');
+            if (!name) continue;
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            selPrinter.appendChild(opt);
+          }
+        } catch {}
+      }
+
+      async function loadConfig(){
+        try {
+          if (!window.api?.facturas?.getConfig) return;
+          const res = await window.api.facturas.getConfig();
+          const cfg = res?.config || res || {};
+          getEl('FAC_OUT_LOCAL').value = cfg.outLocal ?? '';
+          getEl('FAC_OUT_RED1').value = cfg.outRed1 ?? '';
+          getEl('FAC_OUT_RED2').value = cfg.outRed2 ?? '';
+          if (selPrinter && cfg.printerName) selPrinter.value = cfg.printerName;
+          setStatus('Configuración cargada', true);
+          setTimeout(()=> setStatus(''), 2000);
+        } catch (e) {
+          setStatus('No se pudo cargar', false);
+          setTimeout(()=> setStatus(''), 2500);
+        }
+      }
+
+      async function saveConfig(){
+        try {
+          if (!window.api?.facturas?.saveConfig) return;
+          const payload = {
+            outLocal: getEl('FAC_OUT_LOCAL').value?.trim() || undefined,
+            outRed1: getEl('FAC_OUT_RED1').value?.trim() || undefined,
+            outRed2: getEl('FAC_OUT_RED2').value?.trim() || undefined,
+            printerName: selPrinter?.value || undefined,
+          };
+          const res = await window.api.facturas.saveConfig(payload);
+          if (res?.ok !== false) { setStatus('✅ Guardado', true); setTimeout(()=> setStatus(''), 2000); }
+          else { setStatus(`❌ Error al guardar: ${res?.error || 'Error'}`, false); setTimeout(()=> setStatus(''), 3000); }
+        } catch (e) {
+          setStatus(`❌ Error al guardar: ${e?.message || String(e) || 'Error'}`, false);
+          setTimeout(()=> setStatus(''), 2500);
+        }
+      }
+
+      async function refreshPdfs(){
+        try {
+          if (!ulPdfs || !window.api?.facturacion?.listarPdfs) return;
+          const res = await window.api.facturacion.listarPdfs();
+          const files = Array.isArray(res?.rows) ? res.rows : (Array.isArray(res) ? res : []);
+          // Normalizar a objetos { path, mtimeMs?, size? }
+          const norm = files.map((it)=>{
+            if (typeof it === 'string') return { path: it };
+            if (it && typeof it === 'object') return { path: it.path || it.file || it.name || '', mtimeMs: it.mtimeMs || it.mtime || it.time || undefined, size: it.size };
+            return { path: String(it || '') };
+          }).filter(f=>f.path);
+          // Ordenar por mtime desc si está disponible, sino por nombre desc
+          norm.sort((a,b)=>{
+            if (typeof a.mtimeMs === 'number' && typeof b.mtimeMs === 'number') return b.mtimeMs - a.mtimeMs;
+            return (b.path||'').localeCompare(a.path||'');
+          });
+          ulPdfs.innerHTML = '';
+          for (const f of norm) {
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = '#';
+            const base = f.path.split(/[\\\/]/).pop();
+            // Decorar con fecha/tamaño si existen
+            const when = (typeof f.mtimeMs === 'number') ? new Date(f.mtimeMs).toLocaleString('es-AR') : '';
+            const sizeKb = (typeof f.size === 'number') ? ` • ${(f.size/1024).toFixed(0)} KB` : '';
+            a.textContent = base + (when ? ` — ${when}${sizeKb}` : '');
+            a.title = f.path;
+            a.addEventListener('click', async (ev)=>{ ev.preventDefault(); try { await window.api.facturacion.abrirPdf(f.path); } catch {} });
+            li.appendChild(a);
+            ulPdfs.appendChild(li);
+          }
+        } catch {}
+      }
+
+      async function testPrint(){
+        try {
+          if (!window.api?.printers?.printPdf) return;
+          setStatus('Imprimiendo prueba...', true);
+          // Usar el primer PDF disponible en la lista como prueba
+          if (ulPdfs?.firstChild) {
+            const a = ulPdfs.firstChild.querySelector('a');
+            const file = a?.textContent || '';
+            if (file) await window.api.printers.printPdf(file, selPrinter?.value || undefined, 1);
+          }
+        } catch {}
+      }
+
+      // Bind
+      btnLoad?.addEventListener('click', loadConfig);
+      btnSave?.addEventListener('click', saveConfig);
+      btnPdfsRefresh?.addEventListener('click', refreshPdfs);
+      btnTestPrint?.addEventListener('click', testPrint);
+
+      async function openIf(pathStr){ try { if (pathStr && window.api?.openPath) await window.api.openPath(pathStr); } catch {} }
+      btnOpenLocal?.addEventListener('click', ()=> openIf(get('FAC_OUT_LOCAL')?.value));
+      btnOpenRed1?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED1')?.value));
+      btnOpenRed2?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED2')?.value));
+
+      // Init
+      loadPrinters();
+      loadConfig();
+      refreshPdfs();
+    })();
+    // ===== HANDLERS GALICIA =====
+// ... existing code ...
     </script>
     <script src="../dist/src/renderer.js"></script>
 </body>

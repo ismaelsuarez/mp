@@ -35,8 +35,10 @@ const layoutMendoza: Config = {
     // Información del Comprobante
     fecha: { x: 160, y: 20, fontSize: 12 },              // Fecha de emisión (formato DD/MM/YYYY)
     numero: { x: 162, y: 10, fontSize: 10 },             // Número de comprobante
-    numeroRemito: { x: 162, y: 14, fontSize: 8 },       // Override para Remito
-    tipoComprobante: { x: 165, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
+    numeroRemito: { x: 160, y: 14, fontSize: 8 },       // Override para Remito
+    tipoComprobante: { x: 160, y: 8, fontSize: 15 },    // Tipo: "FACTURA", "NOTA DE CRÉDITO", etc.
+    // Ajuste específico para NOTA DE CRÉDITO (texto más largo)
+    tipoComprobanteNC: { x: 150, y: 8, fontSize: 14 },
     tipoComprobanteRemito: { x: 165, y: 8, fontSize: 14 },
     pv: { x: 160, y: 14, fontSize: 10 },                 // Punto de Venta (PV)
     pvRemito: { x: 160, y: 14, fontSize: 9 },
@@ -79,47 +81,50 @@ const layoutMendoza: Config = {
     },
 
     // Subtotales por Alícuota
-    subtotal21: { x: 160, y: 216, fontSize: 9 },        // Subtotal para IVA 21%
-    subtotal105: { x: 160, y: 220, fontSize: 9 },       // Subtotal para IVA 10.5%
-    subtotal27: { x: 160, y: 224, fontSize: 9 },        // Subtotal para IVA 27%
+    subtotal21: { x: 160, y: 216, fontSize: 10 },        // Subtotal para IVA 21%
+    subtotal105: { x: 160, y: 220, fontSize: 10 },       // Subtotal para IVA 10.5%
+    subtotal27: { x: 160, y: 224, fontSize: 10 },        // Subtotal para IVA 27%
 
     // Totales e Impuestos - Etiquetas (izquierda) y Valores (derecha)
-    neto: { x: 180, y: 212, fontSize: 9 },              // Valor del neto gravado total
-    netoLabel: { x: 160, y: 212, fontSize: 9 },         // Etiqueta "Neto:" (izquierda)
-    neto21: { x: 180, y: 216, fontSize: 9 },            // Valor del neto con IVA 21%
-    neto21Label: { x: 160, y: 216, fontSize: 9 },       // Etiqueta "Neto 21%:" (izquierda)
-    neto105: { x: 180, y: 220, fontSize: 9 },           // Valor del neto con IVA 10.5%
-    neto105Label: { x: 160, y: 220, fontSize: 9 },      // Etiqueta "Neto 10.5%:" (izquierda)
-    neto27: { x: 180, y: 224, fontSize: 9 },            // Valor del neto con IVA 27%
-    neto27Label: { x: 160, y: 224, fontSize: 9 },       // Etiqueta "Neto 27%:" (izquierda)
-    iva21: { x: 180, y: 228, fontSize: 9 },             // Valor del IVA 21%
-    iva21Label: { x: 160, y: 228, fontSize: 9 },        // Etiqueta "IVA 21%:" (izquierda)
-    iva105: { x: 180, y: 232, fontSize: 9 },            // Valor del IVA 10.5%
-    iva105Label: { x: 160, y: 232, fontSize: 9 },       // Etiqueta "IVA 10.5%:" (izquierda)
-    impIvaTotal: { x: 180, y: 236, fontSize: 9 },       // Valor del IVA total
-    impIvaTotalLabel: { x: 160, y: 236, fontSize: 9 },  // Etiqueta "IVA Total:" (izquierda)
-    total: { x: 180, y: 245, fontSize: 12 },            // Valor del total final
-    totalLabel: { x: 160, y: 245, fontSize: 12 },       // Etiqueta "TOTAL:" (izquierda)
+    neto: { x: 173, y: 212, fontSize: 10},              // Valor del neto gravado total
+    netoLabel: { x: 157, y: 212, fontSize: 10 },         // Etiqueta "Neto:" (izquierda)
+    neto21: { x: 173, y: 216, fontSize: 10 },            // Valor del neto con IVA 21%
+    neto21Label: { x: 157, y: 216, fontSize: 10 },       // Etiqueta "Neto 21%:" (izquierda)
+    neto105: { x: 173, y: 220, fontSize: 10 },           // Valor del neto con IVA 10.5%
+    neto105Label: { x: 157, y: 220, fontSize: 10 },      // Etiqueta "Neto 10.5%:" (izquierda)
+    neto27: { x: 173, y: 224, fontSize: 10 },            // Valor del neto con IVA 27%
+    neto27Label: { x: 157, y: 224, fontSize: 10 },       // Etiqueta "Neto 27%:" (izquierda)
+    // Exento (opcional)
+    exento: { x: 173, y: 224, fontSize: 10 },            // Valor de Exento
+    exentoLabel: { x: 157, y: 224, fontSize: 10 },       // Etiqueta "Exento:" (izquierda)
+    iva21: { x: 173, y: 228, fontSize: 10 },             // Valor del IVA 21%
+    iva21Label: { x: 157, y: 228, fontSize: 10 },        // Etiqueta "IVA 21%:" (izquierda)
+    iva105: { x: 173, y: 232, fontSize: 10 },            // Valor del IVA 10.5%
+    iva105Label: { x: 157, y: 232, fontSize: 10 },       // Etiqueta "IVA 10.5%:" (izquierda)
+    impIvaTotal: { x: 173, y: 236, fontSize: 10 },       // Valor del IVA total
+    impIvaTotalLabel: { x: 157, y: 236, fontSize: 10 },  // Etiqueta "IVA Total:" (izquierda)
+    total: { x: 169, y: 250, fontSize: 12 },            // Valor del total final
+    totalLabel: { x: 153, y: 250, fontSize: 12 },       // Etiqueta "TOTAL:" (izquierda)
 
     // Total en letras
     totalEnLetras: { x: 9, y: 206, maxWidth: 120, fontSize: 9 }, // "SON PESOS: UN MIL..." (total en letras)
     totalEnLetrasRemito: { x: 9, y: 204, maxWidth: 120, fontSize: 9 },
 
     // Información AFIP
-    cae: { x: 160, y: 258, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
-    caeVto: { x: 160, y: 262, fontSize: 8 },                     // Fecha de vencimiento del CAE
+    cae: { x: 115, y: 252, fontSize: 8 },                        // Número de CAE (Código de Autorización Electrónico)
+    caeVto: { x: 115, y: 256, fontSize: 8 },                     // Fecha de vencimiento del CAE
 
     // QR Code - Al lado del CAE
-    qrCode: { x: 115, y: 230, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
+    qrCode: { x: 115, y: 210, size: 40 },                        // QR code con datos AFIP (40mm x 40mm)
 
     // Textos Legales
-    legalDefensaConsumidor: { x: 10, y: 274, maxWidth: 170, fontSize: 7 }, // Texto de defensa del consumidor
-    legalContacto: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },          // Información de contacto
-    legalGracias: { x: 60, y: 288, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
+    legalDefensaConsumidor: { x: 10, y: 274, maxWidth: 190, fontSize: 7 }, // Texto de defensa del consumidor
+    legalContacto: { x: 10, y: 274, maxWidth: 190, fontSize: 8 },          // Información de contacto
+    legalGracias: { x: 60, y: 289, maxWidth: 90, fontSize: 9 },            // Mensaje de agradecimiento (centrado)
     // Observaciones dinámicas de pie (desde OBS.PIE)
-    pieObservaciones: { x: 10, y: 274, maxWidth: 170, fontSize: 8 },
+    pieObservaciones: { x: 10, y: 273, maxWidth: 190, fontSize: 8 },
     // Variante exclusiva para Remito (fondo diferente): subir el pie
-    pieObservacionesRemito: { x: 10, y: 266, maxWidth: 170, fontSize: 8 },
+    pieObservacionesRemito: { x: 10, y: 266, maxWidth: 190, fontSize: 8 },
     // Observaciones fiscales (debajo de TOTAL)
     obsFiscal: { x: 114, y: 262, maxWidth: 96, fontSize: 6, maxChars: 84 },
 

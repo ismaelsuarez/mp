@@ -138,7 +138,9 @@ contextBridge.exposeInMainWorld('api', {
 	},
 	// Facturación
 	facturacion: {
-		guardarConfig: (cfg: any) => ipcRenderer.invoke('facturacion:guardar-config', cfg),
+		// Configuración AFIP persistente (RI)
+		afipGet: () => ipcRenderer.invoke('facturacion:afip:get'),
+		afipSave: (cfg: any) => ipcRenderer.invoke('facturacion:afip:save', cfg),
 		emitir: (payload: any) => ipcRenderer.invoke('facturacion:emitir', payload),
 		listar: (filtros?: { desde?: string; hasta?: string }) => ipcRenderer.invoke('facturacion:listar', filtros || {}),
 		abrirPdf: (filePath: string) => ipcRenderer.invoke('facturacion:abrir-pdf', filePath),
@@ -182,10 +184,13 @@ contextBridge.exposeInMainWorld('api', {
       getConfig: () => ipcRenderer.invoke('remito:get-config'),
       saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('remito:save-config', cfg),
     },
-		facturaA: {
-		  getConfig: () => ipcRenderer.invoke('facturaA:get-config'),
-		  saveConfig: (cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('facturaA:save-config', cfg),
+		// Configuración unificada de Facturas (A/B y Notas)
+		facturas: {
+			getConfig: () => ipcRenderer.invoke('facturas:get-config'),
+			saveConfig: (cfg: { pv?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => ipcRenderer.invoke('facturas:save-config', cfg),
+			emitirUi: (payload: any) => ipcRenderer.invoke('facturas:emitir-ui', payload),
 		},
+    		// [limpieza] Se elimina objeto legacy facturaA (UI usa window.api.facturas)
 	printers: {
 		list: () => ipcRenderer.invoke('printers:list'),
 		printPdf: (filePath: string, printerName?: string, copies?: number) => ipcRenderer.invoke('printers:print-pdf', { filePath, printerName, copies }),

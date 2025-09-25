@@ -471,7 +471,8 @@ export async function generateInvoicePdf({
 
   function drawNumber(value: number, xRightMM: number, yMM: number, opts: TextOpts = {}) {
     const text = formatNumberEsAr(value);
-    drawText(text, xRightMM, yMM, { ...opts, align: opts.align ?? 'right' });
+    const widthMM = typeof opts.maxWidth === 'number' && opts.maxWidth > 0 ? opts.maxWidth : 28;
+    drawText(text, xRightMM, yMM, { ...opts, align: 'right', maxWidth: widthMM });
   }
 
   function drawImage(img: string | Buffer, xMM: number, yMM: number, wMM?: number) {
@@ -540,13 +541,21 @@ export async function generateInvoicePdf({
   if (fechaHoraCoords) {
     drawText(fechaMostrar, fechaHoraCoords.x, fechaHoraCoords.y, { fontSize: (fechaHoraCoords.fontSize ?? c.fechaHora?.fontSize ?? 10) });
   } else {
-    // Formatear fecha en formato argentino DD/MM/YYYY
-    const fechaObj = new Date(data.fecha);
-    const fechaFormateada = fechaObj.toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    // Formatear fecha de manera determinista sin desfase por zona/UTC
+    // data.fecha viene como 'YYYY-MM-DD' (o 'YYYYMMDD' según flujo)
+    const s = String(data.fecha || '').trim();
+    let yyyy = '', mmStr = '', ddStr = '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { yyyy = s.slice(0,4); mmStr = s.slice(5,7); ddStr = s.slice(8,10); }
+    else if (/^\d{8}$/.test(s)) { yyyy = s.slice(0,4); mmStr = s.slice(4,6); ddStr = s.slice(6,8); }
+    else {
+      try {
+        const d = new Date(s);
+        yyyy = String(d.getFullYear());
+        mmStr = String(d.getMonth()+1).padStart(2,'0');
+        ddStr = String(d.getDate()).padStart(2,'0');
+      } catch { /* noop */ }
+    }
+    const fechaFormateada = (yyyy && mmStr && ddStr) ? `${ddStr}/${mmStr}/${yyyy}` : String(s);
     drawText(`Fecha: ${fechaFormateada}`, fechaCoords.x, fechaCoords.y, { fontSize: (fechaCoords.fontSize ?? c.fecha.fontSize ?? 10) });
   }
   
@@ -557,12 +566,15 @@ export async function generateInvoicePdf({
       data.tipoComprobanteLetra === 'A' ? 'FACTURA' :
       data.tipoComprobanteLetra === 'B' ? 'FACTURA' :
       data.tipoComprobanteLetra === 'C' ? 'FACTURA' :
-      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CRÉDITO' :
-      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DÉBITO' :
+      data.tipoComprobanteLetra === 'NC' ? 'NOTA DE CREDITO' :
+      data.tipoComprobanteLetra === 'ND' ? 'NOTA DE DEBITO' :
       data.tipoComprobanteLetra === 'R' ? 'REMITO' :
       'COMPROBANTE'
     );
-    drawText(tipoTexto, c.tipoComprobante.x, c.tipoComprobante.y, { 
+    // Usar coordenadas específicas para NOTA DE CRÉDITO si existen
+    const isNC = tipoTexto.toUpperCase().includes('NOTA DE CRÉDITO');
+    const tc = (isNC && (c as any).tipoComprobanteNC) ? (c as any).tipoComprobanteNC : c.tipoComprobante;
+    drawText(tipoTexto, tc.x, tc.y, { 
       fontSize: c.tipoComprobante.fontSize ?? 10, 
       bold: true 
     });
@@ -633,13 +645,17 @@ export async function generateInvoicePdf({
     const totalCalc = hasTotal ? it.total! : (hasUnit ? (it.cantidad * it.unitario) : undefined);
     const showUnitCols = (hasUnit || hasIva || typeof totalCalc === 'number');
 
+    const unitText = (it as any).displayUnit ?? (hasUnit ? formatNumberEsAr(it.unitario) : '');
+    const alicText = (it as any).displayAlic ?? (hasIva ? `${it.iva}%` : '');
+    const totalText = (it as any).displayTotal ?? (typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '');
+
     const cells = showUnitCols
       ? [
           { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
           { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
-          { text: hasUnit ? formatNumberEsAr(it.unitario) : '', x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
-          { text: hasIva ? `${it.iva}%` : '', x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
-          { text: typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '', x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+          { text: unitText, x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+          { text: alicText, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+          { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
         ]
       : [
           { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
@@ -667,15 +683,16 @@ export async function generateInvoicePdf({
   const neto21 = (data.netoPorAlicuota && (data.netoPorAlicuota['21'] || 0)) || undefined;
   const neto105 = (data.netoPorAlicuota && (data.netoPorAlicuota['10.5'] || data.netoPorAlicuota['10,5'] || 0)) || undefined;
   const neto27 = (data.netoPorAlicuota && (data.netoPorAlicuota['27'] || 0)) || undefined;
+  const exento = (data as any).exento || 0;
 
   const skipTotalsForZeroRemito = isRemito && !hasValue(data.netoGravado) && !hasValue(iva21) && !hasValue(iva105) && !hasValue(iva27) && !hasValue(data.ivaTotal) && !hasValue(data.total) && !hasValue(neto21) && !hasValue(neto105) && !hasValue(neto27);
 
   // Dibujar etiqueta y valor de NETO sólo si corresponde
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado))) {
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado)) && ((data as any).showNetoTotal || (c.netoLabel))) {
     if (c.netoLabel) {
       drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(data.netoGravado), c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true });
+    drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true, maxWidth: 30 });
   }
 
   if (!skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
@@ -683,59 +700,72 @@ export async function generateInvoicePdf({
     if (c.neto21Label) {
       drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto21), c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9 });
+    drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
     console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
     if (c.neto105Label) {
       drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto105), c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9 });
+    drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9, maxWidth: 30 });
   }
   if (!skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
     console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
     if (c.neto27Label) {
       drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(neto27), c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9 });
+    drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9, maxWidth: 30 });
+  }
+  // EXENTO
+  if (!skipTotalsForZeroRemito && hasValue(exento)) {
+    if ((c as any).exentoLabel && (c as any).exento) {
+      drawText('Exento:', (c as any).exentoLabel.x, (c as any).exentoLabel.y, { fontSize: (c as any).exentoLabel.fontSize ?? 9 });
+      drawNumber(exento, (c as any).exento.x, (c as any).exento.y, { fontSize: (c as any).exento.fontSize ?? 9, maxWidth: 30 });
+    } else if (c.neto27) {
+      // Si no hay coords específicas, dibujar debajo de Neto 27%
+      const y = c.neto27.y + 4;
+      drawText('Exento:', c.neto27Label ? c.neto27Label.x : c.netoLabel?.x || c.neto.x - 20, y, { fontSize: 9 });
+      drawNumber(exento, c.neto27.x, y, { fontSize: 9, maxWidth: 30 });
+    }
   }
 
-  if (!skipTotalsForZeroRemito && c.iva21 && (!isRecibo || hasValue(iva21))) {
+  if (!skipTotalsForZeroRemito && c.iva21 && hasValue(iva21)) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva21), c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9 });
+    drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva105 && (!isRecibo || hasValue(iva105))) {
+  if (!skipTotalsForZeroRemito && c.iva105 && hasValue(iva105)) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva105), c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9 });
+    drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva27 && (!isRecibo || hasValue(iva27))) {
+  if (!skipTotalsForZeroRemito && c.iva27 && hasValue(iva27)) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(iva27), c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9 });
+    drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9, maxWidth: 30 });
   }
 
   // (ya definido arriba)
 
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal))) {
+  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal)) && (data as any).showIvaTotal) {
     if (c.impIvaTotalLabel) {
       drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
     }
-    drawText(formatNumberEsAr(data.ivaTotal), c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10 });
+    drawNumber(data.ivaTotal, c.impIvaTotal.x, c.impIvaTotal.y, { fontSize: c.impIvaTotal.fontSize ?? 10, maxWidth: 30 });
   }
   // OBS.FISCAL: debajo del Total
   if (c.obsFiscal && data.fiscal) {
-    let fiscalText = data.fiscal;
+    // Respetar espacios iniciales: no aplicar trim
+    let fiscalText = String(data.fiscal).replace(/\r?\n/g, '\n');
     const maxChars = (c.obsFiscal as any).maxChars as number | undefined;
     if (maxChars && maxChars > 0) {
       // Re-wrap a líneas duras de longitud maxChars respetando saltos existentes
       const lines: string[] = [];
-      for (const part of fiscalText.split(/\r?\n/)) {
-        let p = part.trim();
+      for (const part of fiscalText.split(/\n/)) {
+        let p = part.replace(/\s+$/,''); // solo trim derecha, mantener indentación izquierda
         while (p.length > maxChars) {
           lines.push(p.slice(0, maxChars));
           p = p.slice(maxChars);
@@ -754,7 +784,7 @@ export async function generateInvoicePdf({
     if (c.totalLabel) {
       drawText('TOTAL:', c.totalLabel.x, c.totalLabel.y, { fontSize: c.totalLabel.fontSize ?? 12, bold: true });
     }
-    drawText(formatNumberEsAr(data.total), c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true });
+    drawNumber(data.total, c.total.x, c.total.y, { fontSize: c.total.fontSize ?? 12, bold: true, maxWidth: 34 });
   }
 
   if (c.totalEnLetras && !skipTotalsForZeroRemito) {
@@ -770,7 +800,8 @@ export async function generateInvoicePdf({
     drawText(`CAE Nº ${data.cae}`.trim(), c.cae.x, c.cae.y, { fontSize: c.cae.fontSize ?? 10, bold: true });
   }
   if (data.caeVto) {
-    drawText(data.caeVto, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
+    const label = `FECHA VTO: ${data.caeVto}`;
+    drawText(label, c.caeVto.x, c.caeVto.y, { fontSize: c.caeVto.fontSize ?? 9 });
   }
 
   // QR Code - preferir URL oficial (qrDataUrl). Fallback: QR simplificado con CAE

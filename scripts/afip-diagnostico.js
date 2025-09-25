@@ -4,6 +4,8 @@
  * Uso (ejemplos):
  *   node scripts/afip-diagnostico.js --entorno=produccion --cuit=30708673435 --pto=16 --cert=C:\\tc\\PCERT.crt --key=C:\\tc\\PKEY.key
  *   node scripts/afip-diagnostico.js --entorno=homologacion --cuit=20317470747 --pto=2 --cert=C:\\arca\\Nuevo\\cert.crt --key=C:\\arca\\Nuevo\\key.key
+ *   # También puede tomar variables de entorno si no se pasan flags:
+ *   #   AFIP_ENTORNO=produccion AFIP_CUIT=307... AFIP_PTO=16 AFIP_CERT=C:\\pcert.crt AFIP_KEY=C:\\pkey.key node scripts/afip-diagnostico.js
  *
  * Flags:
  *   --entorno           produccion | homologacion
@@ -14,6 +16,7 @@
  *   --tipo              (opcional) Tipo de comprobante para getLastVoucher (por defecto 11)
  *   --emitir-prueba     (opcional) Intentar emitir un comprobante mínimo de prueba (NO recomendado por defecto)
  *   --mem               (opcional) Si true, pasa cert/key como strings en memoria al SDK
+ *   --help              Muestra ayuda rápida
  */
 
 /* eslint-disable no-console */
@@ -95,14 +98,20 @@ async function checkNtp({ server = 'pool.ntp.org', port = 123, timeout = 5000 })
 
 async function main() {
   const args = parseArgs();
-  const entorno = (args.entorno || '').toLowerCase();
-  const cuit = args.cuit;
-  const pto = Number(args.pto || args.punto || 0);
-  const certPath = args.cert;
-  const keyPath = args.key;
+  if (args.help === true) {
+    console.log('\nUso:');
+    console.log('  node scripts/afip-diagnostico.js --entorno=produccion|homologacion --cuit=XXXXXXXXXXX --pto=N --cert=RUTA.crt --key=RUTA.key [--tipo=11] [--emitir-prueba] [--mem]');
+    console.log('  Variables alternas: AFIP_ENTORNO, AFIP_CUIT, AFIP_PTO, AFIP_CERT, AFIP_KEY');
+    process.exit(0);
+  }
+  const entorno = (args.entorno || process.env.AFIP_ENTORNO || '').toLowerCase();
+  const cuit = args.cuit || process.env.AFIP_CUIT;
+  const pto = Number(args.pto || args.punto || process.env.AFIP_PTO || 0);
+  const certPath = args.cert || process.env.AFIP_CERT;
+  const keyPath = args.key || process.env.AFIP_KEY;
   const tipoCbte = Number(args.tipo || 11);
   const emitirPrueba = Boolean(args['emitir-prueba']);
-  const usarMem = String(args.mem || '').toLowerCase() === 'true' || args.mem === true;
+  const usarMem = String(args.mem || '').toLowerCase() === 'true' || args.mem === true || !args.cert || !args.key; // por defecto true si no se pasaron rutas
 
   console.log('🔍 Diagnóstico AFIP (WSAA/WSFE)');
   console.log({ entorno, cuit, pto, certPath, keyPath, tipoCbte, emitirPrueba, usarMem });
@@ -118,6 +127,8 @@ async function main() {
     ok('Argumentos OK');
   } catch (e) {
     fail('Argumentos inválidos', e.message);
+    console.log('\nEjemplo:');
+    console.log('  node scripts/afip-diagnostico.js --entorno=produccion --cuit=30708673435 --pto=16 --cert=C:\\tc\\PCERT.crt --key=C:\\tc\\PKEY.key');
     process.exit(1);
   }
 
@@ -178,26 +189,42 @@ async function main() {
     warn('NTP con problemas (continuamos igual)', e.message);
   }
 
-  // Paso 3: Instancia AFIP y estado servidor
+  // Paso 3: Instancia AFIP y estado servidor (probar archivo y memoria para descartar problema de lectura)
   section('3) Instancia AFIP y estado servidor');
-  let afip;
-  try {
-    const certContentMem = fs.readFileSync(certPath, 'utf8');
-    const keyContentMem = fs.readFileSync(keyPath, 'utf8');
-    const afipOptions = usarMem
-      ? { CUIT: cuit, cert: certContentMem, key: keyContentMem, production: entorno === 'produccion' }
-      : { CUIT: cuit, cert: certPath, key: keyPath, production: entorno === 'produccion' };
-    afip = new CompatAfip(afipOptions);
-    ok(`Instancia AFIP creada (production=${entorno === 'produccion'}, cert/key en memoria=${usarMem})`);
-  } catch (e) {
-    fail('No se pudo crear instancia AFIP', e.message);
-    process.exit(1);
+  const certContentMem = fs.readFileSync(certPath, 'utf8');
+  const keyContentMem = fs.readFileSync(keyPath, 'utf8');
+  async function probeInstance(mode) {
+    try {
+      const opts = mode === 'mem'
+        ? { CUIT: cuit, cert: certContentMem, key: keyContentMem, production: entorno === 'produccion' }
+        : { CUIT: cuit, cert: certPath, key: keyPath, production: entorno === 'produccion' };
+      const af = new CompatAfip(opts);
+      const status = await af.ElectronicBilling.getServerStatus();
+      ok(`ServerStatus OK (${mode})`, status);
+      return { ok: true, af };
+    } catch (e) {
+      fail(`ServerStatus ERROR (${mode})`, e.message);
+      return { ok: false, error: e };
+    }
   }
-  try {
-    const status = await afip.ElectronicBilling.getServerStatus();
-    ok('ServerStatus OK', status);
-  } catch (e) {
-    fail('ServerStatus ERROR (posible conectividad/WSAA)', e.message);
+  let afip, probe;
+  if (usarMem) {
+    probe = await probeInstance('mem');
+    afip = probe.af;
+  } else {
+    // Probar ambos por si ruta de archivo falla
+    probe = await probeInstance('file');
+    if (!probe.ok) {
+      const probe2 = await probeInstance('mem');
+      if (probe2.ok) {
+        warn('El modo archivo falló pero el modo memoria funciona. Use --mem o variables AFIP_CERT/AFIP_KEY con contenido.');
+        afip = probe2.af;
+      } else {
+        process.exit(1);
+      }
+    } else {
+      afip = probe.af;
+    }
   }
 
   // Paso 4: Listado de Puntos de Venta (requiere WSAA/WSFE OK)

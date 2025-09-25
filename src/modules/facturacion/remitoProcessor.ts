@@ -146,16 +146,28 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
 
   const cab1Lines = getBlock('OBS.CABCERA1:');
   const cab2Lines = getBlock('OBS.CABCERA2:');
-  // Unificar lógica de OBS.PIE con Recibo: separar "GRACIAS" del resto
+  // Unificar lógica de OBS.PIE con Recibo: separar "GRACIAS" del resto y envolver a 120 caracteres
   const pieAll = [...getBlock('OBS.PIE:'), ...getBlock('OBS.PIE:1')];
   const fiscalLines = getBlock('OBS.FISCAL:');
   let graciasLine: string | undefined = undefined;
-  const pieLines: string[] = [];
+  const wrapLine = (text: string, limit = 120): string[] => {
+    const out: string[] = [];
+    let t = (text || '').trim();
+    while (t.length > limit) {
+      let cut = t.lastIndexOf(' ', limit);
+      if (cut <= 0) cut = limit;
+      out.push(t.slice(0, cut).trimEnd());
+      t = t.slice(cut).trimStart();
+    }
+    if (t) out.push(t);
+    return out;
+  };
+  const pieWrapped: string[] = [];
   for (const lnRaw of pieAll) {
     const ln = (lnRaw || '').trim();
     if (!ln || ln === '.') continue; // omitir vacíos o separadores
     if (!graciasLine && /gracias/i.test(ln)) { graciasLine = ln; continue; }
-    pieLines.push(ln);
+    pieWrapped.push(...wrapLine(ln, 120));
   }
   const remitoNum = get('REMITO:') || undefined;
 
@@ -182,7 +194,7 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
     itemsRemito,
     pagos,
     totales: { neto21, neto105, neto27, exento, iva21, iva105, iva27, total },
-    obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieLines, atendio, hora, mail, pago },
+    obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieWrapped, atendio, hora, mail, pago },
     gracias: graciasLine,
     remito: remitoNum,
     fiscal: fiscalLines,

@@ -102,10 +102,7 @@ export class AfipValidator {
   }
 
   /**
-   * Refuerza reglas de clase de comprobante A/B/C según condición del emisor.
-   * - Emisor MONOTRIBUTO/MT → solo clase C (11,12,13)
-   * - Emisor RI → se permite A/B; si intenta C, se emite warning (reglas completas dependen del receptor)
-   * Basado en lineamientos del manual ARCA (FEParamGetCondicionIvaReceptor).
+   * Refuerzo liviano: para RI permitimos A/B/C; sin reglas de Monotributo.
    */
   private async validateClaseComprobanteSegunCondicionEmisor(cbteTipo: number, errors: string[], warnings: string[]): Promise<void> {
     try {
@@ -113,13 +110,10 @@ export class AfipValidator {
       const cond = String(empresa?.condicion_iva || '').trim().toUpperCase();
       const esTipoDe = (arr: number[]) => arr.includes(Number(cbteTipo));
 
-      if (cond === 'MONO' || cond === 'MT' || cond === 'MONOTRIBUTO') {
-        if (!esTipoDe(ClasePorTipo.C)) {
-          errors.push(`Para emisor Monotributo, solo se permiten comprobantes clase C (11,12,13). Recibido: ${cbteTipo}`);
-        }
-      } else if (cond === 'RI' || cond === 'RESPONSABLE INSCRIPTO' || cond === 'RESPONSABLE_INSCRIPTO') {
+      if (cond === 'RI' || cond === 'RESPONSABLE INSCRIPTO' || cond === 'RESPONSABLE_INSCRIPTO') {
+        // Sin restricciones adicionales.
         if (esTipoDe(ClasePorTipo.C)) {
-          warnings.push('Emisor Responsable Inscripto con comprobante clase C: verificar condición del receptor.');
+          warnings.push('RI con comprobante clase C: verificar condición del receptor.');
         }
       }
     } catch (e) {

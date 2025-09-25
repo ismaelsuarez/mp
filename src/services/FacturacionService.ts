@@ -27,27 +27,7 @@ export class FacturacionService {
 	async emitirFacturaYGenerarPdf(params: EmitirFacturaParams) {
 		const db = getDb();
 		this.debugLog('emitirFacturaYGenerarPdf: inicio', { pto_vta: params.pto_vta, tipo_cbte: params.tipo_cbte, total: params.total });
-		// Filtrado por condición IVA de la empresa (RI vs MONO)
-		try {
-			const empCfg = db.getEmpresaConfig?.();
-			if (empCfg && empCfg.condicion_iva) {
-				const cond = String(empCfg.condicion_iva || '').toUpperCase();
-				const tipoSel = Number(params.tipo_cbte);
-				const monoPermitidos = new Set([11, 12, 13]);
-				const riPermitidos = new Set([1, 2, 3, 6, 7, 8, 11, 12, 13]);
-				if (cond === 'MT' || cond === 'MONO') {
-					if (!monoPermitidos.has(tipoSel)) {
-						throw new Error('Para Monotributo solo se permiten comprobantes tipo C (11, 12, 13).');
-					}
-				} else if (cond === 'RI') {
-					if (!riPermitidos.has(tipoSel)) {
-						throw new Error('Para Responsable Inscripto solo se permiten comprobantes A/B/C válidos.');
-					}
-				}
-			}
-		} catch (e) {
-			// Si no hay DB o método no existe, continuar
-		}
+		// Política actual: solo Responsable Inscripto (RI). Sin restricciones por Monotributo.
 		// Intentar emitir
 		let numero = 0; let cae = ''; let cae_venc = '';
 		let outAny: any = undefined;
