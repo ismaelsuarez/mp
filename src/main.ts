@@ -681,6 +681,14 @@ app.whenReady().then(() => {
     ensureLogsDir();
     ensureTodayLogExists();
     try { Menu.setApplicationMenu(null); } catch {}
+    try {
+        const { bootstrapContingency } = require('./main/bootstrap/contingency');
+        bootstrapContingency();
+    } catch {}
+    try {
+        const { installLegacyFsGuard } = require('./main/bootstrap/legacy_fs_guard');
+        installLegacyFsGuard();
+    } catch {}
 
     // Autoarranque FTP Server si está habilitado
     try {
@@ -1513,7 +1521,10 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 
 	createMainWindow();
 	createTray();
-	app.on('before-quit', () => { isQuitting = true; });
+    app.on('before-quit', () => { 
+        isQuitting = true; 
+        try { const { shutdownContingency } = require('./main/bootstrap/contingency'); shutdownContingency(); } catch {}
+    });
 
 	// Programación automática
 	let autoTimer: NodeJS.Timeout | null = null;
