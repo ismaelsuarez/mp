@@ -16,6 +16,7 @@ import { ComprobanteProvincialParams, ResultadoProvincial } from './provincia/IP
 import { timeValidator, validateSystemTimeAndThrow } from './utils/TimeValidator';
 import { validateArcaRules } from './arca/ArcaAdapter';
 import { consultarPadronAlcance13 } from './padron';
+import { getCondicionIvaReceptorId } from '../../services/afip/wsfe/catalogs';
 
 // Eliminado: carga del SDK externo @afipsdk/afip.js
 
@@ -283,6 +284,32 @@ class AfipService {
         MonCotiz: 1,
         Iva: ivaArray
       };
+      // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
+      try {
+        const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
+          const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
+          if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
+          if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
+          if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
+          if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
+          // Inferir CF si DocTipo=99 y DocNro=0
+          if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
+          return undefined;
+        })();
+        const condId = await getCondicionIvaReceptorId({
+          afip,
+          cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
+          receptorHint: { docTipo, docNro, categoria }
+        });
+        if (typeof condId === 'number' && Number.isFinite(condId)) {
+          (request as any).CondicionIVAReceptorId = Number(condId);
+        }
+      } catch {
+        // Fallback mínimo: CF → 5 (para no bloquear si catálogo falla)
+        if (docTipo === 99 && Number(docNro||0) === 0) {
+          (request as any).CondicionIVAReceptorId = 5;
+        }
+      }
       // Regla general: si ImpIVA es 0, no informar Iva/AlicIva (evita obs 10018)
       try {
         const impIvaNum = Number(request.ImpIVA);

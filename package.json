@@ -9,6 +9,9 @@
   "type": "commonjs",
   "main": "dist/src/main.js",
   "scripts": {
+    "build:scripts": "tsc -p tsconfig.scripts.json",
+    "audit:prod:report": "npm run build:scripts && node dist-scripts/afip-prod-audit-report.js",
+    "selftest:afip:homo": "npm run build:ts && npm run build:scripts && node dist-scripts/afip-homo-selftest.js %*",
     "start": "set SKIP_LICENSE=true&& npm run build:ts && electron .",
     "diagnostico:afip": "node scripts/afip-diagnostico.js",
     "probe:afip": "node scripts/afip-sdk-probe.js",

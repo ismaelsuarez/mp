@@ -541,13 +541,21 @@ export async function generateInvoicePdf({
   if (fechaHoraCoords) {
     drawText(fechaMostrar, fechaHoraCoords.x, fechaHoraCoords.y, { fontSize: (fechaHoraCoords.fontSize ?? c.fechaHora?.fontSize ?? 10) });
   } else {
-    // Formatear fecha en formato argentino DD/MM/YYYY
-    const fechaObj = new Date(data.fecha);
-    const fechaFormateada = fechaObj.toLocaleDateString('es-AR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    // Formatear fecha de manera determinista sin desfase por zona/UTC
+    // data.fecha viene como 'YYYY-MM-DD' (o 'YYYYMMDD' según flujo)
+    const s = String(data.fecha || '').trim();
+    let yyyy = '', mmStr = '', ddStr = '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) { yyyy = s.slice(0,4); mmStr = s.slice(5,7); ddStr = s.slice(8,10); }
+    else if (/^\d{8}$/.test(s)) { yyyy = s.slice(0,4); mmStr = s.slice(4,6); ddStr = s.slice(6,8); }
+    else {
+      try {
+        const d = new Date(s);
+        yyyy = String(d.getFullYear());
+        mmStr = String(d.getMonth()+1).padStart(2,'0');
+        ddStr = String(d.getDate()).padStart(2,'0');
+      } catch { /* noop */ }
+    }
+    const fechaFormateada = (yyyy && mmStr && ddStr) ? `${ddStr}/${mmStr}/${yyyy}` : String(s);
     drawText(`Fecha: ${fechaFormateada}`, fechaCoords.x, fechaCoords.y, { fontSize: (fechaCoords.fontSize ?? c.fecha.fontSize ?? 10) });
   }
   
@@ -721,19 +729,19 @@ export async function generateInvoicePdf({
     }
   }
 
-  if (!skipTotalsForZeroRemito && c.iva21 && (!isRecibo || hasValue(iva21))) {
+  if (!skipTotalsForZeroRemito && c.iva21 && hasValue(iva21)) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
     drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva105 && (!isRecibo || hasValue(iva105))) {
+  if (!skipTotalsForZeroRemito && c.iva105 && hasValue(iva105)) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
     drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva27 && (!isRecibo || hasValue(iva27))) {
+  if (!skipTotalsForZeroRemito && c.iva27 && hasValue(iva27)) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
