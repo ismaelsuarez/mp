@@ -3,6 +3,7 @@ import path from 'path';
 import { app } from 'electron';
 import dayjs from 'dayjs';
 import { generateInvoicePdf } from '../../pdfRenderer';
+import { getDb } from '../../services/DbService';
 import layoutMendoza from '../../invoiceLayout.mendoza';
 import { sendArbitraryFile } from '../../services/FtpService';
 import { validateSystemTime } from './utils/TimeValidator';
@@ -558,16 +559,31 @@ function readFacturasConfig(): { pv: number; outLocal?: string; outRed1?: string
 async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: any)=>void) {
   const delays = [500, 1500, 4000];
   let lastErr: any = null;
-  // Volver al flujo estable: usar FacturacionService para emitir (CAE + QR oficial)
+  // Llamar directo a AFIP (sin generar PDF en Documents) y obtener CAE/QR
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { getFacturacionService } = require('../../services/FacturacionService');
-  const svc = getFacturacionService();
+  const { afipService } = require('./afipService');
+  const tipoMap: Record<number,string> = { 1:'FA', 6:'FB', 2:'NDA', 7:'NDB', 3:'NCA', 8:'NCB' };
+  const tipoStr = tipoMap[Number(params.tipo_cbte)] || 'FB';
+  const comp = {
+    tipo: tipoStr,
+    puntoVenta: Number(params.pto_vta || 1),
+    fecha: String(params.fecha || '').replace(/-/g,''),
+    cliente: params.cuit_receptor ? { cuit: params.cuit_receptor, razonSocial: params.razon_social_receptor || 'Cliente', condicionIva: params.condicion_iva_receptor || undefined } : undefined,
+    items: (params.detalle||[]).map((d:any)=>({ descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, alicuotaIva: d.alicuotaIva, iva: d.alicuotaIva })),
+    totales: { neto: params.neto, iva: params.iva, total: params.total },
+    concepto: 1,
+    docTipo: params.doc_tipo || 99,
+    monId: params.mon_id || 'PES'
+  } as any;
   for (let i=0;i<delays.length;i++) {
     try {
       logger?.({ stage:'AFIP_EMIT_ATTEMPT', attempt:i+1, facPath });
-      const r: any = await svc.emitirFacturaYGenerarPdf(params);
+      const r: any = await afipService.solicitarCAE(comp);
       if (r && r.cae) {
-        return { cae: String(r.cae), caeVto: String(r.cae_vencimiento||r.caeVencimiento||''), qrData: r.qr_url, numero: Number(r.numero||0) } as any;
+        // Obtener número final (último autorizado) para nombrado de archivo
+        let numero = 0;
+        try { numero = await afipService.getUltimoAutorizado(Number(params.pto_vta||1), tipoStr as any); } catch {}
+        return { cae: String(r.cae), caeVto: String(r.vencimientoCAE||''), qrData: r.qrData, numero: Number(numero||0) } as any;
       }
       lastErr = new Error('AFIP sin CAE');
     } catch (e: any) { lastErr = e; }
@@ -736,7 +752,14 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   if (!cfg || !cfg.outLocal) {
     return { ok:false, reason: 'CFG_OUTLOCAL_MISSING' } as any;
   }
-  const pv = Number(cfg.pv || 1);
+  // Punto de venta: tomar SIEMPRE desde configuración AFIP (Administración). Fallback a cfg.local
+  let pv = Number(cfg.pv || 1);
+  try {
+    const afipCfg = getDb()?.getAfipConfig?.();
+    if (afipCfg && typeof afipCfg.pto_vta !== 'undefined') {
+      pv = Number(afipCfg.pto_vta) || pv;
+    }
+  } catch {}
   if (!total || total <= 0) {
     return { ok:false, reason: 'TOTAL_INVALID' } as any;
   }
