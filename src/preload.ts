@@ -149,8 +149,8 @@ contextBridge.exposeInMainWorld('api', {
 		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
 		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
 		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs'),
-		// Cotización Dólar (AFIP)
-		getCotizacionDol: () => ipcRenderer.invoke('facturacion:cotizacion:dol'),
+		// Cotización Moneda (AFIP)
+		getCotizacionMoneda: (args?: { monIdText?: string; modo?: 'ULTIMA'|'HABIL_ANTERIOR'; baseDate?: string }) => ipcRenderer.invoke('cotizacion:get', args || {}),
 		// Idempotencia
 		idempotencyList: () => ipcRenderer.invoke('facturacion:idempotency:list'),
 		idempotencyCleanup: () => ipcRenderer.invoke('facturacion:idempotency:cleanup'),

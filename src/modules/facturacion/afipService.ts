@@ -28,6 +28,7 @@ class AfipService {
   private resilienceWrapper: ResilienceWrapper;
   private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
   private tempCleanup: (() => void) | null = null;
+  private cotizCache: Map<string, { ts: number; data: { monId: string; monCotiz: number; fchCotiz: string; fuente: string; modo: string } } > = new Map();
 
   private debugLog(...args: any[]) {
     if (this.DEBUG_FACT) {
@@ -65,16 +66,39 @@ class AfipService {
     }
   }
   private async getCotizacion(afip: any, monId: string, fch?: string): Promise<{ valor:number; fecha:string }> {
-    try {
-      const r = fch ? await afip.ElectronicBilling.getCurrencyCotization(monId, fch) : await afip.ElectronicBilling.getCurrencyCotization(monId);
+    const svc: any = afip?.ElectronicBilling;
+    const norm = (r: any) => {
       const val = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
       const fecha = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
       if (!Number.isFinite(val) || val <= 0) throw new Error('Cotización no válida');
       return { valor: val, fecha };
+    };
+    try {
+      // 1) Oficial/alias: getCurrencyCotization(monId[, fch])
+      if (svc && typeof svc.getCurrencyCotization === 'function') {
+        const r = fch ? await svc.getCurrencyCotization(monId, fch) : await svc.getCurrencyCotization(monId);
+        return norm(r);
+      }
+      // 2) Alias alternativo: getCurrencyQuotation(monId[, fch])
+      if (svc && typeof svc.getCurrencyQuotation === 'function') {
+        const r = fch ? await svc.getCurrencyQuotation(monId, fch) : await svc.getCurrencyQuotation(monId);
+        return norm(r);
+      }
+      // 3) Variante con objeto: getParamGetCotizacion({ MonId, FchCotiz? })
+      if (svc && typeof svc.getParamGetCotizacion === 'function') {
+        const args: any = { MonId: monId }; if (fch) args.FchCotiz = fch;
+        const r = await svc.getParamGetCotizacion(args);
+        return norm(r);
+      }
+      throw new Error('Método de cotización no disponible en SDK');
     } catch (e:any) {
       const msg = String(e?.message || e);
       if (/timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg)) {
         throw new Error('TRANSIENT_COTIZ');
+      }
+      if (/no disponible/i.test(msg)) {
+        // Sin método en SDK: clasificar como permanente por ausencia de contrato
+        throw new Error('PERMANENT_COTIZ');
       }
       throw new Error('PERMANENT_COTIZ');
     }
@@ -138,6 +162,36 @@ class AfipService {
     const instance = await this.instanceManager.getInstance();
     this.debugLog('Instancia AFIP creada/reutilizada', { production: cfg.entorno === 'produccion' });
     return (this.afipInstance = instance);
+  }
+
+  // ====== Consulta pública para UI (Modo Caja) ======
+  public async consultarCotizacionMoneda(options?: {
+    monIdText?: string;
+    modo?: 'ULTIMA' | 'HABIL_ANTERIOR';
+    baseDate?: string; // YYYYMMDD
+  }): Promise<{ monId: string; monCotiz: number; fchCotiz: string; fuente: string; modo: string }>{
+    const monId = this.resolveMonId(options?.monIdText || 'DOL');
+    const modo = (options?.modo || 'ULTIMA');
+    const today = (()=>{ const d = new Date(); const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${y}${m}${dd}`; })();
+    const base = (options?.baseDate && /^\d{8}$/.test(options.baseDate)) ? options.baseDate : today;
+    const cacheKey = `${monId}|${modo}|${base}`;
+    const cached = this.cotizCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && (now - cached.ts) < 15*60*1000) {
+      return cached.data;
+    }
+    const afip = await this.getAfipInstance();
+    await this.ensureMonedasValid(afip, monId);
+    let r: { valor:number; fecha:string };
+    if (modo === 'HABIL_ANTERIOR') {
+      const fch = this.prevDiaHabil(base);
+      r = await this.getCotizacion(afip, monId, fch);
+    } else {
+      r = await this.getCotizacion(afip, monId);
+    }
+    const out = { monId, monCotiz: r.valor, fchCotiz: (r.fecha || '').replace(/-/g,'').slice(0,8), fuente: 'AFIP/WSFEv1(PROD)', modo };
+    this.cotizCache.set(cacheKey, { ts: now, data: out });
+    return out;
   }
 
   /**
@@ -320,6 +374,16 @@ class AfipService {
           monCotizNum = valor; fchCotizUsed = fecha ? fecha.replace(/-/g,'') : undefined;
         }
       }
+      // Selección flexible: si 'N' y viene COTIZADOL (>0), preferirlo como candidato fiscal
+      const oficialWsfe = monCotizNum;
+      let fuenteUsada: 'WSFE'|'COTIZADOL' = 'WSFE';
+      try {
+        const hint = Number((comprobante as any)?.cotiza_hint);
+        if (monIdNorm !== 'PES' && canMis === 'N' && Number.isFinite(hint) && hint > 0) {
+          monCotizNum = hint;
+          fuenteUsada = 'COTIZADOL';
+        }
+      } catch {}
 
       const request: any = {
         CantReg: 1,
@@ -344,21 +408,15 @@ class AfipService {
       };
       // Política de moneda flexible
       const policy = { officialSource: 'WSFE', selection: canMis === 'S' ? 'exact' : 'tolerant', maxUpPercent: 2, maxDownPercent: 400 } as const;
-      const oficial = monCotizNum; const upper = Number((oficial * 1.02).toFixed(6)); const lower = Number((oficial / 5).toFixed(6));
+      const oficial = oficialWsfe; const upper = Number((oficial * 1.02).toFixed(6)); const lower = Number((oficial / 5).toFixed(6));
       const candidate = monCotizNum; const inRange = candidate >= lower && candidate <= upper;
       if (monIdNorm !== 'PES') {
         if (policy.selection === 'exact' && Math.abs(candidate - oficial) > 0.000001) throw new Error('PERMANENT_COTIZ_EXACT_MISMATCH');
         if (policy.selection === 'tolerant' && !inRange) throw new Error('PERMANENT_COTIZ_OUT_OF_RANGE');
       }
-      try { console.warn('[FACT] FE Moneda', { monId: monIdNorm, canMisMonExt: canMis, policy, monCotiz: monCotizNum, oficial, fuente: policy.officialSource, fchOficial: fchCotizUsed }); } catch {}
-      // Fallback opcional: si vino hint de cotización desde .fac y MonCotiz sigue en 1 para DOL/EUR (por error de WS), usar hint solo para representación/observación, no modificar fiscal si WS trajo valor válido.
-      try {
-        const hint = (comprobante as any)?.cotiza_hint;
-        if ((monIdNorm === 'DOL' || monIdNorm === 'EUR') && Number(request.MonCotiz) === 1 && Number(hint) > 0) {
-          // Mantener 1 en request (fiscal), pero registrar para PDF/logs
-          (request as any)._cotizaHint = Number(hint);
-        }
-      } catch {}
+      try { console.warn('[FACT] FE Moneda', { monId: monIdNorm, canMisMonExt: canMis, policy, monCotiz: monCotizNum, oficial, fuente: fuenteUsada, fchOficial: fchCotizUsed }); } catch {}
+      // Nota: si hubo hint y se usó como fiscal, 'fuente'='COTIZADOL'. Si no, se registra como hint solo visual si aplica.
+      try { if ((monIdNorm === 'DOL' || monIdNorm === 'EUR') && fuenteUsada === 'WSFE') { const hint = Number((comprobante as any)?.cotiza_hint); if (hint > 0 && Number(request.MonCotiz) === 1) { (request as any)._cotizaHint = hint; } } } catch {}
       // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
       try {
         const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {

@@ -3051,6 +3051,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
+
+	// Cotización Moneda para Modo Caja (AFIP/WSFE PROD)
+	ipcMain.handle('cotizacion:get', async (_evt, args?: { monIdText?: string; modo?: 'ULTIMA'|'HABIL_ANTERIOR'; baseDate?: string }) => {
+		try {
+			// Cargar on-demand para evitar ciclos
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { afipService } = require('./modules/facturacion/afipService');
+			const res = await afipService.consultarCotizacionMoneda(args || {});
+			return res;
+		} catch (e:any) {
+			const msg = String(e?.message || e);
+			return { error: true, message: msg, transient: /TRANSIENT|timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg) };
+		}
+	});
 });
 
 // ===== Recibo (PV y contador) =====

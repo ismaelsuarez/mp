@@ -16,6 +16,7 @@ export class AFIPError extends Error {
 export interface AFIPBridge {
   getTA?(): Promise<void>;
   solicitarCAE(req: any): Promise<CaeResponse>;
+  getCotizacion?(monId: string, fchCotiz?: string): Promise<{ monId: string; monCotiz: number; fchCotiz: string }>
 }
 
 export class StubAFIPBridge implements AFIPBridge {
@@ -100,6 +101,18 @@ export class RealAFIPBridge implements AFIPBridge {
       const status = e?.response?.status;
       if (status && status >= 500) throw new AFIPError(msg, 'transient', e?.code, status);
       throw new AFIPError(msg, 'permanent', e?.code, status);
+    }
+  }
+  async getCotizacion(monId: string, fchCotiz?: string): Promise<{ monId: string; monCotiz: number; fchCotiz: string }>{
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { afipService } = require('../modules/facturacion/afipService');
+      const out = await afipService.consultarCotizacionMoneda({ monIdText: monId, modo: fchCotiz ? 'HABIL_ANTERIOR' : 'ULTIMA', baseDate: fchCotiz });
+      return { monId: out.monId, monCotiz: out.monCotiz, fchCotiz: out.fchCotiz };
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      if (/TRANSIENT|timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg)) throw new AFIPError(msg, 'transient');
+      throw new AFIPError(msg, 'permanent');
     }
   }
 }

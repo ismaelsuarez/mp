@@ -74,7 +74,7 @@
 	</div>
 
     <script>
-    const ipcRenderer = (window.api && window.api.facturacion && window.api.facturacion.getCotizacionDol) ? { invoke: (ch)=> window.api.facturacion.getCotizacionDol() } : null;
+    const ipcRenderer = (window.api && window.api.facturacion && window.api.facturacion.getCotizacionMoneda) ? { invoke: (ch, args)=> window.api.facturacion.getCotizacionMoneda(args) } : null;
     const pill = document.getElementById('pillDol');
     const pillText = document.getElementById('pillDolText');
     const pillState = document.getElementById('pillDolState');
@@ -86,16 +86,18 @@
     async function fetchDol(){
         try {
             if (!ipcRenderer) return;
-            console.log('[caja] consultando DOL...');
-            const res = await ipcRenderer.invoke('facturacion:cotizacion:dol');
-            if (res && res.ok && res.data){
-                const { MonCotiz, FchCotiz } = res.data;
+            console.log('[caja] consultando DOL (última y hábil anterior)...');
+            const ult = await ipcRenderer.invoke('cotizacion:get', { monIdText: 'DOL', modo: 'ULTIMA' });
+            const hab = await ipcRenderer.invoke('cotizacion:get', { monIdText: 'DOL', modo: 'HABIL_ANTERIOR' });
+            if (ult && typeof ult.monCotiz === 'number' && ult.monCotiz > 0){
+                const MonCotiz = ult.monCotiz; const FchCotiz = ult.fchCotiz;
                 const hhmm = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-                pillText.textContent = `Dólar (AFIP) = ${fmt(MonCotiz)} — ${hhmm}`;
+                const seg = (hab && hab.monCotiz) ? ` | Hábil ant: ${fmt(hab.monCotiz)}` : '';
+                pillText.textContent = `Dólar (AFIP) = ${fmt(MonCotiz)} — ${hhmm}${seg}`;
                 setState('ok'); pill.classList.remove('hidden');
                 localStorage.setItem('dol:last', JSON.stringify({ v:MonCotiz, t:Date.now(), f:FchCotiz }));
             } else {
-                console.warn('[caja] cotización DOL falló', res && res.error);
+                console.warn('[caja] cotización DOL falló', (ult && (ult.error || ult.message)) || 'sin datos');
                 const cached = localStorage.getItem('dol:last');
                 if (cached){
                     const o = JSON.parse(cached);

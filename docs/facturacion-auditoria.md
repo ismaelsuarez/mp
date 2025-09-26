@@ -9,7 +9,7 @@
   - Pipeline `.fac` restituido: no borra `.fac` hasta enviar `.res` por FTP.
  - Cola de contingencia separada (SQLite `contingency.db`) integrada al proceso main con health-check WS y circuito (pausa/reanuda).
  - Contingencia sin `.env`: entrada fija `C:\tmp`; rutas internas bajo `app.getPath('userData')/fac` (staging/processing/done/error/out); tiempos y circuito definidos por constantes.
- - Política de cotización flexible (MonedaPolicy): fuente oficial WSFE; `CANCELA_MISMA_MONEDA=S` exige cotización exacta del día hábil anterior; `N` tolera desvíos dentro de +2% arriba y hasta −80% abajo (máx. 400% de caída). Se valida y se audita `{ monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
+ - Política de cotización flexible (MonedaPolicy): fuente oficial WSFE; `CANCELA_MISMA_MONEDA=S` exige cotización exacta del día hábil anterior; `N` tolera desvíos dentro de +2% arriba y hasta −80% abajo (máx. 400% de caída). Si viene `COTIZADOL>0` y está en rango, se usa como valor fiscal (fuente=`COTIZADOL`); si no, se usa la oficial de WSFE. Se audita `{ monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
 
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
@@ -77,12 +77,12 @@
      - Reglas:
        - `PES` → `MonCotiz=1`.
        - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=S` → cotización del día hábil anterior (prevDiaHabil de la fecha del comprobante); selección exacta (sin tolerancia).
-       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=N` → cotización vigente; selección tolerante dentro de +2% arriba y hasta −80% abajo respecto del oficial.
+       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=N` → cotización vigente; selección tolerante dentro de +2% arriba y hasta −80% abajo respecto del oficial. Si viene `COTIZADOL>0` y está en rango de la política, se usa `COTIZADOL` como valor fiscal; si no, se usa la oficial WSFE.
      - Validaciones y errores:
        - Transient: timeouts/red/HTTP≥500 o falla de `FEParamGetCotizacion` → reintentos + posible pausa por circuito.
-       - Permanent: `MonId` inválido, `MonCotiz` fuera de rango permitido, o mismatch exacto cuando `S`.
+       - Permanent: `MonId` inválido, `MonCotiz` fuera de rango permitido (incluye `COTIZADOL` fuera de rango), o mismatch exacto cuando `S`.
      - Auditoría: `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
-     - Hint: `COTIZADOL` no sustituye el valor fiscal; solo se registra para visual/log cuando falla la WS.
+     - Hint: si `N` y `COTIZADOL` fue usado como fiscal, la `fuente` será `COTIZADOL`. Si no fue usado, se registra como hint visual/log.
 
 ```mermaid
 flowchart TD
@@ -107,7 +107,7 @@ flowchart TD
   - Siempre se incluye en `createVoucher`. Elimina Observación 10245.
 - Concepto servicio (2/3): requiere `FchServDesde/FchServHasta/FchVtoPago`.
 - Validación matemática: `ImpTotal == ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx` (2 decimales).
- - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) con validación de política (exacta vs tolerante).
+ - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
 
 ### 6 ter) Condición IVA Receptor (.fac y emisión)
 - Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
@@ -181,8 +181,10 @@ Uso rápido (cola)
 3) `EXENTO`>0 y `IVA %`=0:
    - PDF oculta líneas 0, muestra Exento.
 4) Recibo y Remito: sólo PDF/FTP, sin AFIP.
- 5) Moneda Dólar (DOL): `.fac` con `MONEDA:DOLARES` y `COTIZADOL: 1400.00`.
-    - Esperado: FECAE con `MonId='DOL'` y `MonCotiz` obtenido de AFIP (>0). El PDF muestra “Dólar” y la cotización aplicada. Si la WS de cotización falla, la emisión se reintenta; si se decide emitir más tarde, el PDF puede mostrar el hint de `COTIZADOL`, pero el valor fiscal se basa siempre en la cotización de AFIP cuando está disponible.
+ 5) Moneda Dólar (DOL): `.fac` con `MONEDA:DOLARES`, `CANCELA_MISMA_MONEDA=S` y `COTIZADOL: 1400.00`.
+    - Esperado: FECAE con `MonId='DOL'` y `MonCotiz` de día hábil anterior (AFIP) exacto. Si `COTIZADOL` difiere → se ignora para el valor fiscal (se puede registrar como hint).
+ 6) Moneda Dólar (DOL) manual del día: `.fac` con `MONEDA:DOLARES`, `CANCELA_MISMA_MONEDA=N` y `COTIZADOL: 1400.00`.
+    - Esperado: si `COTIZADOL` está dentro del rango (+2%/-80% vs oficial vigente), se usa como valor fiscal (`fuente=COTIZADOL`); si no, error permanente por política de cotización.
 
 ### 12) Criterios de aceptación
 - AFIP PROD: sin Observación 10245, CAE y Vto presentes, suma de montos válida, fechas servicio cuando corresponda.
