@@ -2,10 +2,25 @@ import fs from 'fs';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 
+// Condición IVA receptor (catálogo mínimo)
+export type CondIvaCode = 1|4|5|6|8|9|10|13|15;
+export const COND_IVA_MAP: Record<CondIvaCode,string> = {
+  1:'IVA Responsable No Inscripto',
+  4:'IVA Sujeto Exento',
+  5:'Consumidor Final',
+  6:'Responsable Monotributo',
+  8:'Proveedor del Exterior',
+  9:'Cliente del Exterior',
+  10:'IVA Liberado - Ley 19.640',
+  13:'Monotributista Social',
+  15:'IVA No Alcanzado'
+};
+export function isCondIvaCode(x:any): x is CondIvaCode { return [1,4,5,6,8,9,10,13,15].includes(Number(x)); }
+
 export type FacDTO = {
   tipo: number;
   fecha: string; // YYYYMMDD
-  cliente: { docTipo: number; docNro?: string; condicion?: string };
+  cliente: { docTipo: number; docNro?: string; condicion?: string; condIvaCode?: CondIvaCode; condIvaDesc?: string };
   items: Array<{ descripcion: string; cantidad: number; unitario: number; iva: number; total?: number }>;
   totales: { neto: number; iva: number; total: number };
   rawPath: string;
@@ -23,6 +38,12 @@ export function parseFac(filePath: string): FacDTO {
   const docTipo = Number(get('TIPODOC:') || '99');
   const docNro = (get('NRODOC:') || '').trim() || undefined;
   const condicion = (get('CONDICION:') || '').trim();
+  // IVARECEPTOR
+  const ivaReceptorRaw = get('IVARECEPTOR:');
+  const ivaReceptorNum = ivaReceptorRaw ? Number(String(ivaReceptorRaw).match(/\d+/)?.[0] || '') : NaN;
+  if (!isCondIvaCode(ivaReceptorNum)) {
+    throw new Error('PermanentError: IVARECEPTOR desconocido');
+  }
   const items: FacDTO['items'] = [];
   let i = lines.findIndex(l => l.trim() === 'ITEM:');
   if (i >= 0) {
@@ -52,26 +73,60 @@ export function parseFac(filePath: string): FacDTO {
       if (key.startsWith('NETO')) totales.neto += val;
     }
   }
-  return { tipo, fecha, cliente: { docTipo, docNro, condicion }, items, totales, rawPath: filePath };
+  return { tipo, fecha, cliente: { docTipo, docNro, condicion, condIvaCode: ivaReceptorNum as CondIvaCode, condIvaDesc: COND_IVA_MAP[ivaReceptorNum as CondIvaCode] }, items, totales, rawPath: filePath };
 }
 
 export function validate(dto: FacDTO): void {
   const to2 = (n: number) => Number(n.toFixed(2));
   const suma = to2(dto.totales.neto + dto.totales.iva);
   if (to2(dto.totales.total) !== suma) throw new Error(`Montos no cierran: total=${dto.totales.total} vs suma=${suma}`);
+  // Reglas receptor vs tipo de comprobante
+  validateReceptorVsCbte(dto);
+}
+
+function validateReceptorVsCbte(dto: FacDTO): void {
+  const code = dto.cliente.condIvaCode as CondIvaCode | undefined;
+  if (!code) throw new Error('PermanentError: Falta IVARECEPTOR');
+  const tipo = Number(dto.tipo || 0);
+  const isTipoA = new Set([1,2,3]).has(tipo); // FA (1), ND A (2), NC A (3)
+  const isTipoB = new Set([6,7,8]).has(tipo); // FB (6), ND B (7), NC B (8)
+  // Exterior y Ley 19.640 no soportados en este flujo
+  if ([8,9,10].includes(Number(code))) throw new Error('PermanentError: IVARECEPTOR no soportado por ahora (exterior/Ley 19.640)');
+  if (isTipoA) {
+    if ([5,4,6,13,15].includes(Number(code))) throw new Error('PermanentError: IVARECEPTOR incompatible con Tipo A');
+  }
+  if (isTipoB) {
+    if (Number(code) === 1) throw new Error('PermanentError: Receptor requiere Tipo A');
+  }
 }
 
 export function buildRequest(dto: FacDTO): any {
-  return {
+  // Normalización de documento según condición IVA receptor
+  let docTipoFE = Number(dto.cliente.docTipo || 0);
+  let docNroFE: number = Number(dto.cliente.docNro || 0);
+  const code = dto.cliente.condIvaCode as CondIvaCode | undefined;
+  if (code === 5) {
+    docTipoFE = 99; docNroFE = 0;
+  } else {
+    // Exigir CUIT válido (docTipo 80 y número no nulo) para no-CF
+    if (docTipoFE !== 80 || !Number(dto.cliente.docNro || 0)) {
+      throw new Error('PermanentError: Documento receptor inválido para la condición IVA');
+    }
+  }
+  const req = {
     tipo: dto.tipo,
     fecha: dto.fecha,
-    docTipo: dto.cliente.docTipo,
-    docNro: dto.cliente.docNro || 0,
+    docTipo: docTipoFE,
+    docNro: docNroFE,
     total: dto.totales.total,
     neto: dto.totales.neto,
     iva: dto.totales.iva,
-    items: dto.items
+    items: dto.items,
+    condIvaCode: code,
+    condIvaDesc: code ? COND_IVA_MAP[code] : undefined
   };
+  try { console.debug('[fac.buildRequest]', { cbteTipo: dto.tipo, condIvaCode: code, condIvaDesc: code ? COND_IVA_MAP[code] : undefined, docTipoFE, docNroFE }); } catch {}
+  return req;
 }
 
 export async function generatePdf(dto: FacDTO, caeResp: { cae: string; vencimiento: string }): Promise<string> {

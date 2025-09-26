@@ -8,6 +8,7 @@
   - PDF: fecha corregida (sin desfase) y ocultamiento de líneas de IVA en cero.
   - Pipeline `.fac` restituido: no borra `.fac` hasta enviar `.res` por FTP.
  - Cola de contingencia separada (SQLite `contingency.db`) integrada al proceso main con health-check WS y circuito (pausa/reanuda).
+ - Contingencia sin `.env`: entrada fija `C:\tmp`; rutas internas bajo `app.getPath('userData')/fac` (staging/processing/done/error/out); tiempos y circuito definidos por constantes.
 
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
@@ -35,13 +36,14 @@
   - Bridge AFIP real: `RealAFIPBridge` reutiliza `afipService.solicitarCAE`. Clasifica errores: timeout/red/HTTP≥500 ⇒ transient; validación/observaciones ⇒ permanent.
 
 ### 2 bis) Fuentes de configuración y directorios
-- UI (Administración): `FACT_FAC_DIR`, `FACT_FAC_WATCH` (habilita watcher). Por defecto, la entrada es `C:\tmp` si no hay valor guardado.
-- Env (Electron main):
-  - FAC_*: `FAC_INCOMING_DIR`, `FAC_STAGING_DIR`, `FAC_PROCESSING_DIR`, `FAC_DONE_DIR`, `FAC_ERROR_DIR`, `FAC_OUT_DIR`, `FAC_MIN_STABLE_MS`.
-  - WS_*: `WS_HEALTH_INTERVAL_SEC`, `WS_TIMEOUT_MS`, `WS_CIRCUIT_FAILURE_THRESHOLD`, `WS_CIRCUIT_COOLDOWN_SEC`.
-  - Kill-switch borrado legacy: `LEGACY_DELETE_DISABLED=true` (default) – bloquea `fs.unlink/rename/rm` sobre `*.fac` fuera de la cola.
-- Directorios activos (cola): `userData/fac/incoming|staging|processing|done|error|out`.
-- Legacy watcher: si el sistema antiguo emite `fileReady` para `C:\tmp`, `LegacyWatcherAdapter` lo conecta a la cola (log: “enqueue fac.process sha=… from C:\tmp”).
+- UI (Administración): puede exponer `FACT_FAC_WATCH`; la entrada efectiva de contingencia es fija en `C:\tmp`.
+- Contingencia (Electron main, sin `.env`):
+  - Entrada fija: `INCOMING_DIR = 'C:\\tmp'`.
+  - Base interna: `BASE_DIR = path.join(app.getPath('userData'), 'fac')`.
+  - Directorios: `STAGING_DIR`, `PROCESSING_DIR`, `DONE_DIR`, `ERROR_DIR`, `OUT_DIR` (subcarpetas de `BASE_DIR`).
+  - Tiempos y circuito (constantes): `FAC_MIN_STABLE_MS=1500`, `WS_TIMEOUT_MS=12000`, `WS_RETRY_MAX=6`, `WS_BACKOFF_BASE_MS=1500`, `WS_CIRCUIT_FAILURE_THRESHOLD=5`, `WS_CIRCUIT_COOLDOWN_SEC=90`, `WS_HEALTH_INTERVAL_SEC=20`.
+  - Kill-switch de borrados legacy: activado en código (fijo en `true`).
+- Legacy watcher: si el sistema antiguo no está disponible, se levanta un `chokidar` propio sobre `C:\tmp` que emite `fileReady` y se adapta vía `LegacyWatcherAdapter`.
 
 ### 4) Flujo por UI (Administración)
 1. Usuario completa datos (emisor, receptor, items, totales, concepto, fechas servicio si aplica).
@@ -59,11 +61,11 @@
   - Bloques `ITEM:` y `TOTALES:` con `NETO %`, `IVA %`, `EXENTO`, `TOTAL`.
   - `OBS.CABCERA*`, `OBS.FISCAL`, `OBS.PIE` (texto libre para PDF).
 - Proceso (cola de contingencia activa):
-  1) Watcher (`ContingencyController.start`) observa `FAC_INCOMING_DIR`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `FAC_STAGING_DIR`.
+  1) Watcher (`ContingencyController.start`) observa `C:\tmp`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `STAGING_DIR`.
   2) Encola job `fac.process` con `sha256` del contenido (idempotencia). FIFO por `available_at ASC, id ASC`.
-  3) Consumo (concurrency=1) y estados: PARSED (`pipeline.parseFac`) → VALIDATED (`pipeline.validate`) → WAIT_WS/SENDING_WS (`RealAFIPBridge.solicitarCAE`) → CAE_OK → PDF_OK (`pipeline.generatePdf`) → RES_OK (`pipeline.generateRes`) → DONE (mueve `.fac` a `FAC_DONE_DIR` y ack).
-  4) Errores: `AFIPError.kind='transient'` → nack con backoff (base 1000ms; 3000ms si WS ‘degraded’) y `CircuitBreaker.recordFailure()`; `kind='permanent'` → genera `.res` de error y mueve a `FAC_ERROR_DIR`.
-  5) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `FAC_PROCESSING_DIR`. Sólo se borra tras `RES_OK`.
+  3) Consumo (concurrency=1) y estados: PARSED (`pipeline.parseFac`) → VALIDATED (`pipeline.validate`) → WAIT_WS/SENDING_WS (`RealAFIPBridge.solicitarCAE`) → CAE_OK → PDF_OK (`pipeline.generatePdf`) → RES_OK (`pipeline.generateRes`) → DONE (mueve `.fac` a `DONE_DIR` y ack).
+  4) Errores: `AFIPError.kind='transient'` → nack con backoff y `CircuitBreaker.recordFailure()`; `kind='permanent'` → genera `.res` de error y mueve a `ERROR_DIR`.
+  5) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`. Sólo se borra tras `RES_OK`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
 
@@ -91,8 +93,22 @@ flowchart TD
 - Concepto servicio (2/3): requiere `FchServDesde/FchServHasta/FchVtoPago`.
 - Validación matemática: `ImpTotal == ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx` (2 decimales).
 
+### 6 ter) Condición IVA Receptor (.fac y emisión)
+- Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
+- Reglas receptor vs tipo:
+  - Tipo A (1/2/3): rechaza CF (5), Exento (4), Monotributo (6/13), No Alcanzado (15).
+  - Tipo B (6/7/8): rechaza RI (1) → “Receptor requiere Tipo A”.
+  - Exterior (8/9) y 10 (Ley 19.640): no soportados en esta versión → PermanentError.
+- Normalización de documento (para FE):
+  - CF (5) → fuerza `DocTipo=99`, `DocNro=0` (aunque el `.fac` traiga otra cosa).
+  - No CF → exige `DocTipo=80` (CUIT) y `DocNro` válido (>0); si falta/incorrecto → PermanentError.
+- Emisión AFIP:
+  - El Bridge mapea `condIvaCode` → `condicion_iva_receptor` ('CF'|'RI'|'MT'|'EX') y lo pasa a `afipService`.
+  - `afipService` resuelve `CondicionIVAReceptorId` por catálogo AFIP y lo incluye en el FECAE (PROD y HOMO).
+- Auditoría interna: se registra `{ cbteTipo, condIvaCode, condIvaDesc, docTipoFE, docNroFE }` en logs de emisión.
+
 ### 6 bis) Salud WS y Circuit Breaker
-- `WSHealthService` realiza DNS + HEAD/GET a WSAA/WSFEv1 cada `WS_HEALTH_INTERVAL_SEC` con timeout `WS_TIMEOUT_MS`.
+- `WSHealthService` realiza DNS + HEAD/GET a WSAA/WSFEv1 con intervalos/timeout fijados por constantes (`WS_HEALTH_INTERVAL_SEC`, `WS_TIMEOUT_MS`).
 - Emite `up|degraded|down` y actualiza backoff de la cola: ‘degraded’ incrementa requeue mínimo; ‘down’ pausa (`pause()`).
 - `CircuitBreaker` cuenta fallas de red/timeout (`recordFailure()`); al superar `WS_CIRCUIT_FAILURE_THRESHOLD` pasa a `DOWN` y activa cooldown `WS_CIRCUIT_COOLDOWN_SEC`. Persiste en `queue_settings`. Tras cooldown entra `HALF_OPEN` (permite 1 job): si éxito `reset()` → `UP`, si falla → `DOWN`.
 
@@ -104,6 +120,7 @@ flowchart TD
 
 ### 8) Observabilidad y auditoría
 - Logs con prefijo `[FACT]` y resultados AFIP (Observaciones/Errores). 
+- Arranque de contingencia: log JSON con `{ cfg:{ incoming, staging, processing, done, error, out, stableMs, wsTimeout, ... } }`.
 - Auditoría PROD (no intrusiva) opcional:
   - Flags: `AFIP_PROD_AUDIT_TAP=1` y `AFIP_AUDIT_SAMPLE=<n>`.
   - Persistencia en `logs/afip/prod/audit/<timestamp-N>/` (request/response sanitizados + resumen de checks).
@@ -117,15 +134,14 @@ flowchart TD
   - `config/recibo.config.json`: `{ "pv": <n>, "contador": <n>, "outLocal": "..." }`.
 - Secretos: certificados y claves bajo almacenamiento protegido (no en `.env`).
 - Cola de contingencia (.fac): base separada `app.getPath('userData')/queue/contingency.db`. Inspección por `npm run queue:inspect` (ruta, PRAGMAs, tamaño, -wal/-shm).
-- Directorios FAC (env): `FAC_INCOMING_DIR`, `FAC_STAGING_DIR`, `FAC_PROCESSING_DIR`, `FAC_DONE_DIR`, `FAC_ERROR_DIR`, `FAC_OUT_DIR`, `FAC_MIN_STABLE_MS`.
-- Salud/circuito (env): `WS_HEALTH_INTERVAL_SEC`, `WS_TIMEOUT_MS`, `WS_CIRCUIT_FAILURE_THRESHOLD`, `WS_CIRCUIT_COOLDOWN_SEC`.
+- Contingencia (main): sin `.env`. Constantes listadas en 2 bis. Entrada fija `C:\tmp`; subcarpetas internas en `userData/fac`.
 - Stub AFIP (dev): `AFIP_STUB_MODE=ok|fail_transient|fail_permanent`.
-- Kill-switch legacy: `LEGACY_DELETE_DISABLED=true` (default) – protege `*.fac` de borrados/renombres fuera de la cola.
+- Kill-switch legacy: habilitado permanentemente – protege `*.fac` de borrados/renombres fuera de la cola.
 
 Uso rápido (cola)
 1) Iniciar app (main carga `bootstrapContingency`).
-2) Dejar `.fac` en `FAC_INCOMING_DIR` (default: `userData/fac/incoming`).
-3) Ver progreso en logs y destinos `FAC_DONE_DIR`/`FAC_ERROR_DIR`. Los `.res` se generan junto al `.fac` procesado.
+2) Dejar `.fac` en `C:\tmp`.
+3) Ver progreso en logs y en `userData/fac/{processing,done,error,out}`. Los `.res` se generan en `out`.
 
 ### 10) Plan de pruebas (UI)
 1) Factura B – CF (DocTipo=99, DocNro=0):
@@ -178,7 +194,7 @@ Uso rápido (cola)
 - Adopción futura: enlazar en `facProcessor` para encolar `.fac` y procesar con worker secuencial. El flujo actual de emisión no fue modificado.
 
 ### Checklist de aceptación actual (manual)
-- Copiar 3 `.fac` válidos a `FAC_INCOMING_DIR` (por defecto `userData/fac/incoming` o `C:\tmp` si está configurado). Verificar que se procesan en orden FIFO y que cada `.fac` se borra sólo tras `RES_OK` (archivo `.res` generado).
+- Copiar 3 `.fac` válidos a `C:\tmp`. Verificar que se procesan en orden FIFO y que cada `.fac` se borra sólo tras `RES_OK` (archivo `.res` generado).
 - Simular caída AFIP/Internet (desconectar red o `AFIP_STUB_MODE=fail_transient`): observar que el sistema realiza nack con backoff, el circuito puede pasar a `DOWN` y pausar pops, y no borra `.fac` en processing.
 - Subir un mismo `.fac` dos veces: verificar que sólo uno se procesa (idempotencia por sha256).
 - Verificar en PDFs el QR oficial y que `ImpTotal = ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx`.

@@ -61,6 +61,17 @@ export class RealAFIPBridge implements AFIPBridge {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const { afipService } = require('../modules/facturacion/afipService');
       const tipoCbte = Number(req?.tipo || 6);
+      // Mapear condIvaCode → categoría esperada por afipService ('CF'|'RI'|'MT'|'EX')
+      const condIvaCode: number | undefined = typeof req?.condIvaCode === 'number' ? req.condIvaCode : undefined;
+      const condicionCategoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
+        switch (condIvaCode) {
+          case 5: return 'CF';
+          case 6: case 13: return 'MT';
+          case 1: return 'RI';
+          case 4: case 15: return 'EX';
+          default: return undefined; // 8/9/10 u otros no soportados deben haber sido filtrados antes
+        }
+      })();
       const payload = {
         pto_vta: (require('../services/DbService') as any).getDb().getAfipConfig()?.pto_vta || 1,
         tipo_cbte: tipoCbte,
@@ -70,6 +81,7 @@ export class RealAFIPBridge implements AFIPBridge {
         iva: Number(req?.iva || 0),
         doc_tipo: Number(req?.docTipo || 99),
         cuit_receptor: req?.docNro ? String(req.docNro) : undefined,
+        condicion_iva_receptor: condicionCategoria,
         detalle: Array.isArray(req?.items) ? req.items.map((it: any) => ({ descripcion: it.descripcion, cantidad: it.cantidad, precioUnitario: it.unitario, alicuotaIva: it.iva })) : []
       };
       const r = await afipService.solicitarCAE(payload);
