@@ -9,6 +9,7 @@
   - Pipeline `.fac` restituido: no borra `.fac` hasta enviar `.res` por FTP.
  - Cola de contingencia separada (SQLite `contingency.db`) integrada al proceso main con health-check WS y circuito (pausa/reanuda).
  - Contingencia sin `.env`: entrada fija `C:\tmp`; rutas internas bajo `app.getPath('userData')/fac` (staging/processing/done/error/out); tiempos y circuito definidos por constantes.
+ - Política de cotización flexible (MonedaPolicy): fuente oficial WSFE; `CANCELA_MISMA_MONEDA=S` exige cotización exacta del día hábil anterior; `N` tolera desvíos dentro de +2% arriba y hasta −80% abajo (máx. 400% de caída). Se valida y se audita `{ monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
 
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
@@ -68,7 +69,20 @@
   5) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`. Sólo se borra tras `RES_OK`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
-  8) Moneda extranjera (DOL/EUR): si el `.fac` trae `MONEDA:DOLARES` (u “EUROS”), se normaliza a `MonId='DOL'` (`'EUR'`). Antes de emitir se consulta `FEParamGetCotizacion(MonId)` y se usa `MonCotiz` de AFIP. Si la WS no responde y existe `COTIZADOL:`, se usa como hint visible (PDF/log) sin reemplazar el valor fiscal.
+  8) Moneda extranjera (DOL/EUR) – política flexible implementada:
+     - Parser `.fac`: `MONEDA:` (PESOS/DOLARES/EUROS/USD), `CANCELA_MISMA_MONEDA:` (S/N), `COTIZADOL:` (hint solo visual).
+     - Normalización: PESOS→PES; DOLARES/USD→DOL; EUROS→EUR.
+     - Validación MonId: contra catálogo AFIP cacheado 12h.
+     - FECAEReq: incluye `MonId`, `MonCotiz` y `CanMisMonExt` (si el SDK lo soporta).
+     - Reglas:
+       - `PES` → `MonCotiz=1`.
+       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=S` → cotización del día hábil anterior (prevDiaHabil de la fecha del comprobante); selección exacta (sin tolerancia).
+       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=N` → cotización vigente; selección tolerante dentro de +2% arriba y hasta −80% abajo respecto del oficial.
+     - Validaciones y errores:
+       - Transient: timeouts/red/HTTP≥500 o falla de `FEParamGetCotizacion` → reintentos + posible pausa por circuito.
+       - Permanent: `MonId` inválido, `MonCotiz` fuera de rango permitido, o mismatch exacto cuando `S`.
+     - Auditoría: `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
+     - Hint: `COTIZADOL` no sustituye el valor fiscal; solo se registra para visual/log cuando falla la WS.
 
 ```mermaid
 flowchart TD
@@ -93,6 +107,7 @@ flowchart TD
   - Siempre se incluye en `createVoucher`. Elimina Observación 10245.
 - Concepto servicio (2/3): requiere `FchServDesde/FchServHasta/FchVtoPago`.
 - Validación matemática: `ImpTotal == ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx` (2 decimales).
+ - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) con validación de política (exacta vs tolerante).
 
 ### 6 ter) Condición IVA Receptor (.fac y emisión)
 - Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
@@ -118,7 +133,7 @@ flowchart TD
 - Se omiten líneas de IVA por alícuota con valor `0,00`.
 - CAE y Vto impresos; QR oficial generado a partir de datos de AFIP.
 - Campos dinámicos OBS/FISCAL/PIE y “GRACIAS” conservados.
- - Moneda y cotización: si `MonId ≠ 'PES'` (ej.: `DOL`), se muestra la leyenda de moneda y la cotización aplicada.
+ - Moneda y cotización: si `MonId ≠ 'PES'` (ej.: `DOL`), se muestra la leyenda de moneda y la cotización aplicada (vigente o día hábil anterior según `CANCELA_MISMA_MONEDA`).
 
 ### 8) Observabilidad y auditoría
 - Logs con prefijo `[FACT]` y resultados AFIP (Observaciones/Errores). 
@@ -127,8 +142,8 @@ flowchart TD
   - Flags: `AFIP_PROD_AUDIT_TAP=1` y `AFIP_AUDIT_SAMPLE=<n>`.
   - Persistencia en `logs/afip/prod/audit/<timestamp-N>/` (request/response sanitizados + resumen de checks).
   - Reporte: `scripts/afip-prod-audit-report.ts` → `docs/afip-prod-audit-summary.md`.
- - Cola de contingencia: `scripts/queue_inspect.ts` / `npm run queue:inspect` para validar PRAGMAs y salud del archivo.
- - Trazas de moneda: se registra `MonId` y `MonCotiz` utilizados (y, si aplica, `COTIZADOL` como hint) para verificación MTXCA.
+- Cola de contingencia: `scripts/queue_inspect.ts` / `npm run queue:inspect` para validar PRAGMAs y salud del archivo.
+ - Trazas de moneda: se registra `{ monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }` (y, si aplica, `COTIZADOL` como hint) para verificación MTXCA.
 
 ### 9) Configuración
 - AFIP: CUIT, Cert (.crt/.pem), Key (.key), Entorno=Producción, PV habilitado (WSFEv1). 
@@ -215,9 +230,26 @@ Uso rápido (cola)
 - Moneda extranjera – Dólar:
   - Códigos de moneda AFIP: se soporta `MonId='DOL'` (Dólar Estadounidense) además de `PES` y `EUR`. En algunos entornos de prueba pueden verse identificadores `USD` en mocks; el código oficial para FE es `DOL`.
   - Validación de moneda: consulta a `FEParamGetTiposMonedas` y rechazo de códigos no soportados por AFIP.
-  - Cotización: cuando `MonId !== 'PES'`, se consulta `FEParamGetCotizacion` para obtener `MonCotiz`; se valida su presencia antes de emitir. La UI y el PDF muestran “moneda” y “cotización”.
+  - Cotización: cuando `MonId !== 'PES'`, se consulta `FEParamGetCotizacion` para obtener `MonCotiz`; la política valida:
+    - `S` (misma moneda): valor exacto del día hábil anterior (sin desviación).
+    - `N` (distinta moneda): tolerancia de +2% por encima y hasta −80% por debajo del oficial (maxDownPercent=400).
+    - Fuera de rango ⇒ error permanente; fallas de red/timeout ⇒ transiente con reintentos/backoff.
+  - `FECAEReq` incluye `CanMisMonExt` cuando la librería lo soporta.
   - `.fac` y dólar: se aceptan entradas tipo `MONEDA:DOLARES` y `COTIZADOL: <valor>`; el flujo normaliza a `MonId='DOL'` y utiliza la cotización obtenida de AFIP. `COTIZADOL` se usa solo como hint visual si la WS falla (no reemplaza el valor fiscal).
   - Controles de aceptación (DOL): FECAE debe incluir `MonId='DOL'` y `MonCotiz = cotización vigente`; el PDF debe reflejar “Dólar” y la cotización aplicada; constatación de QR/CAE verde.
+
+### 18) Consulta de cotización Dólar en UI (Modo Caja)
+- Indicador discreto en la barra: “Dólar (AFIP) = x.xxx,xx — hh:mm”.
+- Fuente principal: WSFEv1 `FEParamGetCotizacion('DOL')` con TA de `wsfe`.
+- Secuencia (MTXCA pág. ~287):
+  1) `FEParamGetTiposMonedas` (validar que 'DOL' exista; cache 12h)
+  2) `FEParamGetCotizacion('DOL')` → { MonCotiz, FchCotiz }
+  3) Si la emisión requiere “misma moneda” (S), se usa `FEParamGetCotizacion('DOL', prevDiaHabil(cbteFch))` para informar y validar
+- Comportamiento de la UI:
+  - Actualiza al abrir y cada 10 minutos (botón ↻ manual)
+  - Estados: OK (valor vigente), Degradado (último valor cache), Sin datos (--) 
+  - No bloquea la emisión; la validación fiscal ocurre en `afipService` al emitir
+- Fallback (a implementar si se requiere): cliente WSAA/WSBFE + `BFEGetCotizacion('DOL')` con TA del servicio BFEX, sólo para informar cuando WSFE no responda. Actualmente deshabilitado por requisitos de TA SOAP.
 
 ### 15) Anexos
 - Constatación de CAE: escanear QR o usar el sitio AFIP “Comprobantes con CAE” con CUIT/CAE/Fecha/PV/Número/Importe.

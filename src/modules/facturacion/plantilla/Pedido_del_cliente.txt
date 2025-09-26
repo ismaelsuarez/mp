@@ -1,0 +1,142 @@
+Actuá como lead engineer Node/TS. Objetivo: mejorar moneda extranjera (USD/EUR) y clasificar errores AFIP (transient/permanent) usando únicamente los archivos ya existentes que se listan abajo.
+No crear archivos nuevos. No modificar nada en src/pdf/** ni en src/res/**. No introducir variables .env. Mantener que el .fac se borra solo tras CAE_OK + PDF_OK + RES_OK.
+
+Archivos a editar (y solo estos)
+
+src/modules/facturacion/facProcessor.ts (parseo .fac y DTO interno)
+src/modules/facturacion/afipService.ts (armado FECAEReq, llamadas FEParam*, lógica de moneda)
+src/modules/facturacion/adapters/CompatAfip.ts (mapeo al SDK/cliente AFIP)
+src/afip/AFIPBridge.ts y src/afip/RealAFIPBridge.ts (clasificación de errores + integración circuito)
+src/services/queue/SqliteQueueStore.ts solo si ya tiene migrador inline (agregar campos vía ALTER TABLE idempotente). Si NO tiene migrador, registrar auditoría de moneda con el mecanismo de logs/audit que ya existe (sin tocar schema).
+Si alguno de estos archivos tiene nombres levemente distintos en tu repo, usar los existentes equivalentes (no crear otros).
+
+Cambios por archivo
+1) src/modules/facturacion/facProcessor.ts
+Parser .fac (extensión sin romper lo actual):
+Leer, si existen, las claves:
+MONEDA: (texto; ejemplos: PESOS, DOLARES, EUROS, USD). Guardar en el DTO como dto.moneda.monIdText.
+CANCELA_MISMA_MONEDA: (S|N). Guardar dto.moneda.canMisMonExt (default 'N' si no viene).
+COTIZADOL: (número). Guardar solo como pista dto.moneda.cotizHint (no fiscal).
+No modificar llamadas a PDF ni .res.
+DTO interno (agregar campos, sin romper firmas públicas):
+// dentro del DTO ya existente del comprobante
+moneda?: { monIdText?: string; monId?: string; canMisMonExt?: 'S'|'N'; cotizHint?: number; monCotiz?: number; fchCotiz?: string };
+
+(Estos campos son de uso interno para armar el FECAE; no se imprimen ni salen en .res.)
+2) src/modules/facturacion/afipService.ts
+Normalización de moneda (en la misma unidad, sin crear archivos auxiliares):
+Agregar funciones internas (en este mismo archivo):
+resolveMonId(input: string): string
+
+Mapear: PESOS→PES; DOLARES/USD→DOL; EUROS→EUR.
+
+Validar contra FEParamGetTiposMonedas() (cachear en memoria una lista monedasCache con TTL de 12 h; si ya existe un cache utilitario en este archivo, reutilizarlo).
+
+Si no existe en AFIP ⇒ lanzar PermanentError('MonId inválido').
+prevDiaHabil(yyyyMMdd: string): string
+Calcular día hábil anterior ignorando feriados por ahora (sáb-dom).
+getCotizacion(monId: string, fchCotiz?: string): Promise<{ valor:number; fecha:string }>
+Llamar FEParamGetCotizacion. Timeouts/5xx ⇒ TransientError; valor<=0 ⇒ PermanentError.
+Armar FECAEReq incorporando moneda (sin cambiar el resto):
+
+Derivar monId:
+
+Si dto.moneda.monIdText existe ⇒ resolveMonId(...). Si no ⇒ monId='PES'.
+
+Reglas:
+
+Si monId==='PES' ⇒ MonId='PES', MonCotiz=1, no enviar CanMisMonExt (o setear "N").
+
+Si monId!=='PES':
+
+canMisMonExt = dto.moneda.canMisMonExt ?? 'N'.
+
+Si canMisMonExt==='S' (se cancela en la misma moneda):
+
+cbteFch = dto.cbteFch || hoy() en YYYYMMDD.
+
+fchCotiz = prevDiaHabil(cbteFch).
+
+cotiz = (await getCotizacion(monId, fchCotiz)).valor.
+
+Usar ese cotiz como MonCotiz o (si el SDK permite) omitir MonCotiz y dejar que ARCA asigne automáticamente.
+
+Ignorar cualquier cotizHint del .fac si difiere.
+
+Si canMisMonExt==='N':
+
+cotiz = (await getCotizacion(monId)).valor; usar como MonCotiz.
+
+Guardar en el DTO interno (para logs/auditoría) dto.moneda.monId, monCotiz, fchCotiz.
+
+Validaciones previas a emitir (en este archivo, donde ya validás totales):
+
+monId==='PES' ⇒ forzar MonCotiz=1.
+
+monId!=='PES' && canMisMonExt==='N' ⇒ requerir MonCotiz>0.
+
+monId!=='PES' && canMisMonExt==='S' ⇒ si decidís enviar MonCotiz, debe coincidir con la fecha hábil anterior; si no, **PermanentError('Cotización no coincide con ARCA para misma moneda')`.
+
+Logs/auditoría (interno, sin afectar PDF/.res):
+Agregar un log estructurado al momento de armar el detalle:
+
+[FACT] FE Moneda { monId, canMisMonExt, monCotiz, fchCotiz }
+
+3) src/modules/facturacion/adapters/CompatAfip.ts
+
+Asegurar que el payload hacia el SDK AFIP incluya, en FECAEDetRequest:
+
+MonId (string), MonCotiz (number), y si tu SDK lo soporta, CanMisMonExt ('S'|'N').
+
+Sin tocar el resto de los campos ya existentes (totales, IVA, fechas servicio, receptor, etc.).
+
+4) src/afip/AFIPBridge.ts y src/afip/RealAFIPBridge.ts
+
+Clasificación de errores:
+
+TransientError si: timeout, DNS/SSL, HTTP 5xx, WSAA/WSFE caído, FEParamGetCotizacion no responde. Llamar circuit.recordFailure() y devolver nack con backoff.
+
+PermanentError si: MonId inválido, MonCotiz<=0 cuando canMisMonExt==='N', divergencia con ARCA cuando 'S' y se envió cotización, combinaciones no soportadas.
+
+En éxito, circuit.reset().
+
+No cambiar firmas públicas ni el wiring con facProcessor/pipeline.
+
+5) src/services/queue/SqliteQueueStore.ts (solo si ya hay migrador inline)
+
+Opcional (si ya tenés ALTERs idempotentes en este archivo):
+Agregar, de forma idempotente, columnas a queue_jobs para auditoría mínima:
+
+mon_id TEXT, mon_cotiz REAL, can_mis_mon_ext TEXT, cotiz_fecha TEXT
+
+Si NO hay migrador en este archivo, no crear uno nuevo: en ese caso, loggear estos datos con tu logger/auditoría existente (no tocar schema).
+
+Aceptación (manual, sin tests nuevos si no existen)
+
+Factura en Pesos: emite con MonId='PES', MonCotiz=1. PDF y .res sin cambios.
+
+Factura en Dólar con CANCELA_MISMA_MONEDA=S:
+
+Usa la cotización del día hábil anterior (o omite MonCotiz si el SDK lo permite y ARCA asigna).
+
+Si el WS de cotización no responde ⇒ se reintenta (transient).
+
+Si se envía un valor distinto ⇒ permanente con mensaje claro (no se reintenta).
+
+Factura en Dólar con CANCELA_MISMA_MONEDA=N:
+
+Usa la última cotización de FEParamGetCotizacion (>0).
+
+Caídas del WS ⇒ transient.
+
+Contingencia: ante caídas AFIP/Internet el circuito pausa; no se borra ningún .fac. Al volver, reanuda FIFO.
+
+Sin cambios en PDF ni .res. El borrado del .fac sigue ocurriendo solo tras RES_OK.
+
+Notas
+
+No crear MonedaService.ts ni archivos nuevos: agregá helpers dentro de afipService.ts reutilizando el cache que ya usa FEParam* si existe; si no, implementá un cache mínimo en variables de módulo/locales del archivo.
+
+Si CompatAfip/SDK no soporta enviar CanMisMonExt, dejalo sin ese campo; mantené la regla de cotización en afipService.ts igual.
+
+Mantener C:\tmp y toda la orquestación (watcher/cola) tal cual.

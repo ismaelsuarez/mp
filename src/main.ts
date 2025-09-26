@@ -1337,6 +1337,68 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	ipcMain.handle('facturacion:empresa:save', async (_e, data: any) => {
 		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
+
+	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL')
+	ipcMain.handle('facturacion:cotizacion:dol', async () => {
+		try {
+			console.warn('[caja][cotiz] solicitando FEParamGetCotizacion DOL/USD');
+			const afip = await (afipService as any).getAfipInstance?.();
+			if (!afip) return { ok: false, error: 'AFIP no disponible' };
+			const withTimeout = async <T>(p: Promise<T>, ms=6000): Promise<T> => (await Promise.race([p, new Promise<T>((_,rej)=>setTimeout(()=>rej(new Error('TIMEOUT')), ms))])) as T;
+			// Intentar DOL (código oficial WSFE) y fallback a USD (algunos SDKs lo exponen así)
+			let r: any = null;
+			// 1) Método getCurrencyCotization (algunos SDKs)
+			try { if (afip?.ElectronicBilling?.getCurrencyCotization) r = await withTimeout(afip.ElectronicBilling.getCurrencyCotization('DOL')); } catch { r = null; }
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try { if (afip?.ElectronicBilling?.getCurrencyCotization) r = await withTimeout(afip.ElectronicBilling.getCurrencyCotization('USD')); } catch { r = null; }
+			}
+			// 2) Método getCurrencyQuotation (otros SDKs)
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try { if (afip?.ElectronicBilling?.getCurrencyQuotation) r = await withTimeout(afip.ElectronicBilling.getCurrencyQuotation('DOL')); } catch { r = null; }
+				if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+					try { if (afip?.ElectronicBilling?.getCurrencyQuotation) r = await withTimeout(afip.ElectronicBilling.getCurrencyQuotation('USD')); } catch { r = null; }
+				}
+			}
+			// 3) Fallback adicional: algunos clientes exponen getParamGetCotizacion
+			if ((!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) && typeof (afip as any).ElectronicBilling.getParamGetCotizacion === 'function') {
+				try { r = await withTimeout((afip as any).ElectronicBilling.getParamGetCotizacion({ MonId: 'DOL' })); } catch { r = null; }
+				if (!r || (!r.ResultGet?.MonCotiz)) {
+					try { r = await withTimeout((afip as any).ElectronicBilling.getParamGetCotizacion({ MonId: 'USD' })); } catch { r = null; }
+				}
+			}
+			// 4) Fallback ARCA BFEGetCotizacion (si WSFE no responde)
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try {
+					const cfg = getDb().getAfipConfig();
+					const entorno = String(cfg?.entorno || 'produccion').toLowerCase();
+					const baseUrl = entorno === 'homologacion'
+						? 'https://wswhomo.afip.gov.ar/wsbfev1/service.asmx'
+						: 'https://servicios1.afip.gov.ar/wsbfev1/service.asmx';
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					const { ArcaClient } = require('./modules/facturacion/arca/ArcaClient');
+					const certPath = String(cfg?.cert_path || '');
+					const keyPath = String(cfg?.key_path || '');
+					const client = new ArcaClient(baseUrl, certPath, keyPath);
+					try { console.warn('[caja][cotiz][ARCA] usando', { baseUrl, certPath, keyPath }); } catch {}
+					const auth = { Token: '', Sign: '', Cuit: Number(cfg?.cuit || 0) };
+					r = await withTimeout(client.getCotizacion(auth, 'DOL'), 6000);
+					console.warn('[caja][cotiz][ARCA] fallback OK');
+				} catch (e) { try { console.warn('[caja][cotiz][ARCA] ERROR', String((e as any)?.message || e)); } catch {} }
+			}
+			// 5) Resultado
+			const MonCotiz = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
+			const FchCotiz = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
+			if (!Number.isFinite(MonCotiz) || MonCotiz <= 0) {
+				return { ok: false, error: 'Cotización inválida' };
+			}
+			const out = { ok: true, data: { MonId: 'DOL', MonCotiz, FchCotiz } };
+			try { console.warn('[caja][cotiz] OK', out.data); } catch {}
+			return out;
+		} catch (e: any) {
+			try { console.warn('[caja][cotiz] ERROR', String(e?.message || e)); } catch {}
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
   // Configuración AFIP (persistente)
   ipcMain.handle('facturacion:afip:get', async () => {
     try { const cfg = getDb().getAfipConfig(); return { ok: true, config: cfg }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }

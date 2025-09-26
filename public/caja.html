@@ -21,15 +21,22 @@
     <div class="container flex items-center gap-2 py-2">
             <button class="tab px-3 py-1.5 text-sm rounded-md border border-slate-600 bg-slate-700 hover:bg-slate-600" data-tab="home">Inicio</button>
             <button class="tab px-3 py-1.5 text-sm rounded-md border border-slate-600 bg-slate-800 hover:bg-slate-700" data-tab="table">Movimientos</button>
-            <button id="btnGoConfig" class="ml-auto px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-500">Configuración</button>
-		</div>
+            <div class="ml-auto flex items-center gap-2">
+                <div id="pillDol" class="hidden sm:flex items-center gap-2 px-2 py-1 rounded-md border border-slate-700 bg-slate-800 text-xs">
+                    <span id="pillDolState" class="inline-block w-2 h-2 rounded-full bg-slate-500" title="estado"></span>
+                    <span id="pillDolText">Dólar (AFIP) = -- — --:--</span>
+                    <button id="pillDolRefresh" class="px-1.5 py-0.5 rounded-md border border-slate-600 bg-slate-700 hover:bg-slate-600" title="Actualizar">↻</button>
+                </div>
+                <button id="btnGoConfig" class="px-2.5 py-1 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-500">Config</button>
+            </div>
+        </div>
 	</nav>
 
     <main class="container mt-2">
 		<section id="pane-home" class="tab-pane" style="display:block;">
-			<div class="mb-2">
-				<button id="btnCajaGenerate" class="w-full px-4 py-3 text-lg rounded-md bg-green-600 text-white hover:bg-green-500">DESCARGAR MP</button>
-			</div>
+            <div class="mb-2">
+                <button id="btnCajaGenerate" class="w-full max-w-md mx-auto px-4 py-2.5 text-base rounded-md bg-green-600 text-white hover:bg-green-500 block">DESCARGAR MP</button>
+            </div>
 			
             <div id="cajaLogs" class="bg-black/90 border border-slate-700 rounded-md p-2 h-20 overflow-auto font-mono text-xs"></div>
 		</section>
@@ -66,6 +73,55 @@
 		<span id="todayBadge" class="px-3 py-1 rounded text-sm border bg-slate-800/80"></span>
 	</div>
 
-	<script src="../dist/src/caja.js"></script>
+    <script>
+    const ipcRenderer = (window.api && window.api.facturacion && window.api.facturacion.getCotizacionDol) ? { invoke: (ch)=> window.api.facturacion.getCotizacionDol() } : null;
+    const pill = document.getElementById('pillDol');
+    const pillText = document.getElementById('pillDolText');
+    const pillState = document.getElementById('pillDolState');
+    const btnRefresh = document.getElementById('pillDolRefresh');
+    const fmt = (n)=> new Intl.NumberFormat('es-AR',{minimumFractionDigits:2, maximumFractionDigits:2}).format(n);
+    function setState(kind){
+        pillState.className = 'inline-block w-2 h-2 rounded-full ' + (kind==='ok' ? 'bg-emerald-500' : kind==='warn' ? 'bg-amber-500' : 'bg-slate-500');
+    }
+    async function fetchDol(){
+        try {
+            if (!ipcRenderer) return;
+            console.log('[caja] consultando DOL...');
+            const res = await ipcRenderer.invoke('facturacion:cotizacion:dol');
+            if (res && res.ok && res.data){
+                const { MonCotiz, FchCotiz } = res.data;
+                const hhmm = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                pillText.textContent = `Dólar (AFIP) = ${fmt(MonCotiz)} — ${hhmm}`;
+                setState('ok'); pill.classList.remove('hidden');
+                localStorage.setItem('dol:last', JSON.stringify({ v:MonCotiz, t:Date.now(), f:FchCotiz }));
+            } else {
+                console.warn('[caja] cotización DOL falló', res && res.error);
+                const cached = localStorage.getItem('dol:last');
+                if (cached){
+                    const o = JSON.parse(cached);
+                    pillText.textContent = `Dólar (AFIP) = ${fmt(o.v)} — último`;
+                    setState('warn'); pill.classList.remove('hidden');
+                } else {
+                    pillText.textContent = `Dólar (AFIP) = -- — --:--`;
+                    setState('idle'); pill.classList.remove('hidden');
+                }
+            }
+        } catch {
+            console.warn('[caja] error inesperado consultando DOL');
+            setState('warn'); pill.classList.remove('hidden');
+        }
+    }
+    btnRefresh?.addEventListener('click', fetchDol);
+    // al iniciar: mostrar cache si hay y disparar fetch inmediato
+    (function init(){
+        try {
+            const cached = localStorage.getItem('dol:last');
+            if (cached){ const o = JSON.parse(cached); pillText.textContent = `Dólar (AFIP) = ${fmt(o.v)} — cache`; setState('warn'); pill.classList.remove('hidden'); }
+        } catch {}
+        fetchDol();
+        setInterval(fetchDol, 10*60*1000);
+    })();
+    </script>
+    <script src="../dist/src/caja.js"></script>
 </body>
 </html>

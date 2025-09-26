@@ -36,6 +36,50 @@ class AfipService {
     }
   }
 
+  // ====== Helpers de moneda (pedido cliente) ======
+  private monedasCache: { ts: number; items: string[] } | null = null;
+  private resolveMonId(input: string): string {
+    const s = String(input || '').trim().toUpperCase();
+    if (!s) return 'PES';
+    if (s === 'PESOS' || s === 'ARS' || s === 'PES') return 'PES';
+    if (s === 'DOLARES' || s === 'DÓLARES' || s === 'USD' || s === 'DOL') return 'DOL';
+    if (s === 'EUROS' || s === 'EUR') return 'EUR';
+    return s;
+  }
+  private prevDiaHabil(yyyymmdd: string): string {
+    const y = Number(yyyymmdd.slice(0,4)); const m = Number(yyyymmdd.slice(4,6))-1; const d = Number(yyyymmdd.slice(6,8));
+    const dt = new Date(Date.UTC(y,m,d));
+    do { dt.setUTCDate(dt.getUTCDate()-1); } while (dt.getUTCDay() === 0 || dt.getUTCDay() === 6);
+    const mm = String(dt.getUTCMonth()+1).padStart(2,'0'); const dd = String(dt.getUTCDate()).padStart(2,'0');
+    return `${dt.getUTCFullYear()}${mm}${dd}`;
+  }
+  private async ensureMonedasValid(afip: any, monId: string): Promise<void> {
+    const now = Date.now();
+    if (!this.monedasCache || (now - this.monedasCache.ts) > 12*60*60*1000) {
+      const list = await afip.ElectronicBilling.getCurrenciesTypes();
+      const ids = Array.isArray(list) ? list.map((x:any)=> String((x.Id||x.id||'')).toUpperCase()) : [];
+      this.monedasCache = { ts: now, items: ids };
+    }
+    if (!this.monedasCache.items.includes(monId)) {
+      throw new Error('MonId inválido');
+    }
+  }
+  private async getCotizacion(afip: any, monId: string, fch?: string): Promise<{ valor:number; fecha:string }> {
+    try {
+      const r = fch ? await afip.ElectronicBilling.getCurrencyCotization(monId, fch) : await afip.ElectronicBilling.getCurrencyCotization(monId);
+      const val = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
+      const fecha = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
+      if (!Number.isFinite(val) || val <= 0) throw new Error('Cotización no válida');
+      return { valor: val, fecha };
+    } catch (e:any) {
+      const msg = String(e?.message || e);
+      if (/timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg)) {
+        throw new Error('TRANSIENT_COTIZ');
+      }
+      throw new Error('PERMANENT_COTIZ');
+    }
+  }
+
   constructor() {
     this.logger = new AfipLogger();
     this.idempotencyManager = new IdempotencyManager();
@@ -262,18 +306,19 @@ class AfipService {
         ? Number(String(comprobante.cliente.cuit).replace(/\D/g, ''))
         : 0;
       const cbteFch = String(comprobante.fecha).replace(/-/g, '');
-      const monId = String(comprobante.monId || 'PES').trim().toUpperCase();
-
-      // Moneda/cotización: si no es PES, consultar cotización WSFE
-      let monCotizNum = 1;
-      try {
-        if (monId && monId !== 'PES') {
-          const cot = await (afip as any).ElectronicBilling.getCurrencyCotization(monId);
-          const c = Number((cot && (cot.MonCotiz ?? cot?.ResultGet?.MonCotiz)) || 0);
-          if (Number.isFinite(c) && c > 0) monCotizNum = c;
+      // Moneda (pedido cliente)
+      const monIdNorm = this.resolveMonId((comprobante as any)?.moneda?.monIdText || comprobante.monId || 'PES');
+      await this.ensureMonedasValid(afip, monIdNorm);
+      let monCotizNum = 1; let fchCotizUsed: string | undefined; const canMis = ((((comprobante as any)?.can_mis_mon_ext) || (comprobante as any)?.moneda?.canMisMonExt || 'N').toUpperCase() as 'S'|'N');
+      if (monIdNorm !== 'PES') {
+        if (canMis === 'S') {
+          fchCotizUsed = this.prevDiaHabil(cbteFch);
+          const { valor, fecha } = await this.getCotizacion(afip, monIdNorm, fchCotizUsed);
+          monCotizNum = valor; if (fecha) fchCotizUsed = fecha.replace(/-/g,'');
+        } else {
+          const { valor, fecha } = await this.getCotizacion(afip, monIdNorm);
+          monCotizNum = valor; fchCotizUsed = fecha ? fecha.replace(/-/g,'') : undefined;
         }
-      } catch {
-        // Mantener 1 si falla; la validación previa ya advierte el problema
       }
 
       const request: any = {
@@ -292,14 +337,24 @@ class AfipService {
         ImpOpEx: totales.ImpOpEx,
         ImpIVA: totales.ImpIVA,
         ImpTrib: totales.ImpTrib,
-        MonId: monId,
+        MonId: monIdNorm,
         MonCotiz: monCotizNum,
-        Iva: ivaArray
+        Iva: ivaArray,
+        CanMisMonExt: canMis
       };
+      // Política de moneda flexible
+      const policy = { officialSource: 'WSFE', selection: canMis === 'S' ? 'exact' : 'tolerant', maxUpPercent: 2, maxDownPercent: 400 } as const;
+      const oficial = monCotizNum; const upper = Number((oficial * 1.02).toFixed(6)); const lower = Number((oficial / 5).toFixed(6));
+      const candidate = monCotizNum; const inRange = candidate >= lower && candidate <= upper;
+      if (monIdNorm !== 'PES') {
+        if (policy.selection === 'exact' && Math.abs(candidate - oficial) > 0.000001) throw new Error('PERMANENT_COTIZ_EXACT_MISMATCH');
+        if (policy.selection === 'tolerant' && !inRange) throw new Error('PERMANENT_COTIZ_OUT_OF_RANGE');
+      }
+      try { console.warn('[FACT] FE Moneda', { monId: monIdNorm, canMisMonExt: canMis, policy, monCotiz: monCotizNum, oficial, fuente: policy.officialSource, fchOficial: fchCotizUsed }); } catch {}
       // Fallback opcional: si vino hint de cotización desde .fac y MonCotiz sigue en 1 para DOL/EUR (por error de WS), usar hint solo para representación/observación, no modificar fiscal si WS trajo valor válido.
       try {
         const hint = (comprobante as any)?.cotiza_hint;
-        if ((monId === 'DOL' || monId === 'EUR') && Number(request.MonCotiz) === 1 && Number(hint) > 0) {
+        if ((monIdNorm === 'DOL' || monIdNorm === 'EUR') && Number(request.MonCotiz) === 1 && Number(hint) > 0) {
           // Mantener 1 en request (fiscal), pero registrar para PDF/logs
           (request as any)._cotizaHint = Number(hint);
         }
