@@ -264,6 +264,18 @@ class AfipService {
       const cbteFch = String(comprobante.fecha).replace(/-/g, '');
       const monId = String(comprobante.monId || 'PES').trim().toUpperCase();
 
+      // Moneda/cotización: si no es PES, consultar cotización WSFE
+      let monCotizNum = 1;
+      try {
+        if (monId && monId !== 'PES') {
+          const cot = await (afip as any).ElectronicBilling.getCurrencyCotization(monId);
+          const c = Number((cot && (cot.MonCotiz ?? cot?.ResultGet?.MonCotiz)) || 0);
+          if (Number.isFinite(c) && c > 0) monCotizNum = c;
+        }
+      } catch {
+        // Mantener 1 si falla; la validación previa ya advierte el problema
+      }
+
       const request: any = {
         CantReg: 1,
         PtoVta: ptoVta,
@@ -281,9 +293,17 @@ class AfipService {
         ImpIVA: totales.ImpIVA,
         ImpTrib: totales.ImpTrib,
         MonId: monId,
-        MonCotiz: 1,
+        MonCotiz: monCotizNum,
         Iva: ivaArray
       };
+      // Fallback opcional: si vino hint de cotización desde .fac y MonCotiz sigue en 1 para DOL/EUR (por error de WS), usar hint solo para representación/observación, no modificar fiscal si WS trajo valor válido.
+      try {
+        const hint = (comprobante as any)?.cotiza_hint;
+        if ((monId === 'DOL' || monId === 'EUR') && Number(request.MonCotiz) === 1 && Number(hint) > 0) {
+          // Mantener 1 en request (fiscal), pero registrar para PDF/logs
+          (request as any)._cotizaHint = Number(hint);
+        }
+      } catch {}
       // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
       try {
         const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {

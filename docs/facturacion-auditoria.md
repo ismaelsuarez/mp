@@ -68,6 +68,7 @@
   5) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`. Sólo se borra tras `RES_OK`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
+  8) Moneda extranjera (DOL/EUR): si el `.fac` trae `MONEDA:DOLARES` (u “EUROS”), se normaliza a `MonId='DOL'` (`'EUR'`). Antes de emitir se consulta `FEParamGetCotizacion(MonId)` y se usa `MonCotiz` de AFIP. Si la WS no responde y existe `COTIZADOL:`, se usa como hint visible (PDF/log) sin reemplazar el valor fiscal.
 
 ```mermaid
 flowchart TD
@@ -117,6 +118,7 @@ flowchart TD
 - Se omiten líneas de IVA por alícuota con valor `0,00`.
 - CAE y Vto impresos; QR oficial generado a partir de datos de AFIP.
 - Campos dinámicos OBS/FISCAL/PIE y “GRACIAS” conservados.
+ - Moneda y cotización: si `MonId ≠ 'PES'` (ej.: `DOL`), se muestra la leyenda de moneda y la cotización aplicada.
 
 ### 8) Observabilidad y auditoría
 - Logs con prefijo `[FACT]` y resultados AFIP (Observaciones/Errores). 
@@ -126,6 +128,7 @@ flowchart TD
   - Persistencia en `logs/afip/prod/audit/<timestamp-N>/` (request/response sanitizados + resumen de checks).
   - Reporte: `scripts/afip-prod-audit-report.ts` → `docs/afip-prod-audit-summary.md`.
  - Cola de contingencia: `scripts/queue_inspect.ts` / `npm run queue:inspect` para validar PRAGMAs y salud del archivo.
+ - Trazas de moneda: se registra `MonId` y `MonCotiz` utilizados (y, si aplica, `COTIZADOL` como hint) para verificación MTXCA.
 
 ### 9) Configuración
 - AFIP: CUIT, Cert (.crt/.pem), Key (.key), Entorno=Producción, PV habilitado (WSFEv1). 
@@ -163,6 +166,8 @@ Uso rápido (cola)
 3) `EXENTO`>0 y `IVA %`=0:
    - PDF oculta líneas 0, muestra Exento.
 4) Recibo y Remito: sólo PDF/FTP, sin AFIP.
+ 5) Moneda Dólar (DOL): `.fac` con `MONEDA:DOLARES` y `COTIZADOL: 1400.00`.
+    - Esperado: FECAE con `MonId='DOL'` y `MonCotiz` obtenido de AFIP (>0). El PDF muestra “Dólar” y la cotización aplicada. Si la WS de cotización falla, la emisión se reintenta; si se decide emitir más tarde, el PDF puede mostrar el hint de `COTIZADOL`, pero el valor fiscal se basa siempre en la cotización de AFIP cuando está disponible.
 
 ### 12) Criterios de aceptación
 - AFIP PROD: sin Observación 10245, CAE y Vto presentes, suma de montos válida, fechas servicio cuando corresponda.
@@ -198,6 +203,22 @@ Uso rápido (cola)
 - Simular caída AFIP/Internet (desconectar red o `AFIP_STUB_MODE=fail_transient`): observar que el sistema realiza nack con backoff, el circuito puede pasar a `DOWN` y pausar pops, y no borra `.fac` en processing.
 - Subir un mismo `.fac` dos veces: verificar que sólo uno se procesa (idempotencia por sha256).
 - Verificar en PDFs el QR oficial y que `ImpTotal = ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx`.
+
+### 17) Alineación con MTXCA (AFIP) y soporte de Dólar (DOL)
+- Alineación MTXCA (WSFEv1):
+  - Autenticación y endpoints: uso de WSAA/WSFEv1 oficiales; verificación de host de producción. TA cacheado y reutilizado.
+  - Estructura FECAE: campos obligatorios presentes (totales, monedas, alícuotas, concept/fechas servicio cuando Concepto=2/3). Validación matemática a 2 decimales (total vs suma de componentes y suma de IVA vs ImpIVA).
+  - Condición IVA del receptor: `CondicionIVAReceptorId` resuelto por catálogo AFIP y enviado tanto en HOMO como en PROD, eliminando observaciones 10245/10246. Reglas por tipo A/B/C alineadas a MTXCA.
+  - Numeración y PV: uso de `PtoVta` habilitado; obtención de “último autorizado” para determinación de siguiente número cuando aplica.
+  - Observabilidad/auditoría: tap opcional en PROD con request/response sanitizados y checks (hosts, math, IVA, concepto/fechas), cumpliendo buenas prácticas de trazabilidad exigidas por MTXCA.
+  - Representación fiscal: QR oficial AFIP embebido en PDF y datos de CAE/CAE_Vto impresos.
+- Moneda extranjera – Dólar:
+  - Códigos de moneda AFIP: se soporta `MonId='DOL'` (Dólar Estadounidense) además de `PES` y `EUR`. En algunos entornos de prueba pueden verse identificadores `USD` en mocks; el código oficial para FE es `DOL`.
+  - Validación de moneda: consulta a `FEParamGetTiposMonedas` y rechazo de códigos no soportados por AFIP.
+  - Cotización: cuando `MonId !== 'PES'`, se consulta `FEParamGetCotizacion` para obtener `MonCotiz`; se valida su presencia antes de emitir. La UI y el PDF muestran “moneda” y “cotización”.
+  - `.fac` y dólar: se aceptan entradas tipo `MONEDA:DOLARES` y `COTIZADOL: <valor>`; el flujo normaliza a `MonId='DOL'` y utiliza la cotización obtenida de AFIP. `COTIZADOL` se usa solo como hint visual si la WS falla (no reemplaza el valor fiscal).
+  - Controles de aceptación (DOL): FECAE debe incluir `MonId='DOL'` y `MonCotiz = cotización vigente`; el PDF debe reflejar “Dólar” y la cotización aplicada; constatación de QR/CAE verde.
+
 ### 15) Anexos
 - Constatación de CAE: escanear QR o usar el sitio AFIP “Comprobantes con CAE” con CUIT/CAE/Fecha/PV/Número/Importe.
 - Variables útiles:
