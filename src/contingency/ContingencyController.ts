@@ -27,6 +27,9 @@ export class ContingencyController {
   private wsHealth: WSHealthService;
   private circuit: CircuitBreaker;
   private cfg: Cfg;
+  // Fallback inline (mutex global + cola simple)
+  private inlineBusy = false;
+  private inlineQueue: string[] = [];
 
   constructor(cfg: Cfg, store?: SqliteQueueStore) {
     this.cfg = cfg;
@@ -44,7 +47,8 @@ export class ContingencyController {
     // Watcher de incoming
     this.watcher = chokidar.watch(cfg.incoming, { persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: cfg.minStableMs, pollInterval: 100 } });
     this.watcher.on('add', async (filePath: string) => {
-      try { await this.handleIncoming(filePath, cfg); } catch { /* noop */ }
+      try { const sz = fs.statSync(filePath).size; console.warn('[fac.detected]', { filePath, size: sz }); } catch {}
+      try { await this.handleIncoming(filePath, cfg); } catch (e: any) { try { console.warn('[queue.enqueue.fail]', { filePath, reason: String(e?.message || e) }); } catch {} }
     });
     this.running = true;
     // Suscripción a salud WS
@@ -52,28 +56,63 @@ export class ContingencyController {
     this.wsHealth.on('up', () => { try { this.resume(); console.info('[contingency] WS UP → resume'); } catch {} });
     this.wsHealth.on('degraded', () => { try { console.warn('[contingency] WS DEGRADED'); } catch {} });
     this.wsHealth.start();
+    // Escaneo inicial: encolar .fac ya presentes (evita perder archivos previos al arranque)
+    try {
+      const entries = fs.readdirSync(cfg.incoming)
+        .filter((n) => /\.fac$/i.test(String(n || '')))
+        .filter((n) => !/\.(res|err|pdf)$/i.test(String(n || '')));
+      if (entries.length) {
+        try { console.warn('[fac.scan.init]', { count: entries.length }); } catch {}
+        const sorted = entries.sort((a,b)=>a.localeCompare(b));
+        for (const name of sorted) {
+          const full = path.join(cfg.incoming, name);
+          try { this.handleIncoming(full, cfg); console.warn('[fac.scan.enqueue]', { filePath: full }); } catch {}
+        }
+      }
+    } catch {}
+    // Rehidratación: mover PROCESSING>120s a RETRY al bootstrap
+    try {
+      const db = (require('../services/queue/QueueDB') as any).getQueueDB().driver;
+      const now = Date.now();
+      const stale = db.prepare("SELECT id FROM queue_jobs WHERE state='PROCESSING' AND (? - updated_at) > ?").all(now, 120000);
+      for (const r of stale) {
+        db.prepare("UPDATE queue_jobs SET state='RETRY', available_at=?, updated_at=? WHERE id=?").run(now, now, r.id);
+        try { console.warn('[contingency] rehydrate job → RETRY', { id: r.id }); } catch {}
+      }
+    } catch {}
+
     // Loop de consumo (concurrency=1)
     const tick = async () => {
       if (!this.running) return;
       if (this.processing) return setTimeout(tick, 200);
-      if (!this.circuit.shouldPop()) return setTimeout(tick, 1000);
+      if (!this.circuit.shouldPop()) {
+        try { console.warn('[contingency] circuit=DOWN; queue=PAUSED'); } catch {}
+        return setTimeout(tick, 1000);
+      }
       const job = this.store.getNext(['fac.process']);
       if (!job) return setTimeout(tick, 300);
+      try { console.warn('[queue.pop]', { id: job.id, filePath: String(job?.payload?.filePath || '') }); } catch {}
       this.processing = true;
       try {
         await this.processJob(job.id, job.payload, cfg);
         this.store.ack(job.id);
+        try { console.warn('[queue.ack]', { id: job.id }); } catch {}
         this.circuit.recordSuccess();
       } catch (e: any) {
         const reason = String(e?.message || e);
-        // Backoff exponencial aproximado + jitter
-        const base = (this.cfg.ws?.backoffBaseMs || 1500);
-        const factor = (this.circuit as any)['failures'] ? Math.min(6, 1 + Number((this.circuit as any)['failures'])) : 1;
-        const jitter = Math.floor(Math.random() * 300);
-        const backoff = base * factor + jitter + (this.wsHealth.last?.status === 'degraded' ? 1000 : 0);
-        this.store.nack(job.id, reason, backoff);
-        if (/timeout|ENOTFOUND|ECONN|EAI_AGAIN|network/i.test(reason)) {
-          this.circuit.recordFailure();
+        // Si el proceso indicó skip (archivo faltante o ya movido), ACK para evitar loop
+        if (/^SKIP|^FAC missing|fac\.missing\.skip/i.test(reason)) {
+          try { this.store.ack(job.id); console.warn('[queue.ack.skip]', { id: job.id, reason }); } catch {}
+        } else {
+          // Backoff exponencial aproximado + jitter
+          const base = (this.cfg.ws?.backoffBaseMs || 1500);
+          const factor = (this.circuit as any)['failures'] ? Math.min(6, 1 + Number((this.circuit as any)['failures'])) : 1;
+          const jitter = Math.floor(Math.random() * 300);
+          const backoff = base * factor + jitter + (this.wsHealth.last?.status === 'degraded' ? 1000 : 0);
+          this.store.nack(job.id, reason, backoff);
+          if (/timeout|ENOTFOUND|ECONN|EAI_AGAIN|network/i.test(reason)) {
+            this.circuit.recordFailure();
+          }
         }
       } finally {
         this.processing = false;
@@ -88,62 +127,101 @@ export class ContingencyController {
   status(): CtrStatus { const s = this.store.getStats(); return { running: this.running, paused: s.paused, enqueued: s.enqueued, processing: s.processing }; }
 
   enqueueFacFromPath(filePath: string, cfg?: { staging?: string }): number {
-    const payload = { filePath, staging: cfg?.staging };
-    const sha = this.sha256OfFileSafe(filePath);
-    return this.store.enqueue({ type: 'fac.process', payload, sha256: sha });
+    try {
+      const stats = this.store.getStats();
+      if (stats.paused) {
+        try { console.warn('[contingency] queue paused → fallback inline', { filePath }); } catch {}
+        this.enqueueInlineFallback(filePath);
+        return -1;
+      }
+      // Normalizar siempre: mover a staging y encolar con la ruta de staging
+      try { this.handleIncoming(filePath, this.cfg); console.warn('[contingency] normalize→staging via enqueueFacFromPath', { filePath }); } catch {}
+      return 0;
+    } catch (e) {
+      try { console.warn('[contingency] enqueue failed → fallback inline', { filePath, error: String((e as any)?.message || e) }); } catch {}
+      this.enqueueInlineFallback(filePath);
+      return -1;
+    }
   }
 
   private async handleIncoming(filePath: string, cfg: any) {
     // Mover a staging atómicamente
     const base = path.basename(filePath);
     const dst = path.join(cfg.staging, base);
+    try { const sz = fs.statSync(filePath).size; console.warn('[fac.stable.ok]', { filePath, size: sz }); } catch {}
     try { fs.renameSync(filePath, dst); } catch { /* cross-device fallback */ fs.copyFileSync(filePath, dst); try { fs.unlinkSync(filePath); } catch {} }
+    try { console.warn('[fac.stage.ok]', { from: filePath, to: dst }); } catch {}
     const sha = this.sha256OfFileSafe(dst);
-    this.store.enqueue({ type: 'fac.process', payload: { filePath: dst }, sha256: sha });
+    try { console.warn('[fac.sha.ok]', { filePath: dst, sha }); } catch {}
+    const id = this.store.enqueue({ type: 'fac.process', payload: { filePath: dst }, sha256: sha });
+    try { console.warn('[queue.enqueue.ok]', { id, filePath: dst }); } catch {}
   }
 
   private async processJob(id: number, payload: any, cfg: any) {
-    const src = String(payload?.filePath || '');
-    if (!src || !fs.existsSync(src)) throw new Error('FAC missing');
+    const srcRaw = String(payload?.filePath || '');
+    let src = srcRaw;
+    if (!src || !fs.existsSync(src)) {
+      // Intentar reubicar por nombre en staging/done/error o bien saltear (ACK) duplicados antiguos
+      const base = path.basename(srcRaw || '');
+      const staged = base ? path.join(cfg.staging, base) : '';
+      const doneP = base ? path.join(cfg.done, base) : '';
+      const errP = base ? path.join(cfg.error, base) : '';
+      if (staged && fs.existsSync(staged)) {
+        src = staged;
+      } else if ((doneP && fs.existsSync(doneP)) || (errP && fs.existsSync(errP))) {
+        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        return; // ACK arriba sin reprocesar
+      } else {
+        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        return; // ACK arriba
+      }
+    }
     const name = path.basename(src);
     const lockPath = path.join(cfg.processing, name);
     // Lock (mover a processing)
     try { fs.renameSync(src, lockPath); } catch { fs.copyFileSync(src, lockPath); try { fs.unlinkSync(src); } catch {} }
+    try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
     try {
-      const { parseFac, validate, buildRequest, generatePdf, generateRes } = require('./pipeline');
-      const { RealAFIPBridge, AFIPError } = require('../afip/AFIPBridge');
-      // PARSED
-      const dto = parseFac(lockPath);
-      // VALIDATED
-      validate(dto);
-      // WAIT_WS/SENDING_WS
-      const bridge = new RealAFIPBridge();
-      let caeResp: any;
-      try {
-        const req = buildRequest(dto);
-        caeResp = await bridge.solicitarCAE(req);
-      } catch (err: any) {
-        if (err && err.name === 'AFIPError' && err.kind === 'transient') {
-          throw err; // transient → nack arriba
+      // Usar el pipeline consolidado de facturas/notas para generar PDF y .res completos
+      const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
+      const r: any = await processFacturaFacFile(lockPath);
+      if (!r || r.ok !== true) {
+        const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
+        // Tratar como transitorio: AFIP sin CAE/número, NTP y 'Comprobante en proceso'
+        if (/AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|en\s*proceso/i.test(errMsg)) {
+          // Considerar transitorio solo si es NTP o AFIP temporal
+          throw new Error(errMsg);
         }
-        await generateRes(dto, undefined, String(err?.message || err));
+        // Generar .res de error mínimo si el pipeline no lo hizo
+        try {
+          const { generateRes, parseFac } = require('./pipeline');
+          const dto = parseFac(lockPath);
+          await generateRes(dto, undefined, errMsg);
+          try { console.warn('[res.err.ok]', { filePath: lockPath }); } catch {}
+        } catch {}
         const errPath = path.join(cfg.error, name);
-        try { fs.renameSync(lockPath, errPath); } catch { fs.copyFileSync(lockPath, errPath); try { fs.unlinkSync(lockPath); } catch {} }
+        try { fs.renameSync(lockPath, errPath); } catch { try { fs.copyFileSync(lockPath, errPath); fs.unlinkSync(lockPath); } catch {} }
         throw new Error('PERMANENT_ERROR');
       }
-      // CAE_OK → PDF_OK
-      try { await generatePdf(dto, { cae: String(caeResp.cae), vencimiento: String(caeResp.vencimiento) }); } catch { throw new Error('PDF_FAIL'); }
-      // RES_OK
-      try { await generateRes(dto, { cae: String(caeResp.cae), vencimiento: String(caeResp.vencimiento) }); } catch { throw new Error('RES_FAIL'); }
-      // DONE
-      const donePath = path.join(cfg.done, name);
-      try { fs.renameSync(lockPath, donePath); } catch { fs.copyFileSync(lockPath, donePath); try { fs.unlinkSync(lockPath); } catch {} }
+      try { console.warn('[afip.cae.ok]', { cae: String(r.cae || ''), vto: String(r.caeVto || r.vto || '') }); } catch {}
+      // DONE: si el pipeline ya borró el .fac (tras enviar .res por FTP), saltar move
+      if (fs.existsSync(lockPath)) {
+        const donePath = path.join(cfg.done, name);
+        try { fs.renameSync(lockPath, donePath); } catch { try { fs.copyFileSync(lockPath, donePath); fs.unlinkSync(lockPath); } catch {} }
+        try { console.warn('[fac.done.ok]', { from: lockPath, to: donePath }); } catch {}
+      } else {
+        try { console.warn('[fac.done.ok]', { from: lockPath, to: '(deleted by pipeline after RES_OK)' }); } catch {}
+      }
     } catch (e) {
       const err = e as any;
       const msg = String(err?.message || err);
       if (msg === 'PERMANENT_ERROR') throw e;
       if (/AFIPError/.test(String(err?.name)) && /transient/.test(String(err?.kind))) {
         // Dejar el archivo en processing para el reintento
+        throw e;
+      }
+      // Considerar también transitorio si el mensaje indica 'Comprobante en proceso'
+      if (/en\s*proceso/i.test(msg)) {
         throw e;
       }
       const errPath = path.join(cfg.error, name);
@@ -154,6 +232,64 @@ export class ContingencyController {
 
   private sha256OfFileSafe(p: string): string {
     try { const buf = fs.readFileSync(p); return crypto.createHash('sha256').update(buf).digest('hex'); } catch { return ''; }
+  }
+
+  // ===== Fallback inline secuencial =====
+  private enqueueInlineFallback(filePath: string): void {
+    try {
+      if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith('.fac')) return;
+      if (!fs.existsSync(filePath)) return;
+      this.inlineQueue.push(filePath);
+      this.processInlineQueue();
+    } catch {}
+  }
+
+  private async processInlineQueue(): Promise<void> {
+    if (this.inlineBusy) return;
+    this.inlineBusy = true;
+    try {
+      while (this.inlineQueue.length > 0) {
+        const filePath = this.inlineQueue.shift() as string;
+        try { await this.processInlineOne(filePath); } catch {}
+      }
+    } finally {
+      this.inlineBusy = false;
+    }
+  }
+
+  private async processInlineOne(filePath: string): Promise<void> {
+    try { console.warn('[contingency][inline] start', { filePath }); } catch {}
+    // Reusar pipeline existente sin mover a staging/processing/done
+    const { parseFac, validate, buildRequest, generatePdf, generateRes } = require('./pipeline');
+    const { RealAFIPBridge, AFIPError } = require('../afip/AFIPBridge');
+    try {
+      const dto = parseFac(filePath);
+      try { console.warn('[inline.parse.ok]', { filePath, tipo: Number(dto?.tipo || 0) }); } catch {}
+      validate(dto);
+      try { console.warn('[inline.validate.ok]', { filePath }); } catch {}
+      const req = buildRequest(dto);
+      const bridge = new RealAFIPBridge();
+      const caeResp = await bridge.solicitarCAE(req);
+      try { console.warn('[inline.afip.cae.ok]', { filePath, cae: String(caeResp?.cae || ''), vto: String(caeResp?.vencimiento || '') }); } catch {}
+      const pdfOut = await generatePdf(dto, { cae: String(caeResp.cae), vencimiento: String(caeResp.vencimiento) });
+      try { console.warn('[inline.pdf.ok]', { filePath, pdf: pdfOut }); } catch {}
+      const resOut = await generateRes(dto, { cae: String(caeResp.cae), vencimiento: String(caeResp.vencimiento) });
+      try { console.warn('[inline.res.ok]', { filePath, res: resOut }); } catch {}
+      // Borrar .fac SOLO después de RES_OK
+      try { if (fs.existsSync(resOut) && fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
+      try { console.warn('[contingency] inline RES_OK', { filePath, cae: String(caeResp.cae), vto: String(caeResp.vencimiento), resPath: resOut }); } catch {}
+    } catch (err: any) {
+      const isTransient = err && err.name === 'AFIPError' && err.kind === 'transient';
+      if (!isTransient) {
+        // Generar .res de error; no borrar .fac
+        try {
+          const dto = require('./pipeline').parseFac(filePath);
+          await require('./pipeline').generateRes(dto, undefined, String(err?.message || err));
+          try { console.warn('[inline.res.err.ok]', { filePath }); } catch {}
+        } catch {}
+      }
+      try { console.warn('[contingency][inline] fail', { filePath, transient: !!isTransient, error: String(err?.message || err) }); } catch {}
+    }
   }
 }
 

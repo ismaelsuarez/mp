@@ -83,6 +83,9 @@
        - Permanent: `MonId` inválido, `MonCotiz` fuera de rango permitido (incluye `COTIZADOL` fuera de rango), o mismatch exacto cuando `S`.
      - Auditoría: `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
      - Hint: si `N` y `COTIZADOL` fue usado como fiscal, la `fuente` será `COTIZADOL`. Si no fue usado, se registra como hint visual/log.
+  9) Fallback inline secuencial (hotfix demo): si `enqueueFacFromPath(filePath)` falla o la cola está pausada, se procesa en línea con mutex global:
+     - parse/validate → solicitar CAE → generar PDF → generar/enviar `.res` → borrar `.fac` solo tras `RES_OK`.
+     - Log: `[contingency] inline RES_OK { filePath, cae, vto, resPath }`.
 
 ```mermaid
 flowchart TD
@@ -98,6 +101,57 @@ flowchart TD
   F -->|AFIPError permanent| X[generateRes(err) → FAC_ERROR_DIR]
 ```
 
+### 5 bis) Watcher .fac — flujos y manejo (end-to-end)
+- Componentes:
+  - `src/contingency/ContingencyController.ts` (watcher/cola), `src/contingency/LegacyWatcherAdapter.ts` (bridge legacy `fileReady`), `src/main/bootstrap/contingency.ts` (bootstrap), `src/main.ts` (watchers alternos), `src/contingency/pipeline.ts` (parse/validate/buildRequest/generatePdf/generateRes), `src/modules/facturacion/facProcessor.ts` (procesamiento directo), `src/afip/AFIPBridge.ts` (AFIP real/stub).
+- Directorios y constantes (ver 2 bis):
+  - Entrada fija `C:\tmp`; base `app.getPath('userData')/fac`; subcarpetas `staging/processing/done/error/out`; estabilidad `FAC_MIN_STABLE_MS=1500`; WS (`WS_TIMEOUT_MS=12000`, `WS_RETRY_MAX=6`, `WS_BACKOFF_BASE_MS=1500`); circuito (`WS_CIRCUIT_FAILURE_THRESHOLD=5`, `WS_CIRCUIT_COOLDOWN_SEC=90`, `WS_HEALTH_INTERVAL_SEC=20`).
+- Disparadores del watcher:
+  1) Principal (contingencia): `chokidar` en `C:\tmp` → evento `add` (archivo estable) → mover a `staging` → `enqueue fac.process` con `sha256`.
+  2) Legacy (opcional): si existe emisor que emite `fileReady(filePath)`, el adapter invoca `enqueueFacFromPath(filePath)`.
+  3) Alterno (main): según configuración, detecta `.fac` y llama a `processFacturaFacFile/processFacFile` (sin cola). Riesgo de doble proceso si coexiste con la cola. Recomendación: deshabilitar el alterno y centralizar en cola + fallback inline.
+- Flujo nominal por cola (worker):
+  - `pop` (si circuito lo permite) → mover a `processing` → `parseFac` → `validate` → `RealAFIPBridge.solicitarCAE` → `generatePdf` → `generateRes` → mover `.fac` a `done` → `ack`.
+  - Errores: transientes (red/AFIP 5xx/timeout) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `error`.
+  - ACK tardío: el `ack` ocurre solo después de `PDF_OK + RES_OK` y mover a `done` (sin ACK anticipado).
+- Estado del circuito y rehidratación:
+  - `WSHealthService`: `up|degraded|down`. Si `down`, no `pop` y log: `circuit=DOWN; queue=PAUSED`.
+  - Rehidratación al iniciar: jobs en `PROCESSING` con >120s pasan a `RETRY` para evitar bloqueos.
+- Fallback inline secuencial (hotfix):
+  - Disparo: si `enqueueFacFromPath` falla o la cola está `paused`.
+  - Pipeline inline (mutex global): parse/validate → solicitar CAE → generar PDF → generar/enviar `.res` → borrar `.fac` sólo tras `RES_OK`.
+  - Log de éxito: `[contingency] inline RES_OK { filePath, cae, vto, resPath }`.
+  - Errores: transientes ⇒ no borrar `.fac`; permanentes ⇒ generar `.res` de error, sin borrar `.fac`.
+- Reglas de borrado (siempre):
+  - Cola: se borra al mover a `done` tras `RES_OK`.
+  - Inline: se borra sólo si `generateRes` fue exitoso (RES_OK). El kill‑switch legacy protege contra borrados fuera de estos caminos.
+- Logs clave:
+  - Arranque: configuración (rutas/tiempos). Pausa: `circuit=DOWN; queue=PAUSED`. Rehidratación: `rehydrate job → RETRY`. Moneda: `[FACT] FE Moneda {...}`. Inline OK: `[contingency] inline RES_OK {...}`.
+ - Logs de arranque y pre-cola (visibilidad e investigación):
+   - `[fac.detected] { filePath, size }`
+   - `[fac.stable.ok] { filePath, size }`
+   - `[fac.stage.ok] { from, to }`
+   - `[fac.sha.ok] { filePath, sha }`
+   - `[queue.enqueue.ok] { id, filePath }`
+   - `[queue.enqueue.fail] { filePath, reason }`
+
+ - Idempotencia:
+   - Único entry point: cola de contingencia + fallback inline.
+   - Índice único por `sha` (SQLite `uq_jobs_sha`) evita duplicados al encolar; si ya existe, se reutiliza el id.
+
+```mermaid
+flowchart TD
+  A[Fallback trigger (enqueue fail o queue paused)] --> B[Cola inline (mutex global)]
+  B --> C[parseFac]
+  C --> D[validate]
+  D --> E[solicitarCAE (AFIP)]
+  E -->|CAE_OK| F[generatePdf]
+  F --> G[generateRes]
+  G --> H[unlink .fac (solo tras RES_OK)]
+  E -->|AFIPError transient| R[Sin unlink .fac • reintentar luego]
+  E -->|PermanentError| X[generateRes(err) • mantener .fac]
+```
+
 ### 6) Integración AFIP (WSAA/WSFE)
 - Endpoints centralizados: `src/services/afip/AfipEndpoints.ts`.
 - Tickets (TA) cacheados en carpeta de datos del usuario; no se reautentica si está vigente.
@@ -108,6 +162,8 @@ flowchart TD
 - Concepto servicio (2/3): requiere `FchServDesde/FchServHasta/FchVtoPago`.
 - Validación matemática: `ImpTotal == ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx` (2 decimales).
  - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
+ - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
+ - Notas de Crédito (NC): importes siempre positivos (`ImpTotal/ImpNeto/ImpIVA/ImpTrib/ImpTotConc/ImpOpEx` y `Iva[].Importe/BaseImp`). `CbtesAsoc` debe incluir `{ Tipo, PtoVta, Nro }` y, si se dispone, `Cuit` y `CbteFch` (AAAAMMDD). Si falta el comprobante asociado, se produce `PermanentError`.
 
 ### 6 ter) Condición IVA Receptor (.fac y emisión)
 - Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
@@ -123,10 +179,51 @@ flowchart TD
   - `afipService` resuelve `CondicionIVAReceptorId` por catálogo AFIP y lo incluye en el FECAE (PROD y HOMO).
 - Auditoría interna: se registra `{ cbteTipo, condIvaCode, condIvaDesc, docTipoFE, docNroFE }` en logs de emisión.
 
+### 6 quater) Guía de re-implementación rápida (CAE + CondicionIVAReceptorId)
+- Objetivo: volver a dejar funcionando la solicitud de CAE con inclusión obligatoria de `CondicionIVAReceptorId` (y obtención de `CAE` y `CAEFchVto`).
+
+- Paso 1 — Obtener el siguiente número:
+  - Usar `getLastVoucher(ptoVta, cbteTipo)` y sumar 1.
+  - Fuente en adapter local (proxy del SDK): ver `CompatAfip.ElectronicBilling.getLastVoucher` (usa WSFE oficial).
+
+- Paso 2 — Construir request consolidado (FECAEReq):
+  - Campos mínimos: `PtoVta`, `CbteTipo`, `Concepto`, `DocTipo`, `DocNro`, `CbteDesde/Hasta` (siguiente número), `CbteFch` (AAAAMMDD), `ImpTotal`, `ImpTotConc`, `ImpNeto`, `ImpOpEx`, `ImpIVA`, `ImpTrib`, `MonId`, `MonCotiz` y `Iva` consolidado por alícuota.
+  - Si `ImpIVA` es 0, no enviar `Iva/AlicIva` (evita obs 10018).
+  - Servicios (Concepto 2/3): incluir `FchServDesde/Hasta/VtoPago`.
+  - Moneda extranjera: `MonId ∈ {PES,DOL,EUR}`; `MonCotiz` consultado por WSFE. Política: exacta si `S` (día hábil anterior), tolerante si `N` (+2%/-80%).
+
+- Paso 3 — Resolver e incluir `CondicionIVAReceptorId` (obligatorio en PROD):
+  - Inferir categoría del receptor ('CF'|'RI'|'MT'|'EX') desde UI/.fac o por regla CF cuando `DocTipo=99` y `DocNro=0`.
+  - Consultar catálogo AFIP `FEParamGetCondicionIvaReceptor` (cache 24h) y mapear a `CondicionIVAReceptorId`.
+  - Incluir `CondicionIVAReceptorId` en el detalle del `FECAEReq`.
+  - Fallback mínimo: si CF (99/0) y falla el catálogo → usar 5.
+
+- Paso 4 — Enviar a WS y obtener CAE:
+  - Llamar `createVoucher(request)` del adapter local. Este arma el `FeCAEReq` manualmente garantizando que `CondicionIVAReceptorId` esté presente y retorna:
+    - `CAE` y `CAEFchVto` (fecha de vencimiento del CAE).
+  - Para MiPyME (FCE), usar `ElectronicBillingMiPyme.createVoucher` y agregar `ModoFin` en `Opcionales`.
+
+- Paso 5 — Post-proceso:
+  - Construir QR oficial con datos AFIP (incl. CAE) y persistir.
+  - Idempotencia: marcar aprobado con `{ ptoVta, tipo, número, cae, caeVto }`.
+
+- Reglas receptor vs tipo (recordatorio):
+  - A (1/2/3): rechaza CF (5), Exento (4), MT (6/13), No Alcanzado (15).
+  - B (6/7/8): rechaza RI (1).
+  - Normalización doc: CF → `DocTipo=99`, `DocNro=0`; no-CF → exige `DocTipo=80` y `DocNro>0`.
+
+- Puntos de código (referencia rápida):
+  - Orquestación y armado del request + inclusión de `CondicionIVAReceptorId`: `src/modules/facturacion/afipService.ts`.
+  - Resolución por catálogo (`FEParamGetCondicionIvaReceptor`): `src/services/afip/wsfe/catalogs.ts`.
+  - Envío WS y garantía de `CondicionIVAReceptorId` en `FeCAEReq`: `src/modules/facturacion/adapters/CompatAfip.ts`.
+  - Bridge para `.fac` (flujo de cola): `src/afip/AFIPBridge.ts`.
+
 ### 6 bis) Salud WS y Circuit Breaker
 - `WSHealthService` realiza DNS + HEAD/GET a WSAA/WSFEv1 con intervalos/timeout fijados por constantes (`WS_HEALTH_INTERVAL_SEC`, `WS_TIMEOUT_MS`).
 - Emite `up|degraded|down` y actualiza backoff de la cola: ‘degraded’ incrementa requeue mínimo; ‘down’ pausa (`pause()`).
 - `CircuitBreaker` cuenta fallas de red/timeout (`recordFailure()`); al superar `WS_CIRCUIT_FAILURE_THRESHOLD` pasa a `DOWN` y activa cooldown `WS_CIRCUIT_COOLDOWN_SEC`. Persiste en `queue_settings`. Tras cooldown entra `HALF_OPEN` (permite 1 job): si éxito `reset()` → `UP`, si falla → `DOWN`.
+ - Rehidratación al iniciar: jobs en `PROCESSING` con más de 120s pasan a `RETRY` inmediatamente (protege contra bloqueos por caída fuera de proceso).
+ - Visibilidad de pausa: cuando el circuito está `DOWN`, se loguea `circuit=DOWN; queue=PAUSED` y no se hace `pop` de jobs.
 
 ### 7) PDF y representación
 - Fecha sin desfase (parsing determinista desde `YYYY-MM-DD`/`YYYYMMDD`).
@@ -192,6 +289,10 @@ Uso rápido (cola)
 - `.fac`: no se borra antes del envío exitoso del `.res`; `.res` incluye PV/número/CAE/fecha.
 - Auditoría (si activada): registros con `mathOk=true`, `ivaSumOk=true`, `hasCondIva=true` y `prodHostsOk=true`.
  - Cola separada: `queue:inspect` reporta `journal_mode=WAL` y `synchronous=NORMAL`; `contingency.db` existe en `userData/queue`.
+ - Cola separada: `queue:inspect` reporta `journal_mode=WAL` y `synchronous=NORMAL`; `contingency.db` existe en `userData/queue`.
+ - Fallback inline: con la cola pausada/fallando, dos `.fac` en `C:\tmp` se procesan uno por uno; se obtiene CAE, se genera PDF y `.res`, y se borran los `.fac` solo tras `RES_OK`.
+ - Cola operativa: el mismo comportamiento se logra por el worker de cola (sin activar el fallback inline).
+ - Notas de Crédito: emite CAE incluyendo `CbtesAsoc` correcto; si falta el asociado, se genera `PermanentError` claro.
 
 ### 13) Checklist previo a release
 - [ ] CUIT, Cert y Key válidos; PV habilitado WSFEv1 en PROD.

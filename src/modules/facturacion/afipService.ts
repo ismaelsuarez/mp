@@ -337,6 +337,12 @@ class AfipService {
         };
       }
 
+      // Caso límite: duplicado sin CAE cargado (registro inconsistente) → proceder igualmente
+      if (idempotencyResult.isDuplicate && !idempotencyResult.shouldProceed && !idempotencyResult.existingCae) {
+        this.logger.logRequest('idempotency_inconsistent_duplicate', { ptoVta, tipoCbte, numero });
+        idempotencyResult.shouldProceed = true as any;
+      }
+
       // Si hay error en idempotencia, fallar
       if (idempotencyResult.error) {
         throw new Error(`Error de idempotencia: ${idempotencyResult.error}`);
@@ -406,6 +412,22 @@ class AfipService {
         Iva: ivaArray,
         CanMisMonExt: canMis
       };
+      // Notas de Crédito: importes siempre positivos
+      const isNotaCredito = [3, 8, 13].includes(Number(request.CbteTipo));
+      if (isNotaCredito) {
+        try {
+          const abs2 = (n: any) => Math.abs(Number(n || 0));
+          request.ImpTotal = abs2(request.ImpTotal);
+          request.ImpTotConc = abs2(request.ImpTotConc);
+          request.ImpNeto = abs2(request.ImpNeto);
+          request.ImpOpEx = abs2(request.ImpOpEx);
+          request.ImpIVA = abs2(request.ImpIVA);
+          request.ImpTrib = abs2(request.ImpTrib);
+          if (Array.isArray(request.Iva)) {
+            request.Iva = request.Iva.map((x: any) => ({ Id: Number(x.Id), BaseImp: abs2(x.BaseImp), Importe: abs2(x.Importe) }));
+          }
+        } catch {}
+      }
       // Política de moneda flexible
       const policy = { officialSource: 'WSFE', selection: canMis === 'S' ? 'exact' : 'tolerant', maxUpPercent: 2, maxDownPercent: 400 } as const;
       const oficial = oficialWsfe; const upper = Number((oficial * 1.02).toFixed(6)); const lower = Number((oficial / 5).toFixed(6));
@@ -476,13 +498,41 @@ class AfipService {
         if (fvto) request.FchVtoPago = fvto;
       }
 
-      // Comprobantes asociados (NC/ND)
-      if (Array.isArray(comprobante.comprobantesAsociados) && comprobante.comprobantesAsociados.length > 0) {
-        request.CbtesAsoc = comprobante.comprobantesAsociados.map(x => ({
-          Tipo: Number(x.Tipo),
-          PtoVta: Number(x.PtoVta),
-          Nro: Number(x.Nro)
-        }));
+      // Comprobantes asociados (NC/ND): construir con {Tipo,PtoVta,Nro,Cuit,CbteFch} si están disponibles
+      const ensureYyyymmdd = (s?: string) => {
+        if (!s) return undefined as any;
+        const t = String(s).trim();
+        if (/^\d{8}$/.test(t)) return t as any;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t.replace(/-/g, '') as any;
+        const m = t.match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+        if (m) {
+          const yy = m[3].length === 2 ? `20${m[3]}` : m[3];
+          return `${yy}${m[2]}${m[1]}` as any;
+        }
+        return undefined as any;
+      };
+      const assocInput = ((): any[] => {
+        const a1 = (comprobante as any)?.comprobantesAsociados;
+        if (Array.isArray(a1) && a1.length > 0) return a1;
+        const a2 = (comprobante as any)?.cbtesAsoc;
+        if (Array.isArray(a2) && a2.length > 0) return a2;
+        const a3 = (comprobante as any)?.cbteAsoc;
+        if (a3 && typeof a3 === 'object') return [a3];
+        return [];
+      })();
+      if (([2, 7, 3, 8, 13] as number[]).includes(Number(request.CbteTipo))) {
+        if (assocInput.length > 0) {
+          request.CbtesAsoc = assocInput.map((x: any) => ({
+            Tipo: Number(x.Tipo ?? x.CbteTipo ?? x.tipo ?? 0),
+            PtoVta: Number(x.PtoVta ?? x.ptoVta ?? x.pv ?? 0),
+            Nro: Number(x.Nro ?? x.numero ?? x.nro ?? 0),
+            Cuit: x.Cuit ? Number(String(x.Cuit).replace(/\D/g, '')) : (x.cuit ? Number(String(x.cuit).replace(/\D/g, '')) : undefined),
+            CbteFch: ensureYyyymmdd(x.CbteFch ?? x.fecha ?? x.fch)
+          })).filter((z: any) => Number(z.Tipo) && Number(z.PtoVta) && Number(z.Nro));
+        }
+        if (!Array.isArray(request.CbtesAsoc) || request.CbtesAsoc.length === 0) {
+          throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
+        }
       }
 
       // Solicitar CAE con resiliencia (servicio según tipo)

@@ -75,9 +75,12 @@ export class SqliteQueueStore implements QueueStore {
 
   ack(id: number): void {
     const now = this.now();
+    // Registrar ACK antes de borrar el job para evitar violación de FK
+    try {
+      this.db.prepare('INSERT INTO queue_audit (job_id, event, payload, at) VALUES (?, ?, ?, ?)')
+        .run(id, 'ack', null, now);
+    } catch {}
     this.db.prepare('DELETE FROM queue_jobs WHERE id=?').run(id);
-    this.db.prepare('INSERT INTO queue_audit (job_id, event, payload, at) VALUES (?, ?, ?, ?)')
-      .run(id, 'ack', null, now);
   }
 
   nack(id: number, reason?: string, requeueDelayMs?: number): void {

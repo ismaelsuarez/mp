@@ -573,7 +573,8 @@ async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: an
     totales: { neto: params.neto, iva: params.iva, total: params.total },
     concepto: 1,
     docTipo: params.doc_tipo || 99,
-    monId: params.mon_id || 'PES'
+    monId: params.mon_id || 'PES',
+    comprobantesAsociados: Array.isArray(params.comprobantesAsociados) ? params.comprobantesAsociados : undefined
   } as any;
   for (let i=0;i<delays.length;i++) {
     try {
@@ -661,6 +662,26 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const canLine = (get('CANCELA_MISMA_MONEDA:') || '').toUpperCase();
     const can = (canLine === 'S' || canLine === 'N') ? (canLine as 'S'|'N') : 'N';
     return { monId, cotiz, can };
+  })();
+  // Detectar comprobante asociado para NC/ND a partir de una línea tipo:
+  // "AFECTA FACT.N:B 0016-00026318"
+  const assoc = ((): { Tipo: number; PtoVta: number; Nro: number } | null => {
+    try {
+      for (const rawLine of lines) {
+        const line = String(rawLine || '');
+        const m = line.match(/AFECTA\s+FACT\.?N[:\s]*([ABC])\s*(\d{4})-(\d{8})/i);
+        if (m) {
+          const letra = String(m[1] || 'B').toUpperCase();
+          const pv = Number(m[2]);
+          const nro = Number(m[3]);
+          const tipoOrigen = ((): number => {
+            if (letra === 'A') return 1; if (letra === 'B') return 6; return 11;
+          })();
+          if (pv && nro && tipoOrigen) return { Tipo: tipoOrigen, PtoVta: pv, Nro: nro };
+        }
+      }
+    } catch {}
+    return null;
   })();
   // Observaciones (como Recibo)
   const cab1Lines = getBlock('OBS.CABCERA1:');
@@ -808,7 +829,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const n = Number(String(get('IVARECEPTOR:')||'').trim());
     return Number.isFinite(n) && n>0 ? n : undefined;
   })();
-  const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: cuitODocReceptor, doc_tipo: docTipo||undefined, razon_social_receptor:nombre, condicion_iva_receptor: condicionIvaReceptor, ivareceptor, detalle, mon_id: monedaFac.monId, cotiza_hint: monedaFac.cotiz, can_mis_mon_ext: monedaFac.can } as any;
+  const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: cuitODocReceptor, doc_tipo: docTipo||undefined, razon_social_receptor:nombre, condicion_iva_receptor: condicionIvaReceptor, ivareceptor, detalle, mon_id: monedaFac.monId, cotiza_hint: monedaFac.cotiz, can_mis_mon_ext: monedaFac.can, comprobantesAsociados: assoc ? [assoc] : undefined } as any;
   try { console.warn('[FAC][PIPE] afip:params', { pto_vta: params.pto_vta, tipo_cbte: params.tipo_cbte, total: params.total, doc_tipo: params.doc_tipo, cuit_receptor: params.cuit_receptor, condicion_iva_receptor: params.condicion_iva_receptor, ivareceptor: params.ivareceptor, mon_id: params.mon_id, can_mis_mon_ext: params.can_mis_mon_ext, cotiza_hint: params.cotiza_hint, detalle_len: (params.detalle||[]).length }); } catch {}
   const r = await emitirAfipWithRetry(params, fullPath, (evt:any)=>{ try { console.warn('[FAC][AFIP]', evt); } catch {} });
   if (!r || !r.cae) return { ok:false, reason: 'AFIP_NO_CAE' } as any;

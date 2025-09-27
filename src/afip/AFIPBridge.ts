@@ -73,19 +73,58 @@ export class RealAFIPBridge implements AFIPBridge {
           default: return undefined; // 8/9/10 u otros no soportados deben haber sido filtrados antes
         }
       })();
-      const payload = {
-        pto_vta: (require('../services/DbService') as any).getDb().getAfipConfig()?.pto_vta || 1,
-        tipo_cbte: tipoCbte,
+      const cfg = (require('../services/DbService') as any).getDb().getAfipConfig() || {};
+      const ptoVta = cfg?.pto_vta || 1;
+      // Mapear número de tipo a alias esperado por AfipService ('FA'|'FB'|'C'|'NC'|'ND')
+      const tipoAlias = ((): any => {
+        switch (tipoCbte) {
+          case 1: return 'FA';
+          case 6: return 'FB';
+          case 11: return 'C';
+          case 3: return 'NC';
+          case 8: return 'NC';
+          case 13: return 'NC';
+          case 2: return 'ND';
+          case 7: return 'ND';
+          case 12: return 'ND';
+          default: return 'FB';
+        }
+      })();
+      const items = Array.isArray(req?.items)
+        ? req.items.map((it: any) => ({
+            descripcion: String(it.descripcion || ''),
+            cantidad: Number(it.cantidad || 0),
+            precioUnitario: Number(it.unitario ?? it.precioUnitario ?? 0),
+            iva: Number(it.iva ?? it.alicuotaIva ?? 0),
+            alicuotaIva: Number(it.iva ?? it.alicuotaIva ?? 0)
+          }))
+        : [];
+      const comprobante: any = {
+        tipo: tipoAlias,
+        puntoVenta: ptoVta,
         fecha: String(req?.fecha || ''),
-        total: Number(req?.total || 0),
-        neto: Number(req?.neto || 0),
-        iva: Number(req?.iva || 0),
-        doc_tipo: Number(req?.docTipo || 99),
-        cuit_receptor: req?.docNro ? String(req.docNro) : undefined,
-        condicion_iva_receptor: condicionCategoria,
-        detalle: Array.isArray(req?.items) ? req.items.map((it: any) => ({ descripcion: it.descripcion, cantidad: it.cantidad, precioUnitario: it.unitario, alicuotaIva: it.iva })) : []
+        items,
+        totales: {
+          neto: Number(req?.neto || 0),
+          iva: Number(req?.iva || 0),
+          total: Number(req?.total || 0)
+        },
+        concepto: 1,
+        docTipo: Number(req?.docTipo || 99),
+        monId: 'PES',
+        cliente: {}
       };
-      const r = await afipService.solicitarCAE(payload);
+      if (req?.docNro) comprobante.cliente.cuit = String(req.docNro);
+      if (condicionCategoria) comprobante.cliente.condicionIva = condicionCategoria;
+      // Comprobantes asociados (NC/ND)
+      if (Array.isArray((req as any)?.CbtesAsoc) && (req as any).CbtesAsoc.length > 0) {
+        comprobante.comprobantesAsociados = (req as any).CbtesAsoc.map((x: any) => ({
+          Tipo: Number(x.Tipo || x.CbteTipo || x.tipo || 0),
+          PtoVta: Number(x.PtoVta || x.ptoVta || x.pv || 0),
+          Nro: Number(x.Nro || x.numero || x.nro || 0)
+        }));
+      }
+      const r = await afipService.solicitarCAE(comprobante);
       if (!r || !r.cae) throw new Error('AFIP sin CAE');
       return { cae: String(r.cae), vencimiento: String(r.vencimientoCAE || r.caeVencimiento || ''), qrData: (r as any).qrData, raw: r };
     } catch (e: any) {

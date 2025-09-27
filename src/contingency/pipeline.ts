@@ -118,14 +118,14 @@ export function buildRequest(dto: FacDTO): any {
     fecha: dto.fecha,
     docTipo: docTipoFE,
     docNro: docNroFE,
-    total: dto.totales.total,
-    neto: dto.totales.neto,
-    iva: dto.totales.iva,
+    total: Number(dto?.totales?.total ?? 0),
+    neto: Number(dto?.totales?.neto ?? 0),
+    iva: Number(dto?.totales?.iva ?? 0),
     items: dto.items,
     condIvaCode: code,
     condIvaDesc: code ? COND_IVA_MAP[code] : undefined
   };
-  try { console.debug('[fac.buildRequest]', { cbteTipo: dto.tipo, condIvaCode: code, condIvaDesc: code ? COND_IVA_MAP[code] : undefined, docTipoFE, docNroFE }); } catch {}
+  try { console.warn('[fac.buildRequest]', { cbteTipo: dto.tipo, condIvaCode: code, condIvaDesc: code ? COND_IVA_MAP[code] : undefined, docTipoFE, docNroFE }); } catch {}
   return req;
 }
 

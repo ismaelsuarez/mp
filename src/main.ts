@@ -1955,10 +1955,14 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { continue; }
 				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
 					try {
-						logInfo('FAC detectado', { filename, fullPath });
+						logInfo('UI FAC detectado → emitir fileReady', { filename, fullPath });
 						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-						enqueueFacFile({ filename, fullPath, rawContent });
-						processFacQueue();
+						const legacy = (global as any).legacyFacWatcherEmitter;
+						if (legacy && typeof legacy.emit === 'function') {
+							legacy.emit('fileReady', fullPath);
+						} else {
+							logWarning('UI FAC fileReady bridge no disponible; esperar contingencia', { fullPath });
+						}
 					} catch {}
 				});
 				const ok = instance.start();
@@ -1966,8 +1970,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					const handle = (instance as any).watcher || null;
 					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
 					facWatcherGroup.push({ instance, watcher: handle, dir });
-					logInfo('Fac watcher started', { dir });
-					try { scanFacDirAndEnqueue(dir); } catch {}
+					logInfo('Fac watcher (UI bridge) started', { dir });
 					anyOk = true;
 				}
 			} catch {}
