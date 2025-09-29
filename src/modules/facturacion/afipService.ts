@@ -520,6 +520,11 @@ class AfipService {
         if (a3 && typeof a3 === 'object') return [a3];
         return [];
       })();
+      try {
+        if (([2,7,3,8,13] as number[]).includes(Number(request.CbteTipo))) {
+          console.warn('[AFIP][NC] CbtesAsoc.input', assocInput);
+        }
+      } catch {}
       if (([2, 7, 3, 8, 13] as number[]).includes(Number(request.CbteTipo))) {
         if (assocInput.length > 0) {
           request.CbtesAsoc = assocInput.map((x: any) => ({
@@ -533,6 +538,7 @@ class AfipService {
         if (!Array.isArray(request.CbtesAsoc) || request.CbtesAsoc.length === 0) {
           throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
         }
+        try { console.warn('[AFIP][NC] CbtesAsoc.mapped', request.CbtesAsoc); } catch {}
       }
 
       // Solicitar CAE con resiliencia (servicio según tipo)

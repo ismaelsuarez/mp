@@ -61,12 +61,13 @@
   - `TIPODOC: 80/96/99` y `NRODOC:`; `CONDICION:` (CF/RI/MT/EX o literal), `IVARECEPTOR:` (código ARCA/AFIP). 
   - Bloques `ITEM:` y `TOTALES:` con `NETO %`, `IVA %`, `EXENTO`, `TOTAL`.
   - `OBS.CABCERA*`, `OBS.FISCAL`, `OBS.PIE` (texto libre para PDF).
-- Proceso (cola de contingencia activa):
+ - Proceso (cola de contingencia activa):
   1) Watcher (`ContingencyController.start`) observa `C:\tmp`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `STAGING_DIR`.
   2) Encola job `fac.process` con `sha256` del contenido (idempotencia). FIFO por `available_at ASC, id ASC`.
-  3) Consumo (concurrency=1) y estados: PARSED (`pipeline.parseFac`) → VALIDATED (`pipeline.validate`) → WAIT_WS/SENDING_WS (`RealAFIPBridge.solicitarCAE`) → CAE_OK → PDF_OK (`pipeline.generatePdf`) → RES_OK (`pipeline.generateRes`) → DONE (mueve `.fac` a `DONE_DIR` y ack).
-  4) Errores: `AFIPError.kind='transient'` → nack con backoff y `CircuitBreaker.recordFailure()`; `kind='permanent'` → genera `.res` de error y mueve a `ERROR_DIR`.
-  5) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`. Sólo se borra tras `RES_OK`.
+  3) Consumo (concurrency=1): se mueve a `PROCESSING_DIR` y se ejecuta el pipeline consolidado de facturación `facProcessor.processFacturaFacFile(...)` (parseo, normalización, emisión AFIP con reintentos, PDF completo, `.res`, FTP).
+  4) Salidas por cola (detallado en 5 ter): PDF → en `outLocal/outRed*` (ventas por mes); `.res` → transitorio en `PROCESSING_DIR` (se envía por FTP y se borra). El `.fac` se borra tras enviar `.res` (si el pipeline ya lo borró, el controlador lo detecta y sólo registra el done).
+  5) Errores: transientes (red/AFIP 5xx/timeout/“en proceso”) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `ERROR_DIR`.
+  6) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
   8) Moneda extranjera (DOL/EUR) – política flexible implementada:
@@ -84,7 +85,8 @@
      - Auditoría: `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
      - Hint: si `N` y `COTIZADOL` fue usado como fiscal, la `fuente` será `COTIZADOL`. Si no fue usado, se registra como hint visual/log.
   9) Fallback inline secuencial (hotfix demo): si `enqueueFacFromPath(filePath)` falla o la cola está pausada, se procesa en línea con mutex global:
-     - parse/validate → solicitar CAE → generar PDF → generar/enviar `.res` → borrar `.fac` solo tras `RES_OK`.
+     - parse/validate → solicitar CAE → generar PDF (stub local) → generar `.res` → borrar `.fac` sólo tras `RES_OK`.
+     - El `.res` inline se genera junto al `.fac` original (p. ej. `C:\tmp`) y no se envía por FTP en esta ruta.
      - Log: `[contingency] inline RES_OK { filePath, cae, vto, resPath }`.
 
 ```mermaid
@@ -111,7 +113,7 @@ flowchart TD
   2) Legacy (opcional): si existe emisor que emite `fileReady(filePath)`, el adapter invoca `enqueueFacFromPath(filePath)`.
   3) Alterno (main): según configuración, detecta `.fac` y llama a `processFacturaFacFile/processFacFile` (sin cola). Riesgo de doble proceso si coexiste con la cola. Recomendación: deshabilitar el alterno y centralizar en cola + fallback inline.
 - Flujo nominal por cola (worker):
-  - `pop` (si circuito lo permite) → mover a `processing` → `parseFac` → `validate` → `RealAFIPBridge.solicitarCAE` → `generatePdf` → `generateRes` → mover `.fac` a `done` → `ack`.
+  - `pop` (si circuito lo permite) → mover a `processing` → `facProcessor.processFacturaFacFile(lockPath)` → genera PDF en `outLocal/outRed*`, genera `.res` completo en `processing`, envía `.res` por FTP y borra `.res` + `.fac` → controlador mueve a `done` (si el `.fac` aún existe) → `ack`.
   - Errores: transientes (red/AFIP 5xx/timeout) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `error`.
   - ACK tardío: el `ack` ocurre solo después de `PDF_OK + RES_OK` y mover a `done` (sin ACK anticipado).
 - Estado del circuito y rehidratación:
@@ -134,6 +136,7 @@ flowchart TD
    - `[fac.sha.ok] { filePath, sha }`
    - `[queue.enqueue.ok] { id, filePath }`
    - `[queue.enqueue.fail] { filePath, reason }`
+  - `[queue.pop] { id, filePath }`, `[fac.lock.ok] { from, to }`, `[fac.parse.ok]`, `[fac.validate.ok]`, `[afip.send]`, `[afip.cae.ok]`, `[pdf.ok]`, `[res.ok]`, `[fac.done.ok]`, `[queue.ack]`
 
  - Idempotencia:
    - Único entry point: cola de contingencia + fallback inline.
@@ -163,7 +166,7 @@ flowchart TD
 - Validación matemática: `ImpTotal == ImpNeto + ImpIVA + ImpTrib + ImpTotConc + ImpOpEx` (2 decimales).
  - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
  - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
- - Notas de Crédito (NC): importes siempre positivos (`ImpTotal/ImpNeto/ImpIVA/ImpTrib/ImpTotConc/ImpOpEx` y `Iva[].Importe/BaseImp`). `CbtesAsoc` debe incluir `{ Tipo, PtoVta, Nro }` y, si se dispone, `Cuit` y `CbteFch` (AAAAMMDD). Si falta el comprobante asociado, se produce `PermanentError`.
+- Notas de Crédito (NC): importes siempre positivos (`ImpTotal/ImpNeto/ImpIVA/ImpTrib/ImpTotConc/ImpOpEx` y `Iva[].Importe/BaseImp`). `CbtesAsoc` debe incluir `{ Tipo, PtoVta, Nro }` y, si se dispone, `Cuit` y `CbteFch` (AAAAMMDD). Si falta el comprobante asociado, se produce `PermanentError`. El parser `.fac` extrae asociaciones desde líneas tipo `AFECTA FACT.N: B 0016-00026318` y arma `CbtesAsoc`.
 
 ### 6 ter) Condición IVA Receptor (.fac y emisión)
 - Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
@@ -245,7 +248,9 @@ flowchart TD
 ### 9) Configuración
 - AFIP: CUIT, Cert (.crt/.pem), Key (.key), Entorno=Producción, PV habilitado (WSFEv1). 
 - Directorios salida:
-  - `config/facturas.config.json`: `{ "pv": <n>, "outLocal": "C:\\Ruta\\Ventas", "outRed1": "...", "outRed2": "...", "printerName": "..." }`.
+- `config/facturas.config.json`: `{ "pv": <n>, "outLocal": "C:\\Ruta\\Ventas", "outRed1": "...", "outRed2": "...", "printerName": "..." }`.
+  - `facProcessor` utiliza `outLocal/outRed*` para colocar PDF definitivo por mes: `Ventas_PV<pv>/F<YYYYMM>/<PREFIX>_<PV>-<NRO>.pdf`.
+  - `.res` se genera en `processing` (junto al `.fac` bloqueado), se envía por FTP y se borra.
   - `config/recibo.config.json`: `{ "pv": <n>, "contador": <n>, "outLocal": "..." }`.
 - Secretos: certificados y claves bajo almacenamiento protegido (no en `.env`).
 - Cola de contingencia (.fac): base separada `app.getPath('userData')/queue/contingency.db`. Inspección por `npm run queue:inspect` (ruta, PRAGMAs, tamaño, -wal/-shm).
@@ -274,7 +279,7 @@ Uso rápido (cola)
 1) `TIPO:6` FB CF con `IVARECEPTOR:5` y totales mínimos:
    - Esperado: “A” + `.res` enviado; PDF correcto; QR oficial.
 2) `TIPO:3/8` (NC A/B) con `CbteAsoc` (en OBS o bloque dedicado si aplica):
-   - Esperado: emisión y `.res` con número NC.
+   - Esperado: emisión y `.res` con número NC. Importes en positivo, `CbtesAsoc` presente y consistente con la factura origen (A→FA, B→FB).
 3) `EXENTO`>0 y `IVA %`=0:
    - PDF oculta líneas 0, muestra Exento.
 4) Recibo y Remito: sólo PDF/FTP, sin AFIP.

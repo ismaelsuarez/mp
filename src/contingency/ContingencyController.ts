@@ -161,12 +161,15 @@ export class ContingencyController {
     const srcRaw = String(payload?.filePath || '');
     let src = srcRaw;
     if (!src || !fs.existsSync(src)) {
-      // Intentar reubicar por nombre en staging/done/error o bien saltear (ACK) duplicados antiguos
+      // Intentar reubicar por nombre en processing/staging/done/error
       const base = path.basename(srcRaw || '');
+      const locked = base ? path.join(cfg.processing, base) : '';
       const staged = base ? path.join(cfg.staging, base) : '';
       const doneP = base ? path.join(cfg.done, base) : '';
       const errP = base ? path.join(cfg.error, base) : '';
-      if (staged && fs.existsSync(staged)) {
+      if (locked && fs.existsSync(locked)) {
+        src = locked; // ya está bloqueado en processing por un intento previo
+      } else if (staged && fs.existsSync(staged)) {
         src = staged;
       } else if ((doneP && fs.existsSync(doneP)) || (errP && fs.existsSync(errP))) {
         try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
@@ -179,17 +182,19 @@ export class ContingencyController {
     const name = path.basename(src);
     const lockPath = path.join(cfg.processing, name);
     // Lock (mover a processing)
-    try { fs.renameSync(src, lockPath); } catch { fs.copyFileSync(src, lockPath); try { fs.unlinkSync(src); } catch {} }
-    try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
+    if (src !== lockPath) {
+      try { fs.renameSync(src, lockPath); } catch { fs.copyFileSync(src, lockPath); try { fs.unlinkSync(src); } catch {} }
+      try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
+    }
     try {
       // Usar el pipeline consolidado de facturas/notas para generar PDF y .res completos
       const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
       const r: any = await processFacturaFacFile(lockPath);
       if (!r || r.ok !== true) {
         const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
-        // Tratar como transitorio: AFIP sin CAE/número, NTP y 'Comprobante en proceso'
-        if (/AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|en\s*proceso/i.test(errMsg)) {
-          // Considerar transitorio solo si es NTP o AFIP temporal
+        try { console.warn('[queue.process.fail]', { id, filePath: lockPath, reason: errMsg }); } catch {}
+        // Tratar como transitorio: AFIP sin CAE/número, NTP, error de red/DNS y 'Comprobante en proceso'
+        if (/AFIP\s*sin\s*CAE|AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network|en\s*proceso/i.test(errMsg)) {
           throw new Error(errMsg);
         }
         // Generar .res de error mínimo si el pipeline no lo hizo
@@ -220,10 +225,11 @@ export class ContingencyController {
         // Dejar el archivo en processing para el reintento
         throw e;
       }
-      // Considerar también transitorio si el mensaje indica 'Comprobante en proceso'
-      if (/en\s*proceso/i.test(msg)) {
+      // Considerar también transitorio si el mensaje indica 'Comprobante en proceso', 'AFIP sin CAE' o errores de red/DNS
+      if (/AFIP\s*sin\s*CAE|en\s*proceso|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network/i.test(msg)) {
         throw e;
       }
+      try { console.warn('[queue.process.exception]', { id, filePath: lockPath, error: msg }); } catch {}
       const errPath = path.join(cfg.error, name);
       try { fs.renameSync(lockPath, errPath); } catch { fs.copyFileSync(lockPath, errPath); try { fs.unlinkSync(lockPath); } catch {} }
       throw e;

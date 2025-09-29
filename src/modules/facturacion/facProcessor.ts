@@ -586,12 +586,15 @@ async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: an
         try { numero = await afipService.getUltimoAutorizado(Number(params.pto_vta||1), tipoStr as any); } catch {}
         return { cae: String(r.cae), caeVto: String(r.vencimientoCAE||''), qrData: r.qrData, numero: Number(numero||0) } as any;
       }
+      try { logger?.({ stage:'AFIP_NO_CAE', observaciones: (r && (r.observaciones || (r.response && r.response.Observaciones))) || undefined, facPath }); } catch {}
       lastErr = new Error('AFIP sin CAE');
     } catch (e: any) { lastErr = e; }
     try { logger?.({ stage:'AFIP_EMIT_RETRY', attempt:i+1, reason:String(lastErr?.message||lastErr), facPath }); } catch {}
     await new Promise(res=>setTimeout(res, delays[i]));
   }
-  return null;
+  // Tras agotar intentos, propagar el último error para que el controlador clasifique (transiente vs permanente)
+  if (lastErr) throw lastErr;
+  throw new Error('AFIP_NO_CAE');
 }
 
 export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boolean; pdfPath?: string; numero?: number; cae?: string; caeVto?: string; reason?: string }> {
@@ -683,6 +686,15 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     } catch {}
     return null;
   })();
+  try {
+    if (tipo === 'NCA' || tipo === 'NCB' || tipo === 'NDA' || tipo === 'NDB') {
+      if (assoc) {
+        console.warn('[FAC][PIPE] cbtesAsoc.detect', assoc);
+      } else {
+        console.warn('[FAC][PIPE] cbtesAsoc.missing');
+      }
+    }
+  } catch {}
   // Observaciones (como Recibo)
   const cab1Lines = getBlock('OBS.CABCERA1:');
   const cab2Lines = getBlock('OBS.CABCERA2:');
@@ -830,7 +842,22 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     return Number.isFinite(n) && n>0 ? n : undefined;
   })();
   const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: cuitODocReceptor, doc_tipo: docTipo||undefined, razon_social_receptor:nombre, condicion_iva_receptor: condicionIvaReceptor, ivareceptor, detalle, mon_id: monedaFac.monId, cotiza_hint: monedaFac.cotiz, can_mis_mon_ext: monedaFac.can, comprobantesAsociados: assoc ? [assoc] : undefined } as any;
-  try { console.warn('[FAC][PIPE] afip:params', { pto_vta: params.pto_vta, tipo_cbte: params.tipo_cbte, total: params.total, doc_tipo: params.doc_tipo, cuit_receptor: params.cuit_receptor, condicion_iva_receptor: params.condicion_iva_receptor, ivareceptor: params.ivareceptor, mon_id: params.mon_id, can_mis_mon_ext: params.can_mis_mon_ext, cotiza_hint: params.cotiza_hint, detalle_len: (params.detalle||[]).length }); } catch {}
+  try {
+    console.warn('[FAC][PIPE] afip:params', {
+      pto_vta: params.pto_vta,
+      tipo_cbte: params.tipo_cbte,
+      total: params.total,
+      doc_tipo: params.doc_tipo,
+      cuit_receptor: params.cuit_receptor,
+      condicion_iva_receptor: params.condicion_iva_receptor,
+      ivareceptor: params.ivareceptor,
+      mon_id: params.mon_id,
+      can_mis_mon_ext: params.can_mis_mon_ext,
+      cotiza_hint: params.cotiza_hint,
+      detalle_len: (params.detalle||[]).length,
+      cbtesAsoc: assoc ? [assoc] : []
+    });
+  } catch {}
   const r = await emitirAfipWithRetry(params, fullPath, (evt:any)=>{ try { console.warn('[FAC][AFIP]', evt); } catch {} });
   if (!r || !r.cae) return { ok:false, reason: 'AFIP_NO_CAE' } as any;
   const nroAfip = Number((r as any)?.numero ?? (r as any)?.cbteDesde ?? (r as any)?.nroComprobante ?? 0);
