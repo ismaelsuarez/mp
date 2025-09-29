@@ -64,9 +64,9 @@
  - Proceso (cola de contingencia activa):
   1) Watcher (`ContingencyController.start`) observa `C:\tmp`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `STAGING_DIR`.
   2) Encola job `fac.process` con `sha256` del contenido (idempotencia). FIFO por `available_at ASC, id ASC`.
-  3) Consumo (concurrency=1): se mueve a `PROCESSING_DIR` y se ejecuta el pipeline consolidado de facturación `facProcessor.processFacturaFacFile(...)` (parseo, normalización, emisión AFIP con reintentos, PDF completo, `.res`, FTP).
+  3) Consumo (concurrency=1): se mueve a `PROCESSING_DIR` y se ejecuta el pipeline consolidado de facturación `facProcessor.processFacturaFacFile(...)` (parseo, normalización, emisión vía `FacturacionService.emitirFacturaYGenerarPdf` con reintentos, PDF completo, `.res`, FTP).
   4) Salidas por cola (detallado en 5 ter): PDF → en `outLocal/outRed*` (ventas por mes); `.res` → transitorio en `PROCESSING_DIR` (se envía por FTP y se borra). El `.fac` se borra tras enviar `.res` (si el pipeline ya lo borró, el controlador lo detecta y sólo registra el done).
-  5) Errores: transientes (red/AFIP 5xx/timeout/“en proceso”) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `ERROR_DIR`.
+  5) Errores: transientes (red/AFIP 5xx/timeout/“en proceso”/“AFIP sin CAE”) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `ERROR_DIR`.
   6) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
@@ -136,7 +136,7 @@ flowchart TD
    - `[fac.sha.ok] { filePath, sha }`
    - `[queue.enqueue.ok] { id, filePath }`
    - `[queue.enqueue.fail] { filePath, reason }`
-  - `[queue.pop] { id, filePath }`, `[fac.lock.ok] { from, to }`, `[fac.parse.ok]`, `[fac.validate.ok]`, `[afip.send]`, `[afip.cae.ok]`, `[pdf.ok]`, `[res.ok]`, `[fac.done.ok]`, `[queue.ack]`
+  - `[queue.pop] { id, filePath }`, `[fac.lock.ok] { from, to }`, `[fac.parse.ok]`, `[fac.validate.ok]`, `[afip.send]`, `[AFIP_NO_CAE] { observaciones }`, `[afip.cae.ok]`, `[pdf.ok]`, `[res.ok]`, `[fac.done.ok]`, `[queue.ack]`
 
  - Idempotencia:
    - Único entry point: cola de contingencia + fallback inline.
