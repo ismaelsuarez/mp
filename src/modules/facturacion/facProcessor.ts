@@ -785,6 +785,21 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     return { ok:false, reason: 'NTP_ERROR' } as any;
   }
 
+  // Inferir alícuota si faltó en líneas pero los totales indican IVA
+  try {
+    const allIvaZero = (items || []).every((it: any) => !Number(it?.iva || 0));
+    if (allIvaZero) {
+      const only21 = (Number(iva21 || 0) > 0 || Number(neto21 || 0) > 0) && Number(iva105 || 0) === 0 && Number(iva27 || 0) === 0;
+      const only105 = (Number(iva105 || 0) > 0 || Number(neto105 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva27 || 0) === 0;
+      const only27 = (Number(iva27 || 0) > 0 || Number(neto27 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva105 || 0) === 0;
+      if (only21 || only105 || only27) {
+        const rate = only21 ? 21 : (only105 ? 10.5 : 27);
+        for (const it of (items as any[])) { if (it) it.iva = rate; }
+        try { console.warn('[FAC][PIPE] iva:inferred', { rate }); } catch {}
+      }
+    }
+  } catch {}
+
   // Emisión AFIP con retry
   const cfg = readFacturasConfig();
   if (!cfg || !cfg.outLocal) {

@@ -37,6 +37,7 @@ export class FacturacionService {
 			const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() as any || 'RI';
 			const comprobante: Comprobante = {
 				tipo: this.mapTipoComprobante(params.tipo_cbte),
+				cbteTipo: params.tipo_cbte,
 				puntoVenta: params.pto_vta,
 				fecha: params.fecha,
 				empresa: {
@@ -94,7 +95,8 @@ export class FacturacionService {
 			const cfg = db.getAfipConfig();
 			if (cfg) {
 				this.debugLog('Consultando último autorizado...');
-				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, comprobante.tipo);
+				// Usar el código AFIP numérico provisto en params para evitar ambigüedad (NC A/B/C)
+				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, params.tipo_cbte);
 				numero = ultimo + 1;
 				this.debugLog('Número asignado', numero);
 			} else {
@@ -425,14 +427,14 @@ export class FacturacionService {
 	private mapTipoComprobante(tipoCbte: number): TipoComprobante {
 		switch (tipoCbte) {
 			case 1: return 'A';
-			case 2: return 'A'; // ND A
-			case 3: return 'FA'; // NC A (alias)
+			case 2: return 'A'; // ND A (se distingue por cbteTipo)
+			case 3: return 'NC'; // NC A
 			case 6: return 'B';
-			case 7: return 'B'; // ND B
-			case 8: return 'FB'; // NC B (alias)
+			case 7: return 'B'; // ND B (se distingue por cbteTipo)
+			case 8: return 'NC'; // NC B
 			case 11: return 'C';
-			case 12: return 'C'; // ND C
-			case 13: return 'NC'; // NC C (alias)
+			case 12: return 'C'; // ND C (se distingue por cbteTipo)
+			case 13: return 'NC'; // NC C
 			default: return 'C';
 		}
 	}

@@ -239,7 +239,12 @@ class AfipService {
       
       // Tomar pto de venta desde UI si viene, caso contrario usar config
       const ptoVta = comprobante.puntoVenta || cfg.pto_vta;
-      const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+      // Priorizar código numérico si viene establecido (evita ambigüedad NC A/B/C)
+      const tipoCbte = ((): number => {
+        const cbteNum = Number((comprobante as any)?.cbteTipo || 0);
+        if (Number.isFinite(cbteNum) && cbteNum > 0) return cbteNum;
+        return AfipHelpers.mapTipoCbte(comprobante.tipo);
+      })();
       this.debugLog('Parámetros AFIP', { ptoVta, tipoCbte });
 
 
@@ -788,10 +793,13 @@ class AfipService {
   /**
    * Obtiene el último número autorizado para un punto de venta y tipo
    */
-  async getUltimoAutorizado(puntoVenta: number, tipoComprobante: TipoComprobante): Promise<number> {
+  async getUltimoAutorizado(puntoVenta: number, tipoComprobante: TipoComprobante | number): Promise<number> {
     try {
       const afip = await this.getAfipInstance();
-      const tipoCbte = AfipHelpers.mapTipoCbte(tipoComprobante);
+      const tipoCbte = ((): number => {
+        if (typeof tipoComprobante === 'number') return tipoComprobante;
+        return AfipHelpers.mapTipoCbte(tipoComprobante);
+      })();
 
       const last = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte),
