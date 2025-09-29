@@ -559,40 +559,27 @@ function readFacturasConfig(): { pv: number; outLocal?: string; outRed1?: string
 async function emitirAfipWithRetry(params: any, facPath: string, logger?: (e: any)=>void) {
   const delays = [500, 1500, 4000];
   let lastErr: any = null;
-  // Llamar directo a AFIP (sin generar PDF en Documents) y obtener CAE/QR
+  // Delegar en FacturacionService (flujo estable del commit 378e165)
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { afipService } = require('./afipService');
-  const tipoMap: Record<number,string> = { 1:'FA', 6:'FB', 2:'NDA', 7:'NDB', 3:'NCA', 8:'NCB' };
-  const tipoStr = tipoMap[Number(params.tipo_cbte)] || 'FB';
-  const comp = {
-    tipo: tipoStr,
-    puntoVenta: Number(params.pto_vta || 1),
-    fecha: String(params.fecha || '').replace(/-/g,''),
-    cliente: params.cuit_receptor ? { cuit: params.cuit_receptor, razonSocial: params.razon_social_receptor || 'Cliente', condicionIva: params.condicion_iva_receptor || undefined } : undefined,
-    items: (params.detalle||[]).map((d:any)=>({ descripcion: d.descripcion, cantidad: d.cantidad, precioUnitario: d.precioUnitario, alicuotaIva: d.alicuotaIva, iva: d.alicuotaIva })),
-    totales: { neto: params.neto, iva: params.iva, total: params.total },
-    concepto: 1,
-    docTipo: params.doc_tipo || 99,
-    monId: params.mon_id || 'PES',
-    comprobantesAsociados: Array.isArray(params.comprobantesAsociados) ? params.comprobantesAsociados : undefined
-  } as any;
+  const { getFacturacionService } = require('../../services/FacturacionService');
+  const svc = getFacturacionService();
   for (let i=0;i<delays.length;i++) {
     try {
       logger?.({ stage:'AFIP_EMIT_ATTEMPT', attempt:i+1, facPath });
-      const r: any = await afipService.solicitarCAE(comp);
+      const r: any = await svc.emitirFacturaYGenerarPdf(params);
       if (r && r.cae) {
-        // Obtener número final (último autorizado) para nombrado de archivo
-        let numero = 0;
-        try { numero = await afipService.getUltimoAutorizado(Number(params.pto_vta||1), tipoStr as any); } catch {}
-        return { cae: String(r.cae), caeVto: String(r.vencimientoCAE||''), qrData: r.qrData, numero: Number(numero||0) } as any;
+        return {
+          cae: String(r.cae),
+          caeVto: String(r.cae_vencimiento || r.caeVencimiento || ''),
+          qrData: r.qr_url,
+          numero: Number(r.numero || 0)
+        } as any;
       }
-      try { logger?.({ stage:'AFIP_NO_CAE', observaciones: (r && (r.observaciones || (r.response && r.response.Observaciones))) || undefined, facPath }); } catch {}
       lastErr = new Error('AFIP sin CAE');
     } catch (e: any) { lastErr = e; }
     try { logger?.({ stage:'AFIP_EMIT_RETRY', attempt:i+1, reason:String(lastErr?.message||lastErr), facPath }); } catch {}
     await new Promise(res=>setTimeout(res, delays[i]));
   }
-  // Tras agotar intentos, propagar el último error para que el controlador clasifique (transiente vs permanente)
   if (lastErr) throw lastErr;
   throw new Error('AFIP_NO_CAE');
 }
