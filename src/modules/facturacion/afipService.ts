@@ -527,18 +527,48 @@ class AfipService {
       } catch {}
       if (([2, 7, 3, 8, 13] as number[]).includes(Number(request.CbteTipo))) {
         if (assocInput.length > 0) {
-          request.CbtesAsoc = assocInput.map((x: any) => ({
-            Tipo: Number(x.Tipo ?? x.CbteTipo ?? x.tipo ?? 0),
-            PtoVta: Number(x.PtoVta ?? x.ptoVta ?? x.pv ?? 0),
-            Nro: Number(x.Nro ?? x.numero ?? x.nro ?? 0),
-            Cuit: x.Cuit ? Number(String(x.Cuit).replace(/\D/g, '')) : (x.cuit ? Number(String(x.cuit).replace(/\D/g, '')) : undefined),
-            CbteFch: ensureYyyymmdd(x.CbteFch ?? x.fecha ?? x.fch)
-          })).filter((z: any) => Number(z.Tipo) && Number(z.PtoVta) && Number(z.Nro));
+          request.CbtesAsoc = assocInput.map((x: any) => {
+            const mapped = {
+              Tipo: Number(x.Tipo ?? x.CbteTipo ?? x.tipo ?? 0),
+              PtoVta: Number(x.PtoVta ?? x.ptoVta ?? x.pv ?? 0),
+              Nro: Number(x.Nro ?? x.numero ?? x.nro ?? 0),
+              Cuit: x.Cuit ? Number(String(x.Cuit).replace(/\D/g, '')) : (x.cuit ? Number(String(x.cuit).replace(/\D/g, '')) : undefined),
+              CbteFch: ensureYyyymmdd(x.CbteFch ?? x.fecha ?? x.fch)
+            } as any;
+            // Completar Cuit emisor del comprobante asociado si no fue provisto
+            if (!mapped.Cuit) mapped.Cuit = Number(String(cfg.cuit).replace(/\D/g, ''));
+            return mapped;
+          }).filter((z: any) => Number(z.Tipo) && Number(z.PtoVta) && Number(z.Nro));
         }
         if (!Array.isArray(request.CbtesAsoc) || request.CbtesAsoc.length === 0) {
           throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
         }
         try { console.warn('[AFIP][NC] CbtesAsoc.mapped', request.CbtesAsoc); } catch {}
+        // Enriquecer asociados con datos faltantes (CbteFch/Cuit) consultando AFIP si es necesario
+        try {
+          const enrichOne = async (a: any) => {
+            if (!a) return;
+            const needsDate = !a.CbteFch || String(a.CbteFch).trim().length === 0;
+            const needsCuit = !a.Cuit || Number(a.Cuit) === 0;
+            if (!needsDate && !needsCuit) return;
+            const info: any = await this.resilienceWrapper.execute(
+              () => this.getAfipInstance().then(af => af.ElectronicBilling.getVoucherInfo(Number(a.PtoVta), Number(a.Tipo), Number(a.Nro))),
+              'getVoucherInfo'
+            );
+            const det = info?.ResultGet ?? info;
+            if (needsDate) {
+              try {
+                const f = String(det?.CbteFch || det?.FchEmi || det?.FchCbte || det?.Fecha || '').replace(/-/g,'');
+                if (/^\d{8}$/.test(f)) a.CbteFch = f;
+              } catch {}
+            }
+            if (needsCuit) {
+              try { a.Cuit = Number(String(cfg.cuit).replace(/\D/g, '')); } catch {}
+            }
+          };
+          for (const a of (request.CbtesAsoc as any[])) { try { await enrichOne(a); } catch {} }
+          try { console.warn('[AFIP][NC] CbtesAsoc.enriched', request.CbtesAsoc); } catch {}
+        } catch {}
       }
 
       // Solicitar CAE con resiliencia (servicio según tipo)
