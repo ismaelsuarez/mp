@@ -11,6 +11,24 @@
  - Contingencia sin `.env`: entrada fija `C:\tmp`; rutas internas bajo `app.getPath('userData')/fac` (staging/processing/done/error/out); tiempos y circuito definidos por constantes.
  - Política de cotización flexible (MonedaPolicy): fuente oficial WSFE; `CANCELA_MISMA_MONEDA=S` exige cotización exacta del día hábil anterior; `N` tolera desvíos dentro de +2% arriba y hasta −80% abajo (máx. 400% de caída). Si viene `COTIZADOL>0` y está en rango, se usa como valor fiscal (fuente=`COTIZADOL`); si no, se usa la oficial de WSFE. Se audita `{ monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
 
+### 1 bis) Calibraciones recientes (Sep 2025)
+- Integración AFIP / WSFE
+  - Prioridad a `cbteTipo` numérico: `afipService.solicitarCAE` usa `comprobante.cbteTipo` (3/8/13 para NC A/B/C; 1/6/11 para FA/FB/FC) cuando está presente; si no, mapea desde `tipo`. Evita que NC se reporten como factura.
+  - `getUltimoAutorizado(ptoVta, tipo)` acepta `number | TipoComprobante` (consistencia en callers).
+  - `CbtesAsoc` enriquecido: si faltan `Cuit` y/o `CbteFch`, se completa con CUIT del emisor y `CbteFch` obtenido vía `getVoucherInfo` del comprobante asociado (cuando está disponible). Reduce observaciones y rechazos.
+- Flujo `.fac` y servicio de emisión
+  - `facProcessor.emitirAfipWithRetry` delega a `FacturacionService.emitirFacturaYGenerarPdf` (mismo camino que UI), unifica validaciones y armado FE.
+  - NC: importes siempre positivos y `CbtesAsoc` obligatorio; se valida consistencia Tipo/Letra/PV respecto del comprobante origen.
+  - Inferencia de IVA por totales: si todos los ítems traen `iva=0` pero `TOTALES` indica una única alícuota (21/10.5/27), se asigna esa alícuota a los ítems y se consolida `Iva`. Previene que se reporte como Exento (`ImpOpEx`).
+  - Idempotencia: encolado por `sha256` del `.fac`; el archivo no se borra hasta `RES_OK` (tras FTP). Reintentos con backoff en transitorios.
+- Contingencia y resiliencia
+  - Errores transitorios: DNS/red/timeout/“en proceso”/“AFIP sin CAE” ⇒ `nack` con backoff; no mover a `error` ni borrar `.fac`.
+  - Circuit breaker de WS integrado a la cola (pausa/resume automáticos según salud WS/cooldown).
+- Observabilidad
+  - Logs clave reforzados: `[AFIP_NO_CAE] { observaciones }`, `[afip.cae.ok]`, trazas de moneda `[FACT] FE Moneda {...}`, receptor `{ cbteTipo, condIvaCode, docTipoFE, docNroFE }`.
+- Alineación MTXCA
+  - Reglas receptor vs tipo reforzadas (A no admite CF; B rechaza RI). Cuando `ImpIVA=0` no se envía `Iva/AlicIva`.
+
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
 - Emisión por UI (Administración) y por archivo `.fac` (watcher/cola). Recibos/Remitos por `.fac` (PDF/FTP) sin AFIP.
@@ -279,9 +297,9 @@ Uso rápido (cola)
 1) `TIPO:6` FB CF con `IVARECEPTOR:5` y totales mínimos:
    - Esperado: “A” + `.res` enviado; PDF correcto; QR oficial.
 2) `TIPO:3/8` (NC A/B) con `CbteAsoc` (en OBS o bloque dedicado si aplica):
-   - Esperado: emisión y `.res` con número NC. Importes en positivo, `CbtesAsoc` presente y consistente con la factura origen (A→FA, B→FB).
+   - Esperado: emisión y `.res` con número NC. Importes en positivo, `CbtesAsoc` presente y consistente con la factura origen (A→FA, B→FB). Si falta `CbteFch`, el sistema intenta completarlo vía `getVoucherInfo`.
 3) `EXENTO`>0 y `IVA %`=0:
-   - PDF oculta líneas 0, muestra Exento.
+   - PDF oculta líneas 0, muestra Exento. Si `TOTALES` trae una única alícuota gravada (21/10.5/27) y todos los ítems tienen `iva=0`, se infiere y aplica esa alícuota para evitar clasificar como Exento.
 4) Recibo y Remito: sólo PDF/FTP, sin AFIP.
  5) Moneda Dólar (DOL): `.fac` con `MONEDA:DOLARES`, `CANCELA_MISMA_MONEDA=S` y `COTIZADOL: 1400.00`.
     - Esperado: FECAE con `MonId='DOL'` y `MonCotiz` de día hábil anterior (AFIP) exacto. Si `COTIZADOL` difiere → se ignora para el valor fiscal (se puede registrar como hint).
