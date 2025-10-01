@@ -89,6 +89,18 @@ export class FacturacionService {
 			if (Array.isArray(outAny?.observaciones) && outAny.observaciones.length > 0) {
 				/* eslint-disable no-console */
 				console.warn(`[FACT][Observaciones] Factura emitida con advertencias:`, outAny.observaciones);
+				// Reflejar en visor Caja (auto-report-notice)
+				try {
+					const { BrowserWindow } = require('electron');
+					const win = BrowserWindow.getAllWindows()?.[0];
+					if (win) {
+						for (const ob of (outAny.observaciones as any[])) {
+							const code = (ob?.Code ?? ob?.code ?? '').toString();
+							const msg = (ob?.Msg ?? ob?.message ?? '').toString();
+							win.webContents.send('auto-report-notice', { info: `Obs AFIP: ${code} ${msg}` });
+						}
+					}
+				} catch {}
 			}
 			
 			// Usar el número oficial devuelto por AFIP (CbteDesde/CbteHasta)

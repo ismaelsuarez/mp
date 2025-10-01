@@ -130,7 +130,7 @@ function appendLog(line: string) {
     const ss = String(now.getSeconds()).padStart(2,'0');
     const at = `${hh}:${mm}:${ss}`;
     const current = (box.textContent || '').split('\n').filter(Boolean);
-    const maxLines = 3;
+    const maxLines = 4;
     current.push(`[${at}] ${line}`);
     const trimmed = current.slice(-maxLines);
     box.textContent = trimmed.join('\n');

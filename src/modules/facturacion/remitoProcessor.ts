@@ -359,6 +359,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   } as any;
 
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Remito PDF OK ${path.basename(localOutPath)}` }); } catch {}
 
   try {
     const name = `REM_${pvStr}-${nroStr}.pdf`;

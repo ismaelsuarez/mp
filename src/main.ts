@@ -1222,8 +1222,13 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     // [limpieza] Se eliminan IPCs legacy facturaA:get-config/save-config (UI migra a facturas:get-config/save-config)
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
-			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
-			return { ok: true, ...res };
+      const tipo = Number(payload?.tipo_cbte);
+      const clase = (tipo===1||tipo===2||tipo===3)?'A':(tipo===6||tipo===7||tipo===8)?'B':'C';
+      const alias = [3,8,13].includes(tipo) ? `NC ${clase}` : ([2,7,12].includes(tipo) ? `ND ${clase}` : `F${clase}`);
+      if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Emitiendo ${alias} PV ${String(payload?.pto_vta).padStart(4,'0')}…` });
+      const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
+      if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `OK ${alias} Nº ${String(res?.numero).padStart(8,'0')} • CAE ${res?.cae}` });
+      return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}

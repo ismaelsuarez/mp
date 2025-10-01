@@ -859,10 +859,28 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
       cbtesAsoc: assoc ? [assoc] : []
     });
   } catch {}
-  const r = await emitirAfipWithRetry(params, fullPath, (evt:any)=>{ try { console.warn('[FAC][AFIP]', evt); } catch {} });
-  if (!r || !r.cae) return { ok:false, reason: 'AFIP_NO_CAE' } as any;
+  const alias = ((): string => {
+    switch (tipo) {
+      case 'FA': return 'FA';
+      case 'FB': return 'FB';
+      case 'NCA': return 'NCA';
+      case 'NCB': return 'NCB';
+      case 'NDA': return 'NDA';
+      case 'NDB': return 'NDB';
+      default: return tipo;
+    }
+  })();
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Emitiendo ${alias} PV ${String(pv).padStart(4,'0')}…` }); } catch {}
+  const r = await emitirAfipWithRetry(params, fullPath, (evt:any)=>{ try { console.warn('[FAC][AFIP]', evt); const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) { if (evt?.stage==='AFIP_EMIT_ATTEMPT') win.webContents.send('auto-report-notice', { info: `AFIP: intento ${evt.attempt}` }); } } catch {} });
+  if (!r || !r.cae) {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { error: `AFIP sin CAE` }); } catch {}
+    return { ok:false, reason: 'AFIP_NO_CAE' } as any;
+  }
   const nroAfip = Number((r as any)?.numero ?? (r as any)?.cbteDesde ?? (r as any)?.nroComprobante ?? 0);
-  if (!nroAfip) return { ok:false, reason: 'AFIP_NO_NUMERO' } as any;
+  if (!nroAfip) {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { error: `AFIP no informó número` }); } catch {}
+    return { ok:false, reason: 'AFIP_NO_NUMERO' } as any;
+  }
   const caeStr: string = String((r as any)?.cae || '').trim();
   const caeVtoRaw: any = (r as any)?.caeVto || (r as any)?.cae_vto || (r as any)?.caeVencimiento || (r as any)?.cae_vencimiento || (r as any)?.vencimientoCAE || '';
   const caeVtoStr = ((): string => {
@@ -871,6 +889,20 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}`;
     return s;
   })();
+
+  // Observaciones AFIP (si existieran)
+  try {
+    if (Array.isArray((r as any)?.observaciones) && (r as any).observaciones.length > 0) {
+      const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0];
+      if (win) {
+        for (const ob of ((r as any).observaciones as any[])) {
+          const code = (ob?.Code ?? ob?.code ?? '').toString();
+          const msg = (ob?.Msg ?? ob?.message ?? '').toString();
+          win.webContents.send('auto-report-notice', { info: `Obs AFIP: ${code} ${msg}` });
+        }
+      }
+    }
+  } catch {}
 
   // Directorios salida
   const makeMonthDir = (root?: string): string | null => {
@@ -942,6 +974,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     items
   };
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: (r as any)?.qrData });
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `PDF OK ${path.basename(localOutPath)}` }); } catch {}
   try { if (outRed1Dir) fs.copyFileSync(localOutPath, path.join(outRed1Dir, fileName)); } catch {}
   try { if (outRed2Dir) fs.copyFileSync(localOutPath, path.join(outRed2Dir, fileName)); } catch {}
 
@@ -959,7 +992,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
 
   // Enviar .res con reintentos
   const sendWithRetries = async (localPath: string, remoteName?: string): Promise<boolean> => { const attempts=[0,1000,3000]; for (let i=0;i<attempts.length;i++){ try { await sendArbitraryFile(localPath, remoteName||path.basename(localPath)); return true; } catch {} await new Promise(res=>setTimeout(res, attempts[i])); } return false; };
-  let resSent=false; if (resPath && fs.existsSync(resPath)) { resSent = await sendWithRetries(resPath, path.basename(resPath)); if (resSent) { try { fs.unlinkSync(resPath); } catch {} try { fs.unlinkSync(fullPath); } catch {} } }
+  let resSent=false; if (resPath && fs.existsSync(resPath)) { resSent = await sendWithRetries(resPath, path.basename(resPath)); if (resSent) { try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {} try { fs.unlinkSync(resPath); } catch {} try { fs.unlinkSync(fullPath); } catch {} } }
 
   return { ok:true, pdfPath: localOutPath, numero: nroAfip, cae: caeStr, caeVto: caeVtoStr } as any;
 }
