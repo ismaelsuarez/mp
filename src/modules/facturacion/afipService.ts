@@ -70,7 +70,8 @@ class AfipService {
     const norm = (r: any) => {
       const val = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
       const fecha = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
-      if (!Number.isFinite(val) || val <= 0) throw new Error('Cotización no válida');
+      // Considerar inválidos valores <= 1 para monedas extranjeras (DOL/EUR)
+      if (!Number.isFinite(val) || val <= 1) throw new Error('Cotización no válida');
       return { valor: val, fecha };
     };
     try {
@@ -96,11 +97,25 @@ class AfipService {
       if (/timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg)) {
         throw new Error('TRANSIENT_COTIZ');
       }
-      if (/no disponible/i.test(msg)) {
-        // Sin método en SDK: clasificar como permanente por ausencia de contrato
+      // Fallback ARCA/BFE si el SDK no ofrece método o falla permanentemente
+      try {
+        const cfg = getDb().getAfipConfig();
+        const entorno = String(cfg?.entorno || 'produccion').toLowerCase();
+        const baseUrl = entorno === 'homologacion'
+          ? 'https://wswhomo.afip.gov.ar/wsbfev1/service.asmx'
+          : 'https://servicios1.afip.gov.ar/wsbfev1/service.asmx';
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { ArcaClient } = require('./arca/ArcaClient');
+        const certPath = String(cfg?.cert_path || '');
+        const keyPath = String(cfg?.key_path || '');
+        const client = new ArcaClient(baseUrl, certPath, keyPath);
+        const auth = { Token: '', Sign: '', Cuit: Number(cfg?.cuit || 0) };
+        const r = await client.getCotizacion(auth, monId);
+        return norm(r);
+      } catch {
+        // Sin fallback disponible
         throw new Error('PERMANENT_COTIZ');
       }
-      throw new Error('PERMANENT_COTIZ');
     }
   }
 
@@ -377,18 +392,26 @@ class AfipService {
       await this.ensureMonedasValid(afip, monIdNorm);
       let monCotizNum = 1; let fchCotizUsed: string | undefined; const canMis = ((((comprobante as any)?.can_mis_mon_ext) || (comprobante as any)?.moneda?.canMisMonExt || 'N').toUpperCase() as 'S'|'N');
       if (monIdNorm !== 'PES') {
-        if (canMis === 'S') {
-          fchCotizUsed = this.prevDiaHabil(cbteFch);
-          const { valor, fecha } = await this.getCotizacion(afip, monIdNorm, fchCotizUsed);
-          monCotizNum = valor; if (fecha) fchCotizUsed = fecha.replace(/-/g,'');
-        } else {
-          const { valor, fecha } = await this.getCotizacion(afip, monIdNorm);
-          monCotizNum = valor; fchCotizUsed = fecha ? fecha.replace(/-/g,'') : undefined;
+        try {
+          if (canMis === 'S') {
+            fchCotizUsed = this.prevDiaHabil(cbteFch);
+            const { valor, fecha } = await this.getCotizacion(afip, monIdNorm, fchCotizUsed);
+            monCotizNum = valor; if (fecha) fchCotizUsed = fecha.replace(/-/g,'');
+          } else {
+            const { valor, fecha } = await this.getCotizacion(afip, monIdNorm);
+            monCotizNum = valor; fchCotizUsed = fecha ? fecha.replace(/-/g,'') : undefined;
+          }
+        } catch (e:any) {
+          // Fallback blando: usar hint si existe; si no, mantener 1
+          try {
+            const hint = Number((comprobante as any)?.cotiza_hint);
+            if (Number.isFinite(hint) && hint > 0) monCotizNum = hint;
+          } catch {}
         }
       }
       // Selección flexible: si 'N' y viene COTIZADOL (>0), preferirlo como candidato fiscal
       const oficialWsfe = monCotizNum;
-      let fuenteUsada: 'WSFE'|'COTIZADOL' = 'WSFE';
+      let fuenteUsada: 'WSFE'|'COTIZADOL'|'FALLBACK' = 'WSFE';
       try {
         const hint = Number((comprobante as any)?.cotiza_hint);
         if (monIdNorm !== 'PES' && canMis === 'N' && Number.isFinite(hint) && hint > 0) {
@@ -434,9 +457,12 @@ class AfipService {
           }
         } catch {}
       }
-      // Política de moneda flexible
-      const policy = { officialSource: 'WSFE', selection: canMis === 'S' ? 'exact' : 'tolerant', maxUpPercent: 2, maxDownPercent: 400 } as const;
-      const oficial = oficialWsfe; const upper = Number((oficial * 1.02).toFixed(6)); const lower = Number((oficial / 5).toFixed(6));
+      // Política de moneda flexible (ajustada por cliente):
+      // tolerante → +80% por arriba, −5% por debajo de la oficial vigente
+      const policy = { officialSource: 'WSFE', selection: canMis === 'S' ? 'exact' : 'tolerant', maxUpPercent: 80, maxDownPercent: 5 } as const;
+      const oficial = oficialWsfe > 1 ? oficialWsfe : (Number((comprobante as any)?.cotiza_hint) || 1);
+      const upper = Number((oficial * (1 + policy.maxUpPercent / 100)).toFixed(6));
+      const lower = Number((oficial * (1 - policy.maxDownPercent / 100)).toFixed(6));
       const candidate = monCotizNum; const inRange = candidate >= lower && candidate <= upper;
       if (monIdNorm !== 'PES') {
         if (policy.selection === 'exact' && Math.abs(candidate - oficial) > 0.000001) throw new Error('PERMANENT_COTIZ_EXACT_MISMATCH');

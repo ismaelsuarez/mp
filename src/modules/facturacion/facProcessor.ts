@@ -552,7 +552,7 @@ function mapTipoToCbte(tipo: 'FA'|'FB'|'NCA'|'NCB'|'NDA'|'NDB'): number {
   }
 }
 
-function readFacturasConfig(): { pv: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
+export function readFacturasConfig(): { pv: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
   try {
     const p = path.join(app.getPath('userData'), 'config', 'facturas.config.json');
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p,'utf8'));
@@ -628,7 +628,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     }
   } catch {}
   const clienteRaw = get('CLIENTE:');
-  const nombre = clienteRaw.replace(/^\(\d+\)\s*/,'').trim();
+  // Conservar el código del cliente entre paréntesis si viene (ej.: (000337)EXPRESO...)
+  const nombre = (clienteRaw || '').trim();
   const domicilio = get('DOMICILIO:');
   const docTipo = Number(get('TIPODOC:')||'0');
   const docNro = get('NRODOC:');

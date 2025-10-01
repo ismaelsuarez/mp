@@ -332,7 +332,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   if (!outLocalDir) throw new Error('Ruta Local no configurada para Remitos');
   const localOutPath = path.join(outLocalDir, fileName);
 
-  const clienteNombreFull = (parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim();
+  const clienteNombreFull = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
   const data = {
     empresa: { nombre: 'Empresa', domicilio: '', cuit: '', pv: remitoCfg.pv, numero: remitoCfg.contador },
     cliente: { nombre: clienteNombreFull, domicilio: parsed.receptor.domicilio, cuitDni: parsed.receptor.docNro, condicionIva: parsed.receptor.condicionTxt },
@@ -395,7 +395,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   try {
     const phone = (parsed.whatsapp || '').trim();
     if (phone) {
-      const clienteNombreFull2 = (parsed.receptor.nombre || '').trim();
+      const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
       const onlyDigits = phone.replace(/[^0-9]/g, '');
       const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
       const stamp = dayjs().format('HHmmss');
