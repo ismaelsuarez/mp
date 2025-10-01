@@ -12,6 +12,9 @@ function selectPane(name: 'home' | 'table' | 'fact') {
     if (badge) badge.style.display = 'none';
     if (auto) auto.style.display = 'none';
     if (timer) timer.style.display = 'none';
+    // Mostrar el indicador ARCA sólo en Inicio
+    const arca = document.getElementById('arcaIndicator') as HTMLElement | null;
+    if (arca) arca.style.display = name === 'home' ? 'block' : 'none';
 }
 
 function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {
@@ -88,6 +91,14 @@ async function refreshTimer() {
     } catch (error) {
         console.warn('Error refreshing timer:', error);
     }
+}
+
+function setArcaIndicator(status: 'up'|'degraded'|'down') {
+    const img = document.getElementById('arcaIndicator') as HTMLImageElement | null;
+    if (!img) return;
+    const map: any = { up: 'arca_verde.png', degraded: 'arca_amarillo.png', down: 'arca_rojo.png' };
+    img.src = `./icons/${map[status] || map.up}`;
+    img.title = status === 'up' ? 'ARCA/AFIP: OK' : status === 'degraded' ? 'ARCA/AFIP: Lento' : 'ARCA/AFIP: Caído';
 }
 
 async function handleAutoButtonClick() {
@@ -323,6 +334,11 @@ window.addEventListener('DOMContentLoaded', () => {
 			updateTimer(payload.remaining || 0, payload.configured || 0);
 		}
 	});
+
+    // Suscribirse al estado de salud de WS (si backend emite)
+    try {
+        (window as any).api?.onWsHealth?.((p: any) => { if (p?.status) setArcaIndicator(p.status); });
+    } catch {}
 
 	refreshAutoIndicator();
 	refreshTimer();

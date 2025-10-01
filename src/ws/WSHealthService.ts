@@ -45,19 +45,33 @@ export class WSHealthService extends EventEmitter {
 
   async healthCheck(): Promise<HealthStatus> {
     const { wsaa, wsfe } = resolveEndpoints(this.env);
-    const hosts = [wsaa, wsfe].map(u => { try { return new URL(u).hostname; } catch { return ''; } });
-    let dnsOk = 0; let httpOk = 0;
+    const endpoints = [wsaa, wsfe];
+    const hosts = endpoints.map(u => { try { return new URL(u).hostname; } catch { return ''; } });
+    let dnsOk = 0; let httpOk = 0; const times: number[] = [];
     for (const h of hosts) {
       if (!h) continue;
       try { await this.dnsLookup(h); dnsOk++; } catch {}
     }
-    for (const url of [wsaa, wsfe]) {
-      try { const r = await this.http.head(url).catch(async () => await this.http.get(url)); if (r && r.status >= 200 && r.status < 600) httpOk++; } catch {}
+    for (const url of endpoints) {
+      try {
+        const t0 = Date.now();
+        const r = await this.http.head(url).catch(async () => await this.http.get(url));
+        const ms = Date.now() - t0; times.push(ms);
+        if (r && r.status >= 200 && r.status < 600) httpOk++;
+      } catch {
+        // timeout o error → no incrementa httpOk
+      }
     }
-    const status: HealthStatus = (dnsOk === hosts.length && httpOk === 2)
-      ? 'up'
-      : (dnsOk > 0 || httpOk > 0) ? 'degraded' : 'down';
-    this.last = { status, at: Date.now(), details: { dnsOk, httpOk, env: this.env } };
+    const slowThresholdMs = Math.max(1500, Math.floor(this.timeoutMs * 0.6));
+    const anySlow = times.some(ms => ms > slowThresholdMs);
+    // Nueva política:
+    // down: httpOk == 0 (sin respuesta de AFIP/ARCA aunque haya Internet)
+    // up: dns ok total & httpOk == 2 & !anySlow
+    // degraded: el resto (al menos alguna señal, o lento)
+    const status: HealthStatus = (httpOk === 0)
+      ? 'down'
+      : (dnsOk === hosts.length && httpOk === 2 && !anySlow) ? 'up' : 'degraded';
+    this.last = { status, at: Date.now(), details: { dnsOk, httpOk, times, slowThresholdMs, env: this.env } };
     this.emit(status, this.last);
     return status;
   }

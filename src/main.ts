@@ -24,6 +24,7 @@ import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaMa
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
+import { WSHealthService } from './ws/WSHealthService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -684,6 +685,15 @@ app.whenReady().then(() => {
     try {
         const { bootstrapContingency } = require('./main/bootstrap/contingency');
         bootstrapContingency();
+    } catch {}
+
+    // WS Health → emitir estado a la UI (ARCA/AFIP)
+    try {
+        const wsHealth = new WSHealthService({ intervalSec: 20, timeoutMs: 5000 });
+        wsHealth.on('up', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'up', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.on('degraded', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'degraded', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.on('down', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'down', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.start();
     } catch {}
     try {
         const { installLegacyFsGuard } = require('./main/bootstrap/legacy_fs_guard');

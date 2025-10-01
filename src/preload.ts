@@ -82,6 +82,9 @@ contextBridge.exposeInMainWorld('api', {
 	onAutoTimerUpdate(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
 	},
+    onWsHealth(callback: (payload: { status: 'up'|'degraded'|'down'; at?: number; details?: any }) => void) {
+        ipcRenderer.on('ws-health-update', (_e, payload) => callback(payload));
+    },
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
 	},
