@@ -40,6 +40,11 @@ describe('contingency e2e (simplificado)', () => {
     await new Promise((r) => setTimeout(r, 2500));
     expect(fs.readdirSync(cfg.done).filter(f => f.endsWith('.fac')).length).toBe(3);
   });
+
+  it('helper month start (sanity)', () => {
+    const { monthStartFromYYYYMMDD } = require('../src/modules/facturacion/afip/helpers');
+    expect(monthStartFromYYYYMMDD('20250115')).toBe('20250101');
+  });
 });
 
 

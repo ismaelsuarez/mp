@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseFac, validate, buildRequest } from '../src/contingency/pipeline';
+import { monthStartFromYYYYMMDD } from '../src/modules/facturacion/afip/helpers';
 
 describe('pipeline unit', () => {
   it('parse/validate ok', () => {
@@ -12,6 +13,10 @@ describe('pipeline unit', () => {
     validate(dto); // no lanza
     const req = buildRequest(dto);
     expect(req.total).toBeCloseTo(0.1, 2);
+  });
+
+  it('monthStartFromYYYYMMDD returns first day of month', () => {
+    expect(monthStartFromYYYYMMDD('20250930')).toBe('20250901');
   });
 });
 

@@ -653,21 +653,20 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const can = (canLine === 'S' || canLine === 'N') ? (canLine as 'S'|'N') : 'N';
     return { monId, cotiz, can };
   })();
-  // Detectar comprobante asociado para NC/ND a partir de una línea tipo:
-  // "AFECTA FACT.N:B 0016-00026318"
+  // Detectar comprobante asociado para NC/ND a partir de líneas tipo:
+  // "AFECTA FACT.N: B 0016-00026318", "AFECTA FACT N° B 0016 - 00026318", "AFECTA FACTURA N B 0016-00026318"
   const assoc = ((): { Tipo: number; PtoVta: number; Nro: number } | null => {
     try {
+      const rx = /AFECTA\s+FACT(?:URA)?\.?\s*N[º°o]?\s*[:\-]?\s*([ABC])\s*(\d{4})\s*[- ]\s*(\d{8})/i;
       for (const rawLine of lines) {
         const line = String(rawLine || '');
-        const m = line.match(/AFECTA\s+FACT\.?N[:\s]*([ABC])\s*(\d{4})-(\d{8})/i);
+        const m = line.match(rx);
         if (m) {
-          const letra = String(m[1] || 'B').toUpperCase();
+          const letra = String(m[1] || '').toUpperCase();
           const pv = Number(m[2]);
           const nro = Number(m[3]);
-          const tipoOrigen = ((): number => {
-            if (letra === 'A') return 1; if (letra === 'B') return 6; return 11;
-          })();
-          if (pv && nro && tipoOrigen) return { Tipo: tipoOrigen, PtoVta: pv, Nro: nro };
+          const tipoOrigen = letra === 'A' ? 1 : (letra === 'B' ? 6 : (letra === 'C' ? 11 : 0));
+          if (tipoOrigen && pv && nro) return { Tipo: tipoOrigen, PtoVta: pv, Nro: nro };
         }
       }
     } catch {}

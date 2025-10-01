@@ -545,35 +545,51 @@ class AfipService {
             return mapped;
           }).filter((z: any) => Number(z.Tipo) && Number(z.PtoVta) && Number(z.Nro));
         }
-        if (!Array.isArray(request.CbtesAsoc) || request.CbtesAsoc.length === 0) {
-          throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
+        const isNcAyB = Number(request.CbteTipo) === 3 || Number(request.CbteTipo) === 8;
+        const hasAsoc = Array.isArray(request.CbtesAsoc) && request.CbtesAsoc.length > 0;
+        if (isNcAyB) {
+          if (hasAsoc) {
+            try { console.warn('[AFIP][NC] CbtesAsoc.mapped', request.CbtesAsoc); } catch {}
+            // Enriquecer asociados con datos faltantes (CbteFch/Cuit) consultando AFIP si es necesario
+            try {
+              const enrichOne = async (a: any) => {
+                if (!a) return;
+                const needsDate = !a.CbteFch || String(a.CbteFch).trim().length === 0;
+                const needsCuit = !a.Cuit || Number(a.Cuit) === 0;
+                if (!needsDate && !needsCuit) return;
+                const info: any = await this.resilienceWrapper.execute(
+                  () => this.getAfipInstance().then(af => af.ElectronicBilling.getVoucherInfo(Number(a.PtoVta), Number(a.Tipo), Number(a.Nro))),
+                  'getVoucherInfo'
+                );
+                const det = info?.ResultGet ?? info;
+                if (needsDate) {
+                  try {
+                    const f = String(det?.CbteFch || det?.FchEmi || det?.FchCbte || det?.Fecha || '').replace(/-/g,'');
+                    if (/^\d{8}$/.test(f)) a.CbteFch = f;
+                  } catch {}
+                }
+                if (needsCuit) {
+                  try { a.Cuit = Number(String(cfg.cuit).replace(/\D/g, '')); } catch {}
+                }
+              };
+              for (const a of (request.CbtesAsoc as any[])) { try { await enrichOne(a); } catch {} }
+              try { console.warn('[AFIP][NC] CbtesAsoc.enriched', request.CbtesAsoc); } catch {}
+            } catch {}
+          } else {
+            // Fallback por período: PeriodoAsoc = 1° del mes a fecha de emisión
+            const fch = ensureYyyymmdd(request.CbteFch) || String(comprobante.fecha || '').replace(/-/g,'');
+            const from = require('./afip/helpers').monthStartFromYYYYMMDD(fch);
+            request.PeriodoAsoc = { FchDesde: from, FchHasta: fch };
+            // Exclusividad
+            delete request.CbtesAsoc;
+            try { console.warn('[AFIP][NC] PeriodoAsoc.fallback', request.PeriodoAsoc); } catch {}
+          }
+        } else {
+          // Para ND (2/7) y NC C (13) mantener comportamiento actual: asociado requerido
+          if (!hasAsoc) {
+            throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
+          }
         }
-        try { console.warn('[AFIP][NC] CbtesAsoc.mapped', request.CbtesAsoc); } catch {}
-        // Enriquecer asociados con datos faltantes (CbteFch/Cuit) consultando AFIP si es necesario
-        try {
-          const enrichOne = async (a: any) => {
-            if (!a) return;
-            const needsDate = !a.CbteFch || String(a.CbteFch).trim().length === 0;
-            const needsCuit = !a.Cuit || Number(a.Cuit) === 0;
-            if (!needsDate && !needsCuit) return;
-            const info: any = await this.resilienceWrapper.execute(
-              () => this.getAfipInstance().then(af => af.ElectronicBilling.getVoucherInfo(Number(a.PtoVta), Number(a.Tipo), Number(a.Nro))),
-              'getVoucherInfo'
-            );
-            const det = info?.ResultGet ?? info;
-            if (needsDate) {
-              try {
-                const f = String(det?.CbteFch || det?.FchEmi || det?.FchCbte || det?.Fecha || '').replace(/-/g,'');
-                if (/^\d{8}$/.test(f)) a.CbteFch = f;
-              } catch {}
-            }
-            if (needsCuit) {
-              try { a.Cuit = Number(String(cfg.cuit).replace(/\D/g, '')); } catch {}
-            }
-          };
-          for (const a of (request.CbtesAsoc as any[])) { try { await enrichOne(a); } catch {} }
-          try { console.warn('[AFIP][NC] CbtesAsoc.enriched', request.CbtesAsoc); } catch {}
-        } catch {}
       }
 
       // Solicitar CAE con resiliencia (servicio según tipo)

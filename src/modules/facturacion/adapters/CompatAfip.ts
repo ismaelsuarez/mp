@@ -258,6 +258,7 @@ export class CompatAfip {
 				if (Array.isArray(req.Iva)) det.Iva = { AlicIva: req.Iva };
 				if (Array.isArray(req.Tributos)) det.Tributos = { Tributo: req.Tributos };
 				if (Array.isArray(req.CbtesAsoc)) det.CbtesAsoc = { CbteAsoc: req.CbtesAsoc };
+				if (req.PeriodoAsoc && req.PeriodoAsoc.FchDesde && req.PeriodoAsoc.FchHasta) det.PeriodoAsoc = req.PeriodoAsoc;
 				if (Array.isArray(req.Compradores)) det.Compradores = { Comprador: req.Compradores };
 				if (Array.isArray(req.Opcionales)) det.Opcionales = { Opcional: req.Opcionales };
 
