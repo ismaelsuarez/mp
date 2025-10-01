@@ -438,6 +438,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     const now = new Date();
     const fechaStr = dayjs(now).format('DD/MM/YYYY');
     const nroOut = String(data.empresa.numero).padStart(8, '0');
+    const totalFmt = new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(data.total||0));
     const resLines = [
       'RESPUESTA AFIP    :',
       'CUIT EMPRESA      : 30708673435',
@@ -447,6 +448,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
       `FECHA COMPROBANTE : ${fechaStr}`,
       'NUMERO CAE        :',
       'VENCIMIENTO CAE   : 0',
+      `IMPORTE TOTAL     : ${totalFmt}`,
       `ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,
       `ARCHIVO PDF       : ${path.basename(localOutPath)}`,
       '',
@@ -457,6 +459,8 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     resPath = path.join(dir, `${shortBase}.res`);
     const joined = raw.replace(/\s*$/, '') + '\n' + resLines.join('\n');
     fs.writeFileSync(resPath, joined, 'utf8');
+    // Copia persistente para resumen diario
+    try { const outDir = path.join(app.getPath('userData'), 'fac', 'out'); fs.mkdirSync(outDir, { recursive: true }); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {}
   } catch {}
 
   // Enviar .res por FTP y limpiar

@@ -467,6 +467,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
     const pvStr = String(reciboCfg.pv).padStart(5, '0').slice(-5).replace(/^0/, '0');
     const pvOut = String(reciboCfg.pv).padStart(5, '0').slice(-5); // asegurar 5 dígitos
     const nroOut = String(data.empresa.numero).padStart(8, '0');
+    const totalFmt = new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(data.total||0));
     const resLines = [
       'RESPUESTA AFIP    :',
       'CUIT EMPRESA      : 30708673435',
@@ -476,6 +477,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
       `FECHA COMPROBANTE : ${fechaStr}`,
       'NUMERO CAE        :',
       'VENCIMIENTO CAE   : 0',
+      `IMPORTE TOTAL     : ${totalFmt}`,
       `ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,
       `ARCHIVO PDF       : ${path.basename(localOutPath)}`,
       '',
@@ -487,6 +489,8 @@ export async function processFacFile(fullPath: string): Promise<string> {
     resPath = path.join(dir, `${shortBaseLower}.res`);
     const joined = raw.replace(/\s*$/,'') + '\n' + resLines.join('\n');
     fs.writeFileSync(resPath, joined, 'utf8');
+    // Copia persistente para resumen diario
+    try { const outDir = path.join(app.getPath('userData'), 'fac', 'out'); fs.mkdirSync(outDir, { recursive: true }); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {}
   } catch {}
 
   // Enviar .res por FTP (si hay config)
@@ -992,7 +996,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   // .res por tipo
   const suf = ((): string => { switch (tipo) { case 'FA': return 'a'; case 'FB': return 'b'; case 'NCA': return 'c'; case 'NCB': return 'd'; case 'NDA': return 'e'; case 'NDB': return 'f'; default: return 'a'; } })();
   let resPath: string | null = null;
-  try { const dir=path.dirname(fullPath); const baseName=path.basename(fullPath, path.extname(fullPath)); const shortLower=baseName.slice(-8).toLowerCase().replace(/.$/,suf); resPath=path.join(dir, `${shortLower}.res`); const fechaStr=dayjs().format('DD/MM/YYYY'); const totalFmt= new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total); const resLines=['RESPUESTA AFIP    :','CUIT EMPRESA      :','MODO              : 0',`PUNTO DE VENTA    : ${String(pv).padStart(5,'0').slice(-5)}`,`NUMERO COMPROBANTE: ${String(nroAfip).padStart(8,'0')}`,`FECHA COMPROBANTE : ${fechaStr}`,`NUMERO CAE        : ${caeStr}`,`VENCIMIENTO CAE   : ${caeVtoStr || '0'}`,`IMPORTE TOTAL     : ${totalFmt}`,`ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,`ARCHIVO PDF       : ${path.basename(localOutPath)}`,'']; const joined=raw.replace(/\s*$/,'')+'\n'+resLines.join('\n'); fs.writeFileSync(resPath, joined, 'utf8'); } catch {}
+  try { const dir=path.dirname(fullPath); const baseName=path.basename(fullPath, path.extname(fullPath)); const shortLower=baseName.slice(-8).toLowerCase().replace(/.$/,suf); resPath=path.join(dir, `${shortLower}.res`); const fechaStr=dayjs().format('DD/MM/YYYY'); const totalFmt= new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(total); const resLines=['RESPUESTA AFIP    :','CUIT EMPRESA      :','MODO              : 0',`PUNTO DE VENTA    : ${String(pv).padStart(5,'0').slice(-5)}`,`NUMERO COMPROBANTE: ${String(nroAfip).padStart(8,'0')}`,`FECHA COMPROBANTE : ${fechaStr}`,`NUMERO CAE        : ${caeStr}`,`VENCIMIENTO CAE   : ${caeVtoStr || '0'}`,`IMPORTE TOTAL     : ${totalFmt}`,`ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,`ARCHIVO PDF       : ${path.basename(localOutPath)}`,'']; const joined=raw.replace(/\s*$/,'')+'\n'+resLines.join('\n'); fs.writeFileSync(resPath, joined, 'utf8'); try { const outDir = path.join(app.getPath('userData'),'fac','out'); fs.mkdirSync(outDir,{recursive:true}); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {} } catch {}
 
   // Enviar .res con reintentos
   const sendWithRetries = async (localPath: string, remoteName?: string): Promise<boolean> => { const attempts=[0,1000,3000]; for (let i=0;i<attempts.length;i++){ try { await sendArbitraryFile(localPath, remoteName||path.basename(localPath)); return true; } catch {} await new Promise(res=>setTimeout(res, attempts[i])); } return false; };
