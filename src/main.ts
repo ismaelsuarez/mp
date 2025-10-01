@@ -1322,6 +1322,79 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       return { ok: false, error: String(e?.message || e) };
     }
   });
+
+  // ===== Caja: resumen diario por archivos .res (Opción B) =====
+  ipcMain.handle('caja:get-summary', async (_e, { fechaIso }: { fechaIso: string }) => {
+    try {
+      const userData = app.getPath('userData');
+      const facBase = path.join(userData, 'fac');
+      const outDir = path.join(facBase, 'out');
+      const processingDir = path.join(facBase, 'processing');
+      const doneDir = path.join(facBase, 'done');
+      const dirs = [outDir, processingDir, doneDir].filter((d) => { try { return fs.existsSync(d); } catch { return false; } });
+
+      const y = fechaIso.slice(0, 4);
+      const m = fechaIso.slice(5, 7);
+      const d = fechaIso.slice(8, 10);
+      const wanted = `${y}-${m}-${d}`;
+      const reDate = new RegExp(`(^|[^0-9])(${d}/${m}/${y}|${y}${m}${d})($|[^0-9])`);
+
+      type Row = { tipo: 'FA'|'FB'|'NCA'|'NCB'|'REC'|'REM'; numero?: number; total?: number };
+      const byTipo: Record<string, { desde?: number; hasta?: number; cantidad: number; total: number }> = {
+        FA: { cantidad: 0, total: 0 }, FB: { cantidad: 0, total: 0 }, NCA: { cantidad: 0, total: 0 }, NCB: { cantidad: 0, total: 0 }, REC: { cantidad: 0, total: 0 }, REM: { cantidad: 0, total: 0 }
+      } as any;
+
+      const pushRow = (r: Row) => {
+        const agg = (byTipo as any)[r.tipo]; if (!agg) return;
+        const nro = Number(r.numero || 0);
+        const tot = Number(r.total || 0);
+        if (!agg.desde || (nro && nro < agg.desde)) agg.desde = nro || agg.desde;
+        if (!agg.hasta || (nro && nro > agg.hasta)) agg.hasta = nro || agg.hasta;
+        agg.cantidad += 1;
+        if (Number.isFinite(tot)) agg.total += tot;
+      };
+
+      for (const dir of dirs) {
+        let files: string[] = [];
+        try { files = fs.readdirSync(dir); } catch { files = []; }
+        for (const name of files) {
+          if (!name.toLowerCase().endsWith('.res')) continue;
+          const full = path.join(dir, name);
+          let txt = '';
+          try { txt = fs.readFileSync(full, 'utf8'); } catch { continue; }
+          if (!reDate.test(txt)) continue; // filtrar por fecha del comprobante
+          const lower = name.toLowerCase();
+          let tipo: Row['tipo'] | null = null;
+          if (lower.includes('fa_')) tipo = 'FA';
+          else if (lower.includes('fb_')) tipo = 'FB';
+          else if (lower.includes('nca_')) tipo = 'NCA';
+          else if (lower.includes('ncb_')) tipo = 'NCB';
+          else if (lower.includes('rec_')) tipo = 'REC';
+          else if (lower.includes('rem_')) tipo = 'REM';
+          if (!tipo) {
+            // intentar por contenido
+            if (/NOTA\s+DE\s+CR[EÉ]DITO/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'NCB' : 'NCA';
+            else if (/REMITO/i.test(txt)) tipo = 'REM';
+            else if (/RECIBO/i.test(txt)) tipo = 'REC';
+            else if (/FACTURA/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'FB' : 'FA';
+          }
+          const mNro = txt.match(/NUMERO\s+COMPROBANTE\s*:\s*(\d{8})/i);
+          const nro = mNro ? Number(mNro[1]) : undefined;
+          const mTot = txt.match(/IMPORTE\s+TOTAL\s*:\s*([0-9.,]+)/i);
+          const total = mTot ? Number((mTot[1]||'').replace(/\./g,'').replace(',','.')) : undefined;
+          if (tipo) pushRow({ tipo, numero: nro, total });
+        }
+      }
+
+      const rows = (['FA','FB','NCA','NCB','REC','REM'] as const)
+        .map(t => ({ tipo: t, desde: byTipo[t].desde, hasta: byTipo[t].hasta, cantidad: byTipo[t].cantidad, total: Number(byTipo[t].total.toFixed(2)) }))
+        .filter(r => r.cantidad > 0);
+      const totalGeneral = Number(rows.reduce((a, r) => a + (r.total || 0), 0).toFixed(2));
+      return { ok: true, fecha: wanted, rows, totalGeneral };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
 	// Idempotencia: listar y limpiar
 	ipcMain.handle('facturacion:idempotency:list', async () => {
 		try {

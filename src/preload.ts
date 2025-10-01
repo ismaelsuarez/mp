@@ -177,6 +177,11 @@ contextBridge.exposeInMainWorld('api', {
 			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
 		}
 	},
+	// Caja resumen diario
+	caja: {
+		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
+		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind })
+	},
 	// Recibo config (PV y contador)
 	recibo: {
 		getConfig: () => ipcRenderer.invoke('recibo:get-config'),

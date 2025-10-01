@@ -209,23 +209,43 @@ function renderTodayBadge() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-	// Tabs
-	const navTabs = Array.from(document.querySelectorAll('nav .tab')) as HTMLElement[];
+    // Tabs
+    const navTabs = Array.from(document.querySelectorAll('nav .tab')) as HTMLElement[];
 	for (const t of navTabs) t.addEventListener('click', () => {
-		const name = (t.dataset.tab as any) as 'home' | 'table';
+        const name = (t.dataset.tab as any) as 'home' | 'table' | 'fact';
 		for (const x of navTabs) x.classList.toggle('bg-slate-700', x === t);
 		for (const x of navTabs) x.classList.toggle('bg-slate-800', x !== t);
 		selectPane(name);
 	});
 
-	// Botón generar reporte
-	document.getElementById('btnCajaGenerate')?.addEventListener('click', async () => {
-		appendLog('Generando reporte...');
-		const res = await window.api.generateReport();
-		appendLog(`Reporte generado: ${res.count} pagos`);
-		// Render quick last 8 from returned rows
-		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
-	});
+    // Pestaña Facturas: selector de fecha + calcular
+    const factPane = document.getElementById('pane-fact');
+    if (factPane) {
+        const controls = document.createElement('div');
+        controls.className = 'flex items-center gap-2 mb-2';
+        const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-200';
+        const today = new Date(); inp.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const btn = document.createElement('button'); btn.textContent = 'Calcular'; btn.className = 'px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-500';
+        const totalEl = document.createElement('div'); totalEl.className = 'ml-auto text-slate-300 font-semibold'; totalEl.id = 'factTotalGeneral';
+        controls.appendChild(inp); controls.appendChild(btn); controls.appendChild(totalEl);
+        factPane.insertBefore(controls, factPane.firstChild);
+        const tbody = document.getElementById('cajaFactTableBody') as HTMLElement | null;
+        const render = (rows: any[], totalGeneral: number) => {
+            if (tbody) tbody.innerHTML = rows.map(r => `<tr>
+                <td>${r.tipo}</td>
+                <td>${String(r.desde||'')} - ${String(r.hasta||'')}</td>
+                <td></td>
+                <td>${new Intl.DateTimeFormat('es-AR',{ dateStyle:'short', timeStyle:undefined }).format(new Date(inp.value))}</td>
+                <td class="text-right">${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0)}</td>
+            </tr>`).join('');
+            totalEl.textContent = `Total: ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
+        };
+        btn.addEventListener('click', async () => {
+            appendLog('Calculando resumen diario...');
+            const res = await (window.api as any).caja.getSummary(inp.value);
+            if (res?.ok) { render(res.rows||[], res.totalGeneral||0); appendLog('Resumen listo'); } else { appendLog(`Error resumen: ${res?.error||'desconocido'}`); }
+        });
+    }
 
 	// Función para procesar facturación automática desde archivo
 	window.processAutomaticBilling = async function(data: any) {
