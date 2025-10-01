@@ -336,6 +336,7 @@ class AfipService {
         });
 
         return { 
+          numero, 
           cae: idempotencyResult.existingCae, 
           vencimientoCAE: idempotencyResult.existingCaeVto || '', 
           qrData 
@@ -618,7 +619,7 @@ class AfipService {
         cae
       });
 
-      return { cae, vencimientoCAE: caeVto, qrData, observaciones };
+      return { numero, cae, vencimientoCAE: caeVto, qrData, observaciones };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

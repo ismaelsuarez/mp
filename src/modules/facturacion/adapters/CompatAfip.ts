@@ -235,7 +235,7 @@ export class CompatAfip {
 			createVoucher: async (req: any) => {
 				await this.assertWsfeEndpoint();
 				// Ensamblar FECAEReq manualmente para garantizar inclusión de CondicionIVAReceptorId
-				const det: any = {
+				const detReq: any = {
 					Concepto: req.Concepto,
 					DocTipo: req.DocTipo,
 					DocNro: req.DocNro,
@@ -255,12 +255,12 @@ export class CompatAfip {
 					MonCotiz: req.MonCotiz,
 					CondicionIVAReceptorId: req.CondicionIVAReceptorId,
 				};
-				if (Array.isArray(req.Iva)) det.Iva = { AlicIva: req.Iva };
-				if (Array.isArray(req.Tributos)) det.Tributos = { Tributo: req.Tributos };
-				if (Array.isArray(req.CbtesAsoc)) det.CbtesAsoc = { CbteAsoc: req.CbtesAsoc };
-				if (req.PeriodoAsoc && req.PeriodoAsoc.FchDesde && req.PeriodoAsoc.FchHasta) det.PeriodoAsoc = req.PeriodoAsoc;
-				if (Array.isArray(req.Compradores)) det.Compradores = { Comprador: req.Compradores };
-				if (Array.isArray(req.Opcionales)) det.Opcionales = { Opcional: req.Opcionales };
+				if (Array.isArray(req.Iva)) detReq.Iva = { AlicIva: req.Iva };
+				if (Array.isArray(req.Tributos)) detReq.Tributos = { Tributo: req.Tributos };
+				if (Array.isArray(req.CbtesAsoc)) detReq.CbtesAsoc = { CbteAsoc: req.CbtesAsoc };
+				if (req.PeriodoAsoc && req.PeriodoAsoc.FchDesde && req.PeriodoAsoc.FchHasta) detReq.PeriodoAsoc = req.PeriodoAsoc;
+				if (Array.isArray(req.Compradores)) detReq.Compradores = { Comprador: req.Compradores };
+				if (Array.isArray(req.Opcionales)) detReq.Opcionales = { Opcional: req.Opcionales };
 
 				const feReq = {
 					FeCAEReq: {
@@ -270,7 +270,7 @@ export class CompatAfip {
 							CbteTipo: req.CbteTipo,
 						},
 						FeDetReq: {
-							FECAEDetRequest: [det]
+							FECAEDetRequest: [detReq]
 						}
 					}
 				};
@@ -369,10 +369,13 @@ export class CompatAfip {
                         } catch {}
                     }
                 }
+				const detResp = res?.FeDetResp?.FECAEDetResponse?.[0];
 				return {
-					CAE: res?.FeDetResp?.FECAEDetResponse?.[0]?.CAE,
-					CAEFchVto: res?.FeDetResp?.FECAEDetResponse?.[0]?.CAEFchVto,
-					Observaciones: res?.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs ?? undefined,
+					CAE: detResp?.CAE,
+					CAEFchVto: detResp?.CAEFchVto,
+					Observaciones: detResp?.Observaciones?.Obs ?? undefined,
+					CbteDesde: detResp?.CbteDesde,
+					CbteHasta: detResp?.CbteHasta,
 					response: res
 				};
 			},

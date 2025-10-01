@@ -91,18 +91,12 @@ export class FacturacionService {
 				console.warn(`[FACT][Observaciones] Factura emitida con advertencias:`, outAny.observaciones);
 			}
 			
-			// Obtener número del último autorizado + 1
-			const cfg = db.getAfipConfig();
-			if (cfg) {
-				this.debugLog('Consultando último autorizado...');
-				// Usar el código AFIP numérico provisto en params para evitar ambigüedad (NC A/B/C)
-				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, params.tipo_cbte);
-				numero = ultimo + 1;
-				this.debugLog('Número asignado', numero);
-			} else {
-				numero = Math.floor(Date.now() / 1000); // Fallback
-				this.debugLog('CFG AFIP ausente, numero fallback', numero);
+			// Usar el número oficial devuelto por AFIP (CbteDesde/CbteHasta)
+			numero = Number((outAny as any)?.numero || 0);
+			if (!Number.isFinite(numero) || numero <= 0) {
+				throw new Error('NUMERO_AFIP_MISSING');
 			}
+			this.debugLog('Número (AFIP)', numero);
 		} catch (e: any) {
 			this.debugLog('Error emitiendo CAE', e?.message || e);
 			const fallbackNumero = Math.floor(Date.now() / 1000);

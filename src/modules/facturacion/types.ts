@@ -78,6 +78,7 @@ export interface Comprobante {
 }
 
 export interface DatosAFIP {
+  numero?: number;
   cae: string;
   vencimientoCAE: string; // YYYYMMDD
   qrData: string; // URL QR AFIP completa
