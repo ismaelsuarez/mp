@@ -1,5 +1,34 @@
 ## Auditoría integral del módulo de Facturación (UI y .fac)
 
+### Resumen ejecutivo (estado actual)
+- Emite Factura A/B/C, Nota de Crédito A/B/C y Nota de Débito A/B/C vía WSFE (WSAA + WSFEv1) usando adapter local `CompatAfip` sobre `sdk/afip.ts-main`.
+- Genera CAE/CAE_Vto y QR oficial AFIP; produce PDF y `.res` en pipeline por UI y por `.fac`.
+- Soporta MiPyME (FCE) mapeando a tipos 201–213 cuando corresponde.
+- Parser `.fac` detecta `ITEM:` y totales; extrae `AFECTA FACT.N:` para asociar NC/ND. Inferencia de IVA por totales cuando ítems vienen con `iva=0`.
+- `CondicionIVAReceptorId` se resuelve por catálogo AFIP y se envía siempre en PROD. Reglas receptor↔tipo alineadas a MTXCA.
+- Contingencia con cola SQLite: backoff, circuit breaker, clasificación de errores transitorios (incluye “AFIP sin CAE”). Idempotencia por `sha256`.
+
+### Arquitectura & capas
+```
+UI (Electron) / .fac watcher
+   │ IPC 'facturacion:emitir' / pipeline.fac
+   ▼
+FacturacionService.emitirFacturaYGenerarPdf(params)
+   │  (mapea a Comprobante, set cbteTipo numérico)
+   ▼
+afipService.solicitarCAE(Comprobante)
+   │  (FEParamGet*, consolidación IVA/totales, CondicionIVAReceptorId)
+   ▼
+CompatAfip.ElectronicBilling.createVoucher(FeCAEReq)
+   │  (WSAA/WSFEv1 SOAP, sdk local)
+   ▼
+Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
+   │
+   ├─ Persistencia/Idempotencia (DbService/IdempotencyManager)
+   ├─ QR oficial (AfipHelpers.buildQrUrl)
+   └─ PDF + .res + FTP (facProcessor/pipeline)
+```
+
 ### 1) Resumen ejecutivo
  - Estado actual (producción):
   - WSAA/WSFEv1 operativos en `https://wsaa.afip.gov.ar/ws/services/LoginCms` y `https://servicios1.afip.gov.ar/wsfev1/service.asmx`.
@@ -185,6 +214,139 @@ flowchart TD
  - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
  - Monedas (PES/DOL/EUR): `FECAEReq` incluye siempre `MonId`/`MonCotiz` y, si el SDK lo soporta, `CanMisMonExt`. La cotización proviene de WSFE (fuente oficial) o de `COTIZADOL` (si `N` y pasa la política). Se registra `fuente`=`WSFE` o `COTIZADOL`.
 - Notas de Crédito (NC): importes siempre positivos (`ImpTotal/ImpNeto/ImpIVA/ImpTrib/ImpTotConc/ImpOpEx` y `Iva[].Importe/BaseImp`). `CbtesAsoc` debe incluir `{ Tipo, PtoVta, Nro }` y, si se dispone, `Cuit` y `CbteFch` (AAAAMMDD). Si falta el comprobante asociado, se produce `PermanentError`. El parser `.fac` extrae asociaciones desde líneas tipo `AFECTA FACT.N: B 0016-00026318` y arma `CbtesAsoc`.
+
+### Parsers .fac
+- Archivos/funciones:
+  - `src/contingency/pipeline.ts` → `parseFac(filePath): FacDTO` (básico, lectura de `ITEM:` y `TOTALES:` con regex).
+  - `src/modules/facturacion/facProcessor.ts` → `processFacturaFacFile(fullPath)` (parseo completo, `ITEM:`/`TOTALES:`/`OBS.*`, detección `AFECTA FACT.N:` y armado de `params`).
+- Detección `ITEM:` y regex usada:
+```48:61:src/contingency/pipeline.ts
+  let i = lines.findIndex(l => l.trim() === 'ITEM:');
+  if (i >= 0) {
+    for (let k = i + 1; k < lines.length; k++) {
+      const row = lines[k]; if (/^TOTALES:/.test(row)) break;
+      const m1 = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+(?:([0-9.,]+)%\s+)?([0-9.,]+)\s*$/);
+      if (m1) { /* cantidad, desc, unit, iva?, total */ }
+    }
+  }
+```
+- Detección `AFECTA FACT.N:` y construcción preliminar:
+```656:671:src/modules/facturacion/facProcessor.ts
+  const assoc = ((): { Tipo: number; PtoVta: number; Nro: number } | null => {
+    for (const rawLine of lines) {
+      const m = String(rawLine||'').match(/AFECTA\s+FACT\.?N[:\s]*([ABC])\s*(\d{4})-(\d{8})/i);
+      if (m) { /* map A→1, B→6, C→11 */ return { Tipo: tipoOrigen, PtoVta: pv, Nro: nro }; }
+    }
+    return null;
+  })();
+```
+
+### Emisión por tipo de comprobante (builders)
+- Orquestación principal: `src/modules/facturacion/afipService.ts` → `async solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP>`.
+  - Consolidación de totales/IVA: `AfipHelpers.consolidateTotals(comprobante.items)` y armado de request:
+```399:418:src/modules/facturacion/afipService.ts
+  const request: any = {
+    CantReg: 1, PtoVta: ptoVta, CbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
+    Concepto: concepto, DocTipo: docTipo, DocNro: docNro,
+    CbteDesde: numero, CbteHasta: numero, CbteFch: cbteFch,
+    ImpTotal: totales.ImpTotal, ImpTotConc: totales.ImpTotConc,
+    ImpNeto: totales.ImpNeto, ImpOpEx: totales.ImpOpEx,
+    ImpIVA: totales.ImpIVA, ImpTrib: totales.ImpTrib,
+    MonId: monIdNorm, MonCotiz: monCotizNum, Iva: ivaArray,
+    CanMisMonExt: canMis
+  };
+```
+- CBTE tipo por clase/tipo (A/B/C, FACT/NC/ND): preferencia por numérico (`cbteTipo`), fallback `AfipHelpers.mapTipoCbte(tipo)`.
+  - Mapeos útiles:
+```24:33:src/modules/facturacion/afip/helpers.ts
+  static mapCbteByClass(kind: 'FACT'|'NC'|'ND', clase: 'A'|'B'|'C'): number {
+    // FACT: A=1,B=6,C=11; NC: A=3,B=8,C=13; ND: A=2,B=7,C=12
+  }
+```
+- Adaptador WSFE: `src/modules/facturacion/adapters/CompatAfip.ts` → `ElectronicBilling.createVoucher(req)` construye `FeCAEReq` con `CondicionIVAReceptorId` y colecciones (`Iva`, `CbtesAsoc`, etc.).
+
+### Asociación de NC/ND (estado actual)
+- Construcción final de `CbtesAsoc` en `solicitarCAE`:
+```533:549:src/modules/facturacion/afipService.ts
+  if (([2,7,3,8,13]).includes(Number(request.CbteTipo))) {
+    request.CbtesAsoc = assocInput.map(x => ({ Tipo, PtoVta, Nro, Cuit, CbteFch }))
+      .filter(z => z.Tipo && z.PtoVta && z.Nro);
+    if (!request.CbtesAsoc?.length) throw new Error('PermanentError: Falta comprobante asociado...');
+    // Enriquecer CbteFch/Cuit vía getVoucherInfo si falta
+  }
+```
+- No hay soporte hoy para asociación por período (`PeriodoAsoc` / `periodoComprobantesAsociados`). Búsqueda de "PeriodoAsoc" en `src/` sin resultados.
+
+### IVA y totales
+- Consolidación en helpers:
+```87:131:src/modules/facturacion/afip/helpers.ts
+  static consolidateTotals(items) {
+    // agrupa por alícuota, arma Iva[{Id,BaseImp,Importe}], ImpNeto/ImpIVA/ImpOpEx/ImpTotal
+  }
+```
+- Regla WSFE: si `ImpIVA=0`, no enviar `Iva/AlicIva`:
+```473:479:src/modules/facturacion/afipService.ts
+  const impIvaNum = Number(request.ImpIVA);
+  if (!impIvaNum) delete request.Iva;
+```
+- Inferencia de IVA por totales en `.fac` cuando ítems vienen con `iva=0` y hay única alícuota en `TOTALES`:
+```790:798:src/modules/facturacion/facProcessor.ts
+  const allIvaZero = (items||[]).every(it => !Number(it?.iva||0));
+  if (allIvaZero) { const only21=..., only105=..., only27=...; if (only21||only105||only27) { const rate=...; /* asigna it.iva=rate */ } }
+```
+
+### Validaciones previas al envío
+- `src/modules/facturacion/afipService.ts`
+  - `AfipHelpers.validateComprobante(comprobante): string[]` (fecha, pv, número, items, total).
+  - `AfipValidator.validateComprobante(params)` realiza FEParamGet* y checks de catálogo.
+  - `getCondicionIvaReceptorId(...)` resuelve `CondicionIVAReceptorId` (cache 24h) en `src/services/afip/wsfe/catalogs.ts`.
+- Reglas receptor↔tipo (A/B/C) documentadas y validadas en flujo `.fac` y emisión.
+
+### Errores y logs
+- Clasificación y logs en `afipService.solicitarCAE` y `AFIPBridge.solicitarCAE`:
+  - Transitorios: timeout/red/DNS/`AFIP sin CAE` ⇒ reintentos/backoff (cola).
+  - Permanentes: validaciones/observaciones AFIP ⇒ `.res` de error.
+- Logs clave durante `.fac`:
+```131:139:src/contingency/ContingencyController.ts
+  // [queue.pop], [fac.lock.ok], [fac.parse.ok], [fac.validate.ok], [afip.send], [AFIP_NO_CAE], [afip.cae.ok], [pdf.ok], [res.ok]
+```
+
+### Configuración / flags actuales
+- Constantes de cola/WS (sin .env) en `src/main/bootstrap/contingency.ts`:
+  - `INCOMING_DIR`, `FAC_MIN_STABLE_MS`, `WS_TIMEOUT_MS=12000`, `WS_RETRY_MAX=6`, `WS_BACKOFF_BASE_MS=1500`, `WS_CIRCUIT_FAILURE_THRESHOLD=5`, `WS_CIRCUIT_COOLDOWN_SEC=90`, `WS_HEALTH_INTERVAL_SEC=20`.
+- UI IPC disponibles en `src/preload.ts` (`facturacion:*`).
+- Catálogo Condición IVA receptor cacheado en `AppData/Tc-Mp/afip/homo/condIvaReceptor.json`.
+
+### Listado reutilizable (para próximo sprint)
+- Funciones/clases clave:
+  - `src/modules/facturacion/afipService.ts` → `solicitarCAE(comprobante: Comprobante): Promise<DatosAFIP>`: Orquesta emisión WSFE.
+  - `src/modules/facturacion/afipService.ts` → `getUltimoAutorizado(pv: number, tipo: TipoComprobante|number): Promise<number>`: FECompUltimoAutorizado.
+  - `src/modules/facturacion/adapters/CompatAfip.ts` → `ElectronicBilling.createVoucher(req)`/`getLastVoucher(ptoVta,tipo)`.
+  - `src/modules/facturacion/afip/helpers.ts` → `consolidateTotals(items)`, `buildIvaArray(items)`, `mapCbteByClass(kind,clase)`.
+  - `src/services/afip/wsfe/catalogs.ts` → `getCondicionIvaReceptorId({afip,cbteTipo,receptorHint})`.
+  - `src/modules/facturacion/facProcessor.ts` → `processFacturaFacFile(fullPath)` (parseo `.fac`, inferencia IVA, armado `params`).
+  - `src/contingency/ContingencyController.ts` → watcher+queue/backoff.
+
+### Fixtures y tests existentes
+- Unit: `tests/pipeline.unit.spec.ts` (parse/validate/buildRequest de pipeline básico).
+- E2E simplificado: `tests/contingency.e2e.spec.ts` (lote FIFO, borrado tras `RES_OK` con stub).
+
+### Anexos (payloads y ejemplos)
+- Payload FE actual (fragmento armado): ver request en `afipService.ts` líneas 399–418 (ImpNeto/ImpIVA/AlicIva/ImpOpEx/ImpTotConc/Tributos/CbtesAsoc).
+- `.fac` real procesado (NC B con asociación y exento):
+```1:23:src/modules/facturacion/plantilla/2509301002139_.fac
+DIAHORA:30/09/25 10:02:13 yp9_
+TIPO:8
+CLIENTE:(000001)A CONSUMIDOR FINAL
+IVARECEPTOR:5
+ITEM:
+     1  AFECTA FACT.N:B 0016-00026326                       3.44                   3.44
+TOTALES:
+NETO 21%  :        0.00
+EXENTO    :        3.44
+IVA 21%   :        0.00
+TOTAL     :        3.44
+```
 
 ### 6 ter) Condición IVA Receptor (.fac y emisión)
 - Parser `.fac`: lee `IVARECEPTOR:` y valida contra catálogo mínimo {1,4,5,6,8,9,10,13,15}. Si el código no es válido → PermanentError (se genera `.res` de error y el `.fac` pasa a `error`).
