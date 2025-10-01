@@ -233,23 +233,22 @@ window.addEventListener('DOMContentLoaded', () => {
     const factPane = document.getElementById('pane-fact');
     if (factPane) {
         const controls = document.createElement('div');
-        controls.className = 'flex items-center gap-2 mb-2';
-        const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-200';
+        controls.className = 'flex items-center gap-2 mb-1 text-sm';
+        const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'bg-slate-800 border border-slate-600 rounded px-1.5 py-0.5 text-slate-200 text-sm';
         const today = new Date(); inp.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-        const btn = document.createElement('button'); btn.textContent = 'Calcular'; btn.className = 'px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-500';
-        const totalEl = document.createElement('div'); totalEl.className = 'ml-auto text-slate-300 font-semibold'; totalEl.id = 'factTotalGeneral';
+        const btn = document.createElement('button'); btn.textContent = 'Calcular'; btn.className = 'px-2.5 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-500 text-sm';
+        const totalEl = document.createElement('div'); totalEl.className = 'ml-auto text-slate-300 font-semibold text-sm'; totalEl.id = 'factTotalGeneral';
         controls.appendChild(inp); controls.appendChild(btn); controls.appendChild(totalEl);
         factPane.insertBefore(controls, factPane.firstChild);
         const tbody = document.getElementById('cajaFactTableBody') as HTMLElement | null;
         const render = (rows: any[], totalGeneral: number) => {
             if (tbody) tbody.innerHTML = rows.map(r => `<tr>
                 <td>${r.tipo}</td>
-                <td>${String(r.desde||'')} - ${String(r.hasta||'')}</td>
-                <td></td>
-                <td>${new Intl.DateTimeFormat('es-AR',{ dateStyle:'short', timeStyle:undefined }).format(new Date(inp.value))}</td>
+                <td>${r.desde ?? ''}</td>
+                <td>${r.hasta ?? ''}</td>
                 <td class="text-right">${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0)}</td>
             </tr>`).join('');
-            totalEl.textContent = `Total: ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
+            totalEl.textContent = `Total (FA+FB): ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
         };
         btn.addEventListener('click', async () => {
             appendLog('Calculando resumen diario...');

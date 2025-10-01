@@ -180,6 +180,18 @@ export class ContingencyController {
       }
     }
     const name = path.basename(src);
+    // Evitar reprocesar si ya existe un .res del mismo basename
+    try {
+      const base = path.basename(name, path.extname(name)).toLowerCase();
+      const candDirs = [cfg.outDir, cfg.processing, cfg.done].filter(Boolean);
+      for (const d of candDirs) {
+        try {
+          const entries = fs.readdirSync(d);
+          const found = entries.find((f) => path.basename(f, path.extname(f)).toLowerCase() === base && f.toLowerCase().endsWith('.res'));
+          if (found) { console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); this.store.ack(id); return; }
+        } catch {}
+      }
+    } catch {}
     const lockPath = path.join(cfg.processing, name);
     // Lock (mover a processing)
     if (src !== lockPath) {
@@ -187,28 +199,58 @@ export class ContingencyController {
       try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
     }
     try {
-      // Usar el pipeline consolidado de facturas/notas para generar PDF y .res completos
-      const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
-      const r: any = await processFacturaFacFile(lockPath);
-      if (!r || r.ok !== true) {
-        const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
-        try { console.warn('[queue.process.fail]', { id, filePath: lockPath, reason: errMsg }); } catch {}
-        // Tratar como transitorio: AFIP sin CAE/número, NTP, error de red/DNS y 'Comprobante en proceso'
-        if (/AFIP\s*sin\s*CAE|AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network|en\s*proceso/i.test(errMsg)) {
-          throw new Error(errMsg);
-        }
-        // Generar .res de error mínimo si el pipeline no lo hizo
+      // Detectar TIPO rápidamente para enrutar al pipeline correcto
+      const readLoose = (p: string): string => {
         try {
-          const { generateRes, parseFac } = require('./pipeline');
-          const dto = parseFac(lockPath);
-          await generateRes(dto, undefined, errMsg);
-          try { console.warn('[res.err.ok]', { filePath: lockPath }); } catch {}
-        } catch {}
-        const errPath = path.join(cfg.error, name);
-        try { fs.renameSync(lockPath, errPath); } catch { try { fs.copyFileSync(lockPath, errPath); fs.unlinkSync(lockPath); } catch {} }
-        throw new Error('PERMANENT_ERROR');
+          const buf = fs.readFileSync(p);
+          const t1 = buf.toString('utf8');
+          if (/TIPO\s*:/i.test(t1)) return t1;
+          return buf.toString('latin1');
+        } catch { return ''; }
+      };
+      const raw = readLoose(lockPath);
+      const m = raw.match(/\bTIPO:\s*(\S+)/i);
+      const tipo = String(m?.[1] || '').toUpperCase();
+
+      let kind: 'fact' | 'recibo' | 'remito' = 'fact';
+      if (tipo.includes('REMITO')) kind = 'remito';
+      else if (tipo.includes('RECIBO')) kind = 'recibo';
+
+      // Avisar al UI que comenzamos a procesar
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando ${kind === 'recibo' ? 'REC' : (kind === 'remito' ? 'REM' : 'FAC')} ${name}` }); } catch {}
+
+      if (kind === 'recibo') {
+        const { processFacFile } = require('../modules/facturacion/facProcessor');
+        const out: any = await processFacFile(lockPath);
+        try { console.warn('[recibo.ok]', { out }); } catch {}
+      } else if (kind === 'remito') {
+        const { processRemitoFacFile } = require('../modules/facturacion/remitoProcessor');
+        const out: any = await processRemitoFacFile(lockPath);
+        try { console.warn('[remito.ok]', { out }); } catch {}
+      } else {
+        // Facturas / Notas A/B
+        const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
+        const r: any = await processFacturaFacFile(lockPath);
+        if (!r || r.ok !== true) {
+          const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
+          try { console.warn('[queue.process.fail]', { id, filePath: lockPath, reason: errMsg }); } catch {}
+          // Tratar como transitorio: AFIP sin CAE/número, NTP, error de red/DNS y 'Comprobante en proceso'
+          if (/AFIP\s*sin\s*CAE|AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network|en\s*proceso/i.test(errMsg)) {
+            throw new Error(errMsg);
+          }
+          // Generar .res de error mínimo si el pipeline no lo hizo
+          try {
+            const { generateRes, parseFac } = require('./pipeline');
+            const dto = parseFac(lockPath);
+            await generateRes(dto, undefined, errMsg);
+            try { console.warn('[res.err.ok]', { filePath: lockPath }); } catch {}
+          } catch {}
+          const errPath = path.join(cfg.error, name);
+          try { fs.renameSync(lockPath, errPath); } catch { try { fs.copyFileSync(lockPath, errPath); fs.unlinkSync(lockPath); } catch {} }
+          throw new Error('PERMANENT_ERROR');
+        }
+        try { console.warn('[afip.cae.ok]', { cae: String(r.cae || ''), vto: String(r.caeVto || r.vto || '') }); } catch {}
       }
-      try { console.warn('[afip.cae.ok]', { cae: String(r.cae || ''), vto: String(r.caeVto || r.vto || '') }); } catch {}
       // DONE: si el pipeline ya borró el .fac (tras enviar .res por FTP), saltar move
       if (fs.existsSync(lockPath)) {
         const donePath = path.join(cfg.done, name);

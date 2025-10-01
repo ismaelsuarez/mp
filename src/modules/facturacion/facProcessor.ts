@@ -272,6 +272,7 @@ function readTextSmart(filePath: string): string {
 
 export async function processFacFile(fullPath: string): Promise<string> {
   const raw = readTextSmart(fullPath);
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando REC ${path.basename(fullPath)}` }); } catch {}
   const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
   const tipo = (tipoMatch?.[1] || '').toUpperCase();
   if (tipo !== 'RECIBO') throw new Error('FAC no RECIBO (aún no soportado)');
@@ -379,6 +380,8 @@ export async function processFacFile(fullPath: string): Promise<string> {
   } as any;
 
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Recibo PDF OK ${path.basename(localOutPath)}` }); } catch {}
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Recibo PDF OK ${path.basename(localOutPath)}` }); } catch {}
 
   // Copiar a Red1/Red2 (sin mover) desde la copia local
   try {
@@ -491,6 +494,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[recibo] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       // Borrar también el archivo .fac original tras envío exitoso del .res
       try { fs.unlinkSync(fullPath); } catch {}

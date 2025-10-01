@@ -1396,10 +1396,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
         }
       }
 
-      const rows = (['FA','FB','NCA','NCB','REC','REM'] as const)
-        .map(t => ({ tipo: t, desde: byTipo[t].desde, hasta: byTipo[t].hasta, cantidad: byTipo[t].cantidad, total: Number(byTipo[t].total.toFixed(2)) }))
-        .filter(r => r.cantidad > 0);
-      const totalGeneral = Number(rows.reduce((a, r) => a + (r.total || 0), 0).toFixed(2));
+      const order: Array<'FB'|'FA'|'NCB'|'NCA'|'REC'|'REM'> = ['FB','FA','NCB','NCA','REC','REM'];
+      const rows = order.map(t => ({ tipo: t, desde: (byTipo as any)[t].desde, hasta: (byTipo as any)[t].hasta, total: Number(((byTipo as any)[t].total || 0).toFixed(2)) }));
+      const totalGeneral = Number((rows.filter(r => r.tipo==='FB' || r.tipo==='FA').reduce((a, r) => a + (r.total || 0), 0)).toFixed(2));
       return { ok: true, fecha: wanted, rows, totalGeneral };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };

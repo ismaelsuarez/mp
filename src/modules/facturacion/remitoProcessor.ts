@@ -253,6 +253,7 @@ function readTextSmart(filePath: string): string {
 
 export async function processRemitoFacFile(fullPath: string): Promise<string> {
   const raw = readTextSmart(fullPath);
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando REM ${path.basename(fullPath)}` }); } catch {}
   const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
   const tipo = (tipoMatch?.[1] || '').toUpperCase();
   if (tipo !== 'REMITO') throw new Error('FAC no REMITO (aún no soportado)');
@@ -463,6 +464,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[remito] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       try { fs.unlinkSync(fullPath); } catch {}
       try { console.log('[remito] .res enviado por FTP y archivos limpiados'); } catch {}
