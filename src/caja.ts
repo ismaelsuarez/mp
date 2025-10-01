@@ -1,15 +1,17 @@
-function selectPane(name: 'home' | 'table') {
+function selectPane(name: 'home' | 'table' | 'fact') {
     const home = document.getElementById('pane-home') as HTMLElement | null;
     const table = document.getElementById('pane-table') as HTMLElement | null;
+    const fact = document.getElementById('pane-fact') as HTMLElement | null;
     const badge = document.getElementById('todayBadge') as HTMLElement | null;
     const auto = document.getElementById('autoIndicatorCaja') as HTMLElement | null;
     const timer = document.getElementById('autoTimer') as HTMLElement | null;
     if (!home || !table) return;
     home.style.display = name === 'home' ? 'block' : 'none';
     table.style.display = name === 'table' ? 'block' : 'none';
-    if (badge) badge.style.display = name === 'home' ? 'inline-block' : 'none';
-    if (auto) auto.style.display = name === 'home' ? 'inline-block' : 'none';
-    if (timer) timer.style.display = name === 'home' ? 'block' : 'none';
+    if (fact) fact.style.display = name === 'fact' ? 'block' : 'none';
+    if (badge) badge.style.display = 'none';
+    if (auto) auto.style.display = 'none';
+    if (timer) timer.style.display = 'none';
 }
 
 function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {

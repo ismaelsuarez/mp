@@ -18,26 +18,26 @@
 </head>
 <body class="text-slate-200">
 	<nav class="bg-slate-800 border-b border-slate-700">
-    <div class="container flex items-center gap-2 py-2">
-            <button class="tab px-3 py-1.5 text-sm rounded-md border border-slate-600 bg-slate-700 hover:bg-slate-600" data-tab="home">Inicio</button>
-            <button class="tab px-3 py-1.5 text-sm rounded-md border border-slate-600 bg-slate-800 hover:bg-slate-700" data-tab="table">Movimientos</button>
-            <div class="ml-auto flex items-center gap-2">
-                <div id="pillDol" class="hidden sm:flex items-center gap-2 px-2 py-1 rounded-md border border-slate-700 bg-slate-800 text-xs">
-                    <span id="pillDolState" class="inline-block w-2 h-2 rounded-full bg-slate-500" title="estado"></span>
-                    <span id="pillDolText">Dólar (AFIP) = -- — --:--</span>
-                    <button id="pillDolRefresh" class="px-1.5 py-0.5 rounded-md border border-slate-600 bg-slate-700 hover:bg-slate-600" title="Actualizar">↻</button>
-                </div>
-                <button id="btnGoConfig" class="px-2.5 py-1 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-500">Config</button>
-            </div>
+    <div class="container flex items-center justify-between py-2">
+        <div class="flex items-center gap-4">
+            <button class="tab" data-tab="home" title="Inicio">
+                <img src="./icons/home.png" alt="Inicio" class="w-8 h-8 rounded-full"/>
+            </button>
+            <button class="tab" data-tab="table" title="Movimientos">
+                <img src="./icons/mp.png" alt="Movimientos" class="w-8 h-8 rounded-full"/>
+            </button>
+            <button class="tab" data-tab="fact" title="Facturas">
+                <img src="./icons/peso.png" alt="Facturas" class="w-8 h-8 rounded-full"/>
+            </button>
         </div>
+        <button id="btnGoConfig" title="Config">
+            <img src="./icons/settings.png" alt="Config" class="w-8 h-8 rounded-full"/>
+        </button>
+    </div>
 	</nav>
 
     <main class="container mt-2">
 		<section id="pane-home" class="tab-pane" style="display:block;">
-            <div class="mb-2">
-                <button id="btnCajaGenerate" class="w-full max-w-md mx-auto px-4 py-2.5 text-base rounded-md bg-green-600 text-white hover:bg-green-500 block">DESCARGAR MP</button>
-            </div>
-			
             <div id="cajaLogs" class="bg-black border border-slate-600 rounded-md p-3 h-28 overflow-auto font-mono text-sm shadow-inner"></div>
 		</section>
 
@@ -56,22 +56,25 @@
 				</table>
 			</div>
 		</section>
+
+        <section id="pane-fact" class="tab-pane" style="display:none;">
+            <div class="table-container border border-slate-700 rounded-md">
+                <table class="min-w-full compact-table">
+                    <thead class="bg-slate-800">
+                        <tr>
+                            <th class="text-left">Tipo</th>
+                            <th class="text-left">PV-Nro</th>
+                            <th class="text-left">CAE</th>
+                            <th class="text-left">Fecha/hora</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cajaFactTableBody"></tbody>
+                </table>
+            </div>
+        </section>
 	</main>
 
-    <footer class="fixed bottom-4 left-4">
-		<div class="flex items-center gap-2">
-			<button id="autoIndicatorCaja" class="px-3 py-1 rounded text-sm border font-medium hover:opacity-80 transition-opacity">
-				auto:Desactivado
-			</button>
-			<div id="autoTimer" class="px-2 py-1 rounded text-xs border bg-slate-800/80 font-mono">
-				⏱ --:--
-			</div>
-		</div>
-	</footer>
-
-	<div class="fixed bottom-4 right-4">
-		<span id="todayBadge" class="px-3 py-1 rounded text-sm border bg-slate-800/80"></span>
-	</div>
+    <!-- Footer e indicadores automáticos ocultados por pedido del cliente -->
 
     <script>
     const ipcRenderer = (window.api && window.api.facturacion && window.api.facturacion.getCotizacionMoneda) ? { invoke: (ch, args)=> window.api.facturacion.getCotizacionMoneda(args) } : null;
