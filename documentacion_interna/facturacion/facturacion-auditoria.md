@@ -58,6 +58,16 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
 - Alineación MTXCA
   - Reglas receptor vs tipo reforzadas (A no admite CF; B rechaza RI). Cuando `ImpIVA=0` no se envía `Iva/AlicIva`.
 
+### 1 ter) Calibraciones recientes (Oct 2025)
+- Asociación de NC por período (fallback): para `CbteTipo` 3/8 (NC A/B), si no se detecta un `AFECTA FACT.N:` válido en el `.fac`, se envía `PeriodoAsoc` con `FchDesde=monthStart(CbteFch)` y `FchHasta=CbteFch`. Exclusividad garantizada: sólo `CbtesAsoc` o `PeriodoAsoc`.
+- Número oficial AFIP: se usa el número devuelto por `createVoucher` (CbteDesde/CbteHasta) como `numero` oficial. Se eliminó el cálculo local `getLastVoucher()+1` para evitar duplicados.
+- Idempotencia extra por `.res`: además del `sha256` al encolar, si al comenzar a procesar existe un `.res` con el mismo basename en `out/processing/done`, se registra `[fac.duplicate.skip]` y no se reprocesa.
+- Ruteo por tipo en la cola: `ContingencyController` detecta `TIPO:` y enruta a `processFacturaFacFile(...)` (FA/FB/NCA/NCB/ND), `processFacFile(...)` (REC) o `processRemitoFacFile(...)` (REM).
+- Recibos/Remitos `.res` enriquecidos: incluyen `IMPORTE TOTAL` y se copia una versión del `.res` a `userData/fac/out` para consumo del resumen diario de Caja.
+- Logs hacia UI Caja: se emite `auto-report-notice` con “Procesando FAC/REC/REM …”, “PDF OK …” y “RES OK …”.
+- Resumen diario (Caja): handler `caja:get-summary` computa, por fecha, filas `FB, FA, NCB, NCA, REC, REM` con columnas `Tipo|Desde|Hasta|Total` y un footer `Total (FA+FB)`.
+- Salud WS estricta: `WSHealthService` clasifica `up|degraded|down` con reglas más estrictas (HTTP sin respuesta ⇒ `down`; respuesta parcial o lenta ⇒ `degraded`; DNS+HTTP pleno ⇒ `up`).
+
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
 - Emisión por UI (Administración) y por archivo `.fac` (watcher/cola). Recibos/Remitos por `.fac` (PDF/FTP) sin AFIP.
@@ -109,10 +119,14 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
   - Bloques `ITEM:` y `TOTALES:` con `NETO %`, `IVA %`, `EXENTO`, `TOTAL`.
   - `OBS.CABCERA*`, `OBS.FISCAL`, `OBS.PIE` (texto libre para PDF).
  - Proceso (cola de contingencia activa):
-  1) Watcher (`ContingencyController.start`) observa `C:\tmp`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `STAGING_DIR`.
-  2) Encola job `fac.process` con `sha256` del contenido (idempotencia). FIFO por `available_at ASC, id ASC`.
-  3) Consumo (concurrency=1): se mueve a `PROCESSING_DIR` y se ejecuta el pipeline consolidado de facturación `facProcessor.processFacturaFacFile(...)` (parseo, normalización, emisión vía `FacturacionService.emitirFacturaYGenerarPdf` con reintentos, PDF completo, `.res`, FTP).
-  4) Salidas por cola (detallado en 5 ter): PDF → en `outLocal/outRed*` (ventas por mes); `.res` → transitorio en `PROCESSING_DIR` (se envía por FTP y se borra). El `.fac` se borra tras enviar `.res` (si el pipeline ya lo borró, el controlador lo detecta y sólo registra el done).
+  1) Watcher observa `C:\tmp`. Considera “estable” si no cambia tamaño en `FAC_MIN_STABLE_MS` y mueve a `STAGING_DIR`.
+  2) Encola job `fac.process` con `sha256` del contenido (idempotencia). Antes de procesar, si existe un `.res` homónimo en `out/processing/done`, se salta (`[fac.duplicate.skip]`).
+  3) Consumo (concurrency=1): mueve a `PROCESSING_DIR`, lee `TIPO:` y enruta a:
+     - `processFacturaFacFile(...)` para FA/FB/NCA/NCB/ND.
+     - `processFacFile(...)` (Recibo) para REC.
+     - `processRemitoFacFile(...)` para REM.
+     Todos los caminos generan PDF; facturas/notas además emiten CAE. Se envía `.res` y se realiza FTP cuando corresponde.
+  4) Salidas por cola: PDF → `outLocal/outRed*`; `.res` → generado en `PROCESSING_DIR`. Para REC/REM, el `.res` incluye `IMPORTE TOTAL` y se copia a `userData/fac/out` para persistencia del resumen diario. El `.fac` se borra sólo tras `RES_OK`.
   5) Errores: transientes (red/AFIP 5xx/timeout/“en proceso”/“AFIP sin CAE”) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `ERROR_DIR`.
   6) Bloqueo de archivo: durante PROCESSING, el `.fac` vive en `PROCESSING_DIR`.
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
@@ -275,7 +289,7 @@ flowchart TD
     // Enriquecer CbteFch/Cuit vía getVoucherInfo si falta
   }
 ```
-- No hay soporte hoy para asociación por período (`PeriodoAsoc` / `periodoComprobantesAsociados`). Búsqueda de "PeriodoAsoc" en `src/` sin resultados.
+- Soporte de asociación por período (fallback): para NC A/B (3/8), si no se detecta un `AFECTA FACT.N:` válido en el `.fac`, el sistema arma `PeriodoAsoc` con `FchDesde = firstDay(CbteFch)` y `FchHasta = CbteFch`. Se asegura exclusividad con `CbtesAsoc` (nunca ambos). El adapter `CompatAfip` agrega `PeriodoAsoc` al `FeCAEReq` cuando está presente.
 
 ### IVA y totales
 - Consolidación en helpers:
@@ -462,7 +476,7 @@ Uso rápido (cola)
    - Esperado: emisión y `.res` con número NC. Importes en positivo, `CbtesAsoc` presente y consistente con la factura origen (A→FA, B→FB). Si falta `CbteFch`, el sistema intenta completarlo vía `getVoucherInfo`.
 3) `EXENTO`>0 y `IVA %`=0:
    - PDF oculta líneas 0, muestra Exento. Si `TOTALES` trae una única alícuota gravada (21/10.5/27) y todos los ítems tienen `iva=0`, se infiere y aplica esa alícuota para evitar clasificar como Exento.
-4) Recibo y Remito: sólo PDF/FTP, sin AFIP.
+4) Recibo y Remito: sólo PDF/FTP, sin AFIP. Verificar `.res` con `NUMERO COMPROBANTE` e `IMPORTE TOTAL` y copia en `userData/fac/out` (visibles en resumen de Caja).
  5) Moneda Dólar (DOL): `.fac` con `MONEDA:DOLARES`, `CANCELA_MISMA_MONEDA=S` y `COTIZADOL: 1400.00`.
     - Esperado: FECAE con `MonId='DOL'` y `MonCotiz` de día hábil anterior (AFIP) exacto. Si `COTIZADOL` difiere → se ignora para el valor fiscal (se puede registrar como hint).
  6) Moneda Dólar (DOL) manual del día: `.fac` con `MONEDA:DOLARES`, `CANCELA_MISMA_MONEDA=N` y `COTIZADOL: 1400.00`.

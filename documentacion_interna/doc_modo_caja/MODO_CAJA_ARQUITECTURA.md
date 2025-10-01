@@ -6,26 +6,17 @@
 
 ### Componentes y responsabilidades
 - **UI (caja)**
-  - Archivo: `public/caja.html` (layout compacto; tabs Home/Tabla, barra de estado, botones).
-  - Script asociado: funciones en `src/renderer.ts` que manipulan el DOM y consumen `window.api`.
-  - Indicadores principales:
-    - `todayBadge` (fecha de hoy), `autoIndicatorCaja` (estado automático), `autoTimer` (countdown).
-    - Tabla de últimos movimientos (render de las últimas filas devueltas por backend).
+  - Archivos: `public/caja.html` (nuevo layout con iconos Inicio/Movimientos/Facturas/Config), `src/caja.ts` (lógica dedicada a Caja).
+  - Cambios UI recientes:
+    - Se removieron “DESCARGAR MP”, `auto:Desactivado`, minutero y día visual.
+    - Se agregaron iconos: casa (Inicio), mp (Movimientos), peso (Facturas), engranaje (Config).
+    - Visor de logs con 4 líneas, `overflow-auto`, mayor protagonismo; recibe eventos de facturación, remitos y recibos.
+    - Pestaña “Facturas”: selector de fecha + botón “Calcular” y tabla con columnas `Tipo|Desde|Hasta|Total` y footer “Total (FA+FB)`. Filas: `FB, FA, NCB, NCA, REC, REM`.
 
-- **Frontend (renderer)** — `src/renderer.ts`
-  - Navegación de tabs: `selectPane('home'|'table')`.
-  - Indicadores automáticos: `setAutoIndicator(active, paused, dayDisabled)`, `updateTimer(remaining, configured)`, `refreshAutoIndicator()`, `refreshTimer()`.
-  - Botones y acciones:
-    - Generar reporte manual: `#btnCajaGenerate` → `window.api.generateReport()` → muestra conteo y “últimos 5”.
-    - Toggle automático: `#autoIndicatorCaja` → `pauseAuto()` / `resumeAuto()` según estado.
-    - Ir a Configuración: `#btnGoConfig` → `window.api.openView('config')`.
-  - Eventos desde backend:
-    - `window.api.onAutoNotice(cb)` → logs informativos/errores y refresco UI.
-    - `window.api.onAutoTimerUpdate(cb)` → actualización de countdown.
-  - Utilidades:
-    - `appendLog(line)`: conserva las últimas 3 líneas visibles.
-    - `renderLast8(rows)`: muestra 5 filas recientes normalizando estado/fecha.
-    - `window.processAutomaticBilling(data)`: helper para emitir facturación automática vía IPC `facturacion:emitir` (reutiliza servicio de facturación general).
+- **Frontend dedicado Caja** — `src/caja.ts`
+  - Navegación de tabs: `selectPane('home'|'table'|'fact')`; el icono ARCA solo aparece en `home`.
+  - Logs: `appendLog()` conserva 4 líneas; escucha `auto-report-notice` y `ws-health-update`.
+  - Pestaña Facturas: llama `caja:get-summary` para poblar la tabla y mostrar el total (FA+FB).
 
 - **Preload (bridge IPC)** — `src/preload.ts`
   - Expone en `window.api` los handlers usados por Caja:
@@ -79,7 +70,7 @@
   - `openView(view)`
 
 - Backend → UI (eventos):
-  - `auto-report-notice`, `auto-timer-update`.
+  - `auto-report-notice` (logs de procesamiento FAC/REC/REM y obs AFIP), `auto-timer-update` (countdown), `ws-health-update` (icono ARCA).
 
 ### Configuración relevante (Store/ENV)
 - Vista por defecto: `DEFAULT_VIEW` → `'caja'|'config'|'imagen'` (si falta, Caja).
@@ -93,6 +84,12 @@
 - Config MP faltante: notifica `auto-report-notice { error: 'Comprobar la cuenta de Mercado Pago...' }`.
 - Fallas de comunicación: `auto-report-notice { error: 'MP – Comunicación fallida...' }`.
 - Días no habilitados: `auto-report-notice { info: 'Automático inactivo (día no habilitado)', dayDisabled: true }`.
+
+### Persistencia del resumen “Facturas”
+- Fuente de verdad: archivos `.res` generados por cada emisión/proceso.
+- Ubicación persistente: `userData/fac/out/*.res` (además se consideran `processing/done`).
+- Para Recibos/Remitos, el sistema agrega `IMPORTE TOTAL` al `.res` y copia una versión a `fac/out` para asegurar disponibilidad al recalcular.
+- El handler `caja:get-summary` lee esos `.res` por fecha, calcula `desde/hasta/total` por tipo y retorna filas fijas + total FA+FB.
 
 ### Criterios de aceptación (QA rápido)
 - Botón “Generar” produce reporte y filas recientes, sin congelar UI.
