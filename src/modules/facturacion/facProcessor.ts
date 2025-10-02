@@ -849,12 +849,18 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   if (!cfg || !cfg.outLocal) {
     return { ok:false, reason: 'CFG_OUTLOCAL_MISSING' } as any;
   }
-  // Punto de venta: tomar SIEMPRE desde configuración AFIP (Administración). Fallback a cfg.local
+  // Punto de venta y CUIT emisor: tomar SIEMPRE desde configuración AFIP (Administración). Fallback a cfg.local
   let pv = Number(cfg.pv || 1);
+  let cuitEmisor = '';
   try {
     const afipCfg = getDb()?.getAfipConfig?.();
-    if (afipCfg && typeof afipCfg.pto_vta !== 'undefined') {
-      pv = Number(afipCfg.pto_vta) || pv;
+    if (afipCfg) {
+      if (typeof afipCfg.pto_vta !== 'undefined') {
+        pv = Number(afipCfg.pto_vta) || pv;
+      }
+      if (afipCfg.cuit) {
+        cuitEmisor = String(afipCfg.cuit);
+      }
     }
   } catch {}
   if (!total || total <= 0) {
@@ -902,6 +908,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
       total,  // 🔑 Total exacto del .fac (evita errores de redondeo)
       source: 'fac_parsed'  // Flag para identificar que vienen del .fac
     },
+    cuit_emisor: cuitEmisor,  // 🔑 CUIT del emisor desde configuración AFIP
     empresa:{}, 
     cliente:{ razon_social_receptor:nombre }, 
     cuit_receptor: cuitODocReceptor, 
@@ -917,6 +924,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   } as any;
   try {
     console.warn('[FAC][PIPE] afip:params', {
+      cuit_emisor: params.cuit_emisor,
       pto_vta: params.pto_vta,
       tipo_cbte: params.tipo_cbte,
       total: params.total,
