@@ -1375,17 +1375,39 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
           if (!reDate.test(txt)) continue; // filtrar por fecha del comprobante
           const lower = name.toLowerCase();
           let tipo: Row['tipo'] | null = null;
-          if (lower.includes('fa_')) tipo = 'FA';
-          else if (lower.includes('fb_')) tipo = 'FB';
-          else if (lower.includes('nca_')) tipo = 'NCA';
-          else if (lower.includes('ncb_')) tipo = 'NCB';
-          else if (lower.includes('rec_')) tipo = 'REC';
-          else if (lower.includes('rem_')) tipo = 'REM';
+          
+          // 1️⃣ PRIORIDAD 1: Detectar por campo TIPO: (más confiable)
+          const mTipo = txt.match(/^TIPO:\s*(\d+)/im);
+          if (mTipo) {
+            const tipoNum = Number(mTipo[1]);
+            if (tipoNum === 1) tipo = 'FA';
+            else if (tipoNum === 6) tipo = 'FB';
+            else if (tipoNum === 3) tipo = 'NCA';
+            else if (tipoNum === 8) tipo = 'NCB';
+            // TIPO: 2 (NDA) y 7 (NDB) no se manejan en la tabla de resumen por ahora
+          }
+          
+          // 2️⃣ PRIORIDAD 2: Detectar por campo ARCHIVO PDF: (segundo más confiable)
           if (!tipo) {
-            // intentar por contenido
+            const mPdf = txt.match(/ARCHIVO PDF\s*:\s*(FA|FB|NCA|NCB|REC|REM)_/i);
+            if (mPdf) tipo = mPdf[1].toUpperCase() as Row['tipo'];
+          }
+          
+          // 3️⃣ PRIORIDAD 3: Detectar por nombre de archivo (legacy)
+          if (!tipo) {
+            if (lower.includes('fa_')) tipo = 'FA';
+            else if (lower.includes('fb_')) tipo = 'FB';
+            else if (lower.includes('nca_')) tipo = 'NCA';
+            else if (lower.includes('ncb_')) tipo = 'NCB';
+            else if (lower.includes('rec_')) tipo = 'REC';
+            else if (lower.includes('rem_')) tipo = 'REM';
+          }
+          
+          // 4️⃣ PRIORIDAD 4: Detectar por contenido (último recurso, menos confiable)
+          if (!tipo) {
             if (/NOTA\s+DE\s+CR[EÉ]DITO/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'NCB' : 'NCA';
-            else if (/REMITO/i.test(txt)) tipo = 'REM';
-            else if (/RECIBO/i.test(txt)) tipo = 'REC';
+            else if (/^TIPO:\s*REM/im.test(txt) || /ARCHIVO PDF\s*:\s*REM_/i.test(txt)) tipo = 'REM';
+            else if (/^TIPO:\s*REC/im.test(txt) || /ARCHIVO PDF\s*:\s*REC_/i.test(txt)) tipo = 'REC';
             else if (/FACTURA/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'FB' : 'FA';
           }
           const mNro = txt.match(/NUMERO\s+COMPROBANTE\s*:\s*(\d{8})/i);

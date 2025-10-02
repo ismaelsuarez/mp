@@ -242,12 +242,19 @@ window.addEventListener('DOMContentLoaded', () => {
         factPane.insertBefore(controls, factPane.firstChild);
         const tbody = document.getElementById('cajaFactTableBody') as HTMLElement | null;
         const render = (rows: any[], totalGeneral: number) => {
-            if (tbody) tbody.innerHTML = rows.map(r => `<tr>
-                <td>${r.tipo}</td>
-                <td>${r.desde ?? ''}</td>
-                <td>${r.hasta ?? ''}</td>
-                <td class="text-right">${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0)}</td>
-            </tr>`).join('');
+            if (tbody) tbody.innerHTML = rows.map(r => {
+                // REM no muestra total (sistema legacy no suma remitos)
+                const totalDisplay = r.tipo === 'REM' 
+                    ? '' 
+                    : new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0);
+                
+                return `<tr>
+                    <td>${r.tipo}</td>
+                    <td>${r.desde ?? ''}</td>
+                    <td>${r.hasta ?? ''}</td>
+                    <td class="text-right">${totalDisplay}</td>
+                </tr>`;
+            }).join('');
             totalEl.textContent = `Total (FA+FB): ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
         };
         btn.addEventListener('click', async () => {
