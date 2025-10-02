@@ -565,93 +565,110 @@
 					</summary>
 					<div class="p-3 space-y-4">
 						<!-- Empresa -->
-						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
-							<div class="text-sm font-semibold mb-2">Datos de la empresa</div>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<label>Razón social
-									<input id="EMP_RAZON" placeholder="Mi Empresa S.A." />
-								</label>
-								<label>CUIT
-									<input id="EMP_CUIT" placeholder="20123456789" />
-								</label>
-								<label class="md:col-span-2">Domicilio
-									<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
-								</label>
-								<label>Condición IVA
-								<select id="EMP_IVA">
-									<option value="RI">Responsable Inscripto</option>
-									<option value="CF">Consumidor Final</option>
-								</select>
-								</label>
-								<label>Logo (ruta)
-									<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
-								</label>
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								🏢 Datos de la empresa
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label>Razón social
+										<input id="EMP_RAZON" placeholder="Mi Empresa S.A." />
+									</label>
+									<label>CUIT
+										<input id="EMP_CUIT" placeholder="20123456789" />
+									</label>
+									<label class="md:col-span-2">Domicilio
+										<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
+									</label>
+									<label>Condición IVA
+									<select id="EMP_IVA">
+										<option value="RI">Responsable Inscripto</option>
+										<option value="CF">Consumidor Final</option>
+									</select>
+									</label>
+									<label>Logo (ruta)
+										<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
+									</label>
+								</div>
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnEmpresaGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar empresa</button>
+									<span id="empresaStatus" class="text-xs text-slate-400"></span>
+								</div>
 							</div>
-							<div class="flex items-center gap-2 mt-2">
-								<button type="button" id="btnEmpresaGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar empresa</button>
-								<span id="empresaStatus" class="text-xs text-slate-400"></span>
-							</div>
-						</div>
+						</details>
 
 						<!-- Parámetros de Facturación -->
-						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
-							<div class="text-sm font-semibold mb-2">Parámetros</div>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-								<label>Tipo por defecto
-									<select id="FAC_TIPO_DEF">
-										<option value="FA">Factura A</option>
-										<option value="FB">Factura B</option>
-										<option value="FC">Factura C</option>
-										<option value="NC">Nota de crédito A/B</option>
-										<option value="NC_C">Nota de crédito C</option>
-										<option value="RECIBO">Recibo</option>
-									</select>
-								</label>
-								<label>Punto de venta
-									<input id="FAC_PTO_VTA_DEF" type="number" placeholder="1" />
-								</label>
-								<label>Numeración
-									<input id="FAC_NUM_DEF" type="number" placeholder="1" />
-								</label>
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								⚙️ Parámetros de Facturación
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+									<label>Tipo por defecto
+										<select id="FAC_TIPO_DEF">
+											<option value="FA">Factura A</option>
+											<option value="FB">Factura B</option>
+											<option value="FC">Factura C</option>
+											<option value="NC">Nota de crédito A/B</option>
+											<option value="NC_C">Nota de crédito C</option>
+											<option value="RECIBO">Recibo</option>
+										</select>
+									</label>
+									<label>Punto de venta
+										<input id="FAC_PTO_VTA_DEF" type="number" placeholder="1" />
+									</label>
+									<label>Numeración
+										<input id="FAC_NUM_DEF" type="number" placeholder="1" />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+									<label class="checkbox inline-flex items-center gap-2"><input id="FAC_EMISOR_MIPYME" type="checkbox" /> Emisor es MiPyME</label>
+									<label>Umbral FCE (monto)
+										<input id="FAC_FCE_UMBRAL" type="number" step="0.01" placeholder="3958316" />
+									</label>
+								</div>
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnParamGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar parámetros</button>
+									<span id="paramStatus" class="text-xs text-slate-400"></span>
+								</div>
 							</div>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-								<label class="checkbox inline-flex items-center gap-2"><input id="FAC_EMISOR_MIPYME" type="checkbox" /> Emisor es MiPyME</label>
-								<label>Umbral FCE (monto)
-									<input id="FAC_FCE_UMBRAL" type="number" step="0.01" placeholder="3958316" />
-								</label>
+						</details>
+
+						<!-- Configuración AFIP (Credenciales) -->
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								🔐 Configuración AFIP
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label>CUIT Emisor
+										<input id="AFIP_CUIT" placeholder="20123456789" />
+									</label>
+									<label>Punto de Venta
+										<input id="AFIP_PTO_VTA" type="number" placeholder="1" />
+									</label>
+									<label>Certificado (.crt/.pem)
+										<input id="AFIP_CERT_PATH" placeholder="C:\\ruta\\cert.pem" />
+										<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
+									</label>
+									<label>Clave privada (.key)
+										<input id="AFIP_KEY_PATH" placeholder="C:\\ruta\\key.pem" />
+										<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
+									</label>
+									<label>Entorno
+										<select id="AFIP_ENTORNO">
+											<option value="homologacion">Homologación</option>
+											<option value="produccion" selected>Producción</option>
+										</select>
+									</label>
+								</div>
+								<!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
+									<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
+								</div>
 							</div>
-							<div class="flex items-center gap-2 mt-2">
-								<button type="button" id="btnParamGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar parámetros</button>
-								<span id="paramStatus" class="text-xs text-slate-400"></span>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-							<label>CUIT Emisor
-								<input id="AFIP_CUIT" placeholder="20123456789" />
-							</label>
-							<label>Punto de Venta
-								<input id="AFIP_PTO_VTA" type="number" placeholder="1" />
-							</label>
-							<label>Certificado (.crt/.pem)
-								<input id="AFIP_CERT_PATH" placeholder="C:\\ruta\\cert.pem" />
-								<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
-							</label>
-							<label>Clave privada (.key)
-								<input id="AFIP_KEY_PATH" placeholder="C:\\ruta\\key.pem" />
-								<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
-							</label>
-							<label>Entorno
-								<select id="AFIP_ENTORNO">
-									<option value="homologacion">Homologación</option>
-									<option value="produccion" selected>Producción</option>
-								</select>
-							</label>
-						</div>
-                        <!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
-						<div class="flex items-center gap-2">
-							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
-							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
-						</div>
+						</details>
 
 						<!-- Pruebas de Facturación -->
 						<div class="border-t border-slate-700 pt-3">
