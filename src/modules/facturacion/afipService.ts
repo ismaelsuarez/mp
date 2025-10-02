@@ -374,10 +374,71 @@ class AfipService {
         throw new Error('Comprobante en proceso, intente nuevamente en unos momentos');
       }
 
-      // Consolidar totales por alícuota (enviar SOLO montos consolidados a AFIP)
-      const totales = AfipHelpers.consolidateTotals(comprobante.items);
-      const ivaArray = totales.Iva;
-      this.debugLog('Construyendo request createVoucher (consolidado)', totales);
+      // Consolidar totales por alícuota
+      // ✨ PRIORIDAD: Si vienen totales_fac del .fac, usar esos (más confiables)
+      const totalesFacParsed = (comprobante as any)?.totales_fac;
+      let totales: any;
+      let ivaArray: any[];
+      let metodoCalculo: 'fac_parsed' | 'items_consolidated';
+      
+      if (totalesFacParsed && totalesFacParsed.source === 'fac_parsed') {
+        // ✅ Usar TOTALES parseados del .fac directamente
+        metodoCalculo = 'fac_parsed';
+        const { neto21, neto105, neto27, iva21, iva105, iva27, exento } = totalesFacParsed;
+        const ImpNeto = Number(neto21||0) + Number(neto105||0) + Number(neto27||0);
+        const ImpIVA = Number(iva21||0) + Number(iva105||0) + Number(iva27||0);
+        const ImpOpEx = Number(exento||0);
+        const ImpTotal = ImpNeto + ImpIVA + ImpOpEx;
+        
+        ivaArray = [];
+        if (Number(neto21||0) > 0 || Number(iva21||0) > 0) {
+          ivaArray.push({ Id: 5, BaseImp: Number(neto21||0), Importe: Number(iva21||0) });
+        }
+        if (Number(neto105||0) > 0 || Number(iva105||0) > 0) {
+          ivaArray.push({ Id: 4, BaseImp: Number(neto105||0), Importe: Number(iva105||0) });
+        }
+        if (Number(neto27||0) > 0 || Number(iva27||0) > 0) {
+          ivaArray.push({ Id: 6, BaseImp: Number(neto27||0), Importe: Number(iva27||0) });
+        }
+        
+        totales = {
+          ImpTotConc: 0,
+          ImpOpEx,
+          ImpTrib: 0,
+          ImpNeto,
+          ImpIVA,
+          ImpTotal,
+          Iva: ivaArray
+        };
+        
+        try { console.warn('[FACT][TOTALES_FAC] Usando totales parseados del .fac', { neto21, neto105, neto27, iva21, iva105, iva27, exento, ImpTotal }); } catch {}
+      } else {
+        // ❌ Fallback: consolidar desde items (UI o .fac sin totales_fac)
+        metodoCalculo = 'items_consolidated';
+        totales = AfipHelpers.consolidateTotals(comprobante.items);
+        ivaArray = totales.Iva;
+      }
+      
+      this.debugLog('Construyendo request createVoucher', { metodo: metodoCalculo, totales });
+      
+      // DEBUG CRÍTICO: verificar consolidación vs totales originales
+      try {
+        const orig: any = comprobante.totales || {};
+        const consolNeto = Number(totales.ImpNeto || 0);
+        const consolIva = Number(totales.ImpIVA || 0);
+        const consolExento = Number(totales.ImpOpEx || 0);
+        const consolTotal = Number(totales.ImpTotal || 0);
+        console.warn('[FACT][CONSOL_CHECK]', {
+          tipo: tipoCbte,
+          metodo: metodoCalculo,
+          items_count: (comprobante.items||[]).length,
+          items_sample: (comprobante.items||[]).slice(0,2).map((it:any)=>({ desc: it.descripcion, cant: it.cantidad, unit: it.precioUnitario, iva: it.iva })),
+          original: { neto: Number(orig.neto||0), iva: Number(orig.iva||0), total: Number(orig.total||0) },
+          consolidado: { ImpNeto: consolNeto, ImpIVA: consolIva, ImpOpEx: consolExento, ImpTotal: consolTotal },
+          ivaArray: ivaArray.map((x:any)=>({ Id: x.Id, BaseImp: x.BaseImp, Importe: x.Importe })),
+          ALERTA_EXENTO: consolExento > 0.01 ? '⚠️ HAY EXENTO (ImpOpEx > 0)' : 'OK'
+        });
+      } catch {}
 
       // Construir request para AFIP
       // Normalizaciones de tipos/formatos exigidos por WSFE

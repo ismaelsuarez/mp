@@ -79,6 +79,11 @@ export class FacturacionService {
 				,
 				validarPadron13: (params as any).validarPadron13 === true
 			};
+			
+			// ✨ Si vienen totales_fac parseados del .fac, añadirlos al comprobante
+			if ((params as any).totales_fac) {
+				(comprobante as any).totales_fac = (params as any).totales_fac;
+			}
 
 			this.debugLog('Solicitando CAE...');
 			outAny = await afipService.solicitarCAE(comprobante);

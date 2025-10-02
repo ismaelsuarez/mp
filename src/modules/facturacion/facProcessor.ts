@@ -794,16 +794,51 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   }
 
   // Inferir alícuota si faltó en líneas pero los totales indican IVA
+  // CRÍTICO: para FB (tipo 6) con CF, el precio incluye IVA, pero debe discriminarse para AFIP
   try {
     const allIvaZero = (items || []).every((it: any) => !Number(it?.iva || 0));
-    if (allIvaZero) {
+    if (allIvaZero && (Number(iva21||0) + Number(iva105||0) + Number(iva27||0)) > 0) {
+      // Caso 1: UNA SOLA alícuota en TOTALES → asignar a todos los items
       const only21 = (Number(iva21 || 0) > 0 || Number(neto21 || 0) > 0) && Number(iva105 || 0) === 0 && Number(iva27 || 0) === 0;
       const only105 = (Number(iva105 || 0) > 0 || Number(neto105 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva27 || 0) === 0;
       const only27 = (Number(iva27 || 0) > 0 || Number(neto27 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva105 || 0) === 0;
+      
       if (only21 || only105 || only27) {
         const rate = only21 ? 21 : (only105 ? 10.5 : 27);
         for (const it of (items as any[])) { if (it) it.iva = rate; }
-        try { console.warn('[FAC][PIPE] iva:inferred', { rate }); } catch {}
+        try { console.warn('[FAC][PIPE] iva:inferred:single', { tipo, rate, method: 'unique_aliquot' }); } catch {}
+      } else {
+        // Caso 2: MÚLTIPLES alícuotas → inferir del NOMBRE del producto o distribuir proporcionalmente
+        try { console.warn('[FAC][PIPE] iva:multiple_aliquots', { tipo, iva21, iva105, iva27, items_count: items.length }); } catch {}
+        
+        for (const it of (items as any[])) {
+          if (!it) continue;
+          
+          // Estrategia A: buscar "21", "10.5", "10,5" o "27" en el nombre del producto
+          const desc = String(it.descripcion || '').toUpperCase();
+          if (/\b21\b/.test(desc) || /21%/.test(desc)) {
+            it.iva = 21;
+            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 21 }); } catch {}
+            continue;
+          }
+          if (/\b10[.,]5\b/.test(desc) || /10[.,]5%/.test(desc)) {
+            it.iva = 10.5;
+            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 10.5 }); } catch {}
+            continue;
+          }
+          if (/\b27\b/.test(desc) || /27%/.test(desc)) {
+            it.iva = 27;
+            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 27 }); } catch {}
+            continue;
+          }
+          
+          // Estrategia B: si no se pudo inferir del nombre, usar la alícuota predominante
+          const predominante = (Number(neto21 || 0) >= Number(neto105 || 0) && Number(neto21 || 0) >= Number(neto27 || 0)) ? 21
+                             : (Number(neto105 || 0) >= Number(neto27 || 0)) ? 10.5
+                             : 27;
+          it.iva = predominante;
+          try { console.warn('[FAC][PIPE] iva:inferred:predominant', { item: it.descripcion, iva: predominante }); } catch {}
+        }
       }
     }
   } catch {}
@@ -851,7 +886,33 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const n = Number(String(get('IVARECEPTOR:')||'').trim());
     return Number.isFinite(n) && n>0 ? n : undefined;
   })();
-  const params = { pto_vta: pv, tipo_cbte: mapTipoToCbte(tipo), fecha: fechaISO.replace(/-/g,''), total, neto: neto21+neto105+neto27, iva: iva21+iva105+iva27, empresa:{}, cliente:{ razon_social_receptor:nombre }, cuit_receptor: cuitODocReceptor, doc_tipo: docTipo||undefined, razon_social_receptor:nombre, condicion_iva_receptor: condicionIvaReceptor, ivareceptor, detalle, mon_id: monedaFac.monId, cotiza_hint: monedaFac.cotiz, can_mis_mon_ext: monedaFac.can, comprobantesAsociados: assoc ? [assoc] : undefined } as any;
+  const params = { 
+    pto_vta: pv, 
+    tipo_cbte: mapTipoToCbte(tipo), 
+    fecha: fechaISO.replace(/-/g,''), 
+    total, 
+    neto: neto21+neto105+neto27, 
+    iva: iva21+iva105+iva27, 
+    // ✨ TOTALES discriminados del .fac (para envío directo a AFIP)
+    totales_fac: {
+      neto21, neto105, neto27, 
+      iva21, iva105, iva27, 
+      exento,
+      source: 'fac_parsed'  // Flag para identificar que vienen del .fac
+    },
+    empresa:{}, 
+    cliente:{ razon_social_receptor:nombre }, 
+    cuit_receptor: cuitODocReceptor, 
+    doc_tipo: docTipo||undefined, 
+    razon_social_receptor:nombre, 
+    condicion_iva_receptor: condicionIvaReceptor, 
+    ivareceptor, 
+    detalle, 
+    mon_id: monedaFac.monId, 
+    cotiza_hint: monedaFac.cotiz, 
+    can_mis_mon_ext: monedaFac.can, 
+    comprobantesAsociados: assoc ? [assoc] : undefined 
+  } as any;
   try {
     console.warn('[FAC][PIPE] afip:params', {
       pto_vta: params.pto_vta,

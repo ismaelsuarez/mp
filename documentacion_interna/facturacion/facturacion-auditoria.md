@@ -64,9 +64,51 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
 - Idempotencia extra por `.res`: además del `sha256` al encolar, si al comenzar a procesar existe un `.res` con el mismo basename en `out/processing/done`, se registra `[fac.duplicate.skip]` y no se reprocesa.
 - Ruteo por tipo en la cola: `ContingencyController` detecta `TIPO:` y enruta a `processFacturaFacFile(...)` (FA/FB/NCA/NCB/ND), `processFacFile(...)` (REC) o `processRemitoFacFile(...)` (REM).
 - Recibos/Remitos `.res` enriquecidos: incluyen `IMPORTE TOTAL` y se copia una versión del `.res` a `userData/fac/out` para consumo del resumen diario de Caja.
-- Logs hacia UI Caja: se emite `auto-report-notice` con “Procesando FAC/REC/REM …”, “PDF OK …” y “RES OK …”.
+- Logs hacia UI Caja: se emite `auto-report-notice` con "Procesando FAC/REC/REM …", "PDF OK …" y "RES OK …".
 - Resumen diario (Caja): handler `caja:get-summary` computa, por fecha, filas `FB, FA, NCB, NCA, REC, REM` con columnas `Tipo|Desde|Hasta|Total` y un footer `Total (FA+FB)`.
 - Salud WS estricta: `WSHealthService` clasifica `up|degraded|down` con reglas más estrictas (HTTP sin respuesta ⇒ `down`; respuesta parcial o lenta ⇒ `degraded`; DNS+HTTP pleno ⇒ `up`).
+
+### 1 quater) Fix crítico: Clasificación incorrecta como EXENTO (Oct 2025)
+**Problema identificado:** Facturas B y Notas de Crédito B se reportaban con montos clasificados como EXENTO cuando no correspondía, causando discrepancias con los reportes AFIP/ARCA. El sistema recalculaba totales desde items en lugar de usar los TOTALES parseados del `.fac`.
+
+**Síntomas:**
+- Items del `.fac` sin columna de IVA% → `iva=0` en parser
+- `consolidateTotals()` trataba `iva=0` como operación exenta → `ImpOpEx = total`
+- AFIP recibía: `ImpNeto=0`, `ImpIVA=0`, `ImpOpEx=[monto total]`
+- Reportes ARCA mostraban "Exento" con valores indebidos (ej: total 0.40 → exento 0.40, neto 0, iva 0)
+
+**Solución implementada (commit Oct 2025):**
+1. **Uso directo de TOTALES del .fac** (`facProcessor.ts` líneas 889-915, `afipService.ts` líneas 377-441):
+   - Parser extrae `NETO 21%`, `NETO 10.5%`, `IVA 21%`, `IVA 10.5%`, `EXENTO` del bloque `TOTALES:` del `.fac`
+   - Se empaqueta en `params.totales_fac` con flag `source: 'fac_parsed'`
+   - `FacturacionService` propaga `totales_fac` al comprobante
+   - `afipService.solicitarCAE()` detecta `totales_fac` y **prioriza esos valores** sobre recálculo desde items
+   - Construye `ImpNeto`, `ImpIVA`, `ImpOpEx` e `Iva[]` directamente desde los TOTALES parseados
+   - Método identificable en logs: `metodo: 'fac_parsed'`
+
+2. **Inferencia inteligente de alícuotas múltiples** (`facProcessor.ts` líneas 796-844):
+   - Detecta cuando todos los items tienen `iva=0` pero `TOTALES` indica IVA > 0
+   - **Caso única alícuota:** asigna esa alícuota a todos los items
+   - **Caso múltiples alícuotas:** infiere del **nombre del producto** (ej: "PRUEBA 21" → 21%, "PRUEBA 10.5" → 10.5%)
+   - **Fallback:** usa alícuota predominante por monto de neto si no detecta en nombre
+   - Logs: `[FAC][PIPE] iva:inferred:name`, `[FAC][PIPE] iva:inferred:predominant`
+
+3. **Logs de diagnóstico mejorados**:
+   - `[FACT][TOTALES_FAC] Usando totales parseados del .fac { neto21, neto105, iva21, iva105, exento, ImpTotal }`
+   - `[FACT][CONSOL_CHECK] { tipo, metodo: 'fac_parsed'|'items_consolidated', consolidado, ivaArray, ALERTA_EXENTO }`
+   - `ALERTA_EXENTO: 'OK'` confirma ausencia de exento indebido; `'⚠️ HAY EXENTO (ImpOpEx > 0)'` indica problema
+
+**Archivos modificados:**
+- `src/modules/facturacion/facProcessor.ts`: añadido `totales_fac` a params + inferencia multi-alícuota
+- `src/services/FacturacionService.ts`: propagación de `totales_fac` al comprobante
+- `src/modules/facturacion/afipService.ts`: lógica de priorización `totales_fac` vs `consolidateTotals(items)`
+
+**Validación:**
+- `.fac` con alícuotas mixtas (21% + 10.5%) → envía `Iva[{Id:5, BaseImp:neto21, Importe:iva21}, {Id:4, BaseImp:neto105, Importe:iva105}]`
+- `ImpOpEx=0` cuando `EXENTO=0` en TOTALES del `.fac`
+- Reportes AFIP/ARCA muestran discriminación correcta: neto gravado por alícuota, IVA correcto, exento=0
+
+**Impacto:** Resuelve discrepancias con sistema legacy; alinea a MTXCA (discriminación obligatoria de IVA para Factura B con múltiples alícuotas).
 
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
@@ -198,6 +240,15 @@ flowchart TD
    - `[queue.enqueue.ok] { id, filePath }`
    - `[queue.enqueue.fail] { filePath, reason }`
   - `[queue.pop] { id, filePath }`, `[fac.lock.ok] { from, to }`, `[fac.parse.ok]`, `[fac.validate.ok]`, `[afip.send]`, `[AFIP_NO_CAE] { observaciones }`, `[afip.cae.ok]`, `[pdf.ok]`, `[res.ok]`, `[fac.done.ok]`, `[queue.ack]`
+  - Logs de inferencia IVA y totales (fix Oct 2025):
+    - `[FAC][PIPE] iva:multiple_aliquots { tipo, iva21, iva105, iva27, items_count }` – detecta múltiples alícuotas en TOTALES
+    - `[FAC][PIPE] iva:inferred:name { item, iva }` – alícuota inferida del nombre del producto
+    - `[FAC][PIPE] iva:inferred:predominant { item, iva }` – alícuota asignada por predominancia de monto
+    - `[FAC][PIPE] iva:inferred:single { tipo, rate, method }` – alícuota única asignada a todos los items
+    - `[FACT][TOTALES_FAC] Usando totales parseados del .fac { neto21, neto105, neto27, iva21, iva105, iva27, exento, ImpTotal }` – confirmación de uso directo de TOTALES del .fac
+    - `[FACT][CONSOL_CHECK] { tipo, metodo, items_count, items_sample, original, consolidado, ivaArray, ALERTA_EXENTO }` – verificación de consolidación vs totales originales
+    - `metodo: 'fac_parsed'` indica uso de TOTALES del .fac; `'items_consolidated'` indica recálculo desde items (UI)
+    - `ALERTA_EXENTO: 'OK'` confirma ausencia de exento indebido; `'⚠️ HAY EXENTO (ImpOpEx > 0)'` indica clasificación incorrecta
 
  - Idempotencia:
    - Único entry point: cola de contingencia + fallback inline.
@@ -488,10 +539,17 @@ Uso rápido (cola)
 - `.fac`: no se borra antes del envío exitoso del `.res`; `.res` incluye PV/número/CAE/fecha.
 - Auditoría (si activada): registros con `mathOk=true`, `ivaSumOk=true`, `hasCondIva=true` y `prodHostsOk=true`.
  - Cola separada: `queue:inspect` reporta `journal_mode=WAL` y `synchronous=NORMAL`; `contingency.db` existe en `userData/queue`.
- - Cola separada: `queue:inspect` reporta `journal_mode=WAL` y `synchronous=NORMAL`; `contingency.db` existe en `userData/queue`.
  - Fallback inline: con la cola pausada/fallando, dos `.fac` en `C:\tmp` se procesan uno por uno; se obtiene CAE, se genera PDF y `.res`, y se borran los `.fac` solo tras `RES_OK`.
  - Cola operativa: el mismo comportamiento se logra por el worker de cola (sin activar el fallback inline).
  - Notas de Crédito: emite CAE incluyendo `CbtesAsoc` correcto; si falta el asociado, se genera `PermanentError` claro.
+ - **Fix exento (Oct 2025)**: `.fac` con alícuotas mixtas (21% + 10.5%) sin columna IVA% en items:
+   - Logs muestran `[FACT][TOTALES_FAC]` con valores parseados del .fac
+   - Logs muestran `metodo: 'fac_parsed'` en `[FACT][CONSOL_CHECK]`
+   - `ALERTA_EXENTO: 'OK'` (sin exento indebido)
+   - `ImpOpEx=0` cuando `EXENTO=0` en TOTALES del .fac
+   - Reportes AFIP/ARCA muestran "Neto Gravado IVA 21%" y "Neto Gravado IVA 10.5%" con valores correctos (no cero)
+   - "Exento" aparece como 0.00 (no el total completo)
+   - "Total IVA" es la suma correcta de IVAs por alícuota (no cero)
 
 ### 13) Checklist previo a release
 - [ ] CUIT, Cert y Key válidos; PV habilitado WSFEv1 en PROD.
