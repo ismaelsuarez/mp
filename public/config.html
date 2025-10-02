@@ -652,31 +652,6 @@
 							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
 							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
 						</div>
-						<div class="border-t border-slate-700 pt-3">
-							<div class="flex items-center justify-between mb-2">
-								<h4 class="text-sm font-semibold">Facturas emitidas</h4>
-								<div class="flex items-center gap-2 text-xs">
-									<input id="AFIP_FILTRO_DESDE" placeholder="Desde (YYYY-MM-DD)" class="w-40" />
-									<input id="AFIP_FILTRO_HASTA" placeholder="Hasta (YYYY-MM-DD)" class="w-40" />
-									<button type="button" id="btnAfipBuscar" class="px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Buscar</button>
-								</div>
-							</div>
-							<table id="tablaFacturasAfip" class="w-full text-xs">
-								<thead>
-									<tr class="text-left text-slate-400">
-										<th class="py-1">Fecha</th>
-										<th class="py-1">Pto Vta</th>
-										<th class="py-1">Tipo</th>
-										<th class="py-1">Número</th>
-										<th class="py-1">Receptor</th>
-										<th class="py-1">Total</th>
-										<th class="py-1">CAE</th>
-										<th class="py-1">PDF</th>
-									</tr>
-								</thead>
-								<tbody></tbody>
-							</table>
-						</div>
 
 						<!-- Pruebas de Facturación -->
 						<div class="border-t border-slate-700 pt-3">
@@ -858,15 +833,6 @@
 								<div id="pruebaStatus" class="mt-2 text-xs"></div>
 								<pre id="afipPtosVtaStatus" class="mt-2 text-[11px] bg-slate-900 border border-slate-700 rounded p-2 overflow-auto" style="max-height:160px"></pre>
 							</div>
-						</div>
-
-						<!-- Historial de PDFs en Documentos/facturas -->
-						<div class="border-t border-slate-700 pt-3">
-							<div class="flex items-center justify-between mb-2">
-								<h4 class="text-sm font-semibold">Historial local de PDFs</h4>
-								<button type="button" id="btnPdfsRefresh" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">Refrescar</button>
-							</div>
-							<ul id="listaPdfsAfip" class="text-xs space-y-1"></ul>
 						</div>
 					</div>
 
