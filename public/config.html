@@ -1568,6 +1568,10 @@
                             o.textContent = p.name + (p.isDefault ? ' (predeterminada)' : '');
                             sel.appendChild(o);
                         }
+                        // 🖨️ Seleccionar impresora guardada
+                        if (res.config.printerName) {
+                            sel.value = res.config.printerName;
+                        }
                     }
                 } catch {}
             }
@@ -1577,6 +1581,7 @@
                     const outLocalEl = document.getElementById('REC_OUT_LOCAL');
                     const outRed1El = document.getElementById('REC_OUT_RED1');
                     const outRed2El = document.getElementById('REC_OUT_RED2');
+                    const printerEl = document.getElementById('REC_PRINTER');
                     const payload = {
                         pv: Number(pvEl.value || '1'),
                         contador: Number(niEl.value || '1'),
@@ -1584,6 +1589,11 @@
                         outRed1: outRed1El ? outRed1El.value : undefined,
                         outRed2: outRed2El ? outRed2El.value : undefined,
                     };
+                    // 🖨️ Incluir impresora seleccionada
+                    const printerName = printerEl ? printerEl.value : '';
+                    if (printerName) {
+                        payload.printerName = printerName;
+                    }
                     const save = await window.api.recibo.saveConfig(payload);
                     if (save?.ok) {
                         if (status) status.textContent = '✅ Guardado';
@@ -1998,10 +2008,12 @@
       btnOpenRed1?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED1')?.value));
       btnOpenRed2?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED2')?.value));
 
-      // Init
-      loadPrinters();
-      loadConfig();
-      refreshPdfs();
+      // Init - Ejecutar secuencialmente para asegurar que el select esté lleno antes de setear el valor
+      (async () => {
+        await loadPrinters();  // 1️⃣ Primero: cargar lista de impresoras
+        await loadConfig();    // 2️⃣ Segundo: cargar config y setear impresora guardada
+        refreshPdfs();         // 3️⃣ Tercero: refrescar PDFs
+      })();
     })();
     // ===== HANDLERS GALICIA =====
 // ... existing code ...

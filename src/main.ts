@@ -3236,7 +3236,7 @@ function getReciboCfgPath(): string {
     return path.join(process.cwd(), 'config', 'recibo.config.json');
   }
 }
-function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
+function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
   try {
     const pUser = getReciboCfgPath();
     let txt: string | undefined;
@@ -3261,16 +3261,17 @@ function readReciboCfg(): { pv: number; contador: number; outLocal?: string; out
       outLocal: (json.outLocal && String(json.outLocal)) || undefined,
       outRed1: (json.outRed1 && String(json.outRed1)) || undefined,
       outRed2: (json.outRed2 && String(json.outRed2)) || undefined,
+      printerName: typeof json.printerName === 'string' ? json.printerName : undefined,
     };
   } catch {
     return { pv: 1, contador: 1 };
   }
 }
-function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string }): { ok: boolean; error?: string } {
+function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }): { ok: boolean; error?: string } {
   try {
     const p = getReciboCfgPath();
     try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
-    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2 }, null, 2));
+    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2, printerName: cfg.printerName }, null, 2));
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
@@ -3286,7 +3287,7 @@ ipcMain.handle('recibo:get-config', async () => {
   }
 });
 
-ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => {
+ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => {
   try {
     const current = readReciboCfg();
     const next = {
@@ -3295,6 +3296,7 @@ ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: n
       outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
       outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
       outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
+      printerName: typeof cfg?.printerName === 'string' ? cfg.printerName : current.printerName,
     };
     const res = writeReciboCfg(next);
     return res.ok ? { ok: true } : { ok: false, error: res.error };

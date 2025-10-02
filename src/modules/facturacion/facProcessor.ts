@@ -219,7 +219,7 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
   };
 }
 
-function loadReciboConfig(cfgPath: string): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
+function loadReciboConfig(cfgPath: string): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
   try {
     const txt = fs.readFileSync(cfgPath, 'utf8');
     const json = JSON.parse(txt || '{}');
@@ -229,6 +229,7 @@ function loadReciboConfig(cfgPath: string): { pv: number; contador: number; outL
       outLocal: typeof json.outLocal === 'string' ? json.outLocal : undefined,
       outRed1: typeof json.outRed1 === 'string' ? json.outRed1 : undefined,
       outRed2: typeof json.outRed2 === 'string' ? json.outRed2 : undefined,
+      printerName: typeof json.printerName === 'string' ? json.printerName : undefined,
     };
   } catch {
     return { pv: 1, contador: 1 };
