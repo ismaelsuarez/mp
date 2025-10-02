@@ -143,10 +143,12 @@ function appendLog(line: string) {
     const ss = String(now.getSeconds()).padStart(2,'0');
     const at = `${hh}:${mm}:${ss}`;
     const current = (box.textContent || '').split('\n').filter(Boolean);
-    const maxLines = 4;
+    const maxLines = 50; // Aumentado para aprovechar el scroll (antes: 4)
     current.push(`[${at}] ${line}`);
     const trimmed = current.slice(-maxLines);
     box.textContent = trimmed.join('\n');
+    
+    // Auto-scroll al final cuando se agrega nueva línea
     box.scrollTop = box.scrollHeight;
 }
 

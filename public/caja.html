@@ -14,6 +14,27 @@
     .compact-table th, .compact-table td { padding: 2px 4px; }
     /* Ajuste de espacio inferior (sin footer) */
     main { margin-bottom: 0; }
+    
+    /* Scrollbar personalizado para logs (tema oscuro) */
+    #cajaLogs {
+        overflow-y: auto;
+        overflow-x: hidden;
+        scroll-behavior: smooth;
+    }
+    #cajaLogs::-webkit-scrollbar {
+        width: 8px;
+    }
+    #cajaLogs::-webkit-scrollbar-track {
+        background: #1e293b; /* slate-800 */
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb {
+        background: #475569; /* slate-600 */
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb:hover {
+        background: #64748b; /* slate-500 */
+    }
     </style>
 </head>
 <body class="text-slate-200">
@@ -38,7 +59,7 @@
 
     <main class="container mt-2">
 		<section id="pane-home" class="tab-pane" style="display:block;">
-            <div id="cajaLogs" class="bg-black border border-slate-600 rounded-md p-3 h-28 overflow-auto font-mono text-sm shadow-inner"></div>
+            <div id="cajaLogs" class="bg-black border border-slate-600 rounded-md p-3 h-48 overflow-auto font-mono text-sm shadow-inner"></div>
 		</section>
 
 		<section id="pane-table" class="tab-pane" style="display:none;">
