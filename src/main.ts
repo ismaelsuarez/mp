@@ -1480,6 +1480,21 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		}
 	});
 
+	// Limpieza automática de archivos .res antiguos
+	ipcMain.handle('caja:cleanup-res', async (_e, payload?: { daysToKeep?: number; dryRun?: boolean }) => {
+		try {
+			// Ruta relativa que funciona en dev (src/) y producción (dist/src/)
+			// En dev: src/main.ts → ../scripts/cleanup-res.ts
+			// En prod: dist/src/main.js → ../scripts/cleanup-res.js
+			const cleanupModule = await import('../scripts/cleanup-res');
+			const result = await cleanupModule.cleanupOldResFiles(payload || {});
+			return result;
+		} catch (e: any) {
+			console.error('[caja:cleanup-res] Error al ejecutar limpieza:', e);
+			return { ok: false, deleted: 0, totalSize: 0, files: [], error: String(e?.message || e) };
+		}
+	});
+
 	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL') [LEGACY - mantener por compatibilidad]
 	ipcMain.handle('facturacion:cotizacion:dol', async () => {
 		try {

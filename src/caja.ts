@@ -233,40 +233,86 @@ window.addEventListener('DOMContentLoaded', () => {
     const factPane = document.getElementById('pane-fact');
     if (factPane) {
         const controls = document.createElement('div');
-        controls.className = 'flex items-center gap-2 mb-1 text-sm';
+        controls.className = 'flex items-center gap-2 mb-2 text-sm';
         const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'bg-slate-800 border border-slate-600 rounded px-1.5 py-0.5 text-slate-200 text-sm';
         const today = new Date(); inp.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
         const btn = document.createElement('button'); btn.textContent = 'Calcular'; btn.className = 'px-2.5 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-500 text-sm';
         const totalEl = document.createElement('div'); totalEl.className = 'ml-auto text-slate-300 font-semibold text-sm'; totalEl.id = 'factTotalGeneral';
         controls.appendChild(inp); controls.appendChild(btn); controls.appendChild(totalEl);
         factPane.insertBefore(controls, factPane.firstChild);
-        const tbody = document.getElementById('cajaFactTableBody') as HTMLElement | null;
+        
+        const tbodyPesos = document.getElementById('cajaFactTableBodyPesos') as HTMLElement | null;
+        const tbodyDolar = document.getElementById('cajaFactTableBodyDolar') as HTMLElement | null;
+        const headerPesos = document.getElementById('factHeaderPesos') as HTMLElement | null;
+        const headerDolar = document.getElementById('factHeaderDolar') as HTMLElement | null;
+        const headerPesosText = document.getElementById('factHeaderPesosText') as HTMLElement | null;
+        const headerDolarText = document.getElementById('factHeaderDolarText') as HTMLElement | null;
+        const tablePesos = document.getElementById('factTablePesos') as HTMLElement | null;
+        const tableDolar = document.getElementById('factTableDolar') as HTMLElement | null;
+        
+        // Toggle collapse para PESOS
+        let colapsadoPesos = true;
+        headerPesos?.addEventListener('click', () => {
+            colapsadoPesos = !colapsadoPesos;
+            if (tablePesos) tablePesos.classList.toggle('hidden', colapsadoPesos);
+            if (headerPesosText) headerPesosText.textContent = headerPesosText.textContent?.replace(/^[▶▼]\s*/, colapsadoPesos ? '▶ ' : '▼ ') || '';
+        });
+        
+        // Toggle collapse para DÓLARES
+        let colapsadoDolar = true;
+        headerDolar?.addEventListener('click', () => {
+            colapsadoDolar = !colapsadoDolar;
+            if (tableDolar) tableDolar.classList.toggle('hidden', colapsadoDolar);
+            if (headerDolarText) headerDolarText.textContent = headerDolarText.textContent?.replace(/^[▶▼]\s*/, colapsadoDolar ? '▶ ' : '▼ ') || '';
+        });
+        
         const render = (rows: any[], totalGeneral: number, totalGeneralUSD?: number) => {
-            if (tbody) tbody.innerHTML = rows.map(r => {
-                // REM no muestra total (sistema legacy no suma remitos)
-                const totalDisplay = r.tipo === 'REM' 
-                    ? '' 
-                    : new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0);
-                
-                // Indicador visual para tipos en dólares
-                const esDolar = ['FAD','FBD','NCAD','NCBD'].includes(r.tipo);
-                const tipoDisplay = esDolar ? `${r.tipo} 💵` : r.tipo;
-                
+            const fmt = (n: number) => new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
+            
+            // Separar filas por moneda
+            const tiposPesos = ['FB','FA','NCB','NCA','REC','REM'];
+            const tiposDolar = ['FBD','FAD','NCBD','NCAD'];
+            const rowsPesos = rows.filter(r => tiposPesos.includes(r.tipo));
+            const rowsDolar = rows.filter(r => tiposDolar.includes(r.tipo));
+            
+            // Contar comprobantes con datos
+            const countPesos = rowsPesos.filter(r => r.desde || r.hasta || r.total > 0).length;
+            const countDolar = rowsDolar.filter(r => r.desde || r.hasta || r.total > 0).length;
+            
+            // Renderizar tabla PESOS
+            if (tbodyPesos) tbodyPesos.innerHTML = rowsPesos.map(r => {
+                const totalDisplay = r.tipo === 'REM' ? '' : fmt(r.total||0);
                 return `<tr>
-                    <td>${tipoDisplay}</td>
+                    <td>${r.tipo}</td>
                     <td>${r.desde ?? ''}</td>
                     <td>${r.hasta ?? ''}</td>
                     <td class="text-right">${totalDisplay}</td>
                 </tr>`;
             }).join('');
             
-            // Mostrar ambos totales (pesos y dólares)
-            let totalText = `Total (FA+FB): ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
+            // Renderizar tabla DÓLARES
+            if (tbodyDolar) tbodyDolar.innerHTML = rowsDolar.map(r => {
+                const tipoSinD = r.tipo.replace('D',''); // FAD → FA, FBD → FB
+                return `<tr>
+                    <td>${tipoSinD}</td>
+                    <td>${r.desde ?? ''}</td>
+                    <td>${r.hasta ?? ''}</td>
+                    <td class="text-right">${fmt(r.total||0)}</td>
+                </tr>`;
+            }).join('');
+            
+            // Actualizar headers con resumen
+            if (headerPesosText) headerPesosText.textContent = `▶ Facturas en PESOS (${countPesos} comp. - Total: ${fmt(totalGeneral)})`;
+            if (headerDolarText) headerDolarText.textContent = `▶ Facturas en DÓLARES 💵 (${countDolar} comp. - Total: ${fmt(totalGeneralUSD||0)})`;
+            
+            // Total general (arriba)
+            let totalText = `Total (FA+FB): ${fmt(totalGeneral)}`;
             if (totalGeneralUSD && totalGeneralUSD > 0) {
-                totalText += ` | USD: ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneralUSD)}`;
+                totalText += ` | USD: ${fmt(totalGeneralUSD)}`;
             }
             totalEl.textContent = totalText;
         };
+        
         btn.addEventListener('click', async () => {
             appendLog('Calculando resumen diario...');
             const res = await (window.api as any).caja.getSummary(inp.value);

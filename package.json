@@ -11,6 +11,8 @@
   "scripts": {
     "db:inspect": "ts-node scripts/inspect_sqlite.ts",
     "queue:inspect": "ts-node scripts/queue_inspect.ts",
+    "cleanup:res": "ts-node scripts/cleanup-res.ts",
+    "cleanup:res:dry": "ts-node scripts/cleanup-res.ts --dry-run",
     "scan:fac": "ts-node scripts/scan_fac_usage.ts",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "audit:prod:report": "npm run build:scripts && node dist-scripts/afip-prod-audit-report.js",

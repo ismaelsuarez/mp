@@ -183,6 +183,7 @@ contextBridge.exposeInMainWorld('api', {
 	// Caja resumen diario
 	caja: {
 		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
+		cleanupRes: (options?: { daysToKeep?: number; dryRun?: boolean }) => ipcRenderer.invoke('caja:cleanup-res', options),
 		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind })
 	},
 	// Recibo config (PV y contador)

@@ -17,7 +17,7 @@
       "afip-local/*": ["sdk/afip.ts-main/src/*"]
     }
   },
-  "include": ["src/**/*", "mp-sdk/**/*", "types/**/*", "sdk/afip.ts-main/src/**/*"],
+  "include": ["src/**/*", "mp-sdk/**/*", "types/**/*", "scripts/**/*", "sdk/afip.ts-main/src/**/*"],
   "exclude": [
     "node_modules",
     "out",
