@@ -542,7 +542,7 @@
 						<div>
 							<label class="block text-sm mb-1">Entorno</label>
 							<select id="GALICIA_ENVIRONMENT" class="w-full">
-								<option value="sandbox">Sandbox (Pruebas)</option>
+								<option value="sandbox">Sandbox (Homologación)</option>
 								<option value="production">Producción</option>
 							</select>
 							<p class="text-xs text-slate-500 mt-1">Selecciona el entorno de la API de Galicia.</p>
@@ -561,7 +561,7 @@
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						📄 Facturación (AFIP) (en construcción)
+						📄 Facturación Electrónica (AFIP)
 					</summary>
 					<div class="p-3 space-y-4">
 						<!-- Empresa -->
@@ -670,11 +670,11 @@
 							</div>
 						</details>
 
-						<!-- Pruebas de Facturación -->
+						<!-- Emisión de Facturas -->
 						<div class="border-t border-slate-700 pt-3">
 							<div class="mb-2">
-								<h4 class="text-sm font-semibold text-blue-300">🧪 Pruebas de Facturación</h4>
-								<p class="text-xs text-slate-400">Sección para realizar pruebas de emisión de facturas en modo homologación</p>
+								<h4 class="text-sm font-semibold text-blue-300">📋 Emisión de Facturas</h4>
+								<p class="text-xs text-slate-400">Herramienta para emisión de comprobantes electrónicos AFIP</p>
 							</div>
 							
 							<div class="bg-slate-800/40 border border-slate-700 rounded-md p-3 mb-3">
@@ -836,7 +836,7 @@
 										</summary>
 										<div class="p-3 flex flex-wrap gap-2">
 											<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">
-												📄 Emitir Factura de Prueba
+												📄 Emitir Factura
 											</button>
 											<button type="button" id="btnAsociarComprobante" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 hidden">
 												🔗 Asociar Comprobante
@@ -1188,12 +1188,25 @@
 				</details>
 
 				<!-- Acciones principales (debajo de todas las secciones) -->
-				<div class="actions-row mt-4 flex flex-wrap items-center gap-2">
-					<button type="button" id="btnLoad" title="Leer configuración desde disco">📂 Cargar configuración</button>
-					<button type="button" id="btnSave" title="Guardar configuración de todos los paneles">💾 Guardar configuración</button>
-					<button type="button" id="btnGenerate" title="Generar reporte con la configuración actual">📊 Generar reporte</button>
-					<button type="button" id="btnSendDbfFtp" title="Enviar el archivo mp.dbf por FTP">📤 Enviar DBF por FTP</button>
-					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío">🧹 Limpiar Hash FTP</button>
+				<div class="mt-4 flex flex-wrap items-center gap-3">
+					<!-- Botón principal GRANDE -->
+					<button type="button" id="btnSave" title="Guardar configuración de todos los paneles" class="px-6 py-3 text-base font-semibold rounded-lg bg-emerald-600 text-white border-0 hover:bg-emerald-500 shadow-lg hover:shadow-xl transition-all">
+						💾 Guardar configuración
+					</button>
+					
+					<!-- Botones secundarios (más pequeños y discretos) -->
+					<button type="button" id="btnLoad" title="Leer configuración desde disco" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📂 Cargar configuración
+					</button>
+					<button type="button" id="btnGenerate" title="Generar reporte con la configuración actual" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📊 Generar reporte
+					</button>
+					<button type="button" id="btnSendDbfFtp" title="Enviar el archivo mp.dbf por FTP" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📤 Enviar DBF por FTP
+					</button>
+					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						🧹 Limpiar Hash FTP
+					</button>
 				</div>
 				
 				<!-- Controles de vista previa -->
@@ -1964,8 +1977,8 @@
       async function testPrint(){
         try {
           if (!window.api?.printers?.printPdf) return;
-          setStatus('Imprimiendo prueba...', true);
-          // Usar el primer PDF disponible en la lista como prueba
+          setStatus('Imprimiendo...', true);
+          // Usar el primer PDF disponible en la lista
           if (ulPdfs?.firstChild) {
             const a = ulPdfs.firstChild.querySelector('a');
             const file = a?.textContent || '';

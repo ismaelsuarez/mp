@@ -1740,7 +1740,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Botón limpiar items
 	(document.getElementById('btnLimpiarItems') as HTMLButtonElement | null)?.addEventListener('click', limpiarItemsPrueba);
 	
-	// Emitir factura de prueba
+	// Emitir factura
 	(document.getElementById('btnPruebaEmitir') as HTMLButtonElement | null)?.addEventListener('click', async () => {
 		try {
 			// Obtener configuración AFIP
@@ -1827,7 +1827,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			const totalFinal = totalNeto + totalIva;
 			
 			const status = document.getElementById('pruebaStatus');
-			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Emitiendo factura de prueba...</span>';
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Emitiendo factura...</span>';
 			
 			const hoy = new Date();
 			const yyyy = hoy.getFullYear();
@@ -1876,7 +1876,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 			if (res?.ok) {
 				if (status) status.innerHTML = `<span class="text-green-400">✅ Factura emitida Nº ${res.numero} - CAE: ${res.cae}</span>`;
-				showToast(`Factura de prueba emitida exitosamente - CAE: ${res.cae}`);
+				showToast(`Factura emitida exitosamente - CAE: ${res.cae}`);
 				// Mostrar observaciones si existen
 				if (Array.isArray(res.observaciones) && res.observaciones.length > 0) {
 					showToast(`Observaciones AFIP: ${JSON.stringify(res.observaciones)}`);
@@ -1896,7 +1896,7 @@ window.addEventListener('DOMContentLoaded', () => {
 				limpiarItemsPrueba();
 			} else {
 				if (status) status.innerHTML = `<span class=\"text-red-400\">❌ Error: ${res?.error || 'falló emisión'}</span>`;
-				showToast(`Error en factura de prueba: ${res?.error || 'Error desconocido'}`);
+				showToast(`Error en factura: ${res?.error || 'Error desconocido'}`);
 			}
 		} catch (e: any) {
 			const status = document.getElementById('pruebaStatus');
@@ -2020,31 +2020,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		// Inicializar valores por defecto AFIP
 		inicializarValoresPorDefectoAFIP();
 		
-		// Agregar algunos items de ejemplo
-		agregarItemPrueba();
-		agregarItemPrueba();
-		agregarItemPrueba();
-		
-		// Configurar items de ejemplo
-		if (itemsPrueba.length >= 3) {
-			// Item 1: Producto con IVA 21%
-			actualizarItemPrueba(itemsPrueba[0].id, 'descripcion', 'Mouse inalámbrico Logitech');
-			actualizarItemPrueba(itemsPrueba[0].id, 'cantidad', 2);
-			actualizarItemPrueba(itemsPrueba[0].id, 'precioUnitario', 1500);
-			actualizarItemPrueba(itemsPrueba[0].id, 'alicuotaIva', 21);
-			
-			// Item 2: Servicio con IVA 21%
-			actualizarItemPrueba(itemsPrueba[1].id, 'descripcion', 'Servicio de reparación PC');
-			actualizarItemPrueba(itemsPrueba[1].id, 'cantidad', 1);
-			actualizarItemPrueba(itemsPrueba[1].id, 'precioUnitario', 2500);
-			actualizarItemPrueba(itemsPrueba[1].id, 'alicuotaIva', 21);
-			
-			// Item 3: Producto con IVA 10.5%
-			actualizarItemPrueba(itemsPrueba[2].id, 'descripcion', 'Libro técnico informática');
-			actualizarItemPrueba(itemsPrueba[2].id, 'cantidad', 1);
-			actualizarItemPrueba(itemsPrueba[2].id, 'precioUnitario', 800);
-			actualizarItemPrueba(itemsPrueba[2].id, 'alicuotaIva', 10.5);
-		}
+		// Items de ejemplo ELIMINADOS - El usuario puede agregar items con el botón "+ Agregar Item"
+		// La tabla inicia vacía para una experiencia más limpia
 	}, 1000);
 
 	// Mostrar/ocultar fechas de servicio según concepto

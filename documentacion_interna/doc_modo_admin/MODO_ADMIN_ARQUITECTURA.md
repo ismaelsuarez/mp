@@ -315,23 +315,26 @@ Handlers IPC principales:
 
 ---
 
-### 8. **📄 Facturación (AFIP) — MÓDULO CRÍTICO**
+### 8. **📄 Facturación Electrónica (AFIP) — MÓDULO CRÍTICO**
 
 > ⚠️ **Este es el módulo MÁS IMPORTANTE del sistema**  
 > Ver documentación completa en: [`CONFIG_FACTURACION_AFIP.md`](./CONFIG_FACTURACION_AFIP.md)
 
-**Objetivo**: Configurar, probar y gestionar la facturación electrónica con AFIP, incluyendo procesamiento automático de archivos `.fac` del sistema legacy.
+**Objetivo**: Configurar y gestionar la facturación electrónica con AFIP, incluyendo procesamiento automático de archivos `.fac` del sistema legacy.
 
-#### **Subsecciones**:
-1. **Datos de la Empresa**: Razón social, CUIT, domicilio, condición IVA, logo
-2. **Parámetros de Facturación**: Tipo por defecto, punto de venta, numeración, MiPyME
-3. **Configuración AFIP**: CUIT, punto de venta, certificado, clave privada, entorno
-4. **🧪 Pruebas de Facturación**: Herramienta completa para emisión de prueba
+#### **Subsecciones** *(Todas colapsables para mejor UX)*:
+1. **🏢 Datos de la Empresa**: Razón social, CUIT, domicilio, condición IVA, logo
+2. **⚙️ Parámetros de Facturación**: Tipo por defecto, punto de venta, numeración, MiPyME
+3. **🔐 Configuración AFIP**: CUIT, punto de venta, certificado, clave privada, entorno
+4. **📋 Emisión de Facturas**: Herramienta completa para emisión de comprobantes
+   - **Grupos de botones organizados**: 🚀 Acciones, ✅ Validaciones, 🔧 Administración, 📊 Checklist
 5. **📂 Watcher .fac**: Procesamiento automático (puente con sistema legacy)
 6. **📦 Configuración de Salidas**: Rutas de destino para PDFs
 
+> 🎨 **Mejoras UX**: Subsecciones colapsables, botones por categorías con colores temáticos, terminología profesional
+
 #### **Funcionalidades clave**:
-- ✅ Emisión manual desde UI (pruebas y producción)
+- ✅ Emisión de comprobantes electrónicos desde UI
 - ✅ Procesamiento automático de `.fac` (watcher)
 - ✅ Validación Padrón 13 (A13)
 - ✅ Facturación en moneda extranjera (USD, EUR)
@@ -339,6 +342,8 @@ Handlers IPC principales:
 - ✅ Generación de PDF con QR de validación AFIP
 - ✅ Idempotencia (evita duplicados por SHA256)
 - ✅ Gestión de CAE (validación, vencimiento)
+- ✅ Interfaz organizada con subsecciones colapsables
+- ✅ Botones agrupados por categorías con colores temáticos
 
 #### **Servicios Backend**:
 - `FacturacionService.ts`, `afipService.ts`, `facProcessor.ts`

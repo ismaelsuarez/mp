@@ -39,8 +39,12 @@ El **módulo de Facturación AFIP** es el **componente más crítico** del siste
 
 ## ⚙️ **Subsecciones del Módulo (UI)**
 
-### **1. Datos de la Empresa**
+> 💡 **Todas las subsecciones son colapsables** (cerradas por defecto) para una interfaz más limpia y organizada.
+
+### **1. 🏢 Datos de la Empresa** *(Colapsable)*
 Información fiscal y comercial del emisor.
+
+**Estado por defecto**: Cerrada
 
 **Campos**:
 - **Razón social**: Nombre legal de la empresa
@@ -56,8 +60,10 @@ Información fiscal y comercial del emisor.
 
 ---
 
-### **2. Parámetros de Facturación**
+### **2. ⚙️ Parámetros de Facturación** *(Colapsable)*
 Valores por defecto para emisión.
+
+**Estado por defecto**: Cerrada
 
 **Campos**:
 - **Tipo por defecto**: FA, FB, FC, NC, NC_C, RECIBO
@@ -73,8 +79,10 @@ Valores por defecto para emisión.
 
 ---
 
-### **3. Configuración AFIP (Credenciales)**
+### **3. 🔐 Configuración AFIP** *(Colapsable)*
 Credenciales y certificados para WSFE.
+
+**Estado por defecto**: Cerrada
 
 **Campos**:
 - **CUIT Emisor**: Debe coincidir con certificado
@@ -94,8 +102,10 @@ Credenciales y certificados para WSFE.
 
 ---
 
-### **4. 🧪 Pruebas de Facturación**
-Herramienta completa para emitir comprobantes de prueba.
+### **4. 📋 Emisión de Facturas**
+Herramienta completa para emisión de comprobantes electrónicos AFIP.
+
+> 📝 **Cambio de terminología**: Anteriormente llamado "Pruebas de Facturación", ahora usa terminología profesional apropiada para entorno de producción.
 
 #### **Configuración del Comprobante**:
 - **Tipo**: 1 (FA), 6 (FB), 2 (NDA), 7 (NDB), 3 (NCA), 8 (NCB), 4 (Recibo)
@@ -117,25 +127,42 @@ Herramienta completa para emitir comprobantes de prueba.
 
 #### **Tabla de Items**:
 - **Columnas**: Descripción, Cantidad, Precio Unit., IVA %, Subtotal, Acción
+- **Estado inicial**: Vacía (sin items de ejemplo)
 - **Botones**: + Agregar Item, Limpiar Items
 - **Totales**: Neto, IVA, Final (auto-calculados)
 
-#### **Botones de Acción**:
-- **Emitir Factura de Prueba**: Envía a AFIP y genera PDF
-- **Verificar Estado AFIP**: Consulta servidores WSFE
-- **Validar Certificado**: Obtiene TA (Ticket de Acceso)
-- **Borrar TA / Relogin**: Fuerza nuevo login WSAA
-- **Borrar Config AFIP**: Resetea configuración
-- **Resetear Base**: Elimina `facturacion.db`
-- **Listar Puntos de Venta**: Consulta AFIP
-- **Listar pendientes**: Muestra idempotencia
-- **Limpiar idempotencia**: Libera bloqueos SHA256
+#### **Grupos de Acciones** *(Organizadas y Colapsables)*:
+
+Los botones están organizados en **4 grupos lógicos** con colores temáticos:
+
+##### **🚀 Acciones Principales** *(Azul - Cerrado por defecto)*
+- **📄 Emitir Factura**: Envía comprobante a AFIP y genera PDF
+- **🔗 Asociar Comprobante**: Para NC/ND (oculto por defecto)
+- **🗑️ Limpiar Items**: Vacía la tabla de items
+
+##### **✅ Validaciones AFIP** *(Verde - Cerrado por defecto)*
+- **🌐 Verificar Estado AFIP**: Consulta estado de servidores WSFE
+- **🔐 Validar Certificado**: Valida cert/key y obtiene TA
+- **📋 Listar Puntos de Venta**: Consulta puntos de venta habilitados
+
+##### **🔧 Administración y Mantenimiento** *(Naranja - Cerrado por defecto)*
+- **🔄 Borrar TA / Relogin**: Fuerza nuevo login WSAA
+- **⚠️ Borrar Config AFIP**: Resetea configuración AFIP
+- **🔥 Resetear Base**: Elimina `facturacion.db`
+- **📊 Listar pendientes**: Muestra comprobantes en idempotencia
+- **🧹 Limpiar idempotencia**: Libera bloqueos SHA256
+
+##### **📊 Estado y Checklist** *(Gris - SIEMPRE VISIBLE)*
+- **🔍 Revisar**: Ejecuta todas las validaciones
+- **Chips de estado**: • Padrón • MiPyME • Items • Listo
+
+> 🎨 **Diseño**: Cada grupo usa colores temáticos (azul=acciones, verde=validaciones, naranja=administración) con bordes semitransparentes y fondos sutiles para una interfaz profesional.
 
 **IPC**: `facturacion:emitir`, `afip:validar-certificado`, `afip:check-server-status`
 
 ---
 
-### **5. 📂 Watcher .fac (Procesamiento Automático)**
+### **5. 📂 Watcher .fac (Procesamiento Automático)** *(No colapsable)*
 
 > 🔥 **Puente crítico entre sistema legacy y nuevo**
 
@@ -176,7 +203,7 @@ OBS.FISCAL: Observación
 
 ---
 
-### **6. 📦 Configuración de Salidas (Rutas)**
+### **6. 📦 Configuración de Salidas (Rutas)** *(No colapsable)*
 Define dónde se copian los PDFs generados.
 
 **Facturas A/B y Notas**:
@@ -277,15 +304,15 @@ Define dónde se copian los PDFs generados.
 
 ## 🚀 **Flujos Críticos**
 
-### **Flujo 1: Emisión Manual (Pruebas)**
-1. Usuario completa formulario
-2. "Emitir Factura de Prueba"
-3. `facturacion:emitir`
+### **Flujo 1: Emisión Manual desde UI**
+1. Usuario expande grupo "🚀 Acciones Principales"
+2. Click en "📄 Emitir Factura"
+3. `facturacion:emitir` → `FacturacionService`
 4. `afipService.solicitarCAE()` → WSFE
 5. AFIP retorna CAE + número
-6. `pdfRenderer` genera PDF
-7. Copia a rutas configuradas
-8. UI muestra éxito
+6. `pdfRenderer` genera PDF con QR
+7. Copia a rutas configuradas (local + red1 + red2)
+8. UI muestra éxito con CAE
 
 ### **Flujo 2: Procesamiento Automático `.fac`**
 1. Sistema legacy → `25100211161552.fac` → `C:\tmp`
@@ -321,8 +348,10 @@ Define dónde se copian los PDFs generados.
 ### **Emisión Manual**:
 - ✅ FA con 1 item retorna CAE en < 5s
 - ✅ PDF con QR de validación
-- ✅ PDF en todas las rutas configuradas
+- ✅ PDF en todas las rutas configuradas (local + red)
 - ✅ Padrón 13: CF no permite FA
+- ✅ Tabla de items inicia vacía (sin ejemplos)
+- ✅ Grupos de botones organizados por categoría
 
 ### **Procesamiento `.fac`**:
 - ✅ Detecta en < 2s
@@ -399,6 +428,23 @@ Define dónde se copian los PDFs generados.
 ### **Documentación relacionada**:
 - `documentacion_interna/facturacion/facturacion-auditoria.md`
 - `documentacion_interna/facturacion/cotizacion-moneda-extranjera.md`
+
+---
+
+## 📊 **Mejoras de UX (Octubre 2025)**
+
+### **Interfaz Organizada**:
+1. ✅ **Subsecciones colapsables**: Datos Empresa, Parámetros, Config AFIP
+2. ✅ **Grupos de botones temáticos**: 4 categorías con colores coherentes
+3. ✅ **Terminología profesional**: Eliminadas referencias a "prueba", "construcción"
+4. ✅ **Tabla limpia**: Items inician vacíos (sin ejemplos molestos)
+5. ✅ **Secciones eliminadas**: Facturas Emitidas e Historial PDFs (innecesarios)
+
+### **Colores Temáticos**:
+- 🔵 **Azul**: Acciones principales (emisión, gestión)
+- 🟢 **Verde**: Validaciones (certificados, estado AFIP)
+- 🟠 **Naranja**: Administración (limpieza, reinicio)
+- ⚪ **Gris**: Información permanente (checklist)
 
 ---
 
