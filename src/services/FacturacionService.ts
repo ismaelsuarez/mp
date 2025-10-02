@@ -84,6 +84,16 @@ export class FacturacionService {
 			if ((params as any).totales_fac) {
 				(comprobante as any).totales_fac = (params as any).totales_fac;
 			}
+			
+			// 🔑 Propagar cotiza_hint para moneda extranjera
+			if ((params as any).cotiza_hint) {
+				(comprobante as any).cotiza_hint = (params as any).cotiza_hint;
+			}
+			
+			// 🔑 Propagar can_mis_mon_ext
+			if ((params as any).can_mis_mon_ext) {
+				(comprobante as any).can_mis_mon_ext = (params as any).can_mis_mon_ext;
+			}
 
 			this.debugLog('Solicitando CAE...');
 			outAny = await afipService.solicitarCAE(comprobante);
@@ -416,7 +426,7 @@ export class FacturacionService {
 	 * Convierte parámetros legacy a formato Comprobante
 	 */
 	private convertirAComprobante(params: EmitirFacturaParams): Comprobante {
-		return {
+		const comprobante: any = {
 			tipo: this.mapTipoComprobante(params.tipo_cbte),
 			puntoVenta: params.pto_vta,
 			fecha: params.fecha,
@@ -446,6 +456,13 @@ export class FacturacionService {
 			observaciones: '',
 			codigoOperacion: ''
 		};
+		
+		// 🔑 Propagar cotiza_hint si viene del .fac (para moneda extranjera)
+		if ((params as any).cotiza_hint) {
+			comprobante.cotiza_hint = (params as any).cotiza_hint;
+		}
+		
+		return comprobante;
 	}
 
 	/**

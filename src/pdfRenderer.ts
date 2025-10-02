@@ -212,6 +212,25 @@ function formatNumberEsAr(value: number): string {
   });
 }
 
+/**
+ * Determina el texto de moneda para "SON PESOS:" / "SON DÓLARES:" / "SON EUROS:"
+ */
+function getMonedaTexto(moneda?: string): string {
+  if (!moneda) return 'PESOS';
+  
+  const monedaUpper = moneda.toUpperCase();
+  
+  if (monedaUpper === 'DOLARES' || monedaUpper === 'DOL' || monedaUpper === 'USD') {
+    return 'DÓLARES';
+  }
+  
+  if (monedaUpper === 'EUROS' || monedaUpper === 'EUR') {
+    return 'EUROS';
+  }
+  
+  return 'PESOS';
+}
+
 function numeroALetras(num: number): string {
   // Conversión simple a letras en castellano (ARS)
   // Soporta hasta millones; suficiente para facturas comunes
@@ -794,7 +813,9 @@ export async function generateInvoicePdf({
   }
 
   if (c.totalEnLetras && !skipTotalsForZeroRemito) {
-    drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
+    // Determinar moneda para el texto en letras
+    const monedaTexto = getMonedaTexto(data.moneda);
+    drawText(`SON ${monedaTexto}: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
       fontSize: c.totalEnLetras.fontSize ?? 9,
       bold: true,
       maxWidth: c.totalEnLetras.maxWidth,

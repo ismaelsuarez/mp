@@ -1425,7 +1425,18 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
 	});
 
-	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL')
+	// Cotización AFIP completa (DOL/EUR, con política flexible)
+	ipcMain.handle('facturacion:cotizacion:consultar', async (_e, payload: { moneda: 'DOL'|'EUR'; fecha?: string; canMisMonExt?: 'S'|'N' }) => {
+		try {
+			const { consultarCotizacionAfip } = await import('./modules/facturacion/cotizacionHelper');
+			const result = await consultarCotizacionAfip(payload);
+			return { ok: true, data: result };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL') [LEGACY - mantener por compatibilidad]
 	ipcMain.handle('facturacion:cotizacion:dol', async () => {
 		try {
 			console.warn('[caja][cotiz] solicitando FEParamGetCotizacion DOL/USD');

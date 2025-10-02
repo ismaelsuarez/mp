@@ -34,7 +34,11 @@ export class ArcaClient {
     const params: any = { MonId: monId };
     if (fecha) params.FchCotiz = fecha;
 
+    console.log('[ArcaClient] Consultando:', { url, params });
     const { data } = await axios.get(url, { httpsAgent: this.httpsAgent, params });
+    console.log('[ArcaClient] Respuesta tipo:', typeof data);
+    console.log('[ArcaClient] Respuesta (primeros 500 chars):', String(data).substring(0, 500));
+    
     if (typeof data === 'string') {
       // Intentar extraer de XML simple
       const get = (tag: string) => {
@@ -44,16 +48,20 @@ export class ArcaClient {
       };
       const raw = get('MonCotiz') || get('monCotiz') || '';
       const fch = get('FchCotiz') || '';
+      console.log('[ArcaClient] Parseado XML:', { raw, fch });
       const n = Number(String(raw).replace(',', '.'));
       if (Number.isFinite(n) && n > 0) {
+        console.log('[ArcaClient] ✅ Cotización parseada:', { MonId: monId, MonCotiz: n, FchCotiz: fch });
         return { MonId: monId, MonCotiz: n, FchCotiz: fch };
       }
       // Si no se pudo parsear, lanzar
+      console.error('[ArcaClient] ❌ No se pudo parsear la respuesta string');
       throw new Error('ARCA response no parseable');
     }
     // Si es objeto JSON compatible
     const MonCotiz = Number((data && (data.MonCotiz ?? data?.ResultGet?.MonCotiz)) || 0);
     const FchCotiz = String((data && (data.FchCotiz ?? data?.ResultGet?.FchCotiz)) || '');
+    console.log('[ArcaClient] Parseado JSON:', { MonCotiz, FchCotiz });
     return { MonId: monId, MonCotiz, FchCotiz };
   }
 }

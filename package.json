@@ -44,7 +44,8 @@
     "test:ci": "jest --ci --coverage --watchAll=false",
     "test:debug": "jest --detectOpenHandles --forceExit",
     "pdf:calibrate": "npm run build:ts && node dist/src/calibrate.js",
-    "pdf:example": "npm run build:ts && node dist/src/renderExample.js"
+    "pdf:example": "npm run build:ts && node dist/src/renderExample.js",
+    "cotizacion": "ts-node scripts/get-cotizacion-afip.ts"
   },
   "build": {
     "appId": "com.ismael.miapp",

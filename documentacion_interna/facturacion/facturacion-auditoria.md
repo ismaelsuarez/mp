@@ -76,39 +76,68 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
 - `consolidateTotals()` trataba `iva=0` como operación exenta → `ImpOpEx = total`
 - AFIP recibía: `ImpNeto=0`, `ImpIVA=0`, `ImpOpEx=[monto total]`
 - Reportes ARCA mostraban "Exento" con valores indebidos (ej: total 0.40 → exento 0.40, neto 0, iva 0)
+- Errores de redondeo: `ImpTotal = 0.39999999...` en lugar de `0.40` (recálculo aritmético vs valor del .fac)
 
 **Solución implementada (commit Oct 2025):**
-1. **Uso directo de TOTALES del .fac** (`facProcessor.ts` líneas 889-915, `afipService.ts` líneas 377-441):
-   - Parser extrae `NETO 21%`, `NETO 10.5%`, `IVA 21%`, `IVA 10.5%`, `EXENTO` del bloque `TOTALES:` del `.fac`
-   - Se empaqueta en `params.totales_fac` con flag `source: 'fac_parsed'`
-   - `FacturacionService` propaga `totales_fac` al comprobante
-   - `afipService.solicitarCAE()` detecta `totales_fac` y **prioriza esos valores** sobre recálculo desde items
-   - Construye `ImpNeto`, `ImpIVA`, `ImpOpEx` e `Iva[]` directamente desde los TOTALES parseados
+1. **Uso directo de TOTALES del .fac** (`facProcessor.ts` líneas 897-903, `afipService.ts` líneas 398-428):
+   - Parser extrae **TODOS** los valores del bloque `TOTALES:` incluyendo `NETO 21%`, `NETO 10.5%`, `IVA 21%`, `IVA 10.5%`, `EXENTO` y **`TOTAL`**
+   - Se empaqueta en `params.totales_fac` con flag `source: 'fac_parsed'` y el **total exacto** del .fac
+   - `FacturacionService.emitirFacturaYGenerarPdf()` propaga `totales_fac`, `cotiza_hint` y `can_mis_mon_ext` al comprobante
+   - `afipService.solicitarCAE()` detecta `totales_fac.source === 'fac_parsed'` y:
+     - Usa `ImpTotal = round2(totalFac)` **directamente del .fac** (NO recalcula)
+     - Usa `ImpNeto`, `ImpIVA`, `ImpOpEx` desde los valores parseados
+     - Construye `Iva[]` array desde neto/iva por alícuota del .fac
+     - Aplica `round2()` solo para formatear a 2 decimales (evita punto flotante)
    - Método identificable en logs: `metodo: 'fac_parsed'`
 
-2. **Inferencia inteligente de alícuotas múltiples** (`facProcessor.ts` líneas 796-844):
+2. **Priorización de COTIZADOL del .fac** (`afipService.ts` líneas 472-498):
+   - Si el `.fac` trae `COTIZADOL:` (cotiza_hint), se usa **directamente** sin consultar AFIP
+   - Evita errores por falta de método `getCurrencyQuotation` en SDK local
+   - Solo consulta AFIP si NO viene cotización en el .fac
+   - Log: `[FACT] Usando COTIZADOL del .fac directamente: { monId, cotiz, canMis }`
+   - Fuente: `'COTIZADOL'` cuando viene del .fac, `'WSFE'` cuando consulta AFIP, `'FALLBACK'` en caso de error
+
+3. **Inferencia inteligente de alícuotas múltiples** (`facProcessor.ts` líneas 796-844):
    - Detecta cuando todos los items tienen `iva=0` pero `TOTALES` indica IVA > 0
    - **Caso única alícuota:** asigna esa alícuota a todos los items
    - **Caso múltiples alícuotas:** infiere del **nombre del producto** (ej: "PRUEBA 21" → 21%, "PRUEBA 10.5" → 10.5%)
    - **Fallback:** usa alícuota predominante por monto de neto si no detecta en nombre
    - Logs: `[FAC][PIPE] iva:inferred:name`, `[FAC][PIPE] iva:inferred:predominant`
 
-3. **Logs de diagnóstico mejorados**:
+4. **Renderizado PDF con moneda dinámica** (`pdfRenderer.ts` líneas 215-232, 797-804):
+   - Nueva función `getMonedaTexto(moneda)`: mapea `'DOLARES'/'DOL'/'USD'` → `'DÓLARES'`, `'EUROS'/'EUR'` → `'EUROS'`
+   - Total en letras ahora muestra: `"SON DÓLARES:"` cuando `moneda='DOLARES'`, `"SON EUROS:"` cuando `moneda='EUROS'`
+   - `facProcessor` propaga `moneda` y `cotizacion` al objeto `data` del PDF (líneas 1035-1036)
+
+5. **Logs de diagnóstico mejorados**:
    - `[FACT][TOTALES_FAC] Usando totales parseados del .fac { neto21, neto105, iva21, iva105, exento, ImpTotal }`
    - `[FACT][CONSOL_CHECK] { tipo, metodo: 'fac_parsed'|'items_consolidated', consolidado, ivaArray, ALERTA_EXENTO }`
+   - `[FACT] Usando COTIZADOL del .fac directamente: { monId, cotiz, canMis }`
+   - `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`
    - `ALERTA_EXENTO: 'OK'` confirma ausencia de exento indebido; `'⚠️ HAY EXENTO (ImpOpEx > 0)'` indica problema
 
 **Archivos modificados:**
-- `src/modules/facturacion/facProcessor.ts`: añadido `totales_fac` a params + inferencia multi-alícuota
-- `src/services/FacturacionService.ts`: propagación de `totales_fac` al comprobante
-- `src/modules/facturacion/afipService.ts`: lógica de priorización `totales_fac` vs `consolidateTotals(items)`
+- `src/modules/facturacion/facProcessor.ts`: añadido `total` a `totales_fac`, propagación de `moneda` al PDF + inferencia multi-alícuota
+- `src/services/FacturacionService.ts`: propagación de `totales_fac`, `cotiza_hint` y `can_mis_mon_ext` al comprobante
+- `src/modules/facturacion/afipService.ts`: priorización `totales_fac.total` sobre recálculo + priorización de `cotiza_hint` sobre consulta AFIP + helper `round2()`
+- `src/pdfRenderer.ts`: función `getMonedaTexto()` y renderizado dinámico de moneda en total en letras
 
 **Validación:**
 - `.fac` con alícuotas mixtas (21% + 10.5%) → envía `Iva[{Id:5, BaseImp:neto21, Importe:iva21}, {Id:4, BaseImp:neto105, Importe:iva105}]`
 - `ImpOpEx=0` cuando `EXENTO=0` en TOTALES del `.fac`
+- `ImpTotal` usa el valor **exacto** de `TOTAL:` del .fac (sin errores de punto flotante)
+- Factura en USD usa `COTIZADOL:` directamente sin consultar AFIP (evita error 10119)
+- PDF muestra "SON DÓLARES: CIENTO TREINTA Y CINCO CON 52/100" cuando `MONEDA:DOLARES`
 - Reportes AFIP/ARCA muestran discriminación correcta: neto gravado por alícuota, IVA correcto, exento=0
 
-**Impacto:** Resuelve discrepancias con sistema legacy; alinea a MTXCA (discriminación obligatoria de IVA para Factura B con múltiples alícuotas).
+**Pruebas exitosas (02/10/2025):**
+- ✅ Factura B $0.40 (CF, alícuotas 21%+10.5%) → CAE 75405346237938 | ImpOpEx=0, metodo=fac_parsed
+- ✅ Factura A USD 135.52 (RI, cotiz 1423) → CAE 75405349758323 | fuente=COTIZADOL, PDF "SON DÓLARES:"
+
+**Impacto:** 
+- Resuelve discrepancias con sistema legacy; alinea a MTXCA (discriminación obligatoria de IVA para Factura B con múltiples alícuotas)
+- Garantiza uso de totales exactos del .fac sin errores de redondeo
+- Permite facturación en moneda extranjera sin dependencia de consultas AFIP de cotización
 
 ### 2) Alcance
 - Facturación electrónica AFIP WSFEv1 (A/B) y Notas (NC/ND). MiPyME (FCE) soportada por `ModoFin` (ADC/SCA).
@@ -174,19 +203,24 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
   6) Circuito: si `WSHealthService` emite `down` o el circuito está `DOWN`/cooldown, no se hace pop de jobs (pausa efectiva). `up` reanuda.
   7) Recibos/Remitos: sólo PDF/FTP (sin AFIP), manteniendo OBS/FISCAL/PIE.
   8) Moneda extranjera (DOL/EUR) – política flexible implementada:
-     - Parser `.fac`: `MONEDA:` (PESOS/DOLARES/EUROS/USD), `CANCELA_MISMA_MONEDA:` (S/N), `COTIZADOL:` (hint solo visual).
+     - Parser `.fac`: `MONEDA:` (PESOS/DOLARES/EUROS/USD), `CANCELA_MISMA_MONEDA:` (S/N), `COTIZADOL:` (cotización a usar).
      - Normalización: PESOS→PES; DOLARES/USD→DOL; EUROS→EUR.
      - Validación MonId: contra catálogo AFIP cacheado 12h.
      - FECAEReq: incluye `MonId`, `MonCotiz` y `CanMisMonExt` (si el SDK lo soporta).
-     - Reglas:
+     - Reglas (revisadas Oct 2025):
        - `PES` → `MonCotiz=1`.
-       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=S` → cotización del día hábil anterior (prevDiaHabil de la fecha del comprobante); selección exacta (sin tolerancia).
-       - `DOL`/`EUR` + `CANCELA_MISMA_MONEDA=N` → cotización vigente; selección tolerante dentro de +2% arriba y hasta −80% abajo respecto del oficial. Si viene `COTIZADOL>0` y está en rango de la política, se usa `COTIZADOL` como valor fiscal; si no, se usa la oficial WSFE.
+       - `DOL`/`EUR` + `COTIZADOL:` presente → **PRIORIDAD 1**: usa ese valor directamente como `MonCotiz` (evita consultas AFIP innecesarias y errores por SDK sin método de cotización). Fuente: `'COTIZADOL'`.
+       - `DOL`/`EUR` sin `COTIZADOL:` + `CANCELA_MISMA_MONEDA=S` → consulta cotización del día hábil anterior vía AFIP; selección exacta (sin tolerancia). Fuente: `'WSFE'`.
+       - `DOL`/`EUR` sin `COTIZADOL:` + `CANCELA_MISMA_MONEDA=N` → consulta cotización vigente vía AFIP; selección tolerante (+80% arriba / -5% abajo). Fuente: `'WSFE'`.
+     - Propagación de cotiza_hint:
+       - `facProcessor` → `params.cotiza_hint`
+       - `FacturacionService.emitirFacturaYGenerarPdf` → `comprobante.cotiza_hint`
+       - `afipService.solicitarCAE` → detecta y usa directamente si `cotiza_hint > 0`
      - Validaciones y errores:
        - Transient: timeouts/red/HTTP≥500 o falla de `FEParamGetCotizacion` → reintentos + posible pausa por circuito.
-       - Permanent: `MonId` inválido, `MonCotiz` fuera de rango permitido (incluye `COTIZADOL` fuera de rango), o mismatch exacto cuando `S`.
+       - Permanent: `MonId` inválido (ya no aplica cotización fuera de rango si viene de COTIZADOL del .fac).
      - Auditoría: `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }`.
-     - Hint: si `N` y `COTIZADOL` fue usado como fiscal, la `fuente` será `COTIZADOL`. Si no fue usado, se registra como hint visual/log.
+     - PDF: muestra texto de moneda dinámico ("SON DÓLARES:" / "SON EUROS:" / "SON PESOS:") según `data.moneda`.
   9) Fallback inline secuencial (hotfix demo): si `enqueueFacFromPath(filePath)` falla o la cola está pausada, se procesa en línea con mutex global:
      - parse/validate → solicitar CAE → generar PDF (stub local) → generar `.res` → borrar `.fac` sólo tras `RES_OK`.
      - El `.res` inline se genera junto al `.fac` original (p. ej. `C:\tmp`) y no se envía por FTP en esta ruta.
@@ -245,9 +279,12 @@ flowchart TD
     - `[FAC][PIPE] iva:inferred:name { item, iva }` – alícuota inferida del nombre del producto
     - `[FAC][PIPE] iva:inferred:predominant { item, iva }` – alícuota asignada por predominancia de monto
     - `[FAC][PIPE] iva:inferred:single { tipo, rate, method }` – alícuota única asignada a todos los items
-    - `[FACT][TOTALES_FAC] Usando totales parseados del .fac { neto21, neto105, neto27, iva21, iva105, iva27, exento, ImpTotal }` – confirmación de uso directo de TOTALES del .fac
+    - `[FACT][TOTALES_FAC] Usando totales parseados del .fac { neto21, neto105, neto27, iva21, iva105, iva27, exento, ImpTotal }` – confirmación de uso directo de TOTALES del .fac (ImpTotal es el valor exacto de `TOTAL:` del .fac, no recalculado)
     - `[FACT][CONSOL_CHECK] { tipo, metodo, items_count, items_sample, original, consolidado, ivaArray, ALERTA_EXENTO }` – verificación de consolidación vs totales originales
+    - `[FACT] Usando COTIZADOL del .fac directamente: { monId, cotiz, canMis }` – confirmación de uso directo de cotización del .fac sin consultar AFIP
+    - `[FACT] FE Moneda { monId, canMisMonExt, policy, monCotiz, oficial, fuente, fchOficial }` – política de moneda aplicada (fuente puede ser 'COTIZADOL', 'WSFE' o 'FALLBACK')
     - `metodo: 'fac_parsed'` indica uso de TOTALES del .fac; `'items_consolidated'` indica recálculo desde items (UI)
+    - `fuente: 'COTIZADOL'` indica uso directo del .fac; `'WSFE'` indica consulta AFIP exitosa; `'FALLBACK'` indica error (usa monCotiz=1)
     - `ALERTA_EXENTO: 'OK'` confirma ausencia de exento indebido; `'⚠️ HAY EXENTO (ImpOpEx > 0)'` indica clasificación incorrecta
 
  - Idempotencia:
@@ -477,8 +514,12 @@ TOTAL     :        3.44
 - Fecha sin desfase (parsing determinista desde `YYYY-MM-DD`/`YYYYMMDD`).
 - Se omiten líneas de IVA por alícuota con valor `0,00`.
 - CAE y Vto impresos; QR oficial generado a partir de datos de AFIP.
-- Campos dinámicos OBS/FISCAL/PIE y “GRACIAS” conservados.
- - Moneda y cotización: si `MonId ≠ 'PES'` (ej.: `DOL`), se muestra la leyenda de moneda y la cotización aplicada (vigente o día hábil anterior según `CANCELA_MISMA_MONEDA`).
+- Campos dinámicos OBS/FISCAL/PIE y "GRACIAS" conservados.
+- **Moneda y cotización (actualizado Oct 2025)**:
+  - Total en letras dinámico: `"SON PESOS:"` (default), `"SON DÓLARES:"` cuando `moneda='DOLARES'`, `"SON EUROS:"` cuando `moneda='EUROS'`
+  - Helper `getMonedaTexto(moneda)` mapea variantes (`DOLARES`/`DOL`/`USD` → `'DÓLARES'`)
+  - `facProcessor` propaga `moneda` y `cotizacion` desde el .fac al objeto `data` del PDF
+  - Se muestra la leyenda de moneda y la cotización aplicada cuando `MonId ≠ 'PES'`
 
 ### 8) Observabilidad y auditoría
 - Logs con prefijo `[FACT]` y resultados AFIP (Observaciones/Errores). 
@@ -543,13 +584,20 @@ Uso rápido (cola)
  - Cola operativa: el mismo comportamiento se logra por el worker de cola (sin activar el fallback inline).
  - Notas de Crédito: emite CAE incluyendo `CbtesAsoc` correcto; si falta el asociado, se genera `PermanentError` claro.
  - **Fix exento (Oct 2025)**: `.fac` con alícuotas mixtas (21% + 10.5%) sin columna IVA% en items:
-   - Logs muestran `[FACT][TOTALES_FAC]` con valores parseados del .fac
+   - Logs muestran `[FACT][TOTALES_FAC]` con valores parseados del .fac, incluyendo `ImpTotal` exacto (no recalculado)
    - Logs muestran `metodo: 'fac_parsed'` en `[FACT][CONSOL_CHECK]`
    - `ALERTA_EXENTO: 'OK'` (sin exento indebido)
    - `ImpOpEx=0` cuando `EXENTO=0` en TOTALES del .fac
+   - `ImpTotal` es el valor **exacto** de `TOTAL:` del .fac (0.40 no 0.3999999...) gracias a `round2()` y uso directo
    - Reportes AFIP/ARCA muestran "Neto Gravado IVA 21%" y "Neto Gravado IVA 10.5%" con valores correctos (no cero)
    - "Exento" aparece como 0.00 (no el total completo)
    - "Total IVA" es la suma correcta de IVAs por alícuota (no cero)
+ - **Facturación en USD (Oct 2025)**: `.fac` con `MONEDA:DOLARES` y `COTIZADOL:1423.00`:
+   - Logs muestran `[FACT] Usando COTIZADOL del .fac directamente: { monId: 'DOL', cotiz: 1423 }`
+   - Logs muestran `fuente: 'COTIZADOL'` en `[FACT] FE Moneda`
+   - `MonCotiz=1423` (no intenta consultar AFIP, evita error 10119)
+   - PDF muestra "SON DÓLARES: CIENTO TREINTA Y CINCO CON 52/100" (no "SON PESOS:")
+   - CAE obtenido exitosamente sin errores de cotización
 
 ### 13) Checklist previo a release
 - [ ] CUIT, Cert y Key válidos; PV habilitado WSFEv1 en PROD.

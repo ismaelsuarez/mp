@@ -898,6 +898,7 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
       neto21, neto105, neto27, 
       iva21, iva105, iva27, 
       exento,
+      total,  // 🔑 Total exacto del .fac (evita errores de redondeo)
       source: 'fac_parsed'  // Flag para identificar que vienen del .fac
     },
     empresa:{}, 
@@ -1031,6 +1032,9 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     pieObservaciones: pieWrapped.join('\n') || undefined,
     gracias: graciasLine || undefined,
     fiscal: (fiscalLines && fiscalLines.length) ? fiscalLines.join('\n') : undefined,
+    // Moneda extranjera (para renderizado PDF)
+    moneda: monedaFac.monId === 'DOL' ? 'DOLARES' : monedaFac.monId === 'EUR' ? 'EUROS' : undefined,
+    cotizacion: monedaFac.cotiz,
     netoGravado: (netoTotalParsed ?? (neto21+neto105+neto27)),
     exento,
     ivaPorAlicuota,

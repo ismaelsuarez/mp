@@ -290,3 +290,19 @@ contextBridge.exposeInMainWorld('license', {
 		return await ipcRenderer.invoke('license:open-home');
 	}
 });
+
+// Exponer ipcRenderer para uso directo en caja.html y otras ventanas
+contextBridge.exposeInMainWorld('electron', {
+	ipcRenderer: {
+		invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+		on: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.on(channel, (_event, ...args) => listener(...args));
+		},
+		once: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.once(channel, (_event, ...args) => listener(...args));
+		},
+		removeListener: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.removeListener(channel, listener);
+		}
+	}
+});
