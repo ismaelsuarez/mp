@@ -551,23 +551,31 @@ class AfipService {
       try { if ((monIdNorm === 'DOL' || monIdNorm === 'EUR') && fuenteUsada === 'WSFE') { const hint = Number((comprobante as any)?.cotiza_hint); if (hint > 0 && Number(request.MonCotiz) === 1) { (request as any)._cotizaHint = hint; } } } catch {}
       // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
       try {
-        const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
-          const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
-          if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
-          if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
-          if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
-          if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
-          // Inferir CF si DocTipo=99 y DocNro=0
-          if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
-          return undefined;
-        })();
-        const condId = await getCondicionIvaReceptorId({
-          afip,
-          cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
-          receptorHint: { docTipo, docNro, categoria }
-        });
-        if (typeof condId === 'number' && Number.isFinite(condId)) {
-          (request as any).CondicionIVAReceptorId = Number(condId);
+        // 🔑 PRIORIDAD 1: Si viene ivareceptorCode desde .fac, usarlo directamente (código ARCA)
+        const ivareceptorCode = (comprobante as any)?.cliente?.ivareceptorCode;
+        if (typeof ivareceptorCode === 'number' && Number.isFinite(ivareceptorCode) && ivareceptorCode > 0) {
+          (request as any).CondicionIVAReceptorId = Number(ivareceptorCode);
+          console.log('[FACT] Usando ivareceptor del .fac directamente:', { ivareceptorCode });
+        } else {
+          // PRIORIDAD 2: Consultar catálogo AFIP
+          const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
+            const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
+            if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
+            if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
+            if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
+            if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
+            // Inferir CF si DocTipo=99 y DocNro=0
+            if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
+            return undefined;
+          })();
+          const condId = await getCondicionIvaReceptorId({
+            afip,
+            cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
+            receptorHint: { docTipo, docNro, categoria }
+          });
+          if (typeof condId === 'number' && Number.isFinite(condId)) {
+            (request as any).CondicionIVAReceptorId = Number(condId);
+          }
         }
       } catch {
         // Fallback mínimo: CF → 5 (para no bloquear si catálogo falla)

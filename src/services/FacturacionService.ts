@@ -32,28 +32,32 @@ export class FacturacionService {
 		let numero = 0; let cae = ''; let cae_venc = '';
 		let outAny: any = undefined;
 		try {
-			// Convertir parámetros al formato Comprobante
-			const empCfg = db.getEmpresaConfig?.();
-			const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() as any || 'RI';
-			const comprobante: Comprobante = {
-				tipo: this.mapTipoComprobante(params.tipo_cbte),
-				cbteTipo: params.tipo_cbte,
-				puntoVenta: params.pto_vta,
-				fecha: params.fecha,
-				empresa: {
-					cuit: params.cuit_emisor,
-					razonSocial: params.empresa?.nombre || 'Empresa',
-					domicilio: params.empresa?.domicilio || '',
-					condicionIva: empCondIva
-				},
-				cliente: params.cuit_receptor ? {
-					cuit: params.cuit_receptor,
-					razonSocial: params.razon_social_receptor || 'Cliente',
-					condicionIva: params.condicion_iva_receptor as any || 'CF'
-				} : (params.condicion_iva_receptor ? {
-					razonSocial: params.razon_social_receptor || 'Cliente',
-					condicionIva: params.condicion_iva_receptor as any || 'CF'
-				} as any : undefined),
+		// Convertir parámetros al formato Comprobante
+		const empCfg = db.getEmpresaConfig?.();
+		const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() as any || 'RI';
+		const comprobante: Comprobante = {
+			tipo: this.mapTipoComprobante(params.tipo_cbte),
+			cbteTipo: params.tipo_cbte,
+			puntoVenta: params.pto_vta,
+			fecha: params.fecha,
+			empresa: {
+				cuit: params.cuit_emisor,
+				razonSocial: params.empresa?.nombre || 'Empresa',
+				domicilio: params.empresa?.domicilio || '',
+				condicionIva: empCondIva
+			},
+			cliente: params.cuit_receptor ? {
+				cuit: params.cuit_receptor,
+				razonSocial: params.razon_social_receptor || 'Cliente',
+				condicionIva: params.condicion_iva_receptor as any || 'CF',
+				// 🔑 Propagar ivareceptor desde .fac (código ARCA)
+				ivareceptorCode: (params as any).ivareceptor
+			} : (params.condicion_iva_receptor ? {
+				razonSocial: params.razon_social_receptor || 'Cliente',
+				condicionIva: params.condicion_iva_receptor as any || 'CF',
+				// 🔑 Propagar ivareceptor desde .fac (código ARCA)
+				ivareceptorCode: (params as any).ivareceptor
+			} as any : undefined),
 				items: (params.detalle || []).map(item => ({
 					descripcion: item.descripcion,
 					cantidad: item.cantidad,
