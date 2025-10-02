@@ -1349,9 +1349,13 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       const wanted = `${y}-${m}-${d}`;
       const reDate = new RegExp(`(^|[^0-9])(${d}/${m}/${y}|${y}${m}${d})($|[^0-9])`);
 
-      type Row = { tipo: 'FA'|'FB'|'NCA'|'NCB'|'REC'|'REM'; numero?: number; total?: number };
+      type Row = { tipo: 'FA'|'FB'|'NCA'|'NCB'|'REC'|'REM'|'FAD'|'FBD'|'NCAD'|'NCBD'; numero?: number; total?: number };
       const byTipo: Record<string, { desde?: number; hasta?: number; cantidad: number; total: number }> = {
-        FA: { cantidad: 0, total: 0 }, FB: { cantidad: 0, total: 0 }, NCA: { cantidad: 0, total: 0 }, NCB: { cantidad: 0, total: 0 }, REC: { cantidad: 0, total: 0 }, REM: { cantidad: 0, total: 0 }
+        FA: { cantidad: 0, total: 0 }, FB: { cantidad: 0, total: 0 }, 
+        NCA: { cantidad: 0, total: 0 }, NCB: { cantidad: 0, total: 0 }, 
+        REC: { cantidad: 0, total: 0 }, REM: { cantidad: 0, total: 0 },
+        FAD: { cantidad: 0, total: 0 }, FBD: { cantidad: 0, total: 0 },
+        NCAD: { cantidad: 0, total: 0 }, NCBD: { cantidad: 0, total: 0 }
       } as any;
 
       const pushRow = (r: Row) => {
@@ -1410,6 +1414,18 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
             else if (/^TIPO:\s*REC/im.test(txt) || /ARCHIVO PDF\s*:\s*REC_/i.test(txt)) tipo = 'REC';
             else if (/FACTURA/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'FB' : 'FA';
           }
+          // 🔍 DETECTAR MONEDA (para separar pesos de dólares)
+          const esDolar = /MONEDA:\s*(DOLARES|DOL|USD)/i.test(txt);
+          
+          // 💵 Si es dólar, cambiar el tipo a *D (FAD, FBD, NCAD, NCBD)
+          if (esDolar && tipo) {
+            if (tipo === 'FA') tipo = 'FAD';
+            else if (tipo === 'FB') tipo = 'FBD';
+            else if (tipo === 'NCA') tipo = 'NCAD';
+            else if (tipo === 'NCB') tipo = 'NCBD';
+            // REC y REM no tienen variante en dólares por ahora
+          }
+          
           const mNro = txt.match(/NUMERO\s+COMPROBANTE\s*:\s*(\d{8})/i);
           const nro = mNro ? Number(mNro[1]) : undefined;
           const mTot = txt.match(/IMPORTE\s+TOTAL\s*:\s*([0-9.,]+)/i);
@@ -1418,10 +1434,16 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
         }
       }
 
-      const order: Array<'FB'|'FA'|'NCB'|'NCA'|'REC'|'REM'> = ['FB','FA','NCB','NCA','REC','REM'];
+      const order: Array<'FB'|'FA'|'FBD'|'FAD'|'NCB'|'NCA'|'NCBD'|'NCAD'|'REC'|'REM'> = ['FB','FA','FBD','FAD','NCB','NCA','NCBD','NCAD','REC','REM'];
       const rows = order.map(t => ({ tipo: t, desde: (byTipo as any)[t].desde, hasta: (byTipo as any)[t].hasta, total: Number(((byTipo as any)[t].total || 0).toFixed(2)) }));
+      
+      // 💰 Total general en PESOS (solo FB + FA)
       const totalGeneral = Number((rows.filter(r => r.tipo==='FB' || r.tipo==='FA').reduce((a, r) => a + (r.total || 0), 0)).toFixed(2));
-      return { ok: true, fecha: wanted, rows, totalGeneral };
+      
+      // 💵 Total general en DÓLARES (solo FBD + FAD)
+      const totalGeneralUSD = Number((rows.filter(r => r.tipo==='FBD' || r.tipo==='FAD').reduce((a, r) => a + (r.total || 0), 0)).toFixed(2));
+      
+      return { ok: true, fecha: wanted, rows, totalGeneral, totalGeneralUSD };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
     }

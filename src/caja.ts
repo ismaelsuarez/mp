@@ -241,26 +241,36 @@ window.addEventListener('DOMContentLoaded', () => {
         controls.appendChild(inp); controls.appendChild(btn); controls.appendChild(totalEl);
         factPane.insertBefore(controls, factPane.firstChild);
         const tbody = document.getElementById('cajaFactTableBody') as HTMLElement | null;
-        const render = (rows: any[], totalGeneral: number) => {
+        const render = (rows: any[], totalGeneral: number, totalGeneralUSD?: number) => {
             if (tbody) tbody.innerHTML = rows.map(r => {
                 // REM no muestra total (sistema legacy no suma remitos)
                 const totalDisplay = r.tipo === 'REM' 
                     ? '' 
                     : new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(r.total||0);
                 
+                // Indicador visual para tipos en dólares
+                const esDolar = ['FAD','FBD','NCAD','NCBD'].includes(r.tipo);
+                const tipoDisplay = esDolar ? `${r.tipo} 💵` : r.tipo;
+                
                 return `<tr>
-                    <td>${r.tipo}</td>
+                    <td>${tipoDisplay}</td>
                     <td>${r.desde ?? ''}</td>
                     <td>${r.hasta ?? ''}</td>
                     <td class="text-right">${totalDisplay}</td>
                 </tr>`;
             }).join('');
-            totalEl.textContent = `Total (FA+FB): ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
+            
+            // Mostrar ambos totales (pesos y dólares)
+            let totalText = `Total (FA+FB): ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneral||0)}`;
+            if (totalGeneralUSD && totalGeneralUSD > 0) {
+                totalText += ` | USD: ${new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(totalGeneralUSD)}`;
+            }
+            totalEl.textContent = totalText;
         };
         btn.addEventListener('click', async () => {
             appendLog('Calculando resumen diario...');
             const res = await (window.api as any).caja.getSummary(inp.value);
-            if (res?.ok) { render(res.rows||[], res.totalGeneral||0); appendLog('Resumen listo'); } else { appendLog(`Error resumen: ${res?.error||'desconocido'}`); }
+            if (res?.ok) { render(res.rows||[], res.totalGeneral||0, res.totalGeneralUSD||0); appendLog('Resumen listo'); } else { appendLog(`Error resumen: ${res?.error||'desconocido'}`); }
         });
     }
 
