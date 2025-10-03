@@ -24,6 +24,7 @@ import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaMa
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
+import { WSHealthService } from './ws/WSHealthService';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -681,6 +682,23 @@ app.whenReady().then(() => {
     ensureLogsDir();
     ensureTodayLogExists();
     try { Menu.setApplicationMenu(null); } catch {}
+    try {
+        const { bootstrapContingency } = require('./main/bootstrap/contingency');
+        bootstrapContingency();
+    } catch {}
+
+    // WS Health → emitir estado a la UI (ARCA/AFIP)
+    try {
+        const wsHealth = new WSHealthService({ intervalSec: 20, timeoutMs: 5000 });
+        wsHealth.on('up', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'up', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.on('degraded', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'degraded', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.on('down', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'down', at: last?.at, details: last?.details }); } catch {} });
+        wsHealth.start();
+    } catch {}
+    try {
+        const { installLegacyFsGuard } = require('./main/bootstrap/legacy_fs_guard');
+        installLegacyFsGuard();
+    } catch {}
 
     // Autoarranque FTP Server si está habilitado
     try {
@@ -1214,8 +1232,13 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     // [limpieza] Se eliminan IPCs legacy facturaA:get-config/save-config (UI migra a facturas:get-config/save-config)
 	ipcMain.handle('facturacion:emitir', async (_e, payload: any) => {
 		try {
-			const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
-			return { ok: true, ...res };
+      const tipo = Number(payload?.tipo_cbte);
+      const clase = (tipo===1||tipo===2||tipo===3)?'A':(tipo===6||tipo===7||tipo===8)?'B':'C';
+      const alias = [3,8,13].includes(tipo) ? `NC ${clase}` : ([2,7,12].includes(tipo) ? `ND ${clase}` : `F${clase}`);
+      if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Emitiendo ${alias} PV ${String(payload?.pto_vta).padStart(4,'0')}…` });
+      const res = await getFacturacionService().emitirFacturaYGenerarPdf(payload);
+      if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `OK ${alias} Nº ${String(res?.numero).padStart(8,'0')} • CAE ${res?.cae}` });
+      return { ok: true, ...res };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1309,6 +1332,122 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       return { ok: false, error: String(e?.message || e) };
     }
   });
+
+  // ===== Caja: resumen diario por archivos .res (Opción B) =====
+  ipcMain.handle('caja:get-summary', async (_e, { fechaIso }: { fechaIso: string }) => {
+    try {
+      const userData = app.getPath('userData');
+      const facBase = path.join(userData, 'fac');
+      const outDir = path.join(facBase, 'out');
+      const processingDir = path.join(facBase, 'processing');
+      const doneDir = path.join(facBase, 'done');
+      const dirs = [outDir, processingDir, doneDir].filter((d) => { try { return fs.existsSync(d); } catch { return false; } });
+
+      const y = fechaIso.slice(0, 4);
+      const m = fechaIso.slice(5, 7);
+      const d = fechaIso.slice(8, 10);
+      const wanted = `${y}-${m}-${d}`;
+      const reDate = new RegExp(`(^|[^0-9])(${d}/${m}/${y}|${y}${m}${d})($|[^0-9])`);
+
+      type Row = { tipo: 'FA'|'FB'|'NCA'|'NCB'|'REC'|'REM'|'FAD'|'FBD'|'NCAD'|'NCBD'; numero?: number; total?: number };
+      const byTipo: Record<string, { desde?: number; hasta?: number; cantidad: number; total: number }> = {
+        FA: { cantidad: 0, total: 0 }, FB: { cantidad: 0, total: 0 }, 
+        NCA: { cantidad: 0, total: 0 }, NCB: { cantidad: 0, total: 0 }, 
+        REC: { cantidad: 0, total: 0 }, REM: { cantidad: 0, total: 0 },
+        FAD: { cantidad: 0, total: 0 }, FBD: { cantidad: 0, total: 0 },
+        NCAD: { cantidad: 0, total: 0 }, NCBD: { cantidad: 0, total: 0 }
+      } as any;
+
+      const pushRow = (r: Row) => {
+        const agg = (byTipo as any)[r.tipo]; if (!agg) return;
+        const nro = Number(r.numero || 0);
+        const tot = Number(r.total || 0);
+        if (!agg.desde || (nro && nro < agg.desde)) agg.desde = nro || agg.desde;
+        if (!agg.hasta || (nro && nro > agg.hasta)) agg.hasta = nro || agg.hasta;
+        agg.cantidad += 1;
+        if (Number.isFinite(tot)) agg.total += tot;
+      };
+
+      for (const dir of dirs) {
+        let files: string[] = [];
+        try { files = fs.readdirSync(dir); } catch { files = []; }
+        for (const name of files) {
+          if (!name.toLowerCase().endsWith('.res')) continue;
+          const full = path.join(dir, name);
+          let txt = '';
+          try { txt = fs.readFileSync(full, 'utf8'); } catch { continue; }
+          if (!reDate.test(txt)) continue; // filtrar por fecha del comprobante
+          const lower = name.toLowerCase();
+          let tipo: Row['tipo'] | null = null;
+          
+          // 1️⃣ PRIORIDAD 1: Detectar por campo TIPO: (más confiable)
+          const mTipo = txt.match(/^TIPO:\s*(\d+)/im);
+          if (mTipo) {
+            const tipoNum = Number(mTipo[1]);
+            if (tipoNum === 1) tipo = 'FA';
+            else if (tipoNum === 6) tipo = 'FB';
+            else if (tipoNum === 3) tipo = 'NCA';
+            else if (tipoNum === 8) tipo = 'NCB';
+            // TIPO: 2 (NDA) y 7 (NDB) no se manejan en la tabla de resumen por ahora
+          }
+          
+          // 2️⃣ PRIORIDAD 2: Detectar por campo ARCHIVO PDF: (segundo más confiable)
+          if (!tipo) {
+            const mPdf = txt.match(/ARCHIVO PDF\s*:\s*(FA|FB|NCA|NCB|REC|REM)_/i);
+            if (mPdf) tipo = mPdf[1].toUpperCase() as Row['tipo'];
+          }
+          
+          // 3️⃣ PRIORIDAD 3: Detectar por nombre de archivo (legacy)
+          if (!tipo) {
+            if (lower.includes('fa_')) tipo = 'FA';
+            else if (lower.includes('fb_')) tipo = 'FB';
+            else if (lower.includes('nca_')) tipo = 'NCA';
+            else if (lower.includes('ncb_')) tipo = 'NCB';
+            else if (lower.includes('rec_')) tipo = 'REC';
+            else if (lower.includes('rem_')) tipo = 'REM';
+          }
+          
+          // 4️⃣ PRIORIDAD 4: Detectar por contenido (último recurso, menos confiable)
+          if (!tipo) {
+            if (/NOTA\s+DE\s+CR[EÉ]DITO/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'NCB' : 'NCA';
+            else if (/^TIPO:\s*REM/im.test(txt) || /ARCHIVO PDF\s*:\s*REM_/i.test(txt)) tipo = 'REM';
+            else if (/^TIPO:\s*REC/im.test(txt) || /ARCHIVO PDF\s*:\s*REC_/i.test(txt)) tipo = 'REC';
+            else if (/FACTURA/i.test(txt)) tipo = /\bB\b/.test(txt) ? 'FB' : 'FA';
+          }
+          // 🔍 DETECTAR MONEDA (para separar pesos de dólares)
+          const esDolar = /MONEDA:\s*(DOLARES|DOL|USD)/i.test(txt);
+          
+          // 💵 Si es dólar, cambiar el tipo a *D (FAD, FBD, NCAD, NCBD)
+          if (esDolar && tipo) {
+            if (tipo === 'FA') tipo = 'FAD';
+            else if (tipo === 'FB') tipo = 'FBD';
+            else if (tipo === 'NCA') tipo = 'NCAD';
+            else if (tipo === 'NCB') tipo = 'NCBD';
+            // REC y REM no tienen variante en dólares por ahora
+          }
+          
+          const mNro = txt.match(/NUMERO\s+COMPROBANTE\s*:\s*(\d{8})/i);
+          const nro = mNro ? Number(mNro[1]) : undefined;
+          const mTot = txt.match(/IMPORTE\s+TOTAL\s*:\s*([0-9.,]+)/i);
+          const total = mTot ? Number((mTot[1]||'').replace(/\./g,'').replace(',','.')) : undefined;
+          if (tipo) pushRow({ tipo, numero: nro, total });
+        }
+      }
+
+      const order: Array<'FB'|'FA'|'FBD'|'FAD'|'NCB'|'NCA'|'NCBD'|'NCAD'|'REC'|'REM'> = ['FB','FA','FBD','FAD','NCB','NCA','NCBD','NCAD','REC','REM'];
+      const rows = order.map(t => ({ tipo: t, desde: (byTipo as any)[t].desde, hasta: (byTipo as any)[t].hasta, total: Number(((byTipo as any)[t].total || 0).toFixed(2)) }));
+      
+      // 💰 Total general en PESOS (solo FB + FA)
+      const totalGeneral = Number((rows.filter(r => r.tipo==='FB' || r.tipo==='FA').reduce((a, r) => a + (r.total || 0), 0)).toFixed(2));
+      
+      // 💵 Total general en DÓLARES (solo FBD + FAD)
+      const totalGeneralUSD = Number((rows.filter(r => r.tipo==='FBD' || r.tipo==='FAD').reduce((a, r) => a + (r.total || 0), 0)).toFixed(2));
+      
+      return { ok: true, fecha: wanted, rows, totalGeneral, totalGeneralUSD };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
 	// Idempotencia: listar y limpiar
 	ipcMain.handle('facturacion:idempotency:list', async () => {
 		try {
@@ -1328,6 +1467,94 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	});
 	ipcMain.handle('facturacion:empresa:save', async (_e, data: any) => {
 		try { getDb().saveEmpresaConfig(data); return { ok: true }; } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+	});
+
+	// Cotización AFIP completa (DOL/EUR, con política flexible)
+	ipcMain.handle('facturacion:cotizacion:consultar', async (_e, payload: { moneda: 'DOL'|'EUR'; fecha?: string; canMisMonExt?: 'S'|'N' }) => {
+		try {
+			const { consultarCotizacionAfip } = await import('./modules/facturacion/cotizacionHelper');
+			const result = await consultarCotizacionAfip(payload);
+			return { ok: true, data: result };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// Limpieza automática de archivos .res antiguos
+	ipcMain.handle('caja:cleanup-res', async (_e, payload?: { daysToKeep?: number; dryRun?: boolean }) => {
+		try {
+			// Ruta relativa que funciona en dev (src/) y producción (dist/src/)
+			// En dev: src/main.ts → ../scripts/cleanup-res.ts
+			// En prod: dist/src/main.js → ../scripts/cleanup-res.js
+			const cleanupModule = await import('../scripts/cleanup-res');
+			const result = await cleanupModule.cleanupOldResFiles(payload || {});
+			return result;
+		} catch (e: any) {
+			console.error('[caja:cleanup-res] Error al ejecutar limpieza:', e);
+			return { ok: false, deleted: 0, totalSize: 0, files: [], error: String(e?.message || e) };
+		}
+	});
+
+	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL') [LEGACY - mantener por compatibilidad]
+	ipcMain.handle('facturacion:cotizacion:dol', async () => {
+		try {
+			console.warn('[caja][cotiz] solicitando FEParamGetCotizacion DOL/USD');
+			const afip = await (afipService as any).getAfipInstance?.();
+			if (!afip) return { ok: false, error: 'AFIP no disponible' };
+			const withTimeout = async <T>(p: Promise<T>, ms=6000): Promise<T> => (await Promise.race([p, new Promise<T>((_,rej)=>setTimeout(()=>rej(new Error('TIMEOUT')), ms))])) as T;
+			// Intentar DOL (código oficial WSFE) y fallback a USD (algunos SDKs lo exponen así)
+			let r: any = null;
+			// 1) Método getCurrencyCotization (algunos SDKs)
+			try { if (afip?.ElectronicBilling?.getCurrencyCotization) r = await withTimeout(afip.ElectronicBilling.getCurrencyCotization('DOL')); } catch { r = null; }
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try { if (afip?.ElectronicBilling?.getCurrencyCotization) r = await withTimeout(afip.ElectronicBilling.getCurrencyCotization('USD')); } catch { r = null; }
+			}
+			// 2) Método getCurrencyQuotation (otros SDKs)
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try { if (afip?.ElectronicBilling?.getCurrencyQuotation) r = await withTimeout(afip.ElectronicBilling.getCurrencyQuotation('DOL')); } catch { r = null; }
+				if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+					try { if (afip?.ElectronicBilling?.getCurrencyQuotation) r = await withTimeout(afip.ElectronicBilling.getCurrencyQuotation('USD')); } catch { r = null; }
+				}
+			}
+			// 3) Fallback adicional: algunos clientes exponen getParamGetCotizacion
+			if ((!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) && typeof (afip as any).ElectronicBilling.getParamGetCotizacion === 'function') {
+				try { r = await withTimeout((afip as any).ElectronicBilling.getParamGetCotizacion({ MonId: 'DOL' })); } catch { r = null; }
+				if (!r || (!r.ResultGet?.MonCotiz)) {
+					try { r = await withTimeout((afip as any).ElectronicBilling.getParamGetCotizacion({ MonId: 'USD' })); } catch { r = null; }
+				}
+			}
+			// 4) Fallback ARCA BFEGetCotizacion (si WSFE no responde)
+			if (!r || (!r.MonCotiz && !(r?.ResultGet?.MonCotiz))) {
+				try {
+					const cfg = getDb().getAfipConfig();
+					const entorno = String(cfg?.entorno || 'produccion').toLowerCase();
+					const baseUrl = entorno === 'homologacion'
+						? 'https://wswhomo.afip.gov.ar/wsbfev1/service.asmx'
+						: 'https://servicios1.afip.gov.ar/wsbfev1/service.asmx';
+					// eslint-disable-next-line @typescript-eslint/no-var-requires
+					const { ArcaClient } = require('./modules/facturacion/arca/ArcaClient');
+					const certPath = String(cfg?.cert_path || '');
+					const keyPath = String(cfg?.key_path || '');
+					const client = new ArcaClient(baseUrl, certPath, keyPath);
+					try { console.warn('[caja][cotiz][ARCA] usando', { baseUrl, certPath, keyPath }); } catch {}
+					const auth = { Token: '', Sign: '', Cuit: Number(cfg?.cuit || 0) };
+					r = await withTimeout(client.getCotizacion(auth, 'DOL'), 6000);
+					console.warn('[caja][cotiz][ARCA] fallback OK');
+				} catch (e) { try { console.warn('[caja][cotiz][ARCA] ERROR', String((e as any)?.message || e)); } catch {} }
+			}
+			// 5) Resultado
+			const MonCotiz = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
+			const FchCotiz = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
+			if (!Number.isFinite(MonCotiz) || MonCotiz <= 0) {
+				return { ok: false, error: 'Cotización inválida' };
+			}
+			const out = { ok: true, data: { MonId: 'DOL', MonCotiz, FchCotiz } };
+			try { console.warn('[caja][cotiz] OK', out.data); } catch {}
+			return out;
+		} catch (e: any) {
+			try { console.warn('[caja][cotiz] ERROR', String(e?.message || e)); } catch {}
+			return { ok: false, error: String(e?.message || e) };
+		}
 	});
   // Configuración AFIP (persistente)
   ipcMain.handle('facturacion:afip:get', async () => {
@@ -1513,7 +1740,10 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 
 	createMainWindow();
 	createTray();
-	app.on('before-quit', () => { isQuitting = true; });
+    app.on('before-quit', () => { 
+        isQuitting = true; 
+        try { const { shutdownContingency } = require('./main/bootstrap/contingency'); shutdownContingency(); } catch {}
+    });
 
 	// Programación automática
 	let autoTimer: NodeJS.Timeout | null = null;
@@ -1882,10 +2112,14 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { continue; }
 				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
 					try {
-						logInfo('FAC detectado', { filename, fullPath });
+						logInfo('UI FAC detectado → emitir fileReady', { filename, fullPath });
 						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-						enqueueFacFile({ filename, fullPath, rawContent });
-						processFacQueue();
+						const legacy = (global as any).legacyFacWatcherEmitter;
+						if (legacy && typeof legacy.emit === 'function') {
+							legacy.emit('fileReady', fullPath);
+						} else {
+							logWarning('UI FAC fileReady bridge no disponible; esperar contingencia', { fullPath });
+						}
 					} catch {}
 				});
 				const ok = instance.start();
@@ -1893,8 +2127,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					const handle = (instance as any).watcher || null;
 					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
 					facWatcherGroup.push({ instance, watcher: handle, dir });
-					logInfo('Fac watcher started', { dir });
-					try { scanFacDirAndEnqueue(dir); } catch {}
+					logInfo('Fac watcher (UI bridge) started', { dir });
 					anyOk = true;
 				}
 			} catch {}
@@ -2978,6 +3211,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	app.on('activate', () => {
 		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
+
+	// Cotización Moneda para Modo Caja (AFIP/WSFE PROD)
+	ipcMain.handle('cotizacion:get', async (_evt, args?: { monIdText?: string; modo?: 'ULTIMA'|'HABIL_ANTERIOR'; baseDate?: string }) => {
+		try {
+			// Cargar on-demand para evitar ciclos
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { afipService } = require('./modules/facturacion/afipService');
+			const res = await afipService.consultarCotizacionMoneda(args || {});
+			return res;
+		} catch (e:any) {
+			const msg = String(e?.message || e);
+			return { error: true, message: msg, transient: /TRANSIENT|timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg) };
+		}
+	});
 });
 
 // ===== Recibo (PV y contador) =====
@@ -2989,7 +3236,7 @@ function getReciboCfgPath(): string {
     return path.join(process.cwd(), 'config', 'recibo.config.json');
   }
 }
-function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string } {
+function readReciboCfg(): { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string } {
   try {
     const pUser = getReciboCfgPath();
     let txt: string | undefined;
@@ -3014,16 +3261,17 @@ function readReciboCfg(): { pv: number; contador: number; outLocal?: string; out
       outLocal: (json.outLocal && String(json.outLocal)) || undefined,
       outRed1: (json.outRed1 && String(json.outRed1)) || undefined,
       outRed2: (json.outRed2 && String(json.outRed2)) || undefined,
+      printerName: typeof json.printerName === 'string' ? json.printerName : undefined,
     };
   } catch {
     return { pv: 1, contador: 1 };
   }
 }
-function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string }): { ok: boolean; error?: string } {
+function writeReciboCfg(cfg: { pv: number; contador: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }): { ok: boolean; error?: string } {
   try {
     const p = getReciboCfgPath();
     try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
-    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2 }, null, 2));
+    fs.writeFileSync(p, JSON.stringify({ pv: cfg.pv, contador: cfg.contador, outLocal: cfg.outLocal, outRed1: cfg.outRed1, outRed2: cfg.outRed2, printerName: cfg.printerName }, null, 2));
     return { ok: true };
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) };
@@ -3039,7 +3287,7 @@ ipcMain.handle('recibo:get-config', async () => {
   }
 });
 
-ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string }) => {
+ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: number; outLocal?: string; outRed1?: string; outRed2?: string; printerName?: string }) => {
   try {
     const current = readReciboCfg();
     const next = {
@@ -3048,6 +3296,7 @@ ipcMain.handle('recibo:save-config', async (_e, cfg: { pv?: number; contador?: n
       outLocal: typeof cfg?.outLocal === 'string' ? cfg.outLocal : current.outLocal,
       outRed1: typeof cfg?.outRed1 === 'string' ? cfg.outRed1 : current.outRed1,
       outRed2: typeof cfg?.outRed2 === 'string' ? cfg.outRed2 : current.outRed2,
+      printerName: typeof cfg?.printerName === 'string' ? cfg.printerName : current.printerName,
     };
     const res = writeReciboCfg(next);
     return res.ok ? { ok: true } : { ok: false, error: res.error };

@@ -212,6 +212,25 @@ function formatNumberEsAr(value: number): string {
   });
 }
 
+/**
+ * Determina el texto de moneda para "SON PESOS:" / "SON DÓLARES:" / "SON EUROS:"
+ */
+function getMonedaTexto(moneda?: string): string {
+  if (!moneda) return 'PESOS';
+  
+  const monedaUpper = moneda.toUpperCase();
+  
+  if (monedaUpper === 'DOLARES' || monedaUpper === 'DOL' || monedaUpper === 'USD') {
+    return 'DÓLARES';
+  }
+  
+  if (monedaUpper === 'EUROS' || monedaUpper === 'EUR') {
+    return 'EUROS';
+  }
+  
+  return 'PESOS';
+}
+
 function numeroALetras(num: number): string {
   // Conversión simple a letras en castellano (ARS)
   // Soporta hasta millones; suficiente para facturas comunes
@@ -672,6 +691,12 @@ export async function generateInvoicePdf({
   const tipoLiteral = (data.tipoComprobanteLiteral || '').toUpperCase();
   const isRecibo = tipoLiteral === 'RECIBO';
   const isRemito = tipoLiteral === 'REMITO';
+  const letraHeader = String(data.tipoComprobanteLetra || '').toUpperCase();
+  const isNota = /NOTA DE CREDITO|NOTA DE DEBITO/i.test(tipoLiteral);
+  // Considerar clase B para ocultar discriminación de NETO/IVA en FB/NCB/NDB.
+  // Heurística: letra 'B' o receptor CF.
+  const isClaseB = letraHeader === 'B' || /CONSUMIDOR\s*FINAL/i.test(String(data.cliente.condicionIva || ''));
+  const hideDiscriminatedForCliente = isClaseB && (!isRecibo && !isRemito) && (tipoLiteral === 'FACTURA' || isNota || !tipoLiteral);
   const hasValue = (n?: number) => typeof n === 'number' && Math.abs(n) > 0.000001;
 
   // Postergamos el dibujo de NETO hasta evaluar si debe omitirse para Remito con totales cero
@@ -688,28 +713,28 @@ export async function generateInvoicePdf({
   const skipTotalsForZeroRemito = isRemito && !hasValue(data.netoGravado) && !hasValue(iva21) && !hasValue(iva105) && !hasValue(iva27) && !hasValue(data.ivaTotal) && !hasValue(data.total) && !hasValue(neto21) && !hasValue(neto105) && !hasValue(neto27);
 
   // Dibujar etiqueta y valor de NETO sólo si corresponde
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.netoGravado)) && ((data as any).showNetoTotal || (c.netoLabel))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && hasValue(data.netoGravado)) {
     if (c.netoLabel) {
       drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
     }
     drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true, maxWidth: 30 });
   }
 
-  if (!skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
     console.log('🔍 DEBUG NETO21:', { x: c.neto21.x, y: c.neto21.y, value: neto21 });
     if (c.neto21Label) {
       drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
     }
     drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
     console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
     if (c.neto105Label) {
       drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
     }
     drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
     console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
     if (c.neto27Label) {
       drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
@@ -717,7 +742,7 @@ export async function generateInvoicePdf({
     drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9, maxWidth: 30 });
   }
   // EXENTO
-  if (!skipTotalsForZeroRemito && hasValue(exento)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && hasValue(exento)) {
     if ((c as any).exentoLabel && (c as any).exento) {
       drawText('Exento:', (c as any).exentoLabel.x, (c as any).exentoLabel.y, { fontSize: (c as any).exentoLabel.fontSize ?? 9 });
       drawNumber(exento, (c as any).exento.x, (c as any).exento.y, { fontSize: (c as any).exento.fontSize ?? 9, maxWidth: 30 });
@@ -729,19 +754,19 @@ export async function generateInvoicePdf({
     }
   }
 
-  if (!skipTotalsForZeroRemito && c.iva21 && hasValue(iva21)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva21 && hasValue(iva21)) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
     drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva105 && hasValue(iva105)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva105 && hasValue(iva105)) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
     drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!skipTotalsForZeroRemito && c.iva27 && hasValue(iva27)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva27 && hasValue(iva27)) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
@@ -750,7 +775,7 @@ export async function generateInvoicePdf({
 
   // (ya definido arriba)
 
-  if (!skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal)) && (data as any).showIvaTotal) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal)) && (data as any).showIvaTotal) {
     if (c.impIvaTotalLabel) {
       drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
     }
@@ -788,7 +813,9 @@ export async function generateInvoicePdf({
   }
 
   if (c.totalEnLetras && !skipTotalsForZeroRemito) {
-    drawText(`SON PESOS: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
+    // Determinar moneda para el texto en letras
+    const monedaTexto = getMonedaTexto(data.moneda);
+    drawText(`SON ${monedaTexto}: ${numeroALetras(data.total)}`, c.totalEnLetras.x, c.totalEnLetras.y, {
       fontSize: c.totalEnLetras.fontSize ?? 9,
       bold: true,
       maxWidth: c.totalEnLetras.maxWidth,

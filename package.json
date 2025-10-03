@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.19",
+  "version": "1.0.20",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -9,6 +9,11 @@
   "type": "commonjs",
   "main": "dist/src/main.js",
   "scripts": {
+    "db:inspect": "ts-node scripts/inspect_sqlite.ts",
+    "queue:inspect": "ts-node scripts/queue_inspect.ts",
+    "cleanup:res": "ts-node scripts/cleanup-res.ts",
+    "cleanup:res:dry": "ts-node scripts/cleanup-res.ts --dry-run",
+    "scan:fac": "ts-node scripts/scan_fac_usage.ts",
     "build:scripts": "tsc -p tsconfig.scripts.json",
     "audit:prod:report": "npm run build:scripts && node dist-scripts/afip-prod-audit-report.js",
     "selftest:afip:homo": "npm run build:ts && npm run build:scripts && node dist-scripts/afip-homo-selftest.js %*",
@@ -37,10 +42,12 @@
     "test:unit": "jest --testPathPattern=__tests__/unit",
     "test:integration": "jest --testPathPattern=__tests__/integration --runInBand",
     "test:homologacion": "jest --testPathPattern=__tests__/homologacion --runInBand",
+    "test:e2e": "vitest run -c vitest.config.ts --dir tests",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "test:debug": "jest --detectOpenHandles --forceExit",
     "pdf:calibrate": "npm run build:ts && node dist/src/calibrate.js",
-    "pdf:example": "npm run build:ts && node dist/src/renderExample.js"
+    "pdf:example": "npm run build:ts && node dist/src/renderExample.js",
+    "cotizacion": "ts-node scripts/get-cotizacion-afip.ts"
   },
   "build": {
     "appId": "com.ismael.miapp",
@@ -63,7 +70,13 @@
       "dist/**/*",
       "docs/**/*",
       "templates/**/*",
-      { "from": "sdk/afip.ts-main/src/soap/wsdl", "to": "dist/sdk/afip.ts-main/src/soap/wsdl", "filter": ["**/*.wsdl"] },
+      {
+        "from": "sdk/afip.ts-main/src/soap/wsdl",
+        "to": "dist/sdk/afip.ts-main/src/soap/wsdl",
+        "filter": [
+          "**/*.wsdl"
+        ]
+      },
       "build/icon.ico",
       "package.json"
     ],
@@ -71,7 +84,9 @@
       {
         "from": "sdk/afip.ts-main/src/soap/wsdl",
         "to": "sdk/afip.ts-main/src/soap/wsdl",
-        "filter": ["**/*.wsdl"]
+        "filter": [
+          "**/*.wsdl"
+        ]
       }
     ],
     "directories": {
@@ -142,9 +157,11 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
+    "@types/chokidar": "^1.7.5",
     "@types/jest": "^29.5.12",
     "@types/node": "^24.2.1",
     "@types/pdfkit": "^0.17.2",
+    "chokidar": "^4.0.3",
     "electron": "30.5.1",
     "electron-builder": "^24.13.3",
     "jest": "^29.7.0",
@@ -152,6 +169,7 @@
     "node-cron": "^3.0.3",
     "prettier": "^3.6.2",
     "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.2"
   }
 }

@@ -32,27 +32,32 @@ export class FacturacionService {
 		let numero = 0; let cae = ''; let cae_venc = '';
 		let outAny: any = undefined;
 		try {
-			// Convertir parámetros al formato Comprobante
-			const empCfg = db.getEmpresaConfig?.();
-			const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() as any || 'RI';
-			const comprobante: Comprobante = {
-				tipo: this.mapTipoComprobante(params.tipo_cbte),
-				puntoVenta: params.pto_vta,
-				fecha: params.fecha,
-				empresa: {
-					cuit: params.cuit_emisor,
-					razonSocial: params.empresa?.nombre || 'Empresa',
-					domicilio: params.empresa?.domicilio || '',
-					condicionIva: empCondIva
-				},
-				cliente: params.cuit_receptor ? {
-					cuit: params.cuit_receptor,
-					razonSocial: params.razon_social_receptor || 'Cliente',
-					condicionIva: params.condicion_iva_receptor as any || 'CF'
-				} : (params.condicion_iva_receptor ? {
-					razonSocial: params.razon_social_receptor || 'Cliente',
-					condicionIva: params.condicion_iva_receptor as any || 'CF'
-				} as any : undefined),
+		// Convertir parámetros al formato Comprobante
+		const empCfg = db.getEmpresaConfig?.();
+		const empCondIva = String(empCfg?.condicion_iva || '').toUpperCase() as any || 'RI';
+		const comprobante: Comprobante = {
+			tipo: this.mapTipoComprobante(params.tipo_cbte),
+			cbteTipo: params.tipo_cbte,
+			puntoVenta: params.pto_vta,
+			fecha: params.fecha,
+			empresa: {
+				cuit: params.cuit_emisor,
+				razonSocial: params.empresa?.nombre || 'Empresa',
+				domicilio: params.empresa?.domicilio || '',
+				condicionIva: empCondIva
+			},
+			cliente: params.cuit_receptor ? {
+				cuit: params.cuit_receptor,
+				razonSocial: params.razon_social_receptor || 'Cliente',
+				condicionIva: params.condicion_iva_receptor as any || 'CF',
+				// 🔑 Propagar ivareceptor desde .fac (código ARCA)
+				ivareceptorCode: (params as any).ivareceptor
+			} : (params.condicion_iva_receptor ? {
+				razonSocial: params.razon_social_receptor || 'Cliente',
+				condicionIva: params.condicion_iva_receptor as any || 'CF',
+				// 🔑 Propagar ivareceptor desde .fac (código ARCA)
+				ivareceptorCode: (params as any).ivareceptor
+			} as any : undefined),
 				items: (params.detalle || []).map(item => ({
 					descripcion: item.descripcion,
 					cantidad: item.cantidad,
@@ -78,6 +83,21 @@ export class FacturacionService {
 				,
 				validarPadron13: (params as any).validarPadron13 === true
 			};
+			
+			// ✨ Si vienen totales_fac parseados del .fac, añadirlos al comprobante
+			if ((params as any).totales_fac) {
+				(comprobante as any).totales_fac = (params as any).totales_fac;
+			}
+			
+			// 🔑 Propagar cotiza_hint para moneda extranjera
+			if ((params as any).cotiza_hint) {
+				(comprobante as any).cotiza_hint = (params as any).cotiza_hint;
+			}
+			
+			// 🔑 Propagar can_mis_mon_ext
+			if ((params as any).can_mis_mon_ext) {
+				(comprobante as any).can_mis_mon_ext = (params as any).can_mis_mon_ext;
+			}
 
 			this.debugLog('Solicitando CAE...');
 			outAny = await afipService.solicitarCAE(comprobante);
@@ -88,19 +108,26 @@ export class FacturacionService {
 			if (Array.isArray(outAny?.observaciones) && outAny.observaciones.length > 0) {
 				/* eslint-disable no-console */
 				console.warn(`[FACT][Observaciones] Factura emitida con advertencias:`, outAny.observaciones);
+				// Reflejar en visor Caja (auto-report-notice)
+				try {
+					const { BrowserWindow } = require('electron');
+					const win = BrowserWindow.getAllWindows()?.[0];
+					if (win) {
+						for (const ob of (outAny.observaciones as any[])) {
+							const code = (ob?.Code ?? ob?.code ?? '').toString();
+							const msg = (ob?.Msg ?? ob?.message ?? '').toString();
+							win.webContents.send('auto-report-notice', { info: `Obs AFIP: ${code} ${msg}` });
+						}
+					}
+				} catch {}
 			}
 			
-			// Obtener número del último autorizado + 1
-			const cfg = db.getAfipConfig();
-			if (cfg) {
-				this.debugLog('Consultando último autorizado...');
-				const ultimo = await afipService.getUltimoAutorizado(params.pto_vta, comprobante.tipo);
-				numero = ultimo + 1;
-				this.debugLog('Número asignado', numero);
-			} else {
-				numero = Math.floor(Date.now() / 1000); // Fallback
-				this.debugLog('CFG AFIP ausente, numero fallback', numero);
+			// Usar el número oficial devuelto por AFIP (CbteDesde/CbteHasta)
+			numero = Number((outAny as any)?.numero || 0);
+			if (!Number.isFinite(numero) || numero <= 0) {
+				throw new Error('NUMERO_AFIP_MISSING');
 			}
+			this.debugLog('Número (AFIP)', numero);
 		} catch (e: any) {
 			this.debugLog('Error emitiendo CAE', e?.message || e);
 			const fallbackNumero = Math.floor(Date.now() / 1000);
@@ -148,17 +175,27 @@ export class FacturacionService {
 		if (!bgPath) bgPath = path.join(base, 'public', 'Noimage.jpg');
 		// eslint-disable-next-line @typescript-eslint/no-var-requires
 		const layout = require('../invoiceLayout.mendoza').default || require('../invoiceLayout.mendoza');
-		const outDir = path.join(app.getPath('documents'), 'facturas');
-		try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
-		// Prefijo según tipo para evitar pisar archivos entre Facturas/NC/ND
+		// Guardado local de PDF: deshabilitado el directorio Documents/facturas
+		// const outDir = path.join(app.getPath('documents'), 'facturas');
+		// try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+		// Prefijo según tipo (normalizado como el flujo .fac)
 		const t = Number(params.tipo_cbte);
 		const clasePorTipo = (tipo: number): 'A'|'B'|'C' => (tipo===1||tipo===2||tipo===3)?'A':(tipo===6||tipo===7||tipo===8)?'B':'C';
+		const letra = clasePorTipo(t);
 		let prefix = 'CBTE';
-		if ([3,8,13].includes(t)) prefix = `NC_${clasePorTipo(t)}`; else
-		if ([2,7,12].includes(t)) prefix = `ND_${clasePorTipo(t)}`; else
-		if ([1,6,11].includes(t)) prefix = `F${clasePorTipo(t)}`;
+		if ([3,8,13].includes(t)) prefix = `NC${letra}`; else
+		if ([2,7,12].includes(t)) prefix = `ND${letra}`; else
+		if ([1,6,11].includes(t)) prefix = `F${letra}`;
 		const outName = `${prefix}_${String(params.pto_vta).padStart(4,'0')}-${String(numero).padStart(8,'0')}.pdf`;
-		const outPath = path.join(outDir, outName);
+		// Redirigir a la carpeta normalizada de ventas (igual que .fac):
+		// Obtener rutas de ventas desde la misma lógica usada en .fac
+		// eslint-disable-next-line @typescript-eslint/no-var-requires
+		const { readFacturasConfig } = require('../modules/facturacion/facProcessor');
+		const cfg = readFacturasConfig();
+		const makeMonthDir = (root?: string) => { if (!root) return null; const venta = path.join(String(root), `Ventas_PV${params.pto_vta}`); const yyyymm = dayjs(params.fecha, 'YYYYMMDD').format('YYYYMM'); const dir = path.join(venta, `F${yyyymm}`); try { fs.mkdirSync(dir, { recursive: true }); } catch {} return dir; };
+		const outLocalDir = makeMonthDir((cfg as any)?.outLocal);
+		if (!outLocalDir) throw new Error('Ruta Local no configurada para Facturas (outLocal)');
+		const outPath = path.join(outLocalDir, outName);
 		const ivaPorAlicuota: Record<string, number> = {};
 		for (const d of (params.detalle || [])) {
 			const baseImp = d.cantidad * d.precioUnitario;
@@ -172,7 +209,8 @@ export class FacturacionService {
 				empresa: { nombre: params.empresa?.nombre || 'Empresa', domicilio: params.empresa?.domicilio, cuit: params.empresa?.cuit || params.cuit_emisor, pv: params.pto_vta, numero },
 				cliente: { nombre: params.razon_social_receptor || 'Consumidor Final', cuitDni: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
 				fecha: dayjs(params.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
-				tipoComprobanteLetra: ([3,8,13].includes(params.tipo_cbte) ? 'NC' : (params.tipo_cbte===6 ? 'B' : 'A')),
+				tipoComprobanteLetra: letra,
+				tipoComprobanteLiteral: ([3,8,13].includes(t) ? 'NOTA DE CREDITO' : ([2,7,12].includes(t) ? 'NOTA DE DEBITO' : 'FACTURA')),
 				mipymeModo: (params as any).modoFin,
 				items: (params.detalle || []).map(d => ({ descripcion: d.descripcion, cantidad: d.cantidad, unitario: d.precioUnitario, iva: d.alicuotaIva })),
 				netoGravado: params.neto,
@@ -186,6 +224,14 @@ export class FacturacionService {
 			qrDataUrl: qrUrl
 		});
 		const pdfPath = outPath;
+		// Duplicar a outRed1/outRed2 si están configurados (mismo criterio que .fac)
+		try {
+			const makeMonthDir2 = (root?: string) => { if (!root) return null; const venta = path.join(String(root), `Ventas_PV${params.pto_vta}`); const yyyymm = dayjs(params.fecha, 'YYYYMMDD').format('YYYYMM'); const dir = path.join(venta, `F${yyyymm}`); try { fs.mkdirSync(dir, { recursive: true }); } catch {} return dir; };
+			const outRed1Dir = makeMonthDir2((cfg as any)?.outRed1);
+			const outRed2Dir = makeMonthDir2((cfg as any)?.outRed2);
+			if (outRed1Dir) { try { fs.copyFileSync(pdfPath, path.join(outRed1Dir, outName)); } catch {} }
+			if (outRed2Dir) { try { fs.copyFileSync(pdfPath, path.join(outRed2Dir, outName)); } catch {} }
+		} catch {}
 		this.debugLog('PDF generado (layout)', pdfPath);
 
 		// Guardar en DB
@@ -269,49 +315,46 @@ export class FacturacionService {
 			});
 
 			// Generar PDF
-			const pdfFileName = `factura_${numero}_${Date.now()}.pdf`;
-			const pdfPath = path.join(this.getFacturasDir(), pdfFileName);
-
-			await getFacturaGenerator().generarPdf(params.plantilla || 'factura_a', {
-				emisor: {
-					nombre: params.empresa?.nombre || 'Empresa',
-					cuit: params.cuit_emisor,
-					domicilio: params.empresa?.domicilio,
-					iibb: params.empresa?.iibb,
-					inicio: params.empresa?.inicio,
-					logoPath: params.logoPath
-				},
-				receptor: {
-					nombre: params.razon_social_receptor || 'Cliente',
-					cuit: params.cuit_receptor || undefined,
-					condicionIva: params.condicion_iva_receptor || 'CF',
-					domicilio: undefined
-				},
-				cbte: {
-					tipo: String(params.tipo_cbte),
-					pto_vta: params.pto_vta,
-					numero,
-					fecha: params.fecha
-				},
-				detalle: params.detalle?.map(item => ({
-					descripcion: item.descripcion,
-					cantidad: item.cantidad,
-					precioUnitario: item.precioUnitario,
-					importe: item.cantidad * item.precioUnitario,
-					alicuotaIva: item.alicuotaIva
-				})) || [],
-				totales: {
-					neto: params.neto,
-					iva: params.iva,
-					total: params.total
-				},
-				afip: {
+			// Reutilizar el flujo normalizado de PDFs a Ventas_PV (igual que .fac)
+			const t = Number(params.tipo_cbte);
+			const letra = (t===1||t===2||t===3)?'A':(t===6||t===7||t===8)?'B':'C';
+			const prefix = [3,8,13].includes(t) ? `NC${letra}` : ([2,7,12].includes(t) ? `ND${letra}` : `F${letra}`);
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { readFacturasConfig } = require('../modules/facturacion/facProcessor');
+			const cfg = readFacturasConfig();
+			const makeMonthDir = (root?: string) => { if (!root) return null; const venta = path.join(String(root), `Ventas_PV${params.pto_vta}`); const yyyymm = dayjs(params.fecha, 'YYYYMMDD').format('YYYYMM'); const dir = path.join(venta, `F${yyyymm}`); try { fs.mkdirSync(dir,{recursive:true}); } catch {} return dir; };
+			const outLocalDir = makeMonthDir(cfg?.outLocal); if (!outLocalDir) throw new Error('Ruta Local no configurada para Facturas');
+			const outRed1Dir = makeMonthDir(cfg?.outRed1); const outRed2Dir = makeMonthDir(cfg?.outRed2);
+			const outName = `${prefix}_${String(params.pto_vta).padStart(4,'0')}-${String(numero).padStart(8,'0')}.pdf`;
+			const pdfPath = path.join(outLocalDir, outName);
+			// Layout unificado
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const layout = require('../invoiceLayout.mendoza').default || require('../invoiceLayout.mendoza');
+			const bgCandidates = [path.join(app.getAppPath(), 'templates', 'MiFondo-pagado.jpg'), path.join(app.getAppPath(), 'templates', 'MiFondo.jpg')];
+			let bgPath = bgCandidates.find((p: string) => fs.existsSync(p)); if (!bgPath) bgPath = path.join(app.getAppPath(), 'public', 'Noimage.jpg');
+			await generateInvoicePdf({
+				bgPath,
+				outputPath: pdfPath,
+				data: {
+					empresa: { nombre: params.empresa?.nombre || 'Empresa', domicilio: params.empresa?.domicilio, cuit: params.empresa?.cuit || params.cuit_emisor, pv: params.pto_vta, numero },
+					cliente: { nombre: params.razon_social_receptor || 'Consumidor Final', cuitDni: params.cuit_receptor, condicionIva: params.condicion_iva_receptor },
+					fecha: dayjs(params.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
+					tipoComprobanteLetra: letra,
+					tipoComprobanteLiteral: ([3,8,13].includes(t) ? 'NOTA DE CREDITO' : ([2,7,12].includes(t) ? 'NOTA DE DEBITO' : 'FACTURA')),
+					items: (params.detalle || []).map(d => ({ descripcion: d.descripcion, cantidad: d.cantidad, unitario: d.precioUnitario, iva: d.alicuotaIva })),
+					netoGravado: params.neto,
+					ivaPorAlicuota: {},
+					ivaTotal: params.iva,
+					total: params.total,
 					cae,
-					cae_vto: caeVencimiento,
-					qr_url: qrUrl
-				}
+					caeVto: dayjs(caeVencimiento, 'YYYYMMDD').format('YYYY-MM-DD')
+				},
+				config: layout,
+				qrDataUrl: qrUrl
 			});
-
+			try { if (outRed1Dir) fs.copyFileSync(pdfPath, path.join(outRed1Dir, outName)); } catch {}
+			try { if (outRed2Dir) fs.copyFileSync(pdfPath, path.join(outRed2Dir, outName)); } catch {}
+ 
 			// Guardar en base de datos con información provincial
 			const facturaRecord = {
 				numero,
@@ -387,7 +430,7 @@ export class FacturacionService {
 	 * Convierte parámetros legacy a formato Comprobante
 	 */
 	private convertirAComprobante(params: EmitirFacturaParams): Comprobante {
-		return {
+		const comprobante: any = {
 			tipo: this.mapTipoComprobante(params.tipo_cbte),
 			puntoVenta: params.pto_vta,
 			fecha: params.fecha,
@@ -417,6 +460,13 @@ export class FacturacionService {
 			observaciones: '',
 			codigoOperacion: ''
 		};
+		
+		// 🔑 Propagar cotiza_hint si viene del .fac (para moneda extranjera)
+		if ((params as any).cotiza_hint) {
+			comprobante.cotiza_hint = (params as any).cotiza_hint;
+		}
+		
+		return comprobante;
 	}
 
 	/**
@@ -425,14 +475,14 @@ export class FacturacionService {
 	private mapTipoComprobante(tipoCbte: number): TipoComprobante {
 		switch (tipoCbte) {
 			case 1: return 'A';
-			case 2: return 'A'; // ND A
-			case 3: return 'FA'; // NC A (alias)
+			case 2: return 'A'; // ND A (se distingue por cbteTipo)
+			case 3: return 'NC'; // NC A
 			case 6: return 'B';
-			case 7: return 'B'; // ND B
-			case 8: return 'FB'; // NC B (alias)
+			case 7: return 'B'; // ND B (se distingue por cbteTipo)
+			case 8: return 'NC'; // NC B
 			case 11: return 'C';
-			case 12: return 'C'; // ND C
-			case 13: return 'NC'; // NC C (alias)
+			case 12: return 'C'; // ND C (se distingue por cbteTipo)
+			case 13: return 'NC'; // NC C
 			default: return 'C';
 		}
 	}

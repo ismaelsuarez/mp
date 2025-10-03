@@ -1296,40 +1296,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (afipCfgStatus) afipCfgStatus.textContent = res?.ok ? 'Configuración guardada' : `Error: ${res?.error || ''}`;
   });
 
-	async function cargarListadoFacturas() {
-		const desde = (document.getElementById('AFIP_FILTRO_DESDE') as HTMLInputElement)?.value?.trim();
-		const hasta = (document.getElementById('AFIP_FILTRO_HASTA') as HTMLInputElement)?.value?.trim();
-		const res = await (window.api as any).facturacion?.listar({ desde: desde || undefined, hasta: hasta || undefined });
-		const tbody = document.querySelector('#tablaFacturasAfip tbody');
-		if (!tbody) return;
-		(tbody as HTMLElement).innerHTML = '';
-		if (res?.ok && Array.isArray(res.rows)) {
-			for (const r of res.rows) {
-				const tr = document.createElement('tr');
-				tr.innerHTML = `
-					<td class="py-1">${r.fecha || ''}</td>
-					<td class="py-1">${r.pto_vta}</td>
-					<td class="py-1">${r.tipo_cbte}</td>
-					<td class="py-1">${String(r.numero).padStart(8, '0')}</td>
-					<td class="py-1">${r.razon_social_receptor || r.cuit_receptor || ''}</td>
-					<td class="py-1">$${Number(r.total).toFixed(2)}</td>
-					<td class="py-1">${r.cae}</td>
-					<td class="py-1"><button data-pdf="${r.pdf_path}" class="btnVerPdf px-2 py-0.5 text-xs rounded border border-slate-600 hover:bg-slate-700">Abrir</button></td>
-				`;
-				(tbody as HTMLElement).appendChild(tr);
-			}
-			// Bind abrir PDF
-			(tbody as HTMLElement).querySelectorAll('button.btnVerPdf')?.forEach((btn) => {
-				btn.addEventListener('click', async () => {
-					const fp = (btn as HTMLButtonElement).getAttribute('data-pdf') || '';
-					if (fp) await (window.api as any).facturacion?.abrirPdf(fp);
-				});
-			});
-		}
-	}
-	(document.getElementById('btnAfipBuscar') as HTMLButtonElement | null)?.addEventListener('click', cargarListadoFacturas);
-	setTimeout(() => cargarListadoFacturas(), 1000);
-
 	// Empresa – cargar/guardar
 	(async () => {
 		try {
@@ -1386,29 +1352,6 @@ window.addEventListener('DOMContentLoaded', () => {
 		const el = document.getElementById('paramStatus');
 		if (el) el.textContent = res?.ok ? 'Guardado' : `Error: ${res?.error || ''}`;
 	});
-
-	// Historial local de PDFs
-	async function renderPdfs() {
-		const list = document.getElementById('listaPdfsAfip');
-		if (!list) return;
-		list.innerHTML = '';
-		const res = await (window.api as any).facturacion?.listarPdfs();
-		if (res?.ok && Array.isArray(res.rows)) {
-			for (const f of res.rows) {
-				const li = document.createElement('li');
-				li.innerHTML = `<button data-path="${f.path}" class="px-2 py-0.5 text-xs rounded border border-slate-600 hover:bg-slate-700">Abrir</button> <span>${f.name}</span>`;
-				list.appendChild(li);
-			}
-			list.querySelectorAll('button[data-path]')?.forEach(btn => {
-				btn.addEventListener('click', async () => {
-					const fp = (btn as HTMLButtonElement).getAttribute('data-path') || '';
-					await (window.api as any).facturacion?.abrirPdf(fp);
-				});
-			});
-		}
-	}
-	(document.getElementById('btnPdfsRefresh') as HTMLButtonElement | null)?.addEventListener('click', renderPdfs);
-	setTimeout(() => renderPdfs(), 1000);
 
 	// ====== Perfiles de Configuración (UI wiring) ======
 	async function perfilesLoadList() {
@@ -1797,7 +1740,7 @@ window.addEventListener('DOMContentLoaded', () => {
 	// Botón limpiar items
 	(document.getElementById('btnLimpiarItems') as HTMLButtonElement | null)?.addEventListener('click', limpiarItemsPrueba);
 	
-	// Emitir factura de prueba
+	// Emitir factura
 	(document.getElementById('btnPruebaEmitir') as HTMLButtonElement | null)?.addEventListener('click', async () => {
 		try {
 			// Obtener configuración AFIP
@@ -1884,7 +1827,7 @@ window.addEventListener('DOMContentLoaded', () => {
 			const totalFinal = totalNeto + totalIva;
 			
 			const status = document.getElementById('pruebaStatus');
-			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Emitiendo factura de prueba...</span>';
+			if (status) status.innerHTML = '<span class="text-blue-400">🔄 Emitiendo factura...</span>';
 			
 			const hoy = new Date();
 			const yyyy = hoy.getFullYear();
@@ -1933,7 +1876,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 			if (res?.ok) {
 				if (status) status.innerHTML = `<span class="text-green-400">✅ Factura emitida Nº ${res.numero} - CAE: ${res.cae}</span>`;
-				showToast(`Factura de prueba emitida exitosamente - CAE: ${res.cae}`);
+				showToast(`Factura emitida exitosamente - CAE: ${res.cae}`);
 				// Mostrar observaciones si existen
 				if (Array.isArray(res.observaciones) && res.observaciones.length > 0) {
 					showToast(`Observaciones AFIP: ${JSON.stringify(res.observaciones)}`);
@@ -1951,11 +1894,9 @@ window.addEventListener('DOMContentLoaded', () => {
 				(document.getElementById('pruebaFacturaDocTipo') as HTMLSelectElement).value = '80';
 				(document.getElementById('pruebaFacturaMoneda') as HTMLSelectElement).value = 'PES';
 				limpiarItemsPrueba();
-				// Recargar listado
-				cargarListadoFacturas();
 			} else {
 				if (status) status.innerHTML = `<span class=\"text-red-400\">❌ Error: ${res?.error || 'falló emisión'}</span>`;
-				showToast(`Error en factura de prueba: ${res?.error || 'Error desconocido'}`);
+				showToast(`Error en factura: ${res?.error || 'Error desconocido'}`);
 			}
 		} catch (e: any) {
 			const status = document.getElementById('pruebaStatus');
@@ -2079,31 +2020,8 @@ window.addEventListener('DOMContentLoaded', () => {
 		// Inicializar valores por defecto AFIP
 		inicializarValoresPorDefectoAFIP();
 		
-		// Agregar algunos items de ejemplo
-		agregarItemPrueba();
-		agregarItemPrueba();
-		agregarItemPrueba();
-		
-		// Configurar items de ejemplo
-		if (itemsPrueba.length >= 3) {
-			// Item 1: Producto con IVA 21%
-			actualizarItemPrueba(itemsPrueba[0].id, 'descripcion', 'Mouse inalámbrico Logitech');
-			actualizarItemPrueba(itemsPrueba[0].id, 'cantidad', 2);
-			actualizarItemPrueba(itemsPrueba[0].id, 'precioUnitario', 1500);
-			actualizarItemPrueba(itemsPrueba[0].id, 'alicuotaIva', 21);
-			
-			// Item 2: Servicio con IVA 21%
-			actualizarItemPrueba(itemsPrueba[1].id, 'descripcion', 'Servicio de reparación PC');
-			actualizarItemPrueba(itemsPrueba[1].id, 'cantidad', 1);
-			actualizarItemPrueba(itemsPrueba[1].id, 'precioUnitario', 2500);
-			actualizarItemPrueba(itemsPrueba[1].id, 'alicuotaIva', 21);
-			
-			// Item 3: Producto con IVA 10.5%
-			actualizarItemPrueba(itemsPrueba[2].id, 'descripcion', 'Libro técnico informática');
-			actualizarItemPrueba(itemsPrueba[2].id, 'cantidad', 1);
-			actualizarItemPrueba(itemsPrueba[2].id, 'precioUnitario', 800);
-			actualizarItemPrueba(itemsPrueba[2].id, 'alicuotaIva', 10.5);
-		}
+		// Items de ejemplo ELIMINADOS - El usuario puede agregar items con el botón "+ Agregar Item"
+		// La tabla inicia vacía para una experiencia más limpia
 	}, 1000);
 
 	// Mostrar/ocultar fechas de servicio según concepto

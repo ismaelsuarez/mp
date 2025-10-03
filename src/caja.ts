@@ -1,15 +1,20 @@
-function selectPane(name: 'home' | 'table') {
+function selectPane(name: 'home' | 'table' | 'fact') {
     const home = document.getElementById('pane-home') as HTMLElement | null;
     const table = document.getElementById('pane-table') as HTMLElement | null;
+    const fact = document.getElementById('pane-fact') as HTMLElement | null;
     const badge = document.getElementById('todayBadge') as HTMLElement | null;
     const auto = document.getElementById('autoIndicatorCaja') as HTMLElement | null;
     const timer = document.getElementById('autoTimer') as HTMLElement | null;
     if (!home || !table) return;
     home.style.display = name === 'home' ? 'block' : 'none';
     table.style.display = name === 'table' ? 'block' : 'none';
-    if (badge) badge.style.display = name === 'home' ? 'inline-block' : 'none';
-    if (auto) auto.style.display = name === 'home' ? 'inline-block' : 'none';
-    if (timer) timer.style.display = name === 'home' ? 'block' : 'none';
+    if (fact) fact.style.display = name === 'fact' ? 'block' : 'none';
+    if (badge) badge.style.display = 'none';
+    if (auto) auto.style.display = 'none';
+    if (timer) timer.style.display = 'none';
+    // Mostrar el indicador ARCA sólo en Inicio
+    const arca = document.getElementById('arcaIndicator') as HTMLElement | null;
+    if (arca) arca.style.display = name === 'home' ? 'block' : 'none';
 }
 
 function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {
@@ -88,6 +93,14 @@ async function refreshTimer() {
     }
 }
 
+function setArcaIndicator(status: 'up'|'degraded'|'down') {
+    const img = document.getElementById('arcaIndicator') as HTMLImageElement | null;
+    if (!img) return;
+    const map: any = { up: 'arca_verde.png', degraded: 'arca_amarillo.png', down: 'arca_rojo.png' };
+    img.src = `./icons/${map[status] || map.up}`;
+    img.title = status === 'up' ? 'ARCA/AFIP: OK' : status === 'degraded' ? 'ARCA/AFIP: Lento' : 'ARCA/AFIP: Caído';
+}
+
 async function handleAutoButtonClick() {
     try {
         const status = await (window.api as any).autoStatus?.();
@@ -130,10 +143,12 @@ function appendLog(line: string) {
     const ss = String(now.getSeconds()).padStart(2,'0');
     const at = `${hh}:${mm}:${ss}`;
     const current = (box.textContent || '').split('\n').filter(Boolean);
-    const maxLines = 3;
+    const maxLines = 50; // Aumentado para aprovechar el scroll (antes: 4)
     current.push(`[${at}] ${line}`);
     const trimmed = current.slice(-maxLines);
     box.textContent = trimmed.join('\n');
+    
+    // Auto-scroll al final cuando se agrega nueva línea
     box.scrollTop = box.scrollHeight;
 }
 
@@ -207,23 +222,105 @@ function renderTodayBadge() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-	// Tabs
-	const navTabs = Array.from(document.querySelectorAll('nav .tab')) as HTMLElement[];
+    // Tabs
+    const navTabs = Array.from(document.querySelectorAll('nav .tab')) as HTMLElement[];
 	for (const t of navTabs) t.addEventListener('click', () => {
-		const name = (t.dataset.tab as any) as 'home' | 'table';
+        const name = (t.dataset.tab as any) as 'home' | 'table' | 'fact';
 		for (const x of navTabs) x.classList.toggle('bg-slate-700', x === t);
 		for (const x of navTabs) x.classList.toggle('bg-slate-800', x !== t);
 		selectPane(name);
 	});
 
-	// Botón generar reporte
-	document.getElementById('btnCajaGenerate')?.addEventListener('click', async () => {
-		appendLog('Generando reporte...');
-		const res = await window.api.generateReport();
-		appendLog(`Reporte generado: ${res.count} pagos`);
-		// Render quick last 8 from returned rows
-		renderLast8((res.rows || []).map((r: any) => ({ id: r.id, status: r.status, amount: r.amount, date: r.date })));
-	});
+    // Pestaña Facturas: selector de fecha + calcular
+    const factPane = document.getElementById('pane-fact');
+    if (factPane) {
+        const controls = document.createElement('div');
+        controls.className = 'flex items-center gap-2 mb-2 text-sm';
+        const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'bg-slate-800 border border-slate-600 rounded px-1.5 py-0.5 text-slate-200 text-sm';
+        const today = new Date(); inp.value = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+        const btn = document.createElement('button'); btn.textContent = 'Calcular'; btn.className = 'px-2.5 py-0.5 rounded bg-emerald-600 text-white hover:bg-emerald-500 text-sm';
+        const totalEl = document.createElement('div'); totalEl.className = 'ml-auto text-slate-300 font-semibold text-sm'; totalEl.id = 'factTotalGeneral';
+        controls.appendChild(inp); controls.appendChild(btn); controls.appendChild(totalEl);
+        factPane.insertBefore(controls, factPane.firstChild);
+        
+        const tbodyPesos = document.getElementById('cajaFactTableBodyPesos') as HTMLElement | null;
+        const tbodyDolar = document.getElementById('cajaFactTableBodyDolar') as HTMLElement | null;
+        const headerPesos = document.getElementById('factHeaderPesos') as HTMLElement | null;
+        const headerDolar = document.getElementById('factHeaderDolar') as HTMLElement | null;
+        const headerPesosText = document.getElementById('factHeaderPesosText') as HTMLElement | null;
+        const headerDolarText = document.getElementById('factHeaderDolarText') as HTMLElement | null;
+        const tablePesos = document.getElementById('factTablePesos') as HTMLElement | null;
+        const tableDolar = document.getElementById('factTableDolar') as HTMLElement | null;
+        
+        // Toggle collapse para PESOS
+        let colapsadoPesos = true;
+        headerPesos?.addEventListener('click', () => {
+            colapsadoPesos = !colapsadoPesos;
+            if (tablePesos) tablePesos.classList.toggle('hidden', colapsadoPesos);
+            if (headerPesosText) headerPesosText.textContent = headerPesosText.textContent?.replace(/^[▶▼]\s*/, colapsadoPesos ? '▶ ' : '▼ ') || '';
+        });
+        
+        // Toggle collapse para DÓLARES
+        let colapsadoDolar = true;
+        headerDolar?.addEventListener('click', () => {
+            colapsadoDolar = !colapsadoDolar;
+            if (tableDolar) tableDolar.classList.toggle('hidden', colapsadoDolar);
+            if (headerDolarText) headerDolarText.textContent = headerDolarText.textContent?.replace(/^[▶▼]\s*/, colapsadoDolar ? '▶ ' : '▼ ') || '';
+        });
+        
+        const render = (rows: any[], totalGeneral: number, totalGeneralUSD?: number) => {
+            const fmt = (n: number) => new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(n||0);
+            
+            // Separar filas por moneda
+            const tiposPesos = ['FB','FA','NCB','NCA','REC','REM'];
+            const tiposDolar = ['FBD','FAD','NCBD','NCAD'];
+            const rowsPesos = rows.filter(r => tiposPesos.includes(r.tipo));
+            const rowsDolar = rows.filter(r => tiposDolar.includes(r.tipo));
+            
+            // Contar comprobantes con datos
+            const countPesos = rowsPesos.filter(r => r.desde || r.hasta || r.total > 0).length;
+            const countDolar = rowsDolar.filter(r => r.desde || r.hasta || r.total > 0).length;
+            
+            // Renderizar tabla PESOS
+            if (tbodyPesos) tbodyPesos.innerHTML = rowsPesos.map(r => {
+                const totalDisplay = r.tipo === 'REM' ? '' : fmt(r.total||0);
+                return `<tr>
+                    <td>${r.tipo}</td>
+                    <td>${r.desde ?? ''}</td>
+                    <td>${r.hasta ?? ''}</td>
+                    <td class="text-right">${totalDisplay}</td>
+                </tr>`;
+            }).join('');
+            
+            // Renderizar tabla DÓLARES
+            if (tbodyDolar) tbodyDolar.innerHTML = rowsDolar.map(r => {
+                const tipoSinD = r.tipo.replace('D',''); // FAD → FA, FBD → FB
+                return `<tr>
+                    <td>${tipoSinD}</td>
+                    <td>${r.desde ?? ''}</td>
+                    <td>${r.hasta ?? ''}</td>
+                    <td class="text-right">${fmt(r.total||0)}</td>
+                </tr>`;
+            }).join('');
+            
+            // Actualizar headers con resumen
+            if (headerPesosText) headerPesosText.textContent = `▶ Facturas en PESOS (${countPesos} comp. - Total: ${fmt(totalGeneral)})`;
+            if (headerDolarText) headerDolarText.textContent = `▶ Facturas en DÓLARES 💵 (${countDolar} comp. - Total: ${fmt(totalGeneralUSD||0)})`;
+            
+            // Total general (arriba)
+            let totalText = `Total (FA+FB): ${fmt(totalGeneral)}`;
+            if (totalGeneralUSD && totalGeneralUSD > 0) {
+                totalText += ` | USD: ${fmt(totalGeneralUSD)}`;
+            }
+            totalEl.textContent = totalText;
+        };
+        
+        btn.addEventListener('click', async () => {
+            appendLog('Calculando resumen diario...');
+            const res = await (window.api as any).caja.getSummary(inp.value);
+            if (res?.ok) { render(res.rows||[], res.totalGeneral||0, res.totalGeneralUSD||0); appendLog('Resumen listo'); } else { appendLog(`Error resumen: ${res?.error||'desconocido'}`); }
+        });
+    }
 
 	// Función para procesar facturación automática desde archivo
 	window.processAutomaticBilling = async function(data: any) {
@@ -301,6 +398,11 @@ window.addEventListener('DOMContentLoaded', () => {
 			updateTimer(payload.remaining || 0, payload.configured || 0);
 		}
 	});
+
+    // Suscribirse al estado de salud de WS (si backend emite)
+    try {
+        (window as any).api?.onWsHealth?.((p: any) => { if (p?.status) setArcaIndicator(p.status); });
+    } catch {}
 
 	refreshAutoIndicator();
 	refreshTimer();

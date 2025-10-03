@@ -1,8 +1,30 @@
 # Notas de versión
-## 1.0.17
-- Modo Imagen - "Ir al Frente Automáticamente"
-  - **VENTANA=comun2**: actualiza solo la ventana, modo publicidad.
-## 1.0.16
+
+## 1.0.20
+Fecha de publicación: 2025-10-01
+- Facturación (AFIP/ARCA)
+  - Número oficial: se usa el número devuelto por AFIP/ARCA (CbteDesde/CbteHasta) en todo el sistema; se elimina `getLastVoucher()+1` (previene duplicados locales).
+  - NC A/B (3/8) con período asociado (fallback): si falta `AFECTA FACT.N:` válido en `.fac`, se envía `PeriodoAsoc` (`FchDesde = primer día del mes de CbteFch`, `FchHasta = CbteFch`). Exclusividad asegurada: sólo `CbtesAsoc` o `PeriodoAsoc`.
+  - PDF: para clase B (FB/NCB/NDB) se ocultan NETO/IVA/EXENTO y se imprime sólo `TOTAL`. Para clase A (FA/NCA/NDA) se imprime detalle completo ocultando líneas en `0,00`.
+- Contingencia (.fac)
+  - Idempotencia: además del `sha256`, se evita reprocesar si existe un `.res` homónimo en `out/processing/done` (`[fac.duplicate.skip]`).
+  - Ruteo por tipo: detección de `TIPO:` y derivación a pipelines FAC/REC/REM. Logs al UI: “Procesando …”, “PDF OK …”, “RES OK …”.
+  - Sin `.env`: rutas/tiempos/circuito fijos bajo `app.getPath('userData')`.
+- Recibos y Remitos
+  - `.res` incluyen `IMPORTE TOTAL` y se copia una versión a `userData/fac/out` para el resumen diario.
+  - Logs a UI para inicio/fin (PDF OK / RES OK) y envío por FTP.
+- Modo Caja (UI)
+  - Nueva barra con iconos: Inicio, Movimientos, Facturas, Config. Se removieron "DESCARGAR MP", `auto:Desactivado`, minutero y día.
+  - Visor de logs más prominente (4 líneas con scroll).
+  - Pestaña “Facturas”: selector de fecha + botón “Calcular”. Tabla `Tipo | Desde | Hasta | Total` con filas fijas `FB, FA, NCB, NCA, REC, REM` y footer `Total (FA+FB)`.
+  - Indicador salud AFIP/ARCA (verde/amarillo/rojo) con lógica estricta (DNS+HTTP pleno=verde; HTTP parcial/lento=amarillo; sin HTTP=rojo). Visible sólo en Inicio.
+  - Ajustes de compactación para evitar scroll vertical de la ventana.
+- Infraestructura / Backend
+  - Nuevo handler IPC `caja:get-summary` para calcular el resumen por fecha a partir de `.res` persistidos.
+  - Broadcast `ws-health-update` desde `WSHealthService` al renderer.
+- Documentación
+  - Actualizados `documentacion_interna/facturacion/facturacion-auditoria.md` y `documentacion_interna/doc_modo_caja/MODO_CAJA_ARQUITECTURA.md` con todos los cambios.
+
 ## 1.0.15
 ## 1.0.14
 Fecha de publicación: 2025-01-27

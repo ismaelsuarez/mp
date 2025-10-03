@@ -542,7 +542,7 @@
 						<div>
 							<label class="block text-sm mb-1">Entorno</label>
 							<select id="GALICIA_ENVIRONMENT" class="w-full">
-								<option value="sandbox">Sandbox (Pruebas)</option>
+								<option value="sandbox">Sandbox (Homologación)</option>
 								<option value="production">Producción</option>
 							</select>
 							<p class="text-xs text-slate-500 mt-1">Selecciona el entorno de la API de Galicia.</p>
@@ -561,128 +561,120 @@
 
 				<details class="group mb-4 border border-slate-700 rounded-md">
 					<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
-						📄 Facturación (AFIP) (en construcción)
+						📄 Facturación Electrónica (AFIP)
 					</summary>
 					<div class="p-3 space-y-4">
 						<!-- Empresa -->
-						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
-							<div class="text-sm font-semibold mb-2">Datos de la empresa</div>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-								<label>Razón social
-									<input id="EMP_RAZON" placeholder="Mi Empresa S.A." />
-								</label>
-								<label>CUIT
-									<input id="EMP_CUIT" placeholder="20123456789" />
-								</label>
-								<label class="md:col-span-2">Domicilio
-									<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
-								</label>
-								<label>Condición IVA
-								<select id="EMP_IVA">
-									<option value="RI">Responsable Inscripto</option>
-									<option value="CF">Consumidor Final</option>
-								</select>
-								</label>
-								<label>Logo (ruta)
-									<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
-								</label>
-							</div>
-							<div class="flex items-center gap-2 mt-2">
-								<button type="button" id="btnEmpresaGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar empresa</button>
-								<span id="empresaStatus" class="text-xs text-slate-400"></span>
-							</div>
-						</div>
-
-						<!-- Parámetros de Facturación -->
-						<div class="border border-slate-700 rounded-md p-3 bg-slate-800/40">
-							<div class="text-sm font-semibold mb-2">Parámetros</div>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-								<label>Tipo por defecto
-									<select id="FAC_TIPO_DEF">
-										<option value="FA">Factura A</option>
-										<option value="FB">Factura B</option>
-										<option value="FC">Factura C</option>
-										<option value="NC">Nota de crédito A/B</option>
-										<option value="NC_C">Nota de crédito C</option>
-										<option value="RECIBO">Recibo</option>
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								🏢 Datos de la empresa
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label>Razón social
+										<input id="EMP_RAZON" placeholder="Mi Empresa S.A." />
+									</label>
+									<label>CUIT
+										<input id="EMP_CUIT" placeholder="20123456789" />
+									</label>
+									<label class="md:col-span-2">Domicilio
+										<input id="EMP_DOM" placeholder="Calle 123, Ciudad" />
+									</label>
+									<label>Condición IVA
+									<select id="EMP_IVA">
+										<option value="RI">Responsable Inscripto</option>
+										<option value="CF">Consumidor Final</option>
 									</select>
-								</label>
-								<label>Punto de venta
-									<input id="FAC_PTO_VTA_DEF" type="number" placeholder="1" />
-								</label>
-								<label>Numeración
-									<input id="FAC_NUM_DEF" type="number" placeholder="1" />
-								</label>
-							</div>
-							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-								<label class="checkbox inline-flex items-center gap-2"><input id="FAC_EMISOR_MIPYME" type="checkbox" /> Emisor es MiPyME</label>
-								<label>Umbral FCE (monto)
-									<input id="FAC_FCE_UMBRAL" type="number" step="0.01" placeholder="3958316" />
-								</label>
-							</div>
-							<div class="flex items-center gap-2 mt-2">
-								<button type="button" id="btnParamGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar parámetros</button>
-								<span id="paramStatus" class="text-xs text-slate-400"></span>
-							</div>
-						</div>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-							<label>CUIT Emisor
-								<input id="AFIP_CUIT" placeholder="20123456789" />
-							</label>
-							<label>Punto de Venta
-								<input id="AFIP_PTO_VTA" type="number" placeholder="1" />
-							</label>
-							<label>Certificado (.crt/.pem)
-								<input id="AFIP_CERT_PATH" placeholder="C:\\ruta\\cert.pem" />
-								<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
-							</label>
-							<label>Clave privada (.key)
-								<input id="AFIP_KEY_PATH" placeholder="C:\\ruta\\key.pem" />
-								<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
-							</label>
-							<label>Entorno
-								<select id="AFIP_ENTORNO">
-									<option value="homologacion">Homologación</option>
-									<option value="produccion" selected>Producción</option>
-								</select>
-							</label>
-						</div>
-                        <!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
-						<div class="flex items-center gap-2">
-							<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
-							<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
-						</div>
-						<div class="border-t border-slate-700 pt-3">
-							<div class="flex items-center justify-between mb-2">
-								<h4 class="text-sm font-semibold">Facturas emitidas</h4>
-								<div class="flex items-center gap-2 text-xs">
-									<input id="AFIP_FILTRO_DESDE" placeholder="Desde (YYYY-MM-DD)" class="w-40" />
-									<input id="AFIP_FILTRO_HASTA" placeholder="Hasta (YYYY-MM-DD)" class="w-40" />
-									<button type="button" id="btnAfipBuscar" class="px-2 py-1 rounded border border-slate-600 hover:bg-slate-700">Buscar</button>
+									</label>
+									<label>Logo (ruta)
+										<input id="EMP_LOGO" placeholder="C:\\ruta\\logo.png" />
+									</label>
+								</div>
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnEmpresaGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar empresa</button>
+									<span id="empresaStatus" class="text-xs text-slate-400"></span>
 								</div>
 							</div>
-							<table id="tablaFacturasAfip" class="w-full text-xs">
-								<thead>
-									<tr class="text-left text-slate-400">
-										<th class="py-1">Fecha</th>
-										<th class="py-1">Pto Vta</th>
-										<th class="py-1">Tipo</th>
-										<th class="py-1">Número</th>
-										<th class="py-1">Receptor</th>
-										<th class="py-1">Total</th>
-										<th class="py-1">CAE</th>
-										<th class="py-1">PDF</th>
-									</tr>
-								</thead>
-								<tbody></tbody>
-							</table>
-						</div>
+						</details>
 
-						<!-- Pruebas de Facturación -->
+						<!-- Parámetros de Facturación -->
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								⚙️ Parámetros de Facturación
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+									<label>Tipo por defecto
+										<select id="FAC_TIPO_DEF">
+											<option value="FA">Factura A</option>
+											<option value="FB">Factura B</option>
+											<option value="FC">Factura C</option>
+											<option value="NC">Nota de crédito A/B</option>
+											<option value="NC_C">Nota de crédito C</option>
+											<option value="RECIBO">Recibo</option>
+										</select>
+									</label>
+									<label>Punto de venta
+										<input id="FAC_PTO_VTA_DEF" type="number" placeholder="1" />
+									</label>
+									<label>Numeración
+										<input id="FAC_NUM_DEF" type="number" placeholder="1" />
+									</label>
+								</div>
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+									<label class="checkbox inline-flex items-center gap-2"><input id="FAC_EMISOR_MIPYME" type="checkbox" /> Emisor es MiPyME</label>
+									<label>Umbral FCE (monto)
+										<input id="FAC_FCE_UMBRAL" type="number" step="0.01" placeholder="3958316" />
+									</label>
+								</div>
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnParamGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar parámetros</button>
+									<span id="paramStatus" class="text-xs text-slate-400"></span>
+								</div>
+							</div>
+						</details>
+
+						<!-- Configuración AFIP (Credenciales) -->
+						<details class="group border border-slate-700 rounded-md">
+							<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">
+								🔐 Configuración AFIP
+							</summary>
+							<div class="p-3 bg-slate-800/40">
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+									<label>CUIT Emisor
+										<input id="AFIP_CUIT" placeholder="20123456789" />
+									</label>
+									<label>Punto de Venta
+										<input id="AFIP_PTO_VTA" type="number" placeholder="1" />
+									</label>
+									<label>Certificado (.crt/.pem)
+										<input id="AFIP_CERT_PATH" placeholder="C:\\ruta\\cert.pem" />
+										<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
+									</label>
+									<label>Clave privada (.key)
+										<input id="AFIP_KEY_PATH" placeholder="C:\\ruta\\key.pem" />
+										<div class="mt-1 text-xs text-slate-400">Deja vacío para usar Importación Segura</div>
+									</label>
+									<label>Entorno
+										<select id="AFIP_ENTORNO">
+											<option value="homologacion">Homologación</option>
+											<option value="produccion" selected>Producción</option>
+										</select>
+									</label>
+								</div>
+								<!-- Importación segura eliminada para simplificar configuración → usar rutas .crt/.key -->
+								<div class="flex items-center gap-2 mt-2">
+									<button type="button" id="btnAfipGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar configuración AFIP</button>
+									<span id="afipCfgStatus" class="text-xs text-slate-400"></span>
+								</div>
+							</div>
+						</details>
+
+						<!-- Emisión de Facturas -->
 						<div class="border-t border-slate-700 pt-3">
 							<div class="mb-2">
-								<h4 class="text-sm font-semibold text-blue-300">🧪 Pruebas de Facturación</h4>
-								<p class="text-xs text-slate-400">Sección para realizar pruebas de emisión de facturas en modo homologación</p>
+								<h4 class="text-sm font-semibold text-blue-300">📋 Emisión de Facturas</h4>
+								<p class="text-xs text-slate-400">Herramienta para emisión de comprobantes electrónicos AFIP</p>
 							</div>
 							
 							<div class="bg-slate-800/40 border border-slate-700 rounded-md p-3 mb-3">
@@ -833,40 +825,91 @@
 									</div>
 								</div>
 								
-								<!-- Botones de Acción -->
-								<div class="flex items-center flex-wrap gap-2">
-									<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">Emitir Factura de Prueba</button>
-									<button type="button" id="btnAsociarComprobante" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 hidden">Asociar Comprobante</button>
-									<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">Verificar Estado AFIP</button>
-									<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">Validar Certificado</button>
-									<button type="button" id="btnAfipClearTA" class="px-3 py-1.5 text-sm rounded-md bg-amber-700 text-white border-0 hover:bg-amber-600" title="Borrar token/TA y forzar relogin">Borrar TA / Relogin</button>
-									<button type="button" id="btnAfipClearCfg" class="px-3 py-1.5 text-sm rounded-md bg-orange-700 text-white border-0 hover:bg-orange-600" title="Borrar configuración AFIP (cert/key/cuit/pto vta/entorno)">Borrar Config AFIP</button>
-									<button type="button" id="btnDbReset" class="px-3 py-1.5 text-sm rounded-md bg-red-700 text-white border-0 hover:bg-red-600" title="Eliminar base y regenerar esquema">Resetear Base</button>
-									<button type="button" id="btnListPtosVta" class="px-3 py-1.5 text-sm rounded-md bg-purple-600 text-white border-0 hover:bg-purple-500">Listar Puntos de Venta</button>
-									<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">Limpiar Items</button>
-									<button type="button" id="btnIdemList" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600" title="Listar comprobantes en proceso">Listar pendientes</button>
-									<button type="button" id="btnIdemCleanup" class="px-3 py-1.5 text-sm rounded-md bg-rose-700 text-white border-0 hover:bg-rose-600" title="Limpiar idempotencia y liberar bloqueos">Limpiar idempotencia</button>
-									<!-- Checklist compacto -->
-									<div class="ml-2 flex items-center gap-2 text-xs">
-										<button type="button" id="btnChecklist" class="px-2 py-1 text-xs rounded border border-slate-600 bg-slate-800 hover:bg-slate-700">Revisar</button>
-										<span id="chkPadron" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Padrón</span>
-										<span id="chkMiPyme" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• MiPyME</span>
-										<span id="chkItems" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Items</span>
-										<span id="chkReady" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Listo</span>
+								<!-- Grupos de Acciones Organizadas -->
+								<div class="space-y-3">
+									<!-- 🚀 Acciones Principales -->
+									<details class="group border border-blue-700/30 rounded-md bg-blue-900/10">
+										<summary class="cursor-pointer px-3 py-2 bg-blue-800/30 rounded-t-md text-sm font-semibold select-none flex items-center gap-2 hover:bg-blue-800/40">
+											<span>🚀</span>
+											<span>Acciones Principales</span>
+											<span class="text-xs text-blue-300 ml-auto">(Emisión y gestión)</span>
+										</summary>
+										<div class="p-3 flex flex-wrap gap-2">
+											<button type="button" id="btnPruebaEmitir" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">
+												📄 Emitir Factura
+											</button>
+											<button type="button" id="btnAsociarComprobante" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600 hidden">
+												🔗 Asociar Comprobante
+											</button>
+											<button type="button" id="btnLimpiarItems" class="px-3 py-1.5 text-sm rounded-md bg-red-600 text-white border-0 hover:bg-red-500">
+												🗑️ Limpiar Items
+											</button>
+										</div>
+									</details>
+
+									<!-- ✅ Validaciones AFIP -->
+									<details class="group border border-green-700/30 rounded-md bg-green-900/10">
+										<summary class="cursor-pointer px-3 py-2 bg-green-800/30 rounded-t-md text-sm font-semibold select-none flex items-center gap-2 hover:bg-green-800/40">
+											<span>✅</span>
+											<span>Validaciones AFIP</span>
+											<span class="text-xs text-green-300 ml-auto">(Certificados y estado)</span>
+										</summary>
+										<div class="p-3 flex flex-wrap gap-2">
+											<button type="button" id="btnVerificarEstado" class="px-3 py-1.5 text-sm rounded-md bg-green-600 text-white border-0 hover:bg-green-500">
+												🌐 Verificar Estado AFIP
+											</button>
+											<button type="button" id="btnValidarCertificado" class="px-3 py-1.5 text-sm rounded-md bg-yellow-600 text-white border-0 hover:bg-yellow-500">
+												🔐 Validar Certificado
+											</button>
+											<button type="button" id="btnListPtosVta" class="px-3 py-1.5 text-sm rounded-md bg-purple-600 text-white border-0 hover:bg-purple-500">
+												📋 Listar Puntos de Venta
+											</button>
+										</div>
+									</details>
+
+									<!-- 🔧 Administración y Mantenimiento -->
+									<details class="group border border-orange-700/30 rounded-md bg-orange-900/10">
+										<summary class="cursor-pointer px-3 py-2 bg-orange-800/30 rounded-t-md text-sm font-semibold select-none flex items-center gap-2 hover:bg-orange-800/40">
+											<span>🔧</span>
+											<span>Administración y Mantenimiento</span>
+											<span class="text-xs text-orange-300 ml-auto">(Limpieza y reinicio)</span>
+										</summary>
+										<div class="p-3 flex flex-wrap gap-2">
+											<button type="button" id="btnAfipClearTA" class="px-3 py-1.5 text-sm rounded-md bg-amber-700 text-white border-0 hover:bg-amber-600" title="Borrar token/TA y forzar relogin">
+												🔄 Borrar TA / Relogin
+											</button>
+											<button type="button" id="btnAfipClearCfg" class="px-3 py-1.5 text-sm rounded-md bg-orange-700 text-white border-0 hover:bg-orange-600" title="Borrar configuración AFIP (cert/key/cuit/pto vta/entorno)">
+												⚠️ Borrar Config AFIP
+											</button>
+											<button type="button" id="btnDbReset" class="px-3 py-1.5 text-sm rounded-md bg-red-700 text-white border-0 hover:bg-red-600" title="Eliminar base y regenerar esquema">
+												🔥 Resetear Base
+											</button>
+											<button type="button" id="btnIdemList" class="px-3 py-1.5 text-sm rounded-md bg-slate-700 text-white border border-slate-600 hover:bg-slate-600" title="Listar comprobantes en proceso">
+												📊 Listar pendientes
+											</button>
+											<button type="button" id="btnIdemCleanup" class="px-3 py-1.5 text-sm rounded-md bg-rose-700 text-white border-0 hover:bg-rose-600" title="Limpiar idempotencia y liberar bloqueos">
+												🧹 Limpiar idempotencia
+											</button>
+										</div>
+									</details>
+
+									<!-- 📊 Estado y Checklist (SIEMPRE VISIBLE) -->
+									<div class="border border-slate-700 rounded-md bg-slate-800/40 p-3">
+										<div class="text-xs font-semibold text-slate-300 mb-2">📊 Estado y Checklist</div>
+										<div class="flex items-center gap-2 flex-wrap">
+											<button type="button" id="btnChecklist" class="px-2 py-1 text-xs rounded border border-slate-600 bg-slate-800 hover:bg-slate-700">
+												🔍 Revisar
+											</button>
+											<span id="chkPadron" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Padrón</span>
+											<span id="chkMiPyme" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• MiPyME</span>
+											<span id="chkItems" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Items</span>
+											<span id="chkReady" class="px-1.5 py-0.5 rounded border border-slate-600 text-slate-300">• Listo</span>
+										</div>
 									</div>
 								</div>
 								<div id="pruebaStatus" class="mt-2 text-xs"></div>
 								<pre id="afipPtosVtaStatus" class="mt-2 text-[11px] bg-slate-900 border border-slate-700 rounded p-2 overflow-auto" style="max-height:160px"></pre>
 							</div>
-						</div>
-
-						<!-- Historial de PDFs en Documentos/facturas -->
-						<div class="border-t border-slate-700 pt-3">
-							<div class="flex items-center justify-between mb-2">
-								<h4 class="text-sm font-semibold">Historial local de PDFs</h4>
-								<button type="button" id="btnPdfsRefresh" class="px-2 py-1 text-xs rounded border border-slate-600 hover:bg-slate-700">Refrescar</button>
-							</div>
-							<ul id="listaPdfsAfip" class="text-xs space-y-1"></ul>
 						</div>
 					</div>
 
@@ -1145,12 +1188,25 @@
 				</details>
 
 				<!-- Acciones principales (debajo de todas las secciones) -->
-				<div class="actions-row mt-4 flex flex-wrap items-center gap-2">
-					<button type="button" id="btnLoad" title="Leer configuración desde disco">📂 Cargar configuración</button>
-					<button type="button" id="btnSave" title="Guardar configuración de todos los paneles">💾 Guardar configuración</button>
-					<button type="button" id="btnGenerate" title="Generar reporte con la configuración actual">📊 Generar reporte</button>
-					<button type="button" id="btnSendDbfFtp" title="Enviar el archivo mp.dbf por FTP">📤 Enviar DBF por FTP</button>
-					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío">🧹 Limpiar Hash FTP</button>
+				<div class="mt-4 flex flex-wrap items-center gap-3">
+					<!-- Botón principal GRANDE -->
+					<button type="button" id="btnSave" title="Guardar configuración de todos los paneles" class="px-6 py-3 text-base font-semibold rounded-lg bg-emerald-600 text-white border-0 hover:bg-emerald-500 shadow-lg hover:shadow-xl transition-all">
+						💾 Guardar configuración
+					</button>
+					
+					<!-- Botones secundarios (más pequeños y discretos) -->
+					<button type="button" id="btnLoad" title="Leer configuración desde disco" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📂 Cargar configuración
+					</button>
+					<button type="button" id="btnGenerate" title="Generar reporte con la configuración actual" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📊 Generar reporte
+					</button>
+					<button type="button" id="btnSendDbfFtp" title="Enviar el archivo mp.dbf por FTP" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						📤 Enviar DBF por FTP
+					</button>
+					<button type="button" id="btnClearFtpHash" title="Limpiar hash FTP para forzar próximo envío" class="px-3 py-1.5 text-xs rounded-md bg-slate-700 text-slate-300 border border-slate-600 hover:bg-slate-600">
+						🧹 Limpiar Hash FTP
+					</button>
 				</div>
 				
 				<!-- Controles de vista previa -->
@@ -1512,6 +1568,10 @@
                             o.textContent = p.name + (p.isDefault ? ' (predeterminada)' : '');
                             sel.appendChild(o);
                         }
+                        // 🖨️ Seleccionar impresora guardada
+                        if (res.config.printerName) {
+                            sel.value = res.config.printerName;
+                        }
                     }
                 } catch {}
             }
@@ -1521,6 +1581,7 @@
                     const outLocalEl = document.getElementById('REC_OUT_LOCAL');
                     const outRed1El = document.getElementById('REC_OUT_RED1');
                     const outRed2El = document.getElementById('REC_OUT_RED2');
+                    const printerEl = document.getElementById('REC_PRINTER');
                     const payload = {
                         pv: Number(pvEl.value || '1'),
                         contador: Number(niEl.value || '1'),
@@ -1528,6 +1589,11 @@
                         outRed1: outRed1El ? outRed1El.value : undefined,
                         outRed2: outRed2El ? outRed2El.value : undefined,
                     };
+                    // 🖨️ Incluir impresora seleccionada
+                    const printerName = printerEl ? printerEl.value : '';
+                    if (printerName) {
+                        payload.printerName = printerName;
+                    }
                     const save = await window.api.recibo.saveConfig(payload);
                     if (save?.ok) {
                         if (status) status.textContent = '✅ Guardado';
@@ -1921,8 +1987,8 @@
       async function testPrint(){
         try {
           if (!window.api?.printers?.printPdf) return;
-          setStatus('Imprimiendo prueba...', true);
-          // Usar el primer PDF disponible en la lista como prueba
+          setStatus('Imprimiendo...', true);
+          // Usar el primer PDF disponible en la lista
           if (ulPdfs?.firstChild) {
             const a = ulPdfs.firstChild.querySelector('a');
             const file = a?.textContent || '';
@@ -1942,10 +2008,12 @@
       btnOpenRed1?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED1')?.value));
       btnOpenRed2?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED2')?.value));
 
-      // Init
-      loadPrinters();
-      loadConfig();
-      refreshPdfs();
+      // Init - Ejecutar secuencialmente para asegurar que el select esté lleno antes de setear el valor
+      (async () => {
+        await loadPrinters();  // 1️⃣ Primero: cargar lista de impresoras
+        await loadConfig();    // 2️⃣ Segundo: cargar config y setear impresora guardada
+        refreshPdfs();         // 3️⃣ Tercero: refrescar PDFs
+      })();
     })();
     // ===== HANDLERS GALICIA =====
 // ... existing code ...

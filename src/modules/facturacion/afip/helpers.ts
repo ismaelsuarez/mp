@@ -255,3 +255,17 @@ export class AfipHelpers {
     }
   }
 }
+
+/**
+ * Devuelve AAAAMM01 a partir de AAAAMMDD
+ */
+export function monthStartFromYYYYMMDD(yyyymmdd: string): string {
+  try {
+    const s = String(yyyymmdd || '').trim();
+    if (/^\d{8}$/.test(s)) return s.slice(0, 6) + '01';
+    // fallback simple si no cumple el patrón
+    return (s || '').slice(0, 6) + '01';
+  } catch {
+    return '';
+  }
+}

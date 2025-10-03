@@ -253,6 +253,7 @@ function readTextSmart(filePath: string): string {
 
 export async function processRemitoFacFile(fullPath: string): Promise<string> {
   const raw = readTextSmart(fullPath);
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando REM ${path.basename(fullPath)}` }); } catch {}
   const tipoMatch = raw.match(/\bTIPO:\s*(\S+)/i);
   const tipo = (tipoMatch?.[1] || '').toUpperCase();
   if (tipo !== 'REMITO') throw new Error('FAC no REMITO (aún no soportado)');
@@ -331,7 +332,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   if (!outLocalDir) throw new Error('Ruta Local no configurada para Remitos');
   const localOutPath = path.join(outLocalDir, fileName);
 
-  const clienteNombreFull = (parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim();
+  const clienteNombreFull = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
   const data = {
     empresa: { nombre: 'Empresa', domicilio: '', cuit: '', pv: remitoCfg.pv, numero: remitoCfg.contador },
     cliente: { nombre: clienteNombreFull, domicilio: parsed.receptor.domicilio, cuitDni: parsed.receptor.docNro, condicionIva: parsed.receptor.condicionTxt },
@@ -359,6 +360,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   } as any;
 
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: undefined });
+  try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Remito PDF OK ${path.basename(localOutPath)}` }); } catch {}
 
   try {
     const name = `REM_${pvStr}-${nroStr}.pdf`;
@@ -393,7 +395,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
   try {
     const phone = (parsed.whatsapp || '').trim();
     if (phone) {
-      const clienteNombreFull2 = (parsed.receptor.nombre || '').trim();
+      const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
       const onlyDigits = phone.replace(/[^0-9]/g, '');
       const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
       const stamp = dayjs().format('HHmmss');
@@ -436,6 +438,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     const now = new Date();
     const fechaStr = dayjs(now).format('DD/MM/YYYY');
     const nroOut = String(data.empresa.numero).padStart(8, '0');
+    const totalFmt = new Intl.NumberFormat('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(data.total||0));
     const resLines = [
       'RESPUESTA AFIP    :',
       'CUIT EMPRESA      : 30708673435',
@@ -445,6 +448,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
       `FECHA COMPROBANTE : ${fechaStr}`,
       'NUMERO CAE        :',
       'VENCIMIENTO CAE   : 0',
+      `IMPORTE TOTAL     : ${totalFmt}`,
       `ARCHIVO REFERENCIA: ${path.basename(fullPath)}`,
       `ARCHIVO PDF       : ${path.basename(localOutPath)}`,
       '',
@@ -455,6 +459,8 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     resPath = path.join(dir, `${shortBase}.res`);
     const joined = raw.replace(/\s*$/, '') + '\n' + resLines.join('\n');
     fs.writeFileSync(resPath, joined, 'utf8');
+    // Copia persistente para resumen diario
+    try { const outDir = path.join(app.getPath('userData'), 'fac', 'out'); fs.mkdirSync(outDir, { recursive: true }); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {}
   } catch {}
 
   // Enviar .res por FTP y limpiar
@@ -462,6 +468,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[remito] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       try { fs.unlinkSync(fullPath); } catch {}
       try { console.log('[remito] .res enviado por FTP y archivos limpiados'); } catch {}

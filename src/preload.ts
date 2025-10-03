@@ -82,6 +82,9 @@ contextBridge.exposeInMainWorld('api', {
 	onAutoTimerUpdate(callback: (payload: any) => void) {
 		ipcRenderer.on('auto-timer-update', (_e, payload) => callback(payload));
 	},
+    onWsHealth(callback: (payload: { status: 'up'|'degraded'|'down'; at?: number; details?: any }) => void) {
+        ipcRenderer.on('ws-health-update', (_e, payload) => callback(payload));
+    },
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
 	},
@@ -149,6 +152,8 @@ contextBridge.exposeInMainWorld('api', {
 		paramGet: () => ipcRenderer.invoke('facturacion:param:get'),
 		paramSave: (data: any) => ipcRenderer.invoke('facturacion:param:save', data),
 		listarPdfs: () => ipcRenderer.invoke('facturacion:pdfs'),
+		// Cotización Moneda (AFIP)
+		getCotizacionMoneda: (args?: { monIdText?: string; modo?: 'ULTIMA'|'HABIL_ANTERIOR'; baseDate?: string }) => ipcRenderer.invoke('cotizacion:get', args || {}),
 		// Idempotencia
 		idempotencyList: () => ipcRenderer.invoke('facturacion:idempotency:list'),
 		idempotencyCleanup: () => ipcRenderer.invoke('facturacion:idempotency:cleanup'),
@@ -174,6 +179,12 @@ contextBridge.exposeInMainWorld('api', {
 		onFacDetected: (callback: (payload: { filename: string; rawContent: string }) => void) => {
 			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
 		}
+	},
+	// Caja resumen diario
+	caja: {
+		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
+		cleanupRes: (options?: { daysToKeep?: number; dryRun?: boolean }) => ipcRenderer.invoke('caja:cleanup-res', options),
+		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind })
 	},
 	// Recibo config (PV y contador)
 	recibo: {
@@ -278,5 +289,21 @@ contextBridge.exposeInMainWorld('license', {
 	},
 	async openHome() {
 		return await ipcRenderer.invoke('license:open-home');
+	}
+});
+
+// Exponer ipcRenderer para uso directo en caja.html y otras ventanas
+contextBridge.exposeInMainWorld('electron', {
+	ipcRenderer: {
+		invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+		on: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.on(channel, (_event, ...args) => listener(...args));
+		},
+		once: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.once(channel, (_event, ...args) => listener(...args));
+		},
+		removeListener: (channel: string, listener: (...args: any[]) => void) => {
+			ipcRenderer.removeListener(channel, listener);
+		}
 	}
 });

@@ -28,11 +28,105 @@ class AfipService {
   private resilienceWrapper: ResilienceWrapper;
   private DEBUG_FACT: boolean = process.env.FACTURACION_DEBUG === 'true';
   private tempCleanup: (() => void) | null = null;
+  private cotizCache: Map<string, { ts: number; data: { monId: string; monCotiz: number; fchCotiz: string; fuente: string; modo: string } } > = new Map();
 
   private debugLog(...args: any[]) {
     if (this.DEBUG_FACT) {
       // eslint-disable-next-line no-console
       console.log('[FACT][AFIPService]', ...args);
+    }
+  }
+
+  // ====== Helpers de moneda (pedido cliente) ======
+  private monedasCache: { ts: number; items: string[] } | null = null;
+  private resolveMonId(input: string): string {
+    const s = String(input || '').trim().toUpperCase();
+    if (!s) return 'PES';
+    if (s === 'PESOS' || s === 'ARS' || s === 'PES') return 'PES';
+    if (s === 'DOLARES' || s === 'DÓLARES' || s === 'USD' || s === 'DOL') return 'DOL';
+    if (s === 'EUROS' || s === 'EUR') return 'EUR';
+    return s;
+  }
+  private prevDiaHabil(yyyymmdd: string): string {
+    const y = Number(yyyymmdd.slice(0,4)); const m = Number(yyyymmdd.slice(4,6))-1; const d = Number(yyyymmdd.slice(6,8));
+    const dt = new Date(Date.UTC(y,m,d));
+    do { dt.setUTCDate(dt.getUTCDate()-1); } while (dt.getUTCDay() === 0 || dt.getUTCDay() === 6);
+    const mm = String(dt.getUTCMonth()+1).padStart(2,'0'); const dd = String(dt.getUTCDate()).padStart(2,'0');
+    return `${dt.getUTCFullYear()}${mm}${dd}`;
+  }
+  private async ensureMonedasValid(afip: any, monId: string): Promise<void> {
+    const now = Date.now();
+    if (!this.monedasCache || (now - this.monedasCache.ts) > 12*60*60*1000) {
+      const list = await afip.ElectronicBilling.getCurrenciesTypes();
+      const ids = Array.isArray(list) ? list.map((x:any)=> String((x.Id||x.id||'')).toUpperCase()) : [];
+      this.monedasCache = { ts: now, items: ids };
+    }
+    if (!this.monedasCache.items.includes(monId)) {
+      throw new Error('MonId inválido');
+    }
+  }
+  private async getCotizacion(afip: any, monId: string, fch?: string): Promise<{ valor:number; fecha:string }> {
+    const svc: any = afip?.ElectronicBilling;
+    console.log('[getCotizacion] Iniciando consulta:', { monId, fch, hasSvc: !!svc });
+    
+    const norm = (r: any) => {
+      const val = Number((r && (r.MonCotiz ?? r?.ResultGet?.MonCotiz)) || 0);
+      const fecha = String((r && (r.FchCotiz ?? r?.ResultGet?.FchCotiz)) || '');
+      console.log('[getCotizacion] Normalizando respuesta:', { val, fecha, raw: r });
+      // Considerar inválidos valores <= 1 para monedas extranjeras (DOL/EUR)
+      if (!Number.isFinite(val) || val <= 1) throw new Error('Cotización no válida');
+      return { valor: val, fecha };
+    };
+    try {
+      // 1) Oficial/alias: getCurrencyCotization(monId[, fch])
+      if (svc && typeof svc.getCurrencyCotization === 'function') {
+        console.log('[getCotizacion] Intentando getCurrencyCotization');
+        const r = fch ? await svc.getCurrencyCotization(monId, fch) : await svc.getCurrencyCotization(monId);
+        return norm(r);
+      }
+      // 2) Alias alternativo: getCurrencyQuotation(monId[, fch])
+      if (svc && typeof svc.getCurrencyQuotation === 'function') {
+        console.log('[getCotizacion] Intentando getCurrencyQuotation');
+        const r = fch ? await svc.getCurrencyQuotation(monId, fch) : await svc.getCurrencyQuotation(monId);
+        return norm(r);
+      }
+      // 3) Variante con objeto: getParamGetCotizacion({ MonId, FchCotiz? })
+      if (svc && typeof svc.getParamGetCotizacion === 'function') {
+        console.log('[getCotizacion] Intentando getParamGetCotizacion');
+        const args: any = { MonId: monId }; if (fch) args.FchCotiz = fch;
+        const r = await svc.getParamGetCotizacion(args);
+        return norm(r);
+      }
+      console.warn('[getCotizacion] No hay métodos de cotización en SDK');
+      throw new Error('Método de cotización no disponible en SDK');
+    } catch (e:any) {
+      console.error('[getCotizacion] Error en SDK:', e.message);
+      const msg = String(e?.message || e);
+      if (/timeout|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|5\d\d/i.test(msg)) {
+        throw new Error('TRANSIENT_COTIZ');
+      }
+      // Fallback ARCA/BFE si el SDK no ofrece método o falla permanentemente
+      console.log('[getCotizacion] Intentando fallback ARCA...');
+      try {
+        const cfg = getDb().getAfipConfig();
+        const entorno = String(cfg?.entorno || 'produccion').toLowerCase();
+        const baseUrl = entorno === 'homologacion'
+          ? 'https://wswhomo.afip.gov.ar/wsbfev1/service.asmx'
+          : 'https://servicios1.afip.gov.ar/wsbfev1/service.asmx';
+        console.log('[getCotizacion] ARCA config:', { baseUrl, cert: !!cfg?.cert_path, key: !!cfg?.key_path });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { ArcaClient } = require('./arca/ArcaClient');
+        const certPath = String(cfg?.cert_path || '');
+        const keyPath = String(cfg?.key_path || '');
+        const client = new ArcaClient(baseUrl, certPath, keyPath);
+        const auth = { Token: '', Sign: '', Cuit: Number(cfg?.cuit || 0) };
+        const r = await client.getCotizacion(auth, monId);
+        console.log('[getCotizacion] ARCA respondió:', r);
+        return norm(r);
+      } catch (arcaErr: any) {
+        console.error('[getCotizacion] Fallback ARCA falló:', arcaErr.message, arcaErr.stack);
+        throw new Error('PERMANENT_COTIZ');
+      }
     }
   }
 
@@ -96,6 +190,36 @@ class AfipService {
     return (this.afipInstance = instance);
   }
 
+  // ====== Consulta pública para UI (Modo Caja) ======
+  public async consultarCotizacionMoneda(options?: {
+    monIdText?: string;
+    modo?: 'ULTIMA' | 'HABIL_ANTERIOR';
+    baseDate?: string; // YYYYMMDD
+  }): Promise<{ monId: string; monCotiz: number; fchCotiz: string; fuente: string; modo: string }>{
+    const monId = this.resolveMonId(options?.monIdText || 'DOL');
+    const modo = (options?.modo || 'ULTIMA');
+    const today = (()=>{ const d = new Date(); const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const dd = String(d.getDate()).padStart(2,'0'); return `${y}${m}${dd}`; })();
+    const base = (options?.baseDate && /^\d{8}$/.test(options.baseDate)) ? options.baseDate : today;
+    const cacheKey = `${monId}|${modo}|${base}`;
+    const cached = this.cotizCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && (now - cached.ts) < 15*60*1000) {
+      return cached.data;
+    }
+    const afip = await this.getAfipInstance();
+    await this.ensureMonedasValid(afip, monId);
+    let r: { valor:number; fecha:string };
+    if (modo === 'HABIL_ANTERIOR') {
+      const fch = this.prevDiaHabil(base);
+      r = await this.getCotizacion(afip, monId, fch);
+    } else {
+      r = await this.getCotizacion(afip, monId);
+    }
+    const out = { monId, monCotiz: r.valor, fchCotiz: (r.fecha || '').replace(/-/g,'').slice(0,8), fuente: 'AFIP/WSFEv1(PROD)', modo };
+    this.cotizCache.set(cacheKey, { ts: now, data: out });
+    return out;
+  }
+
   /**
    * Flujo ARCA (WSBFEv1) mínimo: solo validación local por ahora.
    * Próximo paso: integrar WSAA para wsbfev1 y BFEAuthorize/BFEGetPARAM.
@@ -141,7 +265,12 @@ class AfipService {
       
       // Tomar pto de venta desde UI si viene, caso contrario usar config
       const ptoVta = comprobante.puntoVenta || cfg.pto_vta;
-      const tipoCbte = AfipHelpers.mapTipoCbte(comprobante.tipo);
+      // Priorizar código numérico si viene establecido (evita ambigüedad NC A/B/C)
+      const tipoCbte = ((): number => {
+        const cbteNum = Number((comprobante as any)?.cbteTipo || 0);
+        if (Number.isFinite(cbteNum) && cbteNum > 0) return cbteNum;
+        return AfipHelpers.mapTipoCbte(comprobante.tipo);
+      })();
       this.debugLog('Parámetros AFIP', { ptoVta, tipoCbte });
 
 
@@ -233,10 +362,17 @@ class AfipService {
         });
 
         return { 
+          numero, 
           cae: idempotencyResult.existingCae, 
           vencimientoCAE: idempotencyResult.existingCaeVto || '', 
           qrData 
         };
+      }
+
+      // Caso límite: duplicado sin CAE cargado (registro inconsistente) → proceder igualmente
+      if (idempotencyResult.isDuplicate && !idempotencyResult.shouldProceed && !idempotencyResult.existingCae) {
+        this.logger.logRequest('idempotency_inconsistent_duplicate', { ptoVta, tipoCbte, numero });
+        idempotencyResult.shouldProceed = true as any;
       }
 
       // Si hay error en idempotencia, fallar
@@ -249,10 +385,75 @@ class AfipService {
         throw new Error('Comprobante en proceso, intente nuevamente en unos momentos');
       }
 
-      // Consolidar totales por alícuota (enviar SOLO montos consolidados a AFIP)
-      const totales = AfipHelpers.consolidateTotals(comprobante.items);
-      const ivaArray = totales.Iva;
-      this.debugLog('Construyendo request createVoucher (consolidado)', totales);
+      // Consolidar totales por alícuota
+      // ✨ PRIORIDAD: Si vienen totales_fac del .fac, usar esos (más confiables)
+      const totalesFacParsed = (comprobante as any)?.totales_fac;
+      let totales: any;
+      let ivaArray: any[];
+      let metodoCalculo: 'fac_parsed' | 'items_consolidated';
+      
+      // Helper: redondear a 2 decimales para AFIP (evita errores de punto flotante)
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      
+      if (totalesFacParsed && totalesFacParsed.source === 'fac_parsed') {
+        // ✅ Usar TOTALES parseados del .fac directamente
+        metodoCalculo = 'fac_parsed';
+        const { neto21, neto105, neto27, iva21, iva105, iva27, exento, total: totalFac } = totalesFacParsed;
+        const ImpNeto = round2(Number(neto21||0) + Number(neto105||0) + Number(neto27||0));
+        const ImpIVA = round2(Number(iva21||0) + Number(iva105||0) + Number(iva27||0));
+        const ImpOpEx = round2(Number(exento||0));
+        // 🔑 Usar el total EXACTO del .fac (no recalcular para evitar errores de redondeo)
+        const ImpTotal = round2(Number(totalFac||0));
+        
+        ivaArray = [];
+        if (Number(neto21||0) > 0 || Number(iva21||0) > 0) {
+          ivaArray.push({ Id: 5, BaseImp: round2(Number(neto21||0)), Importe: round2(Number(iva21||0)) });
+        }
+        if (Number(neto105||0) > 0 || Number(iva105||0) > 0) {
+          ivaArray.push({ Id: 4, BaseImp: round2(Number(neto105||0)), Importe: round2(Number(iva105||0)) });
+        }
+        if (Number(neto27||0) > 0 || Number(iva27||0) > 0) {
+          ivaArray.push({ Id: 6, BaseImp: round2(Number(neto27||0)), Importe: round2(Number(iva27||0)) });
+        }
+        
+        totales = {
+          ImpTotConc: 0,
+          ImpOpEx,
+          ImpTrib: 0,
+          ImpNeto,
+          ImpIVA,
+          ImpTotal,
+          Iva: ivaArray
+        };
+        
+        try { console.warn('[FACT][TOTALES_FAC] Usando totales parseados del .fac', { neto21, neto105, neto27, iva21, iva105, iva27, exento, ImpTotal }); } catch {}
+      } else {
+        // ❌ Fallback: consolidar desde items (UI o .fac sin totales_fac)
+        metodoCalculo = 'items_consolidated';
+        totales = AfipHelpers.consolidateTotals(comprobante.items);
+        ivaArray = totales.Iva;
+      }
+      
+      this.debugLog('Construyendo request createVoucher', { metodo: metodoCalculo, totales });
+      
+      // DEBUG CRÍTICO: verificar consolidación vs totales originales
+      try {
+        const orig: any = comprobante.totales || {};
+        const consolNeto = Number(totales.ImpNeto || 0);
+        const consolIva = Number(totales.ImpIVA || 0);
+        const consolExento = Number(totales.ImpOpEx || 0);
+        const consolTotal = Number(totales.ImpTotal || 0);
+        console.warn('[FACT][CONSOL_CHECK]', {
+          tipo: tipoCbte,
+          metodo: metodoCalculo,
+          items_count: (comprobante.items||[]).length,
+          items_sample: (comprobante.items||[]).slice(0,2).map((it:any)=>({ desc: it.descripcion, cant: it.cantidad, unit: it.precioUnitario, iva: it.iva })),
+          original: { neto: Number(orig.neto||0), iva: Number(orig.iva||0), total: Number(orig.total||0) },
+          consolidado: { ImpNeto: consolNeto, ImpIVA: consolIva, ImpOpEx: consolExento, ImpTotal: consolTotal },
+          ivaArray: ivaArray.map((x:any)=>({ Id: x.Id, BaseImp: x.BaseImp, Importe: x.Importe })),
+          ALERTA_EXENTO: consolExento > 0.01 ? '⚠️ HAY EXENTO (ImpOpEx > 0)' : 'OK'
+        });
+      } catch {}
 
       // Construir request para AFIP
       // Normalizaciones de tipos/formatos exigidos por WSFE
@@ -262,8 +463,53 @@ class AfipService {
         ? Number(String(comprobante.cliente.cuit).replace(/\D/g, ''))
         : 0;
       const cbteFch = String(comprobante.fecha).replace(/-/g, '');
-      const monId = String(comprobante.monId || 'PES').trim().toUpperCase();
+      // Moneda (pedido cliente)
+      const monIdNorm = this.resolveMonId((comprobante as any)?.moneda?.monIdText || comprobante.monId || 'PES');
+      await this.ensureMonedasValid(afip, monIdNorm);
+      let monCotizNum = 1; let fchCotizUsed: string | undefined; const canMis = ((((comprobante as any)?.can_mis_mon_ext) || (comprobante as any)?.moneda?.canMisMonExt || 'N').toUpperCase() as 'S'|'N');
+      let fuenteUsada: 'WSFE'|'COTIZADOL'|'FALLBACK' = 'WSFE';
+      
+      if (monIdNorm !== 'PES') {
+        // 🔑 PRIORIDAD 1: Si viene cotiza_hint del .fac, USAR ESE VALOR directamente (evita consultas innecesarias)
+        const hint = Number((comprobante as any)?.cotiza_hint);
+        const tieneHint = Number.isFinite(hint) && hint > 0;
+        
+        if (tieneHint) {
+          monCotizNum = hint;
+          fuenteUsada = 'COTIZADOL';
+          try { console.warn('[FACT] Usando COTIZADOL del .fac directamente:', { monId: monIdNorm, cotiz: hint, canMis }); } catch {}
+        } else {
+          // Solo si NO viene cotización en el .fac, consultar AFIP
+          try {
+            if (canMis === 'S') {
+              fchCotizUsed = this.prevDiaHabil(cbteFch);
+              const { valor, fecha } = await this.getCotizacion(afip, monIdNorm, fchCotizUsed);
+              monCotizNum = valor; if (fecha) fchCotizUsed = fecha.replace(/-/g,'');
+            } else {
+              const { valor, fecha } = await this.getCotizacion(afip, monIdNorm);
+              monCotizNum = valor; fchCotizUsed = fecha ? fecha.replace(/-/g,'') : undefined;
+            }
+            fuenteUsada = 'WSFE';
+          } catch (e:any) {
+            fuenteUsada = 'FALLBACK';
+            try { console.warn('[FACT] getCotizacion falló, usando fallback monCotiz=1'); } catch {}
+          }
+        }
+      }
 
+      // Log política de moneda para debugging
+      try {
+        console.warn('[FACT] FE Moneda', {
+          monId: monIdNorm,
+          canMisMonExt: canMis,
+          policy: { officialSource: 'WSFE', selection: fuenteUsada === 'COTIZADOL' ? 'del .fac' : 'consulta AFIP', maxUpPercent: 80, maxDownPercent: 5 },
+          monCotiz: monCotizNum,
+          oficial: monCotizNum,
+          fuente: fuenteUsada,
+          fchOficial: fchCotizUsed
+        });
+      } catch {}
+      
       const request: any = {
         CantReg: 1,
         PtoVta: ptoVta,
@@ -280,29 +526,56 @@ class AfipService {
         ImpOpEx: totales.ImpOpEx,
         ImpIVA: totales.ImpIVA,
         ImpTrib: totales.ImpTrib,
-        MonId: monId,
-        MonCotiz: 1,
-        Iva: ivaArray
+        MonId: monIdNorm,
+        MonCotiz: monCotizNum,
+        Iva: ivaArray,
+        CanMisMonExt: canMis
       };
+      // Notas de Crédito: importes siempre positivos
+      const isNotaCredito = [3, 8, 13].includes(Number(request.CbteTipo));
+      if (isNotaCredito) {
+        try {
+          const abs2 = (n: any) => Math.abs(Number(n || 0));
+          request.ImpTotal = abs2(request.ImpTotal);
+          request.ImpTotConc = abs2(request.ImpTotConc);
+          request.ImpNeto = abs2(request.ImpNeto);
+          request.ImpOpEx = abs2(request.ImpOpEx);
+          request.ImpIVA = abs2(request.ImpIVA);
+          request.ImpTrib = abs2(request.ImpTrib);
+          if (Array.isArray(request.Iva)) {
+            request.Iva = request.Iva.map((x: any) => ({ Id: Number(x.Id), BaseImp: abs2(x.BaseImp), Importe: abs2(x.Importe) }));
+          }
+        } catch {}
+      }
+      // Nota: si hubo hint y se usó como fiscal, 'fuente'='COTIZADOL'. Si no, se registra como hint solo visual si aplica.
+      try { if ((monIdNorm === 'DOL' || monIdNorm === 'EUR') && fuenteUsada === 'WSFE') { const hint = Number((comprobante as any)?.cotiza_hint); if (hint > 0 && Number(request.MonCotiz) === 1) { (request as any)._cotizaHint = hint; } } } catch {}
       // Condicion Frente al IVA del receptor (obligatorio a futuro). Enviar SIEMPRE en PROD.
       try {
-        const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
-          const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
-          if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
-          if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
-          if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
-          if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
-          // Inferir CF si DocTipo=99 y DocNro=0
-          if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
-          return undefined;
-        })();
-        const condId = await getCondicionIvaReceptorId({
-          afip,
-          cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
-          receptorHint: { docTipo, docNro, categoria }
-        });
-        if (typeof condId === 'number' && Number.isFinite(condId)) {
-          (request as any).CondicionIVAReceptorId = Number(condId);
+        // 🔑 PRIORIDAD 1: Si viene ivareceptorCode desde .fac, usarlo directamente (código ARCA)
+        const ivareceptorCode = (comprobante as any)?.cliente?.ivareceptorCode;
+        if (typeof ivareceptorCode === 'number' && Number.isFinite(ivareceptorCode) && ivareceptorCode > 0) {
+          (request as any).CondicionIVAReceptorId = Number(ivareceptorCode);
+          console.log('[FACT] Usando ivareceptor del .fac directamente:', { ivareceptorCode });
+        } else {
+          // PRIORIDAD 2: Consultar catálogo AFIP
+          const categoria = ((): 'CF'|'RI'|'MT'|'EX'|undefined => {
+            const v = String(comprobante?.cliente?.condicionIva || '').toUpperCase();
+            if (v === 'CF' || /CONSUMIDOR\s+FINAL/.test(v)) return 'CF';
+            if (v === 'RI' || /RESPONSABLE\s+INSCRIPTO/.test(v)) return 'RI';
+            if (v === 'MT' || /MONOTRIB/.test(v)) return 'MT';
+            if (v === 'EX' || /EXENTO/.test(v)) return 'EX';
+            // Inferir CF si DocTipo=99 y DocNro=0
+            if (docTipo === 99 && Number(docNro||0) === 0) return 'CF';
+            return undefined;
+          })();
+          const condId = await getCondicionIvaReceptorId({
+            afip,
+            cbteTipo: isMiPyme ? miPymeCbteTipo : tipoCbte,
+            receptorHint: { docTipo, docNro, categoria }
+          });
+          if (typeof condId === 'number' && Number.isFinite(condId)) {
+            (request as any).CondicionIVAReceptorId = Number(condId);
+          }
         }
       } catch {
         // Fallback mínimo: CF → 5 (para no bloquear si catálogo falla)
@@ -343,13 +616,93 @@ class AfipService {
         if (fvto) request.FchVtoPago = fvto;
       }
 
-      // Comprobantes asociados (NC/ND)
-      if (Array.isArray(comprobante.comprobantesAsociados) && comprobante.comprobantesAsociados.length > 0) {
-        request.CbtesAsoc = comprobante.comprobantesAsociados.map(x => ({
-          Tipo: Number(x.Tipo),
-          PtoVta: Number(x.PtoVta),
-          Nro: Number(x.Nro)
-        }));
+      // Comprobantes asociados (NC/ND): construir con {Tipo,PtoVta,Nro,Cuit,CbteFch} si están disponibles
+      const ensureYyyymmdd = (s?: string) => {
+        if (!s) return undefined as any;
+        const t = String(s).trim();
+        if (/^\d{8}$/.test(t)) return t as any;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t.replace(/-/g, '') as any;
+        const m = t.match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+        if (m) {
+          const yy = m[3].length === 2 ? `20${m[3]}` : m[3];
+          return `${yy}${m[2]}${m[1]}` as any;
+        }
+        return undefined as any;
+      };
+      const assocInput = ((): any[] => {
+        const a1 = (comprobante as any)?.comprobantesAsociados;
+        if (Array.isArray(a1) && a1.length > 0) return a1;
+        const a2 = (comprobante as any)?.cbtesAsoc;
+        if (Array.isArray(a2) && a2.length > 0) return a2;
+        const a3 = (comprobante as any)?.cbteAsoc;
+        if (a3 && typeof a3 === 'object') return [a3];
+        return [];
+      })();
+      try {
+        if (([2,7,3,8,13] as number[]).includes(Number(request.CbteTipo))) {
+          console.warn('[AFIP][NC] CbtesAsoc.input', assocInput);
+        }
+      } catch {}
+      if (([2, 7, 3, 8, 13] as number[]).includes(Number(request.CbteTipo))) {
+        if (assocInput.length > 0) {
+          request.CbtesAsoc = assocInput.map((x: any) => {
+            const mapped = {
+              Tipo: Number(x.Tipo ?? x.CbteTipo ?? x.tipo ?? 0),
+              PtoVta: Number(x.PtoVta ?? x.ptoVta ?? x.pv ?? 0),
+              Nro: Number(x.Nro ?? x.numero ?? x.nro ?? 0),
+              Cuit: x.Cuit ? Number(String(x.Cuit).replace(/\D/g, '')) : (x.cuit ? Number(String(x.cuit).replace(/\D/g, '')) : undefined),
+              CbteFch: ensureYyyymmdd(x.CbteFch ?? x.fecha ?? x.fch)
+            } as any;
+            // Completar Cuit emisor del comprobante asociado si no fue provisto
+            if (!mapped.Cuit) mapped.Cuit = Number(String(cfg.cuit).replace(/\D/g, ''));
+            return mapped;
+          }).filter((z: any) => Number(z.Tipo) && Number(z.PtoVta) && Number(z.Nro));
+        }
+        const isNcAyB = Number(request.CbteTipo) === 3 || Number(request.CbteTipo) === 8;
+        const hasAsoc = Array.isArray(request.CbtesAsoc) && request.CbtesAsoc.length > 0;
+        if (isNcAyB) {
+          if (hasAsoc) {
+            try { console.warn('[AFIP][NC] CbtesAsoc.mapped', request.CbtesAsoc); } catch {}
+            // Enriquecer asociados con datos faltantes (CbteFch/Cuit) consultando AFIP si es necesario
+            try {
+              const enrichOne = async (a: any) => {
+                if (!a) return;
+                const needsDate = !a.CbteFch || String(a.CbteFch).trim().length === 0;
+                const needsCuit = !a.Cuit || Number(a.Cuit) === 0;
+                if (!needsDate && !needsCuit) return;
+                const info: any = await this.resilienceWrapper.execute(
+                  () => this.getAfipInstance().then(af => af.ElectronicBilling.getVoucherInfo(Number(a.PtoVta), Number(a.Tipo), Number(a.Nro))),
+                  'getVoucherInfo'
+                );
+                const det = info?.ResultGet ?? info;
+                if (needsDate) {
+                  try {
+                    const f = String(det?.CbteFch || det?.FchEmi || det?.FchCbte || det?.Fecha || '').replace(/-/g,'');
+                    if (/^\d{8}$/.test(f)) a.CbteFch = f;
+                  } catch {}
+                }
+                if (needsCuit) {
+                  try { a.Cuit = Number(String(cfg.cuit).replace(/\D/g, '')); } catch {}
+                }
+              };
+              for (const a of (request.CbtesAsoc as any[])) { try { await enrichOne(a); } catch {} }
+              try { console.warn('[AFIP][NC] CbtesAsoc.enriched', request.CbtesAsoc); } catch {}
+            } catch {}
+          } else {
+            // Fallback por período: PeriodoAsoc = 1° del mes a fecha de emisión
+            const fch = ensureYyyymmdd(request.CbteFch) || String(comprobante.fecha || '').replace(/-/g,'');
+            const from = require('./afip/helpers').monthStartFromYYYYMMDD(fch);
+            request.PeriodoAsoc = { FchDesde: from, FchHasta: fch };
+            // Exclusividad
+            delete request.CbtesAsoc;
+            try { console.warn('[AFIP][NC] PeriodoAsoc.fallback', request.PeriodoAsoc); } catch {}
+          }
+        } else {
+          // Para ND (2/7) y NC C (13) mantener comportamiento actual: asociado requerido
+          if (!hasAsoc) {
+            throw new Error('PermanentError: Falta comprobante asociado para Nota/Débito');
+          }
+        }
       }
 
       // Solicitar CAE con resiliencia (servicio según tipo)
@@ -378,7 +731,7 @@ class AfipService {
         cae
       });
 
-      return { cae, vencimientoCAE: caeVto, qrData, observaciones };
+      return { numero, cae, vencimientoCAE: caeVto, qrData, observaciones };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -569,10 +922,13 @@ class AfipService {
   /**
    * Obtiene el último número autorizado para un punto de venta y tipo
    */
-  async getUltimoAutorizado(puntoVenta: number, tipoComprobante: TipoComprobante): Promise<number> {
+  async getUltimoAutorizado(puntoVenta: number, tipoComprobante: TipoComprobante | number): Promise<number> {
     try {
       const afip = await this.getAfipInstance();
-      const tipoCbte = AfipHelpers.mapTipoCbte(tipoComprobante);
+      const tipoCbte = ((): number => {
+        if (typeof tipoComprobante === 'number') return tipoComprobante;
+        return AfipHelpers.mapTipoCbte(tipoComprobante);
+      })();
 
       const last = await this.resilienceWrapper.execute(
         () => afip.ElectronicBilling.getLastVoucher(puntoVenta, tipoCbte),
@@ -776,6 +1132,7 @@ class AfipService {
 }
 
 // Exportar instancia singleton
+export { AfipService };
 export const afipService = new AfipService();
 
 // Exportar función legacy para compatibilidad
