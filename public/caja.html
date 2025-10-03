@@ -18,8 +18,13 @@
     /* Scrollbar personalizado para logs (tema oscuro) */
     #cajaLogs {
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
         scroll-behavior: smooth;
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+    }
+    #cajaLogs > div {
+        white-space: nowrap;
     }
     #cajaLogs::-webkit-scrollbar {
         width: 8px;
@@ -34,6 +39,21 @@
     }
     #cajaLogs::-webkit-scrollbar-thumb:hover {
         background: #64748b; /* slate-500 */
+    }
+    /* Scrollbar horizontal */
+    #cajaLogs::-webkit-scrollbar:horizontal {
+        height: 8px;
+    }
+    #cajaLogs::-webkit-scrollbar-track:horizontal {
+        background: #1e293b;
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb:horizontal {
+        background: #475569;
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb:horizontal:hover {
+        background: #64748b;
     }
     </style>
 </head>

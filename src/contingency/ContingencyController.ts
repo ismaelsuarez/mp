@@ -155,19 +155,31 @@ export class ContingencyController {
   }
 
   private async handleIncoming(filePath: string, cfg: any) {
+    // Helper para enviar logs al modo Caja
+    const sendCajaLog = (msg: string) => {
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+    };
+    
     // Mover a staging atómicamente
     const base = path.basename(filePath);
     const dst = path.join(cfg.staging, base);
     try { const sz = fs.statSync(filePath).size; console.warn('[fac.stable.ok]', { filePath, size: sz }); } catch {}
+    sendCajaLog(`📥 Detectado ${base} (${(fs.statSync(filePath).size / 1024).toFixed(1)} KB)`);
     try { fs.renameSync(filePath, dst); } catch { /* cross-device fallback */ fs.copyFileSync(filePath, dst); try { fs.unlinkSync(filePath); } catch {} }
     try { console.warn('[fac.stage.ok]', { from: filePath, to: dst }); } catch {}
     const sha = this.sha256OfFileSafe(dst);
     try { console.warn('[fac.sha.ok]', { filePath: dst, sha }); } catch {}
     const id = this.store.enqueue({ type: 'fac.process', payload: { filePath: dst }, sha256: sha });
     try { console.warn('[queue.enqueue.ok]', { id, filePath: dst }); } catch {}
+    sendCajaLog(`  └─ Encolado (ID: ${id})`);
   }
 
   private async processJob(id: number, payload: any, cfg: any) {
+    // Helper para enviar logs al modo Caja
+    const sendCajaLog = (msg: string) => {
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+    };
+    
     const srcRaw = String(payload?.filePath || '');
     let src = srcRaw;
     if (!src || !fs.existsSync(src)) {
@@ -183,9 +195,11 @@ export class ContingencyController {
         src = staged;
       } else if ((doneP && fs.existsSync(doneP)) || (errP && fs.existsSync(errP))) {
         try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        sendCajaLog(`⚠️ [Cola] ${base} → Ya procesado (skip)`);
         return; // ACK arriba sin reprocesar
       } else {
         try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        sendCajaLog(`⚠️ [Cola] ${base} → Archivo no encontrado`);
         return; // ACK arriba
       }
     }
@@ -198,7 +212,12 @@ export class ContingencyController {
         try {
           const entries = fs.readdirSync(d);
           const found = entries.find((f) => path.basename(f, path.extname(f)).toLowerCase() === base && f.toLowerCase().endsWith('.res'));
-          if (found) { console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); this.store.ack(id); return; }
+          if (found) { 
+            console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); 
+            sendCajaLog(`⚠️ [Cola] ${name} → Ya existe .res (duplicado)`);
+            this.store.ack(id); 
+            return; 
+          }
         } catch {}
       }
     } catch {}
@@ -208,6 +227,8 @@ export class ContingencyController {
       try { fs.renameSync(src, lockPath); } catch { fs.copyFileSync(src, lockPath); try { fs.unlinkSync(src); } catch {} }
       try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
     }
+    sendCajaLog(`🔄 [Cola] Procesando ${name}...`);
+    
     try {
       // Detectar TIPO rápidamente para enrutar al pipeline correcto
       const readLoose = (p: string): string => {
@@ -228,15 +249,18 @@ export class ContingencyController {
 
       // Avisar al UI que comenzamos a procesar
       try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando ${kind === 'recibo' ? 'REC' : (kind === 'remito' ? 'REM' : 'FAC')} ${name}` }); } catch {}
+      sendCajaLog(`  └─ Tipo: ${tipo || 'NO DETECTADO'}`);
 
       if (kind === 'recibo') {
         const { processFacFile } = require('../modules/facturacion/facProcessor');
         const out: any = await processFacFile(lockPath);
         try { console.warn('[recibo.ok]', { out }); } catch {}
+        sendCajaLog(`✅ [Cola] RECIBO ${name} → Completado`);
       } else if (kind === 'remito') {
         const { processRemitoFacFile } = require('../modules/facturacion/remitoProcessor');
         const out: any = await processRemitoFacFile(lockPath);
         try { console.warn('[remito.ok]', { out }); } catch {}
+        sendCajaLog(`✅ [Cola] REMITO ${name} → Completado`);
       } else {
         // Facturas / Notas A/B
         const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
@@ -244,6 +268,7 @@ export class ContingencyController {
         if (!r || r.ok !== true) {
           const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
           try { console.warn('[queue.process.fail]', { id, filePath: lockPath, reason: errMsg }); } catch {}
+          sendCajaLog(`❌ [Cola] ${name} → ${errMsg}`);
           // Tratar como transitorio: AFIP sin CAE/número, NTP, error de red/DNS y 'Comprobante en proceso'
           if (/AFIP\s*sin\s*CAE|AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network|en\s*proceso/i.test(errMsg)) {
             throw new Error(errMsg);
@@ -260,6 +285,7 @@ export class ContingencyController {
           throw new Error('PERMANENT_ERROR');
         }
         try { console.warn('[afip.cae.ok]', { cae: String(r.cae || ''), vto: String(r.caeVto || r.vto || '') }); } catch {}
+        sendCajaLog(`✅ [Cola] ${name} → Nº ${r.numero || '?'} CAE: ${r.cae || '?'}`);
       }
       // DONE: si el pipeline ya borró el .fac (tras enviar .res por FTP), saltar move
       if (fs.existsSync(lockPath)) {

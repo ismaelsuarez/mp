@@ -372,6 +372,11 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     tryCopy(outRed2Dir);
   } catch {}
 
+  // Helper para enviar logs al modo Caja
+  const sendCajaLog = (msg: string) => {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+  };
+
   // Email si corresponde
   try {
     const to = (parsed.email || '').trim();
@@ -385,8 +390,10 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
           intro: 'Adjuntamos el remito correspondiente.',
           bodyHtml: '<p>Gracias por su preferencia.</p>'
         });
+        sendCajaLog(`  └─ Email OK → ${to}`);
       } catch (e) {
         try { console.warn('[remito] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+        sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
       }
     }
   } catch {}
@@ -413,9 +420,11 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
       try {
         const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
         await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
+        sendCajaLog(`  └─ WhatsApp OK → ${normalizedPhone}`);
         try { fs.unlinkSync(wfaPath); } catch {}
       } catch (e) {
         try { console.warn('[remito] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
+        sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
       }
     }
   } catch {}
@@ -426,8 +435,11 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     if (copies > 0) {
       const { printPdf } = await import('../../services/PrintService');
       await printPdf(localOutPath, remitoCfg.printerName, copies);
+      sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
     }
-  } catch {}
+  } catch (e) {
+    sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
+  }
 
   // Incrementar contador
   saveRemitoConfig(cfgPath, { pv: remitoCfg.pv, contador: (data.empresa.numero || 0) + 1 });
@@ -468,12 +480,15 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[remito] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      sendCajaLog(`  └─ .res OK → FTP`);
       try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       try { fs.unlinkSync(fullPath); } catch {}
       try { console.log('[remito] .res enviado por FTP y archivos limpiados'); } catch {}
     }
-  } catch {}
+  } catch (e) {
+    sendCajaLog(`  └─ .res ❌ → ${String((e as any)?.message || 'error')}`);
+  }
 
   return localOutPath;
 }

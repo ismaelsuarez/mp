@@ -2,26 +2,29 @@ import path from 'path';
 import fs from 'fs';
 import { app } from 'electron';
 import chokidar from 'chokidar';
+import type Store from 'electron-store';
 import { createContingencyController, ContingencyController } from '../../contingency/ContingencyController';
 import { LegacyWatcherAdapter } from '../../contingency/LegacyWatcherAdapter';
 
 let controller: ContingencyController | null = null;
 let legacyWatcher: any = null;
+let storeInstance: Store | null = null;  // 🔑 Almacenar referencia al store pasado desde main
 
-// 🔑 Obtener configuración desde la instancia GLOBAL de store (no crear una nueva!)
+// 🔑 Obtener configuración desde el store pasado como parámetro
 function getWatcherConfig(): { enabled: boolean; dir: string } {
 	try {
-		// Importar la instancia global de store desde main.ts
-		const { getGlobalStore } = require('../store');
-		const store = getGlobalStore();
-		const cfg: any = store.get('config') || {};
+		if (!storeInstance) {
+			console.warn('[contingency] Store not available, using defaults');
+			return { enabled: true, dir: 'C:\\tmp' };
+		}
+		const cfg: any = storeInstance.get('config') || {};
 		// Por defecto: enabled=true, dir=C:\tmp
 		const enabled = cfg.FACT_FAC_WATCH !== false;
 		const dir = String(cfg.FACT_FAC_DIR || 'C:\\tmp').trim();
 		console.log('[contingency] getWatcherConfig', { enabled, dir, raw_FACT_FAC_WATCH: cfg.FACT_FAC_WATCH });
 		return { enabled, dir };
 	} catch (e: any) {
-		console.warn('[contingency] Failed to read config, using defaults:', e?.message);
+		console.warn('[contingency] Failed to read config, using defaults:', e?.message || e);
 		return { enabled: true, dir: 'C:\\tmp' };
 	}
 }
@@ -31,7 +34,11 @@ function readEnv(name: string, def?: string): string | undefined {
 	return (v && v.length) ? v : def;
 }
 
-export function bootstrapContingency(): void {
+// 🔑 Inicializar con referencia al store
+export function bootstrapContingency(store?: Store): void {
+	if (store) {
+		storeInstance = store;
+	}
 	try {
 		const userData = app.getPath('userData');
 		const { enabled, dir } = getWatcherConfig();
@@ -115,9 +122,9 @@ export function shutdownContingency(): void {
 }
 
 // 🔄 Reiniciar el watcher con la nueva configuración
-export function restartContingency(): void {
+export function restartContingency(store?: Store): void {
 	shutdownContingency();
-	bootstrapContingency();
+	bootstrapContingency(store);
 }
 
 // 🔍 Obtener estado del controller

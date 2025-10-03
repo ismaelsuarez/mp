@@ -136,17 +136,27 @@ async function handleAutoButtonClick() {
 function appendLog(line: string) {
     const box = document.getElementById('cajaLogs') as HTMLElement | null;
     if (!box) return;
+    
     // Hora local de la PC (no UTC) en formato HH:MM:SS
     const now = new Date();
     const hh = String(now.getHours()).padStart(2,'0');
     const mm = String(now.getMinutes()).padStart(2,'0');
     const ss = String(now.getSeconds()).padStart(2,'0');
     const at = `${hh}:${mm}:${ss}`;
-    const current = (box.textContent || '').split('\n').filter(Boolean);
-    const maxLines = 50; // Aumentado para aprovechar el scroll (antes: 4)
-    current.push(`[${at}] ${line}`);
-    const trimmed = current.slice(-maxLines);
-    box.textContent = trimmed.join('\n');
+    
+    // Crear un nuevo div para cada línea de log
+    const logLine = document.createElement('div');
+    logLine.style.whiteSpace = 'nowrap';
+    logLine.textContent = `[${at}] ${line}`;
+    
+    // Agregar la línea al contenedor
+    box.appendChild(logLine);
+    
+    // Limitar a las últimas 100 líneas para no saturar el DOM
+    const maxLines = 100;
+    while (box.children.length > maxLines) {
+        box.removeChild(box.firstChild!);
+    }
     
     // Auto-scroll al final cuando se agrega nueva línea
     box.scrollTop = box.scrollHeight;
@@ -403,6 +413,11 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
         (window as any).api?.onWsHealth?.((p: any) => { if (p?.status) setArcaIndicator(p.status); });
     } catch {}
+
+	// Logs de procesamiento .fac (backend → frontend)
+	window.api.onCajaLog?.((message: string) => {
+		appendLog(message);
+	});
 
 	refreshAutoIndicator();
 	refreshTimer();

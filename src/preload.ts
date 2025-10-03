@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld('api', {
     onWsHealth(callback: (payload: { status: 'up'|'degraded'|'down'; at?: number; details?: any }) => void) {
         ipcRenderer.on('ws-health-update', (_e, payload) => callback(payload));
     },
+	onCajaLog(callback: (message: string) => void) {
+		ipcRenderer.on('caja-log', (_e, message) => callback(message));
+	},
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
 	},

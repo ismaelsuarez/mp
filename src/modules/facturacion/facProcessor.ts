@@ -395,6 +395,11 @@ export async function processFacFile(fullPath: string): Promise<string> {
     tryCopy(outRed2Dir);
   } catch {}
 
+  // Helper para enviar logs al modo Caja
+  const sendCajaLog = (msg: string) => {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+  };
+
   // Envío por email si el .fac contiene EMAIL:
   try {
     const to = (parsed.email || '').trim();
@@ -408,8 +413,10 @@ export async function processFacFile(fullPath: string): Promise<string> {
           intro: 'Adjuntamos el recibo correspondiente.',
           bodyHtml: '<p>Gracias por su preferencia.</p>'
         });
+        sendCajaLog(`  └─ Email OK → ${to}`);
       } catch (e) {
         try { console.warn('[recibo] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+        sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
       }
     }
   } catch {}
@@ -440,10 +447,12 @@ export async function processFacFile(fullPath: string): Promise<string> {
       try {
         const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
         await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
+        sendCajaLog(`  └─ WhatsApp OK → ${normalizedPhone}`);
         // Tras éxito, borrar wfa.txt local
         try { fs.unlinkSync(wfaPath); } catch {}
       } catch (e) {
         try { console.warn('[recibo] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
+        sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
       }
     }
   } catch {}
@@ -455,8 +464,11 @@ export async function processFacFile(fullPath: string): Promise<string> {
       // La impresora seleccionada se puede guardar en config general (futuro). Por ahora, dejar al sistema por defecto.
       const { printPdf } = await import('../../services/PrintService');
       await printPdf(localOutPath, undefined, copies);
+      sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
     }
-  } catch {}
+  } catch (e) {
+    sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
+  }
 
   // Incrementar contador
   saveReciboConfig(cfgPath, { pv: reciboCfg.pv, contador: (data.empresa.numero || 0) + 1 });
@@ -499,6 +511,7 @@ export async function processFacFile(fullPath: string): Promise<string> {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[recibo] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      sendCajaLog(`  └─ .res OK → FTP`);
       try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       // Borrar también el archivo .fac original tras envío exitoso del .res
@@ -507,7 +520,9 @@ export async function processFacFile(fullPath: string): Promise<string> {
     } else {
       try { console.warn('[recibo] .res no existe al momento de enviar por FTP', { resPath }); } catch {}
     }
-  } catch {}
+  } catch (e) {
+    sendCajaLog(`  └─ .res ❌ → ${String((e as any)?.message || 'error')}`);
+  }
 
   return localOutPath;
 }
@@ -1061,12 +1076,54 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   try { if (outRed1Dir) fs.copyFileSync(localOutPath, path.join(outRed1Dir, fileName)); } catch {}
   try { if (outRed2Dir) fs.copyFileSync(localOutPath, path.join(outRed2Dir, fileName)); } catch {}
 
+  // Helper para enviar logs al modo Caja
+  const sendCajaLog = (msg: string) => {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+  };
+
   // Impresión
-  try { const copiesLine = lines.find(l=>l.startsWith('COPIAS:')); const copies = copiesLine? Number(copiesLine.substring('COPIAS:'.length).trim()||'0'):0; if (copies>0) { const { printPdf } = await import('../../services/PrintService'); await printPdf(localOutPath, cfg.printerName, copies); } } catch {}
+  try { 
+    const copiesLine = lines.find(l=>l.startsWith('COPIAS:')); 
+    const copies = copiesLine? Number(copiesLine.substring('COPIAS:'.length).trim()||'0'):0; 
+    if (copies>0) { 
+      const { printPdf } = await import('../../services/PrintService'); 
+      await printPdf(localOutPath, cfg.printerName, copies); 
+      sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
+    } 
+  } catch (e) {
+    sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
+  }
   // Email
-  try { const to=(email||'').trim(); if (/.+@.+\..+/.test(to)) { const { sendReceiptEmail } = await import('../../services/EmailService'); await sendReceiptEmail(to, localOutPath, { subject: literal, title: literal, intro: 'Adjuntamos el comprobante.', bodyHtml: '<p>Gracias por su preferencia.</p>' }); } } catch {}
+  try { 
+    const to=(email||'').trim(); 
+    if (/.+@.+\..+/.test(to)) { 
+      const { sendReceiptEmail } = await import('../../services/EmailService'); 
+      await sendReceiptEmail(to, localOutPath, { subject: literal, title: literal, intro: 'Adjuntamos el comprobante.', bodyHtml: '<p>Gracias por su preferencia.</p>' }); 
+      sendCajaLog(`  └─ Email OK → ${to}`);
+    } 
+  } catch (e) {
+    sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
+  }
   // WhatsApp
-  try { const phone=(whatsapp||'').replace(/[^0-9]/g,''); if (phone) { const normalized=phone.startsWith('54')?('+'+phone):('+54'+phone); const stamp=dayjs().format('HHmmss'); const rand=Math.random().toString(36).slice(2,4); const wfaName=`wfa${stamp}${rand}.txt`; const wfaPath=path.join(outLocalDir, wfaName); fs.writeFileSync(wfaPath, [normalized, nombre, path.basename(localOutPath), 'Que tal, somos de Todo Computacion', 'Adjuntamos el comprobante.'].join('\n'), 'utf8'); try { const { sendFilesToWhatsappFtp } = await import('../../services/FtpService'); await sendFilesToWhatsappFtp([localOutPath, wfaPath],[path.basename(localOutPath), path.basename(wfaPath)]); try { fs.unlinkSync(wfaPath); } catch {} } catch {} } } catch {}
+  try { 
+    const phone=(whatsapp||'').replace(/[^0-9]/g,''); 
+    if (phone) { 
+      const normalized=phone.startsWith('54')?('+'+phone):('+54'+phone); 
+      const stamp=dayjs().format('HHmmss'); 
+      const rand=Math.random().toString(36).slice(2,4); 
+      const wfaName=`wfa${stamp}${rand}.txt`; 
+      const wfaPath=path.join(outLocalDir, wfaName); 
+      fs.writeFileSync(wfaPath, [normalized, nombre, path.basename(localOutPath), 'Que tal, somos de Todo Computacion', 'Adjuntamos el comprobante.'].join('\n'), 'utf8'); 
+      try { 
+        const { sendFilesToWhatsappFtp } = await import('../../services/FtpService'); 
+        await sendFilesToWhatsappFtp([localOutPath, wfaPath],[path.basename(localOutPath), path.basename(wfaPath)]); 
+        sendCajaLog(`  └─ WhatsApp OK → ${normalized}`);
+        try { fs.unlinkSync(wfaPath); } catch {} 
+      } catch (e) {
+        sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
+      } 
+    } 
+  } catch {}
 
   // .res por tipo
   const suf = ((): string => { switch (tipo) { case 'FA': return 'a'; case 'FB': return 'b'; case 'NCA': return 'c'; case 'NCB': return 'd'; case 'NDA': return 'e'; case 'NDB': return 'f'; default: return 'a'; } })();
@@ -1075,7 +1132,18 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
 
   // Enviar .res con reintentos
   const sendWithRetries = async (localPath: string, remoteName?: string): Promise<boolean> => { const attempts=[0,1000,3000]; for (let i=0;i<attempts.length;i++){ try { await sendArbitraryFile(localPath, remoteName||path.basename(localPath)); return true; } catch {} await new Promise(res=>setTimeout(res, attempts[i])); } return false; };
-  let resSent=false; if (resPath && fs.existsSync(resPath)) { resSent = await sendWithRetries(resPath, path.basename(resPath)); if (resSent) { try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {} try { fs.unlinkSync(resPath); } catch {} try { fs.unlinkSync(fullPath); } catch {} } }
+  let resSent=false; 
+  if (resPath && fs.existsSync(resPath)) { 
+    resSent = await sendWithRetries(resPath, path.basename(resPath)); 
+    if (resSent) { 
+      sendCajaLog(`  └─ .res OK → FTP`);
+      try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {} 
+      try { fs.unlinkSync(resPath); } catch {} 
+      try { fs.unlinkSync(fullPath); } catch {} 
+    } else {
+      sendCajaLog(`  └─ .res ❌ → FTP (reintentos agotados)`);
+    }
+  }
 
   return { ok:true, pdfPath: localOutPath, numero: nroAfip, cae: caeStr, caeVto: caeVtoStr } as any;
 }

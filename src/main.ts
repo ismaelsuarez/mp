@@ -25,7 +25,7 @@ import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGalic
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
 import { WSHealthService } from './ws/WSHealthService';
-import { initGlobalStore, getGlobalStore } from './main/store';
+import { bootstrapContingency, shutdownContingency, restartContingency } from './main/bootstrap/contingency';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -491,13 +491,10 @@ function isWebUrl(value: string): boolean {
 
 // (revertido) normalización de rutas eliminada a pedido del cliente
 
-// 🌐 Inicializar instancia GLOBAL de store
+// Store de configuración
 let store: Store<{ config?: Record<string, unknown> }>;
 try {
-    const storeInstance = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
-    store = storeInstance;
-    // Registrar como instancia global para que otros módulos la usen
-    (initGlobalStore as any)(storeInstance);
+    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
 } catch (e: any) {
     try {
         const dir = app.getPath('userData');
@@ -509,9 +506,7 @@ try {
         }
     } catch {}
     // Reintentar creación del store
-    const storeInstance = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
-    store = storeInstance;
-    (initGlobalStore as any)(storeInstance);
+    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
 }
 
 function createMainWindow() {
@@ -690,9 +685,10 @@ app.whenReady().then(() => {
     ensureTodayLogExists();
     try { Menu.setApplicationMenu(null); } catch {}
     try {
-        const { bootstrapContingency } = require('./main/bootstrap/contingency');
-        bootstrapContingency();
-    } catch {}
+        bootstrapContingency(store);  // 🔑 Pasar el store como parámetro
+    } catch (e: any) {
+        console.error('[main] Failed to bootstrap contingency:', e?.message || e);
+    }
 
     // WS Health → emitir estado a la UI (ARCA/AFIP)
     try {
@@ -860,11 +856,10 @@ app.whenReady().then(() => {
 			stopFacWatcher();
 			startFacWatcher();
 			try {
-				const { restartContingency } = require('./main/bootstrap/contingency');
-				restartContingency();
+				restartContingency(store);  // 🔑 Pasar el store como parámetro
 				console.log('[admin] Contingency watcher restarted', { dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH });
 			} catch (e: any) {
-				console.warn('[admin] Failed to restart contingency:', e?.message || e);
+				console.error('[admin] Failed to restart contingency:', e?.message || e);
 			}
 			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH };
 		} catch (e: any) {
@@ -1760,7 +1755,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	createTray();
     app.on('before-quit', () => { 
         isQuitting = true; 
-        try { const { shutdownContingency } = require('./main/bootstrap/contingency'); shutdownContingency(); } catch {}
+        try { shutdownContingency(); } catch (e: any) {
+            console.error('[main] Failed to shutdown contingency:', e?.message || e);
+        }
     });
 
 	// Programación automática
@@ -2037,6 +2034,15 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		} catch {}
 	}
 
+	// Función helper para enviar logs al modo Caja
+	function sendCajaLog(message: string) {
+		try {
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.webContents.send('caja-log', message);
+			}
+		} catch {}
+	}
+
 	async function processFacQueue() {
 		if (facProcessing) return;
 		facProcessing = true;
@@ -2047,6 +2053,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				try {
 					if (!fs.existsSync(job.fullPath)) {
 						try { logWarning('FAC omitido (no existe)', { filename: job.filename }); } catch {}
+						sendCajaLog(`⚠️ ${job.filename}: archivo no existe`);
 						continue;
 					}
 					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
@@ -2056,14 +2063,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const m = raw.match(/\bTIPO:\s*(.+)/i);
 						tipo = (m?.[1] || '').trim().toUpperCase();
 					} catch {}
+					
+					// Log de inicio con tipo detectado
+					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
+					
 					if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
+						sendCajaLog(`✅ RECIBO ${job.filename} → Completado`);
 					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
+						sendCajaLog(`✅ REMITO ${job.filename} → Completado`);
                     } else if (
 						tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
 						tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
@@ -2076,16 +2089,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						try {
 							if (out && out.ok) {
 								logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out });
+								sendCajaLog(`✅ ${tipo} ${job.filename} → Nº ${out.numero || '?'} CAE: ${out.cae || '?'}`);
 							} else {
 								logWarning('FAC FACTURA/NOTA falló', { filename: job.filename, output: out });
+								sendCajaLog(`❌ ${tipo} ${job.filename} → ${out?.reason || 'Error desconocido'}`);
 							}
 						} catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
+						sendCajaLog(`⚠️ ${job.filename} → tipo "${tipo}" no soportado`);
 					}
 				} catch (e) {
 					// No abortar toda la cola: registrar y continuar con el siguiente
 					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
+					sendCajaLog(`❌ ${job.filename} → ${String((e as any)?.message || e)}`);
 				}
 			}
 		} finally {
