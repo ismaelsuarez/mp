@@ -124,6 +124,16 @@ export class ContingencyController {
 
   pause(): void { this.store.pause(); }
   resume(): void { this.store.resume(); }
+  
+  // 🛑 Detener completamente el controller (cerrar watcher, detener wsHealth)
+  stop(): void {
+    try { this.watcher?.close(); } catch {}
+    try { this.wsHealth.stop(); } catch {}
+    this.watcher = null;
+    this.running = false;
+    this.processing = false;
+  }
+  
   status(): CtrStatus { const s = this.store.getStats(); return { running: this.running, paused: s.paused, enqueued: s.enqueued, processing: s.processing }; }
 
   enqueueFacFromPath(filePath: string, cfg?: { staging?: string }): number {

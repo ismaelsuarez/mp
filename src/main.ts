@@ -25,6 +25,7 @@ import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGalic
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
 import { WSHealthService } from './ws/WSHealthService';
+import { initGlobalStore, getGlobalStore } from './main/store';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -490,9 +491,13 @@ function isWebUrl(value: string): boolean {
 
 // (revertido) normalización de rutas eliminada a pedido del cliente
 
+// 🌐 Inicializar instancia GLOBAL de store
 let store: Store<{ config?: Record<string, unknown> }>;
 try {
-    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    const storeInstance = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    store = storeInstance;
+    // Registrar como instancia global para que otros módulos la usen
+    (initGlobalStore as any)(storeInstance);
 } catch (e: any) {
     try {
         const dir = app.getPath('userData');
@@ -504,7 +509,9 @@ try {
         }
     } catch {}
     // Reintentar creación del store
-    store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    const storeInstance = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
+    store = storeInstance;
+    (initGlobalStore as any)(storeInstance);
 }
 
 function createMainWindow() {
@@ -833,7 +840,9 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
 		try {
 			const cfg: any = store.get('config') || {};
-			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: true };
+			const enabled = cfg.FACT_FAC_WATCH !== false; // true por defecto
+			const dir = String(cfg.FACT_FAC_DIR || 'C:\\tmp');
+			return { ok: true, dir, enabled };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -844,11 +853,20 @@ app.whenReady().then(() => {
 			const { dir, enabled } = payload || ({} as any);
 			const cfg: any = store.get('config') || {};
 			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
-			// Forzar activado por defecto
-			cfg.FACT_FAC_WATCH = true;
+			// Permitir activar/desactivar
+			cfg.FACT_FAC_WATCH = enabled !== false; // true por defecto
 			store.set('config', cfg);
-			restartWatchersIfNeeded();
-			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: true };
+			// 🎯 Reiniciar SOLO el watcher de .fac (NO tocar remoteWatcher ni imageWatcher)
+			stopFacWatcher();
+			startFacWatcher();
+			try {
+				const { restartContingency } = require('./main/bootstrap/contingency');
+				restartContingency();
+				console.log('[admin] Contingency watcher restarted', { dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH });
+			} catch (e: any) {
+				console.warn('[admin] Failed to restart contingency:', e?.message || e);
+			}
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -2095,7 +2113,10 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		const dedicatedEnabled = cfg.FACT_FAC_WATCH !== false; // activado por defecto
 		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
 		const enabled = dedicatedEnabled || ftpCoupledEnabled;
-		if (!enabled) return false;
+		if (!enabled) {
+			logInfo('Fac watcher (UI bridge) disabled by config', { FACT_FAC_WATCH: cfg.FACT_FAC_WATCH });
+			return false;
+		}
 		const dirsSet = new Set<string>();
 		const addDir = (d?: string) => {
 			const dir = String(d || '').trim();
