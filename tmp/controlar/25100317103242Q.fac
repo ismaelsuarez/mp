@@ -11,11 +11,11 @@ IVARECEPTOR:5
 DOMICILIO:25 DE MAYO ESTE 55(MAIPU)
 MONEDA:PESOS
 ITEM:
-     1  GRASA DISIP. GRIZZLY  0,3gr     SERVICIO                     6033.058   21.00%      6033.058
-     1  MANTENIMIENTO DE EQUIPO                                     24793.388   21.00%     24793.388 
-     1  REPARACION/MANTENIMIENTO DE MECANISMOS                      99173.554   21.00%     99173.554
-    -1  BONIFICACION 21%                                            -6611.570   21.00%     -6611.570
-***********************************GRACIAS**********************************************************
+     1          GRASA DISIP. GRIZZLY  0,3gr     SERVICIO                            6033.058     21.00%         6033.058
+     1          MANTENIMIENTO DE EQUIPO                                            24793.388     21.00%        24793.388 
+     1          REPARACION/MANTENIMIENTO DE MECANISMOS                             99173.554     21.00%        99173.554
+    -1          BONIFICACION 21%                                                   -6611.570     21.00%        -6611.570
+*******************************************************GRACIAS**********************************************************
 TOTALES:
 NETO 21%  :    52479.34
 NETO 10.5%:        0.00

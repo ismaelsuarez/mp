@@ -72,6 +72,10 @@ const layoutMendoza: Config = {
     itemsStartY: 87,                                    // Posición Y donde empiezan los items
     itemsRowHeight: 4,                                  // Altura de cada fila de item (en mm)
     itemsFontSize: 8,                                   // Tamaño de fuente para los items
+    // ✅ Configuración específica para items RAW (modo "dump directo")
+    itemsRawStartX: 15,                                 // Posición X inicial para items RAW (mm)
+    itemsRawFontSize: 8,                                // Tamaño de fuente para items RAW (opcional, usa itemsFontSize si no se define)
+    itemsRawMaxWidth: 190,                              // Ancho máximo para items RAW (mm) - para líneas de ~100 caracteres
     cols: {                                             // Columnas de la tabla
       cant: { x: 14, w: 16 },                          // Cantidad (columna 1)
       desc: { x: 32, w: 110 },                         // Descripción (columna 2)

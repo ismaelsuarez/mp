@@ -85,6 +85,10 @@ export interface Config {
     itemsStartY: number; // mm
     itemsRowHeight: number; // mm
     itemsFontSize?: number; // tamaño base para filas de items
+    // ✅ Configuración específica para items RAW (modo "dump directo")
+    itemsRawStartX?: number; // Posición X inicial para items RAW (mm)
+    itemsRawFontSize?: number; // Tamaño de fuente para items RAW (usa itemsFontSize si no se define)
+    itemsRawMaxWidth?: number; // Ancho máximo para items RAW (mm)
     cols: {
       cant: { x: number; w: number };
       desc: { x: number; w: number };
@@ -650,20 +654,23 @@ export async function generateInvoicePdf({
   // **MODO "DUMP DIRECTO"**: Imprimir líneas RAW tal como vienen del .fac
   if (data.itemsRawLines && Array.isArray(data.itemsRawLines) && data.itemsRawLines.length > 0) {
     setFont(false); // Usar fuente Regular (Consolas - monospace)
-    doc.fontSize(itemsFontSize);
+    
+    // ✅ Usar tamaño de fuente específico para items RAW (o fallback a itemsFontSize)
+    const rawFontSize = c.itemsRawFontSize ?? itemsFontSize;
+    doc.fontSize(rawFontSize);
 
     for (const rawLine of data.itemsRawLines) {
       if (!rawLine) continue; // Saltar líneas vacías (ya filtradas en facProcessor, pero por seguridad)
       
-      // Imprimir línea RAW completa (con espacios del inicio) desde x: 14mm
-      const xPos = mm(c.cols.cant.x); // Posición X inicial (14mm)
+      // ✅ Usar posición X específica para items RAW (o fallback a cols.cant.x)
+      const xPos = mm(c.itemsRawStartX ?? c.cols.cant.x);
       const yPos = mm(rowY);
-      const anchoDisponible = mm(c.cols.total.x + c.cols.total.w - c.cols.cant.x); // Ancho total de la tabla
       
+      // ✅ Renderizar línea sin especificar width (dejar que PDFKit use el ancho natural de la fuente)
+      // Con fuente monospace (Consolas), cada carácter tiene el mismo ancho
       doc.text(rawLine, xPos, yPos, {
-        width: anchoDisponible,
-        align: 'left',
-        lineBreak: false // NO hacer word wrap, mantener formato original
+        lineBreak: false, // Importante: no hacer word wrap
+        continued: false // No continuar en la misma línea
       });
       
       rowY += rowHeight;
