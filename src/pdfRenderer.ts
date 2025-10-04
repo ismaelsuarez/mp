@@ -194,6 +194,8 @@ export type InvoiceData = {
   formaPago?: string;
 
   items: Item[];
+  // ✅ Líneas RAW pre-formateadas del .fac (modo "dump directo" - sin parseo)
+  itemsRawLines?: string[];
 
   netoGravado: number;
   netoPorAlicuota?: { [ali: string]: number }; // { "21": 0, "10.5": 0, "27": 0 }
@@ -640,22 +642,54 @@ export async function generateInvoicePdf({
       maxWidth: c.observaciones.maxWidth,
     });
 
-  // Detalle de ítems
+  // ✅ Detalle de ítems - MODO "DUMP DIRECTO" (según manual MTXCA)
   let rowY = c.itemsStartY;
   const rowHeight = c.itemsRowHeight;
   const itemsFontSize = c.itemsFontSize ?? 9;
-  const isReciboItems = (data.tipoComprobanteLiteral || '').toUpperCase() === 'RECIBO';
   
-  // Determinar si es Clase B ANTES del loop para no duplicar la lógica en totales
-  const tipoLiteralItems = (data.tipoComprobanteLiteral || '').toUpperCase();
-  const letraHeaderItems = String(data.tipoComprobanteLetra || '').toUpperCase();
-  const isNotaItems = /NOTA DE CREDITO|NOTA DE DEBITO/i.test(tipoLiteralItems);
-  const isClaseBItems = letraHeaderItems === 'B' || /CONSUMIDOR\s*FINAL/i.test(String(data.cliente.condicionIva || ''));
-  const isRemitoItems = tipoLiteralItems === 'REMITO';
-  // Para items: ocultar columna ALIC IVA en Factura B, NC B, ND B (pero SÍ mostrar UNITARIO)
-  const hideItemDiscrimination = isClaseBItems && (!isReciboItems && !isRemitoItems) && (tipoLiteralItems === 'FACTURA' || isNotaItems || !tipoLiteralItems);
-  
-  for (const it of data.items) {
+  // **MODO "DUMP DIRECTO"**: Imprimir líneas RAW tal como vienen del .fac
+  if (data.itemsRawLines && Array.isArray(data.itemsRawLines) && data.itemsRawLines.length > 0) {
+    setFont(false); // Usar fuente Regular (Consolas - monospace)
+    doc.fontSize(itemsFontSize);
+
+    for (const rawLine of data.itemsRawLines) {
+      if (!rawLine) continue; // Saltar líneas vacías (ya filtradas en facProcessor, pero por seguridad)
+      
+      // Imprimir línea RAW completa (con espacios del inicio) desde x: 14mm
+      const xPos = mm(c.cols.cant.x); // Posición X inicial (14mm)
+      const yPos = mm(rowY);
+      const anchoDisponible = mm(c.cols.total.x + c.cols.total.w - c.cols.cant.x); // Ancho total de la tabla
+      
+      doc.text(rawLine, xPos, yPos, {
+        width: anchoDisponible,
+        align: 'left',
+        lineBreak: false // NO hacer word wrap, mantener formato original
+      });
+      
+      rowY += rowHeight;
+
+      // Salto de página si es necesario
+      if (rowY > 200) {
+        doc.addPage({ size: 'A4', margin: 0 });
+        if (bgPath && fs.existsSync(bgPath)) {
+          doc.image(bgPath, 0, 0, { width: mm(210), height: mm(297) });
+        }
+        rowY = c.itemsStartY;
+      }
+    }
+    
+    setFont(false); // Restaurar fuente por defecto
+  } else {
+    // ⚠️ LÓGICA ANTERIOR (fallback para recibos, remitos antiguos sin itemsRawLines)
+    const isReciboItems = (data.tipoComprobanteLiteral || '').toUpperCase() === 'RECIBO';
+    const tipoLiteralItems = (data.tipoComprobanteLiteral || '').toUpperCase();
+    const letraHeaderItems = String(data.tipoComprobanteLetra || '').toUpperCase();
+    const isNotaItems = /NOTA DE CREDITO|NOTA DE DEBITO/i.test(tipoLiteralItems);
+    const isClaseBItems = letraHeaderItems === 'B' || /CONSUMIDOR\s*FINAL/i.test(String(data.cliente.condicionIva || ''));
+    const isRemitoItems = tipoLiteralItems === 'REMITO';
+    const hideItemDiscrimination = isClaseBItems && (!isReciboItems && !isRemitoItems) && (tipoLiteralItems === 'FACTURA' || isNotaItems || !tipoLiteralItems);
+    
+    for (const it of data.items) {
     if (isReciboItems) {
       const total = typeof it.total === 'number' ? it.total : it.cantidad * (it.unitario || 0);
       const cells = [
@@ -707,7 +741,8 @@ export async function generateInvoicePdf({
     
     drawRow(cells as any, rowY);
     rowY += rowHeight;
-  }
+    } // fin for (const it of data.items)
+  } // fin else (lógica anterior - fallback)
 
   // Totales - Dibujar etiquetas y valores por separado (como en el sistema viejo)
   console.log('🔍 DEBUG NETO:', { x: c.neto.x, y: c.neto.y, value: data.netoGravado });
@@ -737,36 +772,38 @@ export async function generateInvoicePdf({
   const skipTotalsForZeroRemito = isRemito && !hasValue(data.netoGravado) && !hasValue(iva21) && !hasValue(iva105) && !hasValue(iva27) && !hasValue(data.ivaTotal) && !hasValue(data.total) && !hasValue(neto21) && !hasValue(neto105) && !hasValue(neto27);
 
   // Dibujar etiqueta y valor de NETO sólo si corresponde
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && hasValue(data.netoGravado)) {
+  // ❌ NO mostrar para: Recibos, Remitos con totales 0, Facturas B/NC B/ND B
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && hasValue(data.netoGravado)) {
     if (c.netoLabel) {
       drawText('Neto:', c.netoLabel.x, c.netoLabel.y, { fontSize: c.netoLabel.fontSize ?? 9 });
     }
     drawNumber(data.netoGravado, c.neto.x, c.neto.y, { fontSize: c.neto.fontSize ?? 10, bold: true, maxWidth: 30 });
   }
 
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto21 && typeof neto21 === 'number' && (!isRecibo || hasValue(neto21))) {
+  // ✅ Solo para Facturas A / NC A / ND A (NO para Recibos, NO para Clase B)
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.neto21 && typeof neto21 === 'number' && hasValue(neto21)) {
     console.log('🔍 DEBUG NETO21:', { x: c.neto21.x, y: c.neto21.y, value: neto21 });
     if (c.neto21Label) {
       drawText('Neto 21%:', c.neto21Label.x, c.neto21Label.y, { fontSize: c.neto21Label.fontSize ?? 9 });
     }
     drawNumber(neto21, c.neto21.x, c.neto21.y, { fontSize: c.neto21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto105 && typeof neto105 === 'number' && (!isRecibo || hasValue(neto105))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.neto105 && typeof neto105 === 'number' && hasValue(neto105)) {
     console.log('🔍 DEBUG NETO105:', { x: c.neto105.x, y: c.neto105.y, value: neto105 });
     if (c.neto105Label) {
       drawText('Neto 10.5%:', c.neto105Label.x, c.neto105Label.y, { fontSize: c.neto105Label.fontSize ?? 9 });
     }
     drawNumber(neto105, c.neto105.x, c.neto105.y, { fontSize: c.neto105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.neto27 && typeof neto27 === 'number' && (!isRecibo || hasValue(neto27))) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.neto27 && typeof neto27 === 'number' && hasValue(neto27)) {
     console.log('🔍 DEBUG NETO27:', { x: c.neto27.x, y: c.neto27.y, value: neto27 });
     if (c.neto27Label) {
       drawText('Neto 27%:', c.neto27Label.x, c.neto27Label.y, { fontSize: c.neto27.fontSize ?? 9 });
     }
     drawNumber(neto27, c.neto27.x, c.neto27.y, { fontSize: c.neto27.fontSize ?? 9, maxWidth: 30 });
   }
-  // EXENTO
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && hasValue(exento)) {
+  // EXENTO - Solo para Facturas A / NC A / ND A
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && hasValue(exento)) {
     if ((c as any).exentoLabel && (c as any).exento) {
       drawText('Exento:', (c as any).exentoLabel.x, (c as any).exentoLabel.y, { fontSize: (c as any).exentoLabel.fontSize ?? 9 });
       drawNumber(exento, (c as any).exento.x, (c as any).exento.y, { fontSize: (c as any).exento.fontSize ?? 9, maxWidth: 30 });
@@ -778,28 +815,28 @@ export async function generateInvoicePdf({
     }
   }
 
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva21 && hasValue(iva21)) {
+  // ✅ IVAs solo para Facturas A / NC A / ND A (NO para Recibos, NO para Clase B)
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.iva21 && hasValue(iva21)) {
     if (c.iva21Label) {
       drawText('IVA 21%:', c.iva21Label.x, c.iva21Label.y, { fontSize: c.iva21Label.fontSize ?? 9 });
     }
     drawNumber(iva21, c.iva21.x, c.iva21.y, { fontSize: c.iva21.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva105 && hasValue(iva105)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.iva105 && hasValue(iva105)) {
     if (c.iva105Label) {
       drawText('IVA 10.5%:', c.iva105Label.x, c.iva105Label.y, { fontSize: c.iva105Label.fontSize ?? 9 });
     }
     drawNumber(iva105, c.iva105.x, c.iva105.y, { fontSize: c.iva105.fontSize ?? 9, maxWidth: 30 });
   }
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && c.iva27 && hasValue(iva27)) {
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && c.iva27 && hasValue(iva27)) {
     if (c.iva27Label) {
       drawText('IVA 27%:', c.iva27Label.x, c.iva27Label.y, { fontSize: c.iva27Label.fontSize ?? 9 });
     }
     drawNumber(iva27, c.iva27.x, c.iva27.y, { fontSize: c.iva27.fontSize ?? 9, maxWidth: 30 });
   }
 
-  // (ya definido arriba)
-
-  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && (!isRecibo || hasValue(data.ivaTotal)) && (data as any).showIvaTotal) {
+  // IVA Total - Solo para Facturas A / NC A / ND A
+  if (!hideDiscriminatedForCliente && !skipTotalsForZeroRemito && !isRecibo && (data as any).showIvaTotal) {
     if (c.impIvaTotalLabel) {
       drawText('IVA Total:', c.impIvaTotalLabel.x, c.impIvaTotalLabel.y, { fontSize: c.impIvaTotalLabel.fontSize ?? 9 });
     }

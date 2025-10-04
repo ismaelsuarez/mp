@@ -26,6 +26,7 @@ type ParsedRemito = {
     domicilio?: string;
   };
   itemsRemito: Array<{ cantidad: number; descripcion: string; total: number }>;
+  itemsRawLines: string[]; // ✅ Líneas RAW entre ITEM: y TOTALES:
   pagos: Array<{ medio: string; detalle: string; importe: number }>;
   totales: { neto21: number; neto105: number; neto27: number; exento: number; iva21: number; iva105: number; iva27: number; total: number };
   obs: {
@@ -102,6 +103,20 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
   const ivaReceptor = get('IVARECEPTOR:');
   const domicilio = get('DOMICILIO:');
 
+  // ✅ Captura RAW de líneas entre ITEM: y TOTALES:
+  const itemStart = lines.findIndex((l) => l.trim() === 'ITEM:');
+  const totStart = lines.findIndex((l) => l.trim() === 'TOTALES:');
+  const itemsRawLines: string[] = [];
+  if (itemStart >= 0) {
+    const end = totStart > itemStart ? totStart : lines.length;
+    for (let i = itemStart + 1; i < end; i++) {
+      const row = lines[i];
+      if (!row || !row.trim()) continue;
+      itemsRawLines.push(row); // Captura línea completa (con espacios)
+    }
+  }
+
+  // Parseo legacy (por si acaso)
   const itemsLines = getBlock('ITEM:');
   const itemsRemito = [] as Array<{ cantidad: number; descripcion: string; total: number }>;
   for (const rawLn of itemsLines) {
@@ -192,6 +207,7 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
     whatsapp: whatsapp || undefined,
     receptor: { codigo, nombre, docTipo, docNro, condicionTxt, ivaReceptor, domicilio },
     itemsRemito,
+    itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     pagos,
     totales: { neto21, neto105, neto27, exento, iva21, iva105, iva27, total },
     obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieWrapped, atendio, hora, mail, pago },
@@ -350,7 +366,8 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     observaciones: parsed.obs.cabecera2.filter(Boolean).slice(0, 2).join('\n'),
     pieObservaciones: parsed.obs.pie.filter(Boolean).join('\n'),
     fiscal: (parsed.fiscal && parsed.fiscal.length) ? parsed.fiscal.join('\n') : undefined,
-    items: parsed.itemsRemito.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total })),
+    items: [], // ✅ Array vacío (se usa itemsRawLines en su lugar)
+    itemsRawLines: parsed.itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     netoGravado: (parsed.totales.neto21 || 0) + (parsed.totales.neto105 || 0) + (parsed.totales.neto27 || 0),
     ivaPorAlicuota: { '21': parsed.totales.iva21 || 0, '10.5': parsed.totales.iva105 || 0, '27': parsed.totales.iva27 || 0 },
     ivaTotal: (parsed.totales.iva21 || 0) + (parsed.totales.iva105 || 0) + (parsed.totales.iva27 || 0),

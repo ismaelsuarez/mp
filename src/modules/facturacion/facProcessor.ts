@@ -28,6 +28,7 @@ type ParsedRecibo = {
     domicilio?: string;
   };
   itemsRecibo: Array<{ cantidad: number; descripcion: string; total: number }>;
+  itemsRawLines: string[]; // ✅ Líneas RAW entre ITEM: y TOTALES:
   pagos: Array<{ medio: string; detalle: string; importe: number }>;
   totales: { neto21: number; neto105: number; neto27: number; exento: number; iva21: number; iva105: number; iva27: number; total: number };
   obs: {
@@ -105,14 +106,25 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
   const ivaReceptor = (get('IVARECEPTOR:') || '').trim();
   const domicilio = get('DOMICILIO:');
 
-  // Items/Pagos
+  // Items/Pagos + Captura RAW
   const startItems = lines.findIndex((l) => l.trim() === 'ITEM:');
+  const totStart = lines.findIndex((l) => l.trim() === 'TOTALES:');
   const pagos: ParsedRecibo['pagos'] = [];
   const itemsRecibo: ParsedRecibo['itemsRecibo'] = [];
+  const itemsRawLines: string[] = []; // ✅ Captura RAW (modo "dump directo")
+  
   if (startItems >= 0) {
-    for (let i = startItems + 1; i < lines.length; i++) {
+    const end = totStart > startItems ? totStart : lines.length;
+    for (let i = startItems + 1; i < end; i++) {
       const l = lines[i];
       if (/^TOTALES:/.test(l)) break;
+      
+      // ✅ Capturar línea RAW completa (con espacios del inicio)
+      if (l && l.trim()) {
+        itemsRawLines.push(l);
+      }
+      
+      // Parseo para pagos (legacy - por si acaso)
       const mPago = l.match(/\s*\d+\s+([^:]+):([^\s]+).*?(\d+[\.,]?\d*)\s*$/);
       if (mPago) {
         const medio = mPago[1].trim();
@@ -120,6 +132,8 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
         const imp = parseImporte(mPago[3]);
         pagos.push({ medio, detalle, importe: imp });
       }
+      
+      // Parseo para items (legacy - por si acaso)
       const mTot = l.match(/(\d+(?:[\.,]\d+)?)\s*$/);
       const mQty = l.match(/^\s*(\d+)/);
       if (mTot && mQty) {
@@ -210,6 +224,7 @@ function parseFacRecibo(content: string, fileName: string): ParsedRecibo {
     whatsapp: whatsapp || undefined,
     receptor: { codigo, nombre, docTipo, docNro, condicionTxt, ivaReceptor, domicilio },
     itemsRecibo,
+    itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     pagos,
     totales,
     obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieWrapped, atendio, hora, mail, pago },
@@ -371,7 +386,8 @@ export async function processFacFile(fullPath: string): Promise<string> {
     observaciones: parsed.obs.cabecera2.filter(Boolean).slice(0, 2).join('\n'),
     pieObservaciones: parsed.obs.pie.filter(Boolean).join('\n'),
     fiscal: (parsed.fiscal && parsed.fiscal.length) ? parsed.fiscal.join('\n') : undefined,
-    items: parsed.itemsRecibo.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total })),
+    items: [], // ✅ Array vacío (se usa itemsRawLines en su lugar)
+    itemsRawLines: parsed.itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     netoGravado: (parsed.totales.neto21 || 0) + (parsed.totales.neto105 || 0) + (parsed.totales.neto27 || 0),
     ivaPorAlicuota: { '21': parsed.totales.iva21 || 0, '10.5': parsed.totales.iva105 || 0, '27': parsed.totales.iva27 || 0 },
     ivaTotal: (parsed.totales.iva21 || 0) + (parsed.totales.iva105 || 0) + (parsed.totales.iva27 || 0),
@@ -741,44 +757,18 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
   }
   try { const mPg = cab1Text.match(/Pago:\s*([^|]+)/i); if (mPg) pago = mPg[1].trim(); } catch {}
 
+  // ✅ CAPTURA RAW de líneas entre ITEM: y TOTALES: (sin parseo, modo "dump directo")
+  // Según manual MTXCA: AFIP solo requiere totales + alícuotas, NO detalle de items
   const itemStart = lines.findIndex(l => l.trim() === 'ITEM:');
   const totStart = lines.findIndex(l => l.trim() === 'TOTALES:');
-  const items: any[] = [];
+  const itemsRawLines: string[] = [];
   if (itemStart >= 0) {
     const end = totStart > itemStart ? totStart : lines.length;
-    for (let i=itemStart+1;i<end;i++) {
-      const row = lines[i]; if (!row || !row.trim()) continue;
-      // Caso 1: cantidad + descripcion + unitario + alicuota% + total (soporta valores negativos en unitario, alícuota y total)
-      let m = row.match(/^\s*(\d+)\s+(.*?)\s+([-+]?[0-9.,]+)\s+([-+]?\d{1,2}(?:[.,]\d{1,2})?)%\s+([-+]?[0-9.,]+)\s*$/);
-      if (m) {
-        const cantidad = Number(m[1]);
-        const descripcion = m[2].replace(/\s+$/,'');
-        const unitario = parseNumAr(m[3]);
-        const iva = Number((m[4] || '0').replace(',', '.'));
-        const totalLinea = parseNumAr(m[5]);
-        items.push({ cantidad, descripcion, unitario, iva, total: totalLinea, displayUnit: (m[3]||'').trim(), displayAlic: ((m[4]||'').trim().replace(',', '.'))+'%', displayTotal: (m[5]||'').trim() });
-        continue;
-      }
-      // Caso 2: cantidad + descripcion + unitario + total (sin alícuota explícita, soporta valores negativos con signo -)
-      m = row.match(/^\s*(\d+)\s+(.*?)\s+([-+]?[0-9.,]+)\s+([-+]?[0-9.,]+)\s*$/);
-      if (m) {
-        const cantidad = Number(m[1]);
-        const descripcion = m[2].replace(/\s+$/,'');
-        const unitario = parseNumAr(m[3]);
-        const totalLinea = parseNumAr(m[4]);
-        items.push({ cantidad, descripcion, unitario, iva: 0, total: totalLinea, displayUnit: (m[3]||'').trim(), displayTotal: (m[4]||'').trim() });
-        continue;
-      }
-      // Caso 3: cantidad + descripción únicamente (sin importes en la línea)
-      m = row.match(/^\s*(\d+)\s+(.*\S)\s*$/);
-      if (m) {
-        const cantidad = Number(m[1]);
-        const descripcion = (m[2] || '').trim();
-        items.push({ cantidad, descripcion });
-        continue;
-      }
-      const fallback = row.trim();
-      if (fallback) items.push({ cantidad: 1, descripcion: fallback });
+    for (let i = itemStart + 1; i < end; i++) {
+      const row = lines[i];
+      if (!row || !row.trim()) continue; // Saltar líneas vacías
+      // Capturar línea completa tal como viene (con espacios del inicio)
+      itemsRawLines.push(row);
     }
   }
 
@@ -809,55 +799,10 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     return { ok:false, reason: 'NTP_ERROR' } as any;
   }
 
-  // Inferir alícuota si faltó en líneas pero los totales indican IVA
-  // CRÍTICO: para FB (tipo 6) con CF, el precio incluye IVA, pero debe discriminarse para AFIP
-  try {
-    const allIvaZero = (items || []).every((it: any) => !Number(it?.iva || 0));
-    if (allIvaZero && (Number(iva21||0) + Number(iva105||0) + Number(iva27||0)) > 0) {
-      // Caso 1: UNA SOLA alícuota en TOTALES → asignar a todos los items
-      const only21 = (Number(iva21 || 0) > 0 || Number(neto21 || 0) > 0) && Number(iva105 || 0) === 0 && Number(iva27 || 0) === 0;
-      const only105 = (Number(iva105 || 0) > 0 || Number(neto105 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva27 || 0) === 0;
-      const only27 = (Number(iva27 || 0) > 0 || Number(neto27 || 0) > 0) && Number(iva21 || 0) === 0 && Number(iva105 || 0) === 0;
-      
-      if (only21 || only105 || only27) {
-        const rate = only21 ? 21 : (only105 ? 10.5 : 27);
-        for (const it of (items as any[])) { if (it) it.iva = rate; }
-        try { console.warn('[FAC][PIPE] iva:inferred:single', { tipo, rate, method: 'unique_aliquot' }); } catch {}
-      } else {
-        // Caso 2: MÚLTIPLES alícuotas → inferir del NOMBRE del producto o distribuir proporcionalmente
-        try { console.warn('[FAC][PIPE] iva:multiple_aliquots', { tipo, iva21, iva105, iva27, items_count: items.length }); } catch {}
-        
-        for (const it of (items as any[])) {
-          if (!it) continue;
-          
-          // Estrategia A: buscar "21", "10.5", "10,5" o "27" en el nombre del producto
-          const desc = String(it.descripcion || '').toUpperCase();
-          if (/\b21\b/.test(desc) || /21%/.test(desc)) {
-            it.iva = 21;
-            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 21 }); } catch {}
-            continue;
-          }
-          if (/\b10[.,]5\b/.test(desc) || /10[.,]5%/.test(desc)) {
-            it.iva = 10.5;
-            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 10.5 }); } catch {}
-            continue;
-          }
-          if (/\b27\b/.test(desc) || /27%/.test(desc)) {
-            it.iva = 27;
-            try { console.warn('[FAC][PIPE] iva:inferred:name', { item: it.descripcion, iva: 27 }); } catch {}
-            continue;
-          }
-          
-          // Estrategia B: si no se pudo inferir del nombre, usar la alícuota predominante
-          const predominante = (Number(neto21 || 0) >= Number(neto105 || 0) && Number(neto21 || 0) >= Number(neto27 || 0)) ? 21
-                             : (Number(neto105 || 0) >= Number(neto27 || 0)) ? 10.5
-                             : 27;
-          it.iva = predominante;
-          try { console.warn('[FAC][PIPE] iva:inferred:predominant', { item: it.descripcion, iva: predominante }); } catch {}
-        }
-      }
-    }
-  } catch {}
+  // ✅ YA NO se necesita inferir alícuotas desde items porque:
+  // - Los totales vienen completos del .fac (etiqueta TOTALES:)
+  // - AFIP usa totales_fac directamente (no items parseados)
+  // - Lógica de inferencia eliminada según manual MTXCA
 
   // Emisión AFIP con retry
   const cfg = readFacturasConfig();
@@ -882,23 +827,9 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     return { ok:false, reason: 'TOTAL_INVALID' } as any;
   }
   // Normalizar items para AFIP (como hace la UI)
-  const detalle = (items || []).map((it:any)=>{
-    const cantidad = Number(it.cantidad || 1);
-    const precioUnitario = (typeof it.unitario === 'number' && isFinite(it.unitario))
-      ? it.unitario
-      : ((typeof it.total === 'number' && isFinite(it.total) && cantidad>0) ? (it.total / cantidad) : 0);
-    const alicuotaIva = (typeof it.iva === 'number' && isFinite(it.iva)) ? it.iva : 0;
-    return {
-      descripcion: String(it.descripcion || '').trim() || 'ITEM',
-      cantidad,
-      precioUnitario,
-      alicuotaIva
-    };
-  }).filter((d:any)=> d && d.cantidad>0 && isFinite(d.precioUnitario));
-  if (!detalle.length) {
-    try { console.warn('[FAC][PIPE] items:empty'); } catch {}
-    return { ok:false, reason: 'ITEMS_EMPTY' } as any;
-  }
+  // ✅ AFIP/ARCA solo requiere totales, NO detalle de items (según manual MTXCA)
+  // Enviamos array vacío ya que los totales vienen completos en totales_fac
+  const detalle: any[] = [];
   const cuitODocReceptor = ((): string | undefined => {
     if (docTipo === 99) return undefined;
     if (docNro) return String(docNro);
@@ -1069,7 +1000,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     total,
     cae: caeStr,
     caeVto: caeVtoStr,
-    items
+    items: [], // ✅ Array vacío (no se usa para PDF, solo itemsRawLines)
+    itemsRawLines // ✅ Líneas RAW pre-formateadas del .fac (modo "dump directo")
   };
   await generateInvoicePdf({ bgPath, outputPath: localOutPath, data, config: layoutMendoza, qrDataUrl: (r as any)?.qrData });
   try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `PDF OK ${path.basename(localOutPath)}` }); } catch {}
