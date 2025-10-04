@@ -133,7 +133,10 @@ async function handleAutoButtonClick() {
     }
 }
 
-function appendLog(line: string) {
+// Variable global para controlar auto-scroll
+let autoScrollEnabled = true;
+
+function appendLog(lineOrMessage: string | any) {
     const box = document.getElementById('cajaLogs') as HTMLElement | null;
     if (!box) return;
     
@@ -147,19 +150,122 @@ function appendLog(line: string) {
     // Crear un nuevo div para cada línea de log
     const logLine = document.createElement('div');
     logLine.style.whiteSpace = 'nowrap';
-    logLine.textContent = `[${at}] ${line}`;
+    logLine.style.padding = '2px 0';
+    
+    // Si es un objeto estructurado (nuevo sistema)
+    if (typeof lineOrMessage === 'object' && lineOrMessage.text) {
+        const msg = lineOrMessage;
+        
+        // Colores según el nivel
+        let color = '#94a3b8'; // slate-400 por defecto
+        switch (msg.level) {
+            case 'success':
+                color = '#4ade80'; // green-400
+                break;
+            case 'error':
+                color = '#f87171'; // red-400
+                break;
+            case 'warning':
+                color = '#fbbf24'; // amber-400
+                break;
+            case 'process':
+                color = '#60a5fa'; // blue-400
+                break;
+            case 'info':
+                color = '#94a3b8'; // slate-400
+                break;
+        }
+        
+        logLine.style.color = color;
+        
+        // Formato: [HH:MM:SS] 🔔 Mensaje principal | Detalle adicional
+        const icon = msg.icon || '';
+        const timestamp = `[${at}]`;
+        const mainText = msg.text;
+        const detail = msg.detail ? ` | ${msg.detail}` : '';
+        
+        logLine.textContent = `${timestamp} ${icon} ${mainText}${detail}`;
+    } else {
+        // Retrocompatibilidad con strings simples (sistema viejo)
+        logLine.style.color = '#94a3b8'; // slate-400
+        logLine.textContent = `[${at}] ${String(lineOrMessage)}`;
+    }
     
     // Agregar la línea al contenedor
     box.appendChild(logLine);
     
-    // Limitar a las últimas 100 líneas para no saturar el DOM
-    const maxLines = 100;
+    // Limitar a las últimas 200 líneas para no saturar el DOM
+    const maxLines = 200;
     while (box.children.length > maxLines) {
         box.removeChild(box.firstChild!);
     }
     
-    // Auto-scroll al final cuando se agrega nueva línea
-    box.scrollTop = box.scrollHeight;
+    // Actualizar contador
+    updateLogCounter();
+    
+    // Auto-scroll al final cuando se agrega nueva línea (si está habilitado)
+    if (autoScrollEnabled) {
+        box.scrollTop = box.scrollHeight;
+    }
+}
+
+function updateLogCounter() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    const counter = document.getElementById('logCounter') as HTMLElement | null;
+    if (!box || !counter) return;
+    
+    const count = box.children.length;
+    counter.textContent = `${count} log${count !== 1 ? 's' : ''}`;
+}
+
+function clearLogs() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    if (!box) return;
+    
+    box.innerHTML = '';
+    updateLogCounter();
+    appendLog('Logs limpiados');
+}
+
+function copyLogs() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    if (!box) return;
+    
+    const lines: string[] = [];
+    for (let i = 0; i < box.children.length; i++) {
+        const line = box.children[i].textContent || '';
+        if (line) lines.push(line);
+    }
+    
+    const text = lines.join('\n');
+    
+    // Intentar copiar al portapapeles
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            appendLog('✅ Logs copiados al portapapeles');
+        }).catch(() => {
+            appendLog('❌ Error al copiar');
+        });
+    } else {
+        // Fallback para navegadores sin clipboard API
+        appendLog('❌ Clipboard no disponible');
+    }
+}
+
+function toggleAutoScroll() {
+    autoScrollEnabled = !autoScrollEnabled;
+    const btn = document.getElementById('btnPauseScroll') as HTMLButtonElement | null;
+    if (!btn) return;
+    
+    if (autoScrollEnabled) {
+        btn.textContent = '⏸️ Auto-scroll';
+        btn.title = 'Pausar auto-scroll';
+        appendLog('✅ Auto-scroll habilitado');
+    } else {
+        btn.textContent = '▶️ Auto-scroll';
+        btn.title = 'Reanudar auto-scroll';
+        appendLog('⏸️ Auto-scroll pausado');
+    }
 }
 
 function renderLast8(rows: Array<{ id: any; status: any; amount: any; date?: any }>) {
@@ -379,6 +485,11 @@ window.addEventListener('DOMContentLoaded', () => {
 		await (window.api as any).openView?.('config');
 	});
 
+	// Controles del visor de logs
+	document.getElementById('btnClearLogs')?.addEventListener('click', clearLogs);
+	document.getElementById('btnCopyLogs')?.addEventListener('click', copyLogs);
+	document.getElementById('btnPauseScroll')?.addEventListener('click', toggleAutoScroll);
+
 	// Notificaciones automáticas
 	window.api.onAutoNotice?.((payload) => {
 		if ((payload as any)?.error) {
@@ -415,7 +526,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch {}
 
 	// Logs de procesamiento .fac (backend → frontend)
-	window.api.onCajaLog?.((message: string) => {
+	window.api.onCajaLog?.((message: string | any) => {
 		appendLog(message);
 	});
 

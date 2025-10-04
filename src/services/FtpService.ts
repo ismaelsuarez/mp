@@ -7,6 +7,7 @@ import { Client } from 'basic-ftp';
 import crypto from 'crypto';
 import { logFtp, logSuccess, logWarning } from './LogService';
 import { recordError } from './ErrorNotificationService';
+import { cajaLog } from './CajaLogService';
 
 function getEncryptionKey(): string | undefined {
 	try {
@@ -78,7 +79,10 @@ async function testWhatsappSftpInternal(cfg: any) {
 
 async function sendWhatsappFilesSftpInternal(cfg: any, filePaths: string[], remoteNames?: string[]) {
     let SFTPClient: any;
-    try { SFTPClient = require('ssh2-sftp-client'); } catch { throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); }
+    try { SFTPClient = require('ssh2-sftp-client'); } catch { 
+        cajaLog.logWhatsappError('Falta dependencia ssh2-sftp-client');
+        throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); 
+    }
     const sftp = new SFTPClient();
     try {
         logFtp('WA SFTP: conectando para envío múltiple...', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
@@ -98,6 +102,7 @@ async function sendWhatsappFilesSftpInternal(cfg: any, filePaths: string[], remo
         } as any);
         const dir = normalizeDir(cfg.FTP_WHATSAPP_DIR) || '/';
         await ensureSftpDir(sftp, dir);
+        
         for (let i = 0; i < filePaths.length; i++) {
             const local = filePaths[i];
             if (!local || !fs.existsSync(local)) continue;
@@ -106,17 +111,25 @@ async function sendWhatsappFilesSftpInternal(cfg: any, filePaths: string[], remo
             logFtp('WA SFTP: subiendo archivo', { local, remote: remotePath });
             await sftp.put(local, remotePath);
             logSuccess('WA SFTP: archivo enviado', { local, remote: remotePath });
+            
+            // Log específico para WhatsApp
+            cajaLog.logWhatsappEnviado(`${cfg.FTP_WHATSAPP_IP}:${dir}/${rn}`);
         }
         return { ok: true };
     } catch (e: any) {
-        logWarning('WA SFTP: error envío múltiple', { error: String(e?.message || e) });
+        const errMsg = String(e?.message || e);
+        logWarning('WA SFTP: error envío múltiple', { error: errMsg });
+        cajaLog.logWhatsappError(errMsg);
         throw e;
     } finally { try { await sftp.end(); } catch {} }
 }
 
 async function sendWhatsappFileSftpInternal(cfg: any, localPath: string, remoteName?: string) {
     let SFTPClient: any;
-    try { SFTPClient = require('ssh2-sftp-client'); } catch { throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); }
+    try { SFTPClient = require('ssh2-sftp-client'); } catch { 
+        cajaLog.logWhatsappError('Falta dependencia ssh2-sftp-client');
+        throw new Error('Falta dependencia ssh2-sftp-client. Ejecuta: npm i ssh2-sftp-client'); 
+    }
     const sftp = new SFTPClient();
     try {
         logFtp('WA SFTP: conectando para envío individual...', { host: cfg.FTP_WHATSAPP_IP, port: cfg.FTP_WHATSAPP_PORT });
@@ -141,9 +154,15 @@ async function sendWhatsappFileSftpInternal(cfg: any, localPath: string, remoteN
         logFtp('WA SFTP: subiendo archivo', { localPath, remote: remotePath });
         await sftp.put(localPath, remotePath);
         logSuccess('WA SFTP: archivo enviado', { localPath, remote: remotePath });
+        
+        // Log específico para WhatsApp
+        cajaLog.logWhatsappEnviado(`${cfg.FTP_WHATSAPP_IP}:${dir}/${rn}`);
+        
         return { remoteDir: dir || '/', remoteFile: rn };
     } catch (e: any) {
-        logWarning('WA SFTP: error envío individual', { error: String(e?.message || e) });
+        const errMsg = String(e?.message || e);
+        logWarning('WA SFTP: error envío individual', { error: errMsg });
+        cajaLog.logWhatsappError(errMsg);
         throw e;
     } finally { try { await sftp.end(); } catch {} }
 }
@@ -529,11 +548,23 @@ export async function sendFilesToWhatsappFtp(filePaths: string[], remoteNames?: 
                 logFtp('WA FTP: subiendo archivo', { local, remote: `${dir || '/'}${rn}` });
                 await c.uploadFrom(local, rn);
                 logSuccess('WA FTP: archivo enviado', { local, remote: `${dir || '/'}${rn}` });
+                
+                // Log específico para WhatsApp
+                cajaLog.logWhatsappEnviado(`${wip}:${dir || '/'}${rn}`);
             }
             return { ok: true };
         } finally { c.close(); }
     };
-    try { return await tryMode(false); } catch { return await tryMode(true); }
+    try { 
+        return await tryMode(false); 
+    } catch (e: any) { 
+        try {
+            return await tryMode(true);
+        } catch (e2: any) {
+            cajaLog.logWhatsappError(String(e2?.message || e2));
+            throw e2;
+        }
+    }
 }
 
 // Enviar un archivo individual al FTP de WhatsApp
@@ -544,10 +575,12 @@ export async function sendWhatsappFile(localPath: string, remoteFileName?: strin
     const wpass = cfg.FTP_WHATSAPP_PASS;
     if (!wip || !wuser || !wpass) {
         recordError('FTP_WA_CONFIG', 'Configuración FTP WhatsApp incompleta', { config: { hasIp: !!wip, hasUser: !!wuser, hasPass: !!wpass } });
+        cajaLog.logWhatsappError('Config FTP incompleta');
         throw new Error('Config FTP WhatsApp incompleta');
     }
     if (!fs.existsSync(localPath)) {
         recordError('FTP_FILE', 'Archivo local no encontrado (WA)', { localPath });
+        cajaLog.logWhatsappError('Archivo no encontrado');
         throw new Error(`No existe archivo local: ${localPath}`);
     }
     if (cfg.FTP_WHATSAPP_SFTP) {
@@ -570,9 +603,22 @@ export async function sendWhatsappFile(localPath: string, remoteFileName?: strin
             logFtp('WA FTP: subiendo archivo', { localPath, remote: `${dir || '/'}${remoteName}` });
             await c.uploadFrom(localPath, remoteName);
             logSuccess('WA FTP: archivo enviado', { localPath, remote: `${dir || '/'}${remoteName}` });
+            
+            // Log específico para WhatsApp
+            cajaLog.logWhatsappEnviado(`${wip}:${dir || '/'}${remoteName}`);
+            
             return { remoteDir: dir || '/', remoteFile: remoteName };
         } finally { c.close(); }
     };
-    try { return await sendWith(false); } catch { return await sendWith(true); }
+    try { 
+        return await sendWith(false); 
+    } catch (e: any) { 
+        try {
+            return await sendWith(true);
+        } catch (e2: any) {
+            cajaLog.logWhatsappError(String(e2?.message || e2));
+            throw e2;
+        }
+    }
 }
 

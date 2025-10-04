@@ -79,6 +79,19 @@
 
     <main class="container mt-2">
 		<section id="pane-home" class="tab-pane" style="display:block;">
+            <!-- Controles del visor de logs -->
+            <div class="flex items-center gap-2 mb-1">
+                <button id="btnClearLogs" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Limpiar logs">
+                    🗑️ Limpiar
+                </button>
+                <button id="btnCopyLogs" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Copiar todo">
+                    📋 Copiar
+                </button>
+                <button id="btnPauseScroll" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Pausar auto-scroll">
+                    ⏸️ Auto-scroll
+                </button>
+                <span id="logCounter" class="ml-auto text-xs text-slate-400"></span>
+            </div>
             <div id="cajaLogs" class="bg-black border border-slate-600 rounded-md p-3 h-48 overflow-auto font-mono text-sm shadow-inner"></div>
 		</section>
 
