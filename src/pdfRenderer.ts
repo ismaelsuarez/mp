@@ -645,6 +645,16 @@ export async function generateInvoicePdf({
   const rowHeight = c.itemsRowHeight;
   const itemsFontSize = c.itemsFontSize ?? 9;
   const isReciboItems = (data.tipoComprobanteLiteral || '').toUpperCase() === 'RECIBO';
+  
+  // Determinar si es Clase B ANTES del loop para no duplicar la lógica en totales
+  const tipoLiteralItems = (data.tipoComprobanteLiteral || '').toUpperCase();
+  const letraHeaderItems = String(data.tipoComprobanteLetra || '').toUpperCase();
+  const isNotaItems = /NOTA DE CREDITO|NOTA DE DEBITO/i.test(tipoLiteralItems);
+  const isClaseBItems = letraHeaderItems === 'B' || /CONSUMIDOR\s*FINAL/i.test(String(data.cliente.condicionIva || ''));
+  const isRemitoItems = tipoLiteralItems === 'REMITO';
+  // Para items: ocultar columna ALIC IVA en Factura B, NC B, ND B (pero SÍ mostrar UNITARIO)
+  const hideItemDiscrimination = isClaseBItems && (!isReciboItems && !isRemitoItems) && (tipoLiteralItems === 'FACTURA' || isNotaItems || !tipoLiteralItems);
+  
   for (const it of data.items) {
     if (isReciboItems) {
       const total = typeof it.total === 'number' ? it.total : it.cantidad * (it.unitario || 0);
@@ -662,25 +672,39 @@ export async function generateInvoicePdf({
     const hasIva = typeof it.iva === 'number' && !Number.isNaN(it.iva) && Math.abs(it.iva) > 0;
     const hasTotal = typeof it.total === 'number' && !Number.isNaN(it.total) && Math.abs(it.total) > 0;
     const totalCalc = hasTotal ? it.total! : (hasUnit ? (it.cantidad * it.unitario) : undefined);
-    const showUnitCols = (hasUnit || hasIva || typeof totalCalc === 'number');
 
     const unitText = (it as any).displayUnit ?? (hasUnit ? formatNumberEsAr(it.unitario) : '');
     const alicText = (it as any).displayAlic ?? (hasIva ? `${it.iva}%` : '');
     const totalText = (it as any).displayTotal ?? (typeof totalCalc === 'number' ? formatNumberEsAr(totalCalc) : '');
 
-    const cells = showUnitCols
-      ? [
-          { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
-          { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
-          { text: unitText, x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
-          { text: alicText, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
-          { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
-        ]
-      : [
-          { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
-          { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
-          { text: '', x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
-        ];
+    let cells: Cell[];
+    
+    if (hideItemDiscrimination) {
+      // Clase B (FB/NCB/NDB): mostrar CANTIDAD, DESCRIPCIÓN, UNITARIO, TOTAL (sin ALIC IVA)
+      cells = [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: unitText, x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+        { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+      ];
+    } else if (hasUnit || hasIva || typeof totalCalc === 'number') {
+      // Clase A (FA/NCA/NDA): mostrar todas las columnas incluyendo ALIC IVA
+      cells = [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: unitText, x: c.cols.unit.x, width: c.cols.unit.w, align: 'right', fontSize: itemsFontSize },
+        { text: alicText, x: c.cols.alic.x, width: c.cols.alic.w, align: 'center', fontSize: itemsFontSize },
+        { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+      ];
+    } else {
+      // Sin datos de unitario/iva: solo CANTIDAD, DESCRIPCIÓN, TOTAL
+      cells = [
+        { text: String(it.cantidad), x: c.cols.cant.x, width: c.cols.cant.w, align: 'center', fontSize: itemsFontSize },
+        { text: it.descripcion, x: c.cols.desc.x, width: c.cols.desc.w, align: 'left', fontSize: itemsFontSize },
+        { text: totalText, x: c.cols.total.x, width: c.cols.total.w, align: 'right', fontSize: itemsFontSize },
+      ];
+    }
+    
     drawRow(cells as any, rowY);
     rowY += rowHeight;
   }

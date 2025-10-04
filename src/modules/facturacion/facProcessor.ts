@@ -748,8 +748,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
     const end = totStart > itemStart ? totStart : lines.length;
     for (let i=itemStart+1;i<end;i++) {
       const row = lines[i]; if (!row || !row.trim()) continue;
-      // Caso 1: cantidad + descripcion + unitario + alicuota% + total
-      let m = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+(\d{1,2}(?:[.,]\d{1,2})?)%\s+([0-9.,]+)\s*$/);
+      // Caso 1: cantidad + descripcion + unitario + alicuota% + total (soporta valores negativos en unitario, alícuota y total)
+      let m = row.match(/^\s*(\d+)\s+(.*?)\s+([-+]?[0-9.,]+)\s+([-+]?\d{1,2}(?:[.,]\d{1,2})?)%\s+([-+]?[0-9.,]+)\s*$/);
       if (m) {
         const cantidad = Number(m[1]);
         const descripcion = m[2].replace(/\s+$/,'');
@@ -759,8 +759,8 @@ export async function processFacturaFacFile(fullPath: string): Promise<{ ok: boo
         items.push({ cantidad, descripcion, unitario, iva, total: totalLinea, displayUnit: (m[3]||'').trim(), displayAlic: ((m[4]||'').trim().replace(',', '.'))+'%', displayTotal: (m[5]||'').trim() });
         continue;
       }
-      // Caso 2: cantidad + descripcion + unitario + total (sin alícuota explícita)
-      m = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+([0-9.,]+)\s*$/);
+      // Caso 2: cantidad + descripcion + unitario + total (sin alícuota explícita, soporta valores negativos con signo -)
+      m = row.match(/^\s*(\d+)\s+(.*?)\s+([-+]?[0-9.,]+)\s+([-+]?[0-9.,]+)\s*$/);
       if (m) {
         const cantidad = Number(m[1]);
         const descripcion = m[2].replace(/\s+$/,'');
