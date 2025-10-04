@@ -1,7 +1,11 @@
 /**
  * Servicio centralizado para enviar logs al modo Caja
  * Cada proceso tiene su propio tipo de mensaje con formato claro
+ * 
+ * IMPORTANTE: Optimizado para funcionar tanto en desarrollo como en producción empaquetada
  */
+
+import { BrowserWindow, app } from 'electron';
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'process';
 
@@ -14,17 +18,23 @@ export interface LogMessage {
 
 /**
  * Envía un mensaje al visor de logs de Caja
+ * Compatible con desarrollo y empaquetado (electron-builder)
  */
 function sendToFrontend(message: LogMessage) {
   try {
-    const { BrowserWindow } = require('electron');
+    // Verificar que la app esté lista (crítico para empaquetado)
+    if (!app || !app.isReady()) {
+      console.log('[CajaLog] App not ready yet:', message);
+      return;
+    }
+
     const win = BrowserWindow.getAllWindows()?.[0];
     if (win && !win.isDestroyed()) {
       win.webContents.send('caja-log', message);
     }
   } catch (error) {
-    // Si falla, logear en consola como fallback
-    console.log('[CajaLog]', message);
+    // Si falla, logear en consola como fallback (no rompe el flujo)
+    console.log('[CajaLog]', message.text, message.detail || '');
   }
 }
 
