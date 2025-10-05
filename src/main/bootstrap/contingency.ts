@@ -165,3 +165,53 @@ export function getContingencyStatus(): { running: boolean; dir: string | null }
 		dir: cfg.enabled ? cfg.dir : null
 	};
 }
+
+// ⏸️ Pausar temporalmente el watcher (solo si está activo)
+export function pauseContingency(): { ok: boolean; error?: string } {
+	try {
+		console.log('[contingency] pauseContingency called, controller:', !!controller);
+		if (!controller) {
+			return { ok: false, error: 'Watcher no iniciado (Admin desactivado)' };
+		}
+		controller.pause();
+		console.log('[contingency] Paused from UI');
+		return { ok: true };
+	} catch (e: any) {
+		console.error('[contingency] pauseContingency error:', e);
+		return { ok: false, error: String(e?.message || e) };
+	}
+}
+
+// ▶️ Reanudar el watcher (solo si está activo)
+export function resumeContingency(): { ok: boolean; error?: string } {
+	try {
+		console.log('[contingency] resumeContingency called, controller:', !!controller);
+		if (!controller) {
+			return { ok: false, error: 'Watcher no iniciado (Admin desactivado)' };
+		}
+		controller.resume();
+		console.log('[contingency] Resumed from UI');
+		return { ok: true };
+	} catch (e: any) {
+		console.error('[contingency] resumeContingency error:', e);
+		return { ok: false, error: String(e?.message || e) };
+	}
+}
+
+// 📊 Obtener estado detallado (running, paused, enqueued, processing)
+export function getContingencyDetailedStatus(): { running: boolean; paused: boolean; enqueued: number; processing: number; adminEnabled: boolean } {
+	try {
+		// Leer config sin llamadas innecesarias
+		const cfg: any = storeInstance?.get('config') || {};
+		const adminEnabled = cfg.FACT_FAC_WATCH !== false;
+		
+		if (!controller || !adminEnabled) {
+			return { running: false, paused: false, enqueued: 0, processing: 0, adminEnabled };
+		}
+		const status = controller.status();
+		return { ...status, adminEnabled };
+	} catch (e) {
+		console.error('[contingency] getContingencyDetailedStatus error:', e);
+		return { running: false, paused: false, enqueued: 0, processing: 0, adminEnabled: false };
+	}
+}

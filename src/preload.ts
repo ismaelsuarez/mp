@@ -188,7 +188,11 @@ contextBridge.exposeInMainWorld('api', {
 		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
 		cleanupRes: (options?: { daysToKeep?: number; dryRun?: boolean }) => ipcRenderer.invoke('caja:cleanup-res', options),
 		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind }),
-		getLogs: (options?: { sinceMs?: number; limit?: number }) => ipcRenderer.invoke('caja:get-logs', options || {})
+		getLogs: (options?: { sinceMs?: number; limit?: number }) => ipcRenderer.invoke('caja:get-logs', options || {}),
+		// Control del watcher .fac
+		watcherPause: () => ipcRenderer.invoke('caja:watcher:pause'),
+		watcherResume: () => ipcRenderer.invoke('caja:watcher:resume'),
+		watcherStatus: () => ipcRenderer.invoke('caja:watcher:status')
 	},
 	// Recibo config (PV y contador)
 	recibo: {

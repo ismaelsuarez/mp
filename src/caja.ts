@@ -493,6 +493,76 @@ window.addEventListener('DOMContentLoaded', () => {
 	document.getElementById('btnCopyLogs')?.addEventListener('click', copyLogs);
 	document.getElementById('btnPauseScroll')?.addEventListener('click', toggleAutoScroll);
 
+	// 🔧 Control del Spool (.fac processing)
+	async function updateSpoolUI() {
+		try {
+			const result = await (window.api as any).caja.watcherStatus();
+			const status = result?.status || { running: false, paused: false, adminEnabled: false };
+			
+			const btn = document.getElementById('btnSpoolToggle') as HTMLButtonElement | null;
+			if (!btn) return;
+			
+			// Si Admin desactivó el watcher, deshabilitar botón
+			if (!status.adminEnabled || !status.running) {
+				btn.disabled = true;
+				btn.textContent = '🔒';
+				btn.title = 'Spool desactivado por administrador';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-slate-700 text-slate-400 border border-slate-600 shadow cursor-not-allowed opacity-50';
+				return;
+			}
+			
+			// Si Admin está ON, permitir pausar/reanudar
+			btn.disabled = false;
+			if (status.paused) {
+				btn.textContent = '▶️';
+				btn.title = 'Reanudar Spool (procesamiento .fac)';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-rose-700 hover:bg-rose-600 text-slate-200 border border-rose-600 shadow';
+			} else {
+				btn.textContent = '⏸️';
+				btn.title = 'Pausar Spool (procesamiento .fac)';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-emerald-700 hover:bg-emerald-600 text-slate-200 border border-emerald-600 shadow';
+			}
+		} catch (e) {
+			console.error('[caja] Error updating spool UI:', e);
+		}
+	}
+	
+	async function toggleSpool() {
+		try {
+			const statusResult = await (window.api as any).caja.watcherStatus();
+			const currentStatus = statusResult?.status || { paused: false };
+			
+			if (currentStatus.paused) {
+				// Reanudar
+				const result = await (window.api as any).caja.watcherResume();
+				if (result?.ok) {
+					appendLog({ level: 'success', icon: '▶️', text: 'Spool reanudado', detail: 'Procesamiento de .fac activado' });
+				} else {
+					appendLog({ level: 'error', icon: '❌', text: 'Error al reanudar Spool', detail: result?.error || 'Error desconocido' });
+				}
+			} else {
+				// Pausar
+				const result = await (window.api as any).caja.watcherPause();
+				if (result?.ok) {
+					appendLog({ level: 'warning', icon: '⏸️', text: 'Spool pausado', detail: 'No se procesarán archivos .fac nuevos' });
+				} else {
+					appendLog({ level: 'error', icon: '❌', text: 'Error al pausar Spool', detail: result?.error || 'Error desconocido' });
+				}
+			}
+			
+			// Actualizar UI inmediatamente
+			await updateSpoolUI();
+		} catch (e: any) {
+			appendLog({ level: 'error', icon: '❌', text: 'Error al cambiar estado del Spool', detail: String(e?.message || e) });
+		}
+	}
+	
+	document.getElementById('btnSpoolToggle')?.addEventListener('click', toggleSpool);
+	
+	// Actualizar estado del spool cada 5 segundos
+	updateSpoolUI();
+	setInterval(updateSpoolUI, 5000);
+
 	// Notificaciones automáticas
 	window.api.onAutoNotice?.((payload) => {
 		if ((payload as any)?.error) {

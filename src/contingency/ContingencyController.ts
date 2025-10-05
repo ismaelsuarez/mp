@@ -24,6 +24,8 @@ export class ContingencyController {
   private store: SqliteQueueStore;
   private watcher: FSWatcher | null = null;
   private running = false;
+  private paused = false;  // 🔑 Control temporal de pausa (NO persistente)
+  private pausedByUser = false;  // 🔑 Pausa manual del usuario (NO auto-resume)
   private processing = false; // concurrency=1
   private wsHealth: WSHealthService;
   private circuit: CircuitBreaker;
@@ -54,13 +56,18 @@ export class ContingencyController {
         try { console.warn('[fac.skip.not-fac]', { filePath, base }); } catch {}
         return;
       }
+      // ⏸️ Si está pausado por el usuario, NO procesar
+      if (this.paused) {
+        try { console.warn('[fac.skip.paused]', { filePath, pausedByUser: this.pausedByUser }); } catch {}
+        return;
+      }
       try { const sz = fs.statSync(filePath).size; console.warn('[fac.detected]', { filePath, size: sz }); } catch {}
       try { await this.handleIncoming(filePath, cfg); } catch (e: any) { try { console.warn('[queue.enqueue.fail]', { filePath, reason: String(e?.message || e) }); } catch {} }
     });
     this.running = true;
     // Suscripción a salud WS
-    this.wsHealth.on('down', () => { try { this.pause(); console.warn('[contingency] WS DOWN → pausa'); } catch {} });
-    this.wsHealth.on('up', () => { try { this.resume(); console.info('[contingency] WS UP → resume'); } catch {} });
+    this.wsHealth.on('down', () => { try { this.pauseAuto(); console.warn('[contingency] WS DOWN → auto-pausa'); } catch {} });
+    this.wsHealth.on('up', () => { try { this.resumeAuto(); console.info('[contingency] WS UP → auto-resume'); } catch {} });
     this.wsHealth.on('degraded', () => { try { console.warn('[contingency] WS DEGRADED'); } catch {} });
     this.wsHealth.start();
     // Escaneo inicial: encolar .fac ya presentes (evita perder archivos previos al arranque)
@@ -92,6 +99,10 @@ export class ContingencyController {
     const tick = async () => {
       if (!this.running) return;
       if (this.processing) return setTimeout(tick, 200);
+      // ⏸️ Si está pausado, NO consumir cola
+      if (this.paused) {
+        return setTimeout(tick, 500);
+      }
       if (!this.circuit.shouldPop()) {
         try { console.warn('[contingency] circuit=DOWN; queue=PAUSED'); } catch {}
         return setTimeout(tick, 1000);
@@ -129,8 +140,34 @@ export class ContingencyController {
     setTimeout(tick, 300);
   }
 
-  pause(): void { this.store.pause(); }
-  resume(): void { this.store.resume(); }
+  // ⏸️ Pausa MANUAL (desde UI) → NO se auto-resume
+  pause(): void { 
+    this.paused = true;
+    this.pausedByUser = true;
+    console.log('[ContingencyController] paused=true (USER)'); 
+  }
+  
+  // ▶️ Resume MANUAL (desde UI) → limpia flag de usuario
+  resume(): void { 
+    this.paused = false;
+    this.pausedByUser = false;
+    console.log('[ContingencyController] paused=false (USER)'); 
+  }
+  
+  // ⏸️ Pausa AUTOMÁTICA (por WS down) → SÍ se auto-resume
+  private pauseAuto(): void {
+    this.paused = true;
+    // NO setear pausedByUser → permite auto-resume
+    console.log('[ContingencyController] paused=true (AUTO)');
+  }
+  
+  // ▶️ Resume AUTOMÁTICO (por WS up) → solo si no está pausado por usuario
+  private resumeAuto(): void {
+    if (!this.pausedByUser) {
+      this.paused = false;
+      console.log('[ContingencyController] paused=false (AUTO)');
+    }
+  }
   
   // 🛑 Detener completamente el controller (cerrar watcher, detener wsHealth)
   stop(): void {
@@ -141,14 +178,21 @@ export class ContingencyController {
     this.processing = false;
   }
   
-  status(): CtrStatus { const s = this.store.getStats(); return { running: this.running, paused: s.paused, enqueued: s.enqueued, processing: s.processing }; }
+  status(): CtrStatus { 
+    const s = this.store.getStats(); 
+    return { 
+      running: this.running, 
+      paused: this.paused,  // Usar estado en memoria, NO SQLite
+      enqueued: s.enqueued, 
+      processing: s.processing 
+    }; 
+  }
 
   enqueueFacFromPath(filePath: string, cfg?: { staging?: string }): number {
     try {
-      const stats = this.store.getStats();
-      if (stats.paused) {
-        try { console.warn('[contingency] queue paused → fallback inline', { filePath }); } catch {}
-        this.enqueueInlineFallback(filePath);
+      // ⏸️ Si está pausado por el usuario, NO hacer NADA
+      if (this.paused) {
+        try { console.warn('[contingency] queue paused → SKIP (no inline)', { filePath, pausedByUser: this.pausedByUser }); } catch {}
         return -1;
       }
       // Normalizar siempre: mover a staging y encolar con la ruta de staging

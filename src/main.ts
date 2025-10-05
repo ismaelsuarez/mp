@@ -1525,6 +1525,36 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		}
 	});
 
+	// ⏸️ Pausar watcher .fac temporalmente (solo si Admin=ON)
+	ipcMain.handle('caja:watcher:pause', async () => {
+		try {
+			const { pauseContingency } = await import('./main/bootstrap/contingency');
+			return pauseContingency();
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// ▶️ Reanudar watcher .fac (solo si Admin=ON)
+	ipcMain.handle('caja:watcher:resume', async () => {
+		try {
+			const { resumeContingency } = await import('./main/bootstrap/contingency');
+			return resumeContingency();
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// 📊 Obtener estado del watcher (running, paused, adminEnabled)
+	ipcMain.handle('caja:watcher:status', async () => {
+		try {
+			const { getContingencyDetailedStatus } = await import('./main/bootstrap/contingency');
+			return { ok: true, status: getContingencyDetailedStatus() };
+		} catch (e: any) {
+			return { ok: false, status: { running: false, paused: false, enqueued: 0, processing: 0, adminEnabled: false }, error: String(e?.message || e) };
+		}
+	});
+
 	// Cotización AFIP Dólar: FEParamGetCotizacion('DOL') [LEGACY - mantener por compatibilidad]
 	ipcMain.handle('facturacion:cotizacion:dol', async () => {
 		try {
