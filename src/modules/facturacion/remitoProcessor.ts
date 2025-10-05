@@ -394,74 +394,10 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
   };
 
-  // Email si corresponde
-  try {
-    const to = (parsed.email || '').trim();
-    const isValidEmail = (s: string) => /.+@.+\..+/.test(s);
-    if (to && isValidEmail(to)) {
-      try {
-        const { sendReceiptEmail } = await import('../../services/EmailService');
-        await sendReceiptEmail(to, localOutPath, {
-          subject: 'Remito',
-          title: 'Remito',
-          intro: 'Adjuntamos el remito correspondiente.',
-          bodyHtml: '<p>Gracias por su preferencia.</p>'
-        });
-        sendCajaLog(`  └─ Email OK → ${to}`);
-      } catch (e) {
-        try { console.warn('[remito] envío de email falló:', (e as any)?.message || String(e)); } catch {}
-        sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
-      }
-    }
-  } catch {}
-
-  // WhatsApp si corresponde
-  try {
-    const phone = (parsed.whatsapp || '').trim();
-    if (phone) {
-      const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
-      const onlyDigits = phone.replace(/[^0-9]/g, '');
-      const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
-      const stamp = dayjs().format('HHmmss');
-      const rand = Math.random().toString(36).slice(2, 4);
-      const wfaName = `wfa${stamp}${rand}.txt`;
-      const wfaPath = path.join(outLocalDir as string, wfaName);
-      const lines = [
-        normalizedPhone,
-        clienteNombreFull2,
-        path.basename(localOutPath),
-        'Que tal, somos de Todo Computacion',
-        'Adjuntamos "el remito realizado."',
-      ];
-      try { fs.writeFileSync(wfaPath, lines.join('\n'), 'utf8'); } catch {}
-      try {
-        const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
-        await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
-        sendCajaLog(`  └─ WhatsApp OK → ${normalizedPhone}`);
-        try { fs.unlinkSync(wfaPath); } catch {}
-      } catch (e) {
-        try { console.warn('[remito] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
-        sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
-      }
-    }
-  } catch {}
-
-  // Impresión
-  try {
-    const copies = Math.max(0, Number(parsed.copias || 0));
-    if (copies > 0) {
-      const { printPdf } = await import('../../services/PrintService');
-      await printPdf(localOutPath, remitoCfg.printerName, copies);
-      sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
-    }
-  } catch (e) {
-    sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
-  }
-
-  // Incrementar contador
+  // ✅ PASO 1: Incrementar contador
   saveRemitoConfig(cfgPath, { pv: remitoCfg.pv, contador: (data.empresa.numero || 0) + 1 });
 
-  // Generar .res con sufijo 'r'
+  // ✅ PASO 2: Generar .res INMEDIATAMENTE (CRÍTICO)
   let resPath: string | null = null;
   try {
     const now = new Date();
@@ -492,7 +428,7 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     try { const outDir = path.join(app.getPath('userData'), 'fac', 'out'); fs.mkdirSync(outDir, { recursive: true }); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {}
   } catch {}
 
-  // Enviar .res por FTP y limpiar
+  // ✅ PASO 3: Enviar .res por FTP INMEDIATAMENTE (CRÍTICO)
   try {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[remito] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
@@ -505,6 +441,105 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     }
   } catch (e) {
     sendCajaLog(`  └─ .res ❌ → ${String((e as any)?.message || 'error')}`);
+  }
+
+  // 🔄 PASO 4: Tareas SECUNDARIAS en PARALELO (NO BLOQUEAN)
+  const secondaryTasks = [];
+
+  // Tarea: Email
+  const emailTo = (parsed.email || '').trim();
+  const isValidEmail = (s: string) => /.+@.+\..+/.test(s);
+  if (emailTo && isValidEmail(emailTo)) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const { sendReceiptEmail } = await import('../../services/EmailService');
+          await sendReceiptEmail(emailTo, localOutPath, {
+            subject: 'Remito',
+            title: 'Remito',
+            intro: 'Adjuntamos el remito correspondiente.',
+            bodyHtml: '<p>Gracias por su preferencia.</p>'
+          });
+          sendCajaLog(`  └─ Email OK → ${emailTo}`);
+          return { task: 'email', success: true };
+        } catch (e) {
+          try { console.warn('[remito] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+          sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'email', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Tarea: WhatsApp
+  const phone = (parsed.whatsapp || '').trim();
+  if (phone) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
+          const onlyDigits = phone.replace(/[^0-9]/g, '');
+          const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
+          const stamp = dayjs().format('HHmmss');
+          const rand = Math.random().toString(36).slice(2, 4);
+          const wfaName = `wfa${stamp}${rand}.txt`;
+          const wfaPath = path.join(outLocalDir as string, wfaName);
+          const lines = [
+            normalizedPhone,
+            clienteNombreFull2,
+            path.basename(localOutPath),
+            'Que tal, somos de Todo Computacion',
+            'Adjuntamos "el remito realizado."',
+          ];
+          fs.writeFileSync(wfaPath, lines.join('\n'), 'utf8');
+          const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
+          await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
+          sendCajaLog(`  └─ WhatsApp OK → ${normalizedPhone}`);
+          try { fs.unlinkSync(wfaPath); } catch {}
+          return { task: 'whatsapp', success: true };
+        } catch (e) {
+          try { console.warn('[remito] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
+          sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'whatsapp', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Tarea: Impresión
+  const copies = Math.max(0, Number(parsed.copias || 0));
+  if (copies > 0) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const { printPdf } = await import('../../services/PrintService');
+          await printPdf(localOutPath, remitoCfg.printerName, copies);
+          sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
+          return { task: 'print', success: true };
+        } catch (e) {
+          sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'print', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Ejecutar todas las tareas secundarias EN PARALELO (sin bloquear)
+  if (secondaryTasks.length > 0) {
+    Promise.allSettled(secondaryTasks).then(results => {
+      try {
+        const summary = results.map((r, i) => {
+          if (r.status === 'fulfilled') {
+            return `${r.value.task}: ${r.value.success ? 'OK' : 'FAIL'}`;
+          } else {
+            return `task_${i}: ERROR`;
+          }
+        }).join(', ');
+        console.log(`[remito] Tareas secundarias completadas: ${summary}`);
+      } catch {}
+    }).catch(() => {
+      console.warn('[remito] Error inesperado en tareas secundarias');
+    });
   }
 
   return localOutPath;

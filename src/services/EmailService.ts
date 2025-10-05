@@ -68,11 +68,11 @@ export async function sendReceiptEmail(
   const cfg = getConfig();
   if (!to || !/.+@.+\..+/.test(to)) {
     cajaLog.logEmailError('Email destinatario inválido');
-    return false;
+    throw new Error('Email destinatario inválido');
   }
   if (!cfg.SMTP_USER || !cfg.SMTP_PASS) {
     cajaLog.logEmailError('Configuración SMTP incompleta');
-    return false;
+    throw new Error('Configuración SMTP incompleta');
   }
 
   try {
