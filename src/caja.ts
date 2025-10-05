@@ -141,10 +141,13 @@ function appendLog(lineOrMessage: string | any) {
     if (!box) return;
     
     // Hora local de la PC (no UTC) en formato HH:MM:SS
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mm = String(now.getMinutes()).padStart(2,'0');
-    const ss = String(now.getSeconds()).padStart(2,'0');
+    // Si el mensaje tiene timestamp propio (logs históricos), usarlo
+    const timestamp = (typeof lineOrMessage === 'object' && lineOrMessage.timestamp) 
+        ? new Date(lineOrMessage.timestamp) 
+        : new Date();
+    const hh = String(timestamp.getHours()).padStart(2,'0');
+    const mm = String(timestamp.getMinutes()).padStart(2,'0');
+    const ss = String(timestamp.getSeconds()).padStart(2,'0');
     const at = `${hh}:${mm}:${ss}`;
     
     // Crear un nuevo div para cada línea de log
@@ -180,11 +183,11 @@ function appendLog(lineOrMessage: string | any) {
         
         // Formato: [HH:MM:SS] 🔔 Mensaje principal | Detalle adicional
         const icon = msg.icon || '';
-        const timestamp = `[${at}]`;
+        const timestampStr = `[${at}]`;
         const mainText = msg.text;
         const detail = msg.detail ? ` | ${msg.detail}` : '';
         
-        logLine.textContent = `${timestamp} ${icon} ${mainText}${detail}`;
+        logLine.textContent = `${timestampStr} ${icon} ${mainText}${detail}`;
     } else {
         // Retrocompatibilidad con strings simples (sistema viejo)
         logLine.style.color = '#94a3b8'; // slate-400
@@ -529,6 +532,30 @@ window.addEventListener('DOMContentLoaded', () => {
 	window.api.onCajaLog?.((message: string | any) => {
 		appendLog(message);
 	});
+
+	// 📜 Cargar logs históricos del último día al abrir la ventana
+	async function loadHistoricalLogs() {
+		try {
+			const result = await (window.api as any).caja.getLogs();
+			if (result?.success && result?.logs?.length > 0) {
+				console.log(`[Caja] Cargando ${result.logs.length} logs históricos...`);
+				for (const log of result.logs) {
+					// Reconstruir el mensaje con el timestamp original
+					appendLog({
+						level: log.level,
+						icon: log.icon,
+						text: log.text,
+						detail: log.detail,
+						timestamp: log.timestamp // Usar timestamp original del log
+					});
+				}
+				appendLog({ level: 'info', icon: '📜', text: `${result.logs.length} logs históricos cargados`, detail: 'Últimas 24 horas' });
+			}
+		} catch (error) {
+			console.error('[Caja] Error loading historical logs:', error);
+		}
+	}
+	loadHistoricalLogs();
 
 	refreshAutoIndicator();
 	refreshTimer();

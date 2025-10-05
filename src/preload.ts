@@ -187,7 +187,8 @@ contextBridge.exposeInMainWorld('api', {
 	caja: {
 		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
 		cleanupRes: (options?: { daysToKeep?: number; dryRun?: boolean }) => ipcRenderer.invoke('caja:cleanup-res', options),
-		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind })
+		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind }),
+		getLogs: (options?: { sinceMs?: number; limit?: number }) => ipcRenderer.invoke('caja:get-logs', options || {})
 	},
 	// Recibo config (PV y contador)
 	recibo: {

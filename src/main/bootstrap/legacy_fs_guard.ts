@@ -29,8 +29,9 @@ export function installLegacyFsGuard() {
 
   fs.unlink = function(p: any, cb: any) {
     try {
+      // ✅ Bloquear SOLO archivos .fac que NO estén en paths permitidos
       if (typeof p === 'string' && isFac(p) && !(isAllowedContingencyPath(p) || isIncomingPath(p))) {
-        try { console.warn('[legacy-fs-guard] blocked unlink', p); } catch {}
+        try { console.warn('[legacy-fs-guard] blocked unlink (protected .fac)', p); } catch {}
         return cb && cb(null);
       }
       if (typeof p === 'string' && isFac(p) && (isAllowedContingencyPath(p) || isIncomingPath(p))) {
@@ -41,28 +42,50 @@ export function installLegacyFsGuard() {
     return origUnlink.apply(fs, arguments as any);
   } as any;
   fs.unlinkSync = function(p: any) {
-    if (typeof p === 'string' && isFac(p) && !(isAllowedContingencyPath(p) || isIncomingPath(p))) { try { console.warn('[legacy-fs-guard] blocked unlinkSync', p); } catch {} return; }
-    if (typeof p === 'string' && isFac(p) && (isAllowedContingencyPath(p) || isIncomingPath(p))) { try { console.warn('[legacy-fs-guard] allow unlinkSync (contingency)', p); } catch {} }
+    // ✅ Bloquear SOLO archivos .fac que NO estén en paths permitidos
+    if (typeof p === 'string' && isFac(p) && !(isAllowedContingencyPath(p) || isIncomingPath(p))) { 
+      try { console.warn('[legacy-fs-guard] blocked unlinkSync (protected .fac)', p); } catch {} 
+      return; 
+    }
+    if (typeof p === 'string' && isFac(p) && (isAllowedContingencyPath(p) || isIncomingPath(p))) { 
+      try { console.warn('[legacy-fs-guard] allow unlinkSync (contingency)', p); } catch {} 
+    }
     // @ts-ignore
     return origUnlinkSync.apply(fs, arguments as any);
   } as any;
   fs.rename = function(oldP: any, newP: any, cb: any) {
+    // ✅ Permitir si es .fac Y está en path permitido
     const allowSideA = (typeof oldP === 'string' && isFac(oldP) && (isAllowedContingencyPath(oldP) || isIncomingPath(oldP)));
     const allowSideB = (typeof newP === 'string' && isFac(newP) && (isAllowedContingencyPath(newP) || isIncomingPath(newP)));
-    const block = !(allowSideA || allowSideB);
-    if (block) { try { console.warn('[legacy-fs-guard] blocked rename', oldP, '->', newP); } catch {} return cb && cb(null); }
-    const allow = (allowSideA || allowSideB);
-    if (allow) { try { console.warn('[legacy-fs-guard] allow rename (contingency)', oldP, '->', newP); } catch {} }
+    // ✅ Bloquear SOLO si es .fac Y NO está en path permitido
+    const isFacOld = (typeof oldP === 'string' && isFac(oldP));
+    const isFacNew = (typeof newP === 'string' && isFac(newP));
+    const shouldProtect = (isFacOld || isFacNew) && !(allowSideA || allowSideB);
+    if (shouldProtect) { 
+      try { console.warn('[legacy-fs-guard] blocked rename (protected .fac)', oldP, '->', newP); } catch {} 
+      return cb && cb(null); 
+    }
+    if (allowSideA || allowSideB) { 
+      try { console.warn('[legacy-fs-guard] allow rename (contingency)', oldP, '->', newP); } catch {} 
+    }
     // @ts-ignore
     return origRename.apply(fs, arguments as any);
   } as any;
   fs.renameSync = function(oldP: any, newP: any) {
+    // ✅ Permitir si es .fac Y está en path permitido
     const allowSideA2 = (typeof oldP === 'string' && isFac(oldP) && (isAllowedContingencyPath(oldP) || isIncomingPath(oldP)));
     const allowSideB2 = (typeof newP === 'string' && isFac(newP) && (isAllowedContingencyPath(newP) || isIncomingPath(newP)));
-    const block2 = !(allowSideA2 || allowSideB2);
-    if (block2) { try { console.warn('[legacy-fs-guard] blocked renameSync', oldP, '->', newP); } catch {} return; }
-    const allow2 = (allowSideA2 || allowSideB2);
-    if (allow2) { try { console.warn('[legacy-fs-guard] allow renameSync (contingency)', oldP, '->', newP); } catch {} }
+    // ✅ Bloquear SOLO si es .fac Y NO está en path permitido
+    const isFacOldP = (typeof oldP === 'string' && isFac(oldP));
+    const isFacNewP = (typeof newP === 'string' && isFac(newP));
+    const shouldProtect = (isFacOldP || isFacNewP) && !(allowSideA2 || allowSideB2);
+    if (shouldProtect) { 
+      try { console.warn('[legacy-fs-guard] blocked renameSync (protected .fac)', oldP, '->', newP); } catch {} 
+      return; 
+    }
+    if (allowSideA2 || allowSideB2) { 
+      try { console.warn('[legacy-fs-guard] allow renameSync (contingency)', oldP, '->', newP); } catch {} 
+    }
     // @ts-ignore
     return origRenameSync.apply(fs, arguments as any);
   } as any;

@@ -3,9 +3,11 @@
  * Cada proceso tiene su propio tipo de mensaje con formato claro
  * 
  * IMPORTANTE: Optimizado para funcionar tanto en desarrollo como en producción empaquetada
+ * PERSISTENCIA: Los logs se guardan en SQLite y se mantienen por 24 horas
  */
 
 import { BrowserWindow, app } from 'electron';
+import { getCajaLogStore } from './CajaLogStore';
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | 'process';
 
@@ -19,9 +21,22 @@ export interface LogMessage {
 /**
  * Envía un mensaje al visor de logs de Caja
  * Compatible con desarrollo y empaquetado (electron-builder)
+ * Ahora también persiste el log en SQLite
  */
 function sendToFrontend(message: LogMessage) {
   try {
+    // 1️⃣ Persistir en DB (siempre, incluso si el frontend no está listo)
+    try {
+      if (app && app.isReady()) {
+        const store = getCajaLogStore();
+        store.insert(message);
+      }
+    } catch (errDb) {
+      // No romper si falla la DB, solo logear
+      console.error('[CajaLog] Error persisting to DB:', errDb);
+    }
+
+    // 2️⃣ Enviar al frontend (si está disponible)
     // Verificar que la app esté lista (crítico para empaquetado)
     if (!app || !app.isReady()) {
       console.log('[CajaLog] App not ready yet:', message);

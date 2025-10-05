@@ -9,6 +9,7 @@ import { LegacyWatcherAdapter } from '../../contingency/LegacyWatcherAdapter';
 let controller: ContingencyController | null = null;
 let legacyWatcher: any = null;
 let storeInstance: Store | null = null;  // 🔑 Almacenar referencia al store pasado desde main
+let logCleanupInterval: NodeJS.Timeout | null = null;  // 🗑️ Intervalo de limpieza de logs
 
 // 🔑 Obtener configuración desde el store pasado como parámetro
 function getWatcherConfig(): { enabled: boolean; dir: string } {
@@ -101,6 +102,30 @@ export function bootstrapContingency(store?: Store): void {
 			// Conectar el adapter
 			new LegacyWatcherAdapter(controller!).bind(emitter);
 		} catch {}
+		
+		// 🗑️ Iniciar limpieza automática de logs antiguos (cada 1 hora)
+		try {
+			// Importación dinámica para evitar problemas de inicialización
+			import('../../services/CajaLogStore').then(({ getCajaLogStore }) => {
+				const store = getCajaLogStore();
+				// Limpieza inicial
+				store.cleanupOldLogs();
+				// Limpieza periódica cada 1 hora (3600000 ms)
+				logCleanupInterval = setInterval(() => {
+					try {
+						store.cleanupOldLogs();
+					} catch (err) {
+						console.error('[contingency] Error in log cleanup:', err);
+					}
+				}, 3600000); // 1 hora
+				console.log('[contingency] Log cleanup scheduled (every 1 hour, retention: 24h)');
+			}).catch((err) => {
+				console.warn('[contingency] Failed to setup log cleanup:', err);
+			});
+		} catch (err) {
+			console.warn('[contingency] Failed to initialize log cleanup:', err);
+		}
+		
 		try { console.log('[contingency] started', { incoming: INCOMING_DIR, staging: STAGING_DIR, processing: PROCESSING_DIR, done: DONE_DIR, error: ERROR_DIR, outDir: OUT_DIR, minStableMs: FAC_MIN_STABLE_MS }); } catch {}
 	} catch (e) {
 		try { console.warn('[contingency] bootstrap failed:', (e as any)?.message || String(e)); } catch {}
@@ -113,6 +138,11 @@ export function shutdownContingency(): void {
 		legacyWatcher?.close();
 		// 🔑 Limpiar el emitter global para evitar que siga procesando
 		try { delete (global as any).legacyFacWatcherEmitter; } catch {}
+		// 🗑️ Detener limpieza automática de logs
+		if (logCleanupInterval) {
+			clearInterval(logCleanupInterval);
+			logCleanupInterval = null;
+		}
 		console.log('[contingency] shutdown complete');
 	} catch (e: any) {
 		console.warn('[contingency] shutdown error:', e?.message || e);

@@ -48,6 +48,12 @@ export class ContingencyController {
     // Watcher de incoming
     this.watcher = chokidar.watch(cfg.incoming, { persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: cfg.minStableMs, pollInterval: 100 } });
     this.watcher.on('add', async (filePath: string) => {
+      // 🔍 Filtrar: solo procesar archivos .fac
+      const base = path.basename(filePath);
+      if (!/\.fac$/i.test(base)) {
+        try { console.warn('[fac.skip.not-fac]', { filePath, base }); } catch {}
+        return;
+      }
       try { const sz = fs.statSync(filePath).size; console.warn('[fac.detected]', { filePath, size: sz }); } catch {}
       try { await this.handleIncoming(filePath, cfg); } catch (e: any) { try { console.warn('[queue.enqueue.fail]', { filePath, reason: String(e?.message || e) }); } catch {} }
     });
@@ -168,8 +174,24 @@ export class ContingencyController {
     } catch {}
     
     // Mover a staging
-    try { fs.renameSync(filePath, dst); } catch { /* cross-device fallback */ fs.copyFileSync(filePath, dst); try { fs.unlinkSync(filePath); } catch {} }
-    try { console.warn('[fac.stage.ok]', { from: filePath, to: dst }); } catch {}
+    let stagingMethod = 'rename';
+    try { 
+      fs.renameSync(filePath, dst); 
+    } catch (errRename) { 
+      // cross-device fallback: copy + delete
+      stagingMethod = 'copy+delete';
+      try { 
+        fs.copyFileSync(filePath, dst); 
+        try { fs.unlinkSync(filePath); } catch (errUnlink) { 
+          stagingMethod = 'copy-only (unlink failed)';
+          try { console.warn('[fac.stage.warn]', { from: filePath, to: dst, reason: 'unlink-failed', error: String(errUnlink) }); } catch {}
+        }
+      } catch (errCopy) {
+        try { console.warn('[fac.stage.fail]', { from: filePath, to: dst, reason: 'copy-failed', error: String(errCopy) }); } catch {}
+        throw errCopy; // Re-lanzar para que se maneje arriba
+      }
+    }
+    try { console.warn('[fac.stage.ok]', { from: filePath, to: dst, method: stagingMethod }); } catch {}
     
     // Calcular hash y encolar
     const sha = this.sha256OfFileSafe(dst);
@@ -195,12 +217,13 @@ export class ContingencyController {
       } else if (staged && fs.existsSync(staged)) {
         src = staged;
       } else if ((doneP && fs.existsSync(doneP)) || (errP && fs.existsSync(errP))) {
-        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        try { console.warn('[fac.already-processed.skip]', { filePath: srcRaw, foundIn: doneP && fs.existsSync(doneP) ? 'done' : 'error' }); } catch {}
         cajaLog.warn(`${base} ya procesado`, 'Skip');
         return; // ACK arriba sin reprocesar
       } else {
-        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
-        cajaLog.error(`${base} no encontrado`, 'Archivo faltante');
+        // ❌ No encontrado en ningún directorio (incoming, staging, processing, done, error)
+        try { console.warn('[fac.not-found.skip]', { filePath: srcRaw, searched: [cfg.incoming, cfg.staging, cfg.processing, cfg.done, cfg.error] }); } catch {}
+        cajaLog.warn(`${base} no encontrado en sistema`, 'Saltado • Posible error de staging');
         return; // ACK arriba
       }
     }

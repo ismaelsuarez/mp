@@ -1346,6 +1346,23 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     }
   });
 
+  // ===== Caja: cargar logs históricos (últimas 24h) =====
+  ipcMain.handle('caja:get-logs', async (_e, { sinceMs, limit }: { sinceMs?: number; limit?: number } = {}) => {
+    try {
+      // Importación dinámica para evitar problemas en dev/prod
+      const { getCajaLogStore } = await import('./services/CajaLogStore');
+      const store = getCajaLogStore();
+      
+      // Por defecto: últimas 24h, máximo 1000 logs
+      const logs = store.getLogsSince(sinceMs, limit || 1000);
+      
+      return { success: true, logs };
+    } catch (error: any) {
+      console.error('[main] Error loading caja logs:', error);
+      return { success: false, error: String(error?.message || error), logs: [] };
+    }
+  });
+
   // ===== Caja: resumen diario por archivos .res (Opción B) =====
   ipcMain.handle('caja:get-summary', async (_e, { fechaIso }: { fechaIso: string }) => {
     try {
