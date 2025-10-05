@@ -71,19 +71,7 @@ export class ContingencyController {
     this.wsHealth.on('degraded', () => { try { console.warn('[contingency] WS DEGRADED'); } catch {} });
     this.wsHealth.start();
     // Escaneo inicial: encolar .fac ya presentes (evita perder archivos previos al arranque)
-    try {
-      const entries = fs.readdirSync(cfg.incoming)
-        .filter((n) => /\.fac$/i.test(String(n || '')))
-        .filter((n) => !/\.(res|err|pdf)$/i.test(String(n || '')));
-      if (entries.length) {
-        try { console.warn('[fac.scan.init]', { count: entries.length }); } catch {}
-        const sorted = entries.sort((a,b)=>a.localeCompare(b));
-        for (const name of sorted) {
-          const full = path.join(cfg.incoming, name);
-          try { this.handleIncoming(full, cfg); console.warn('[fac.scan.enqueue]', { filePath: full }); } catch {}
-        }
-      }
-    } catch {}
+    this.scanPendingFacs();
     // Rehidratación: mover PROCESSING>120s a RETRY al bootstrap
     try {
       const db = (require('../services/queue/QueueDB') as any).getQueueDB().driver;
@@ -147,11 +135,13 @@ export class ContingencyController {
     console.log('[ContingencyController] paused=true (USER)'); 
   }
   
-  // ▶️ Resume MANUAL (desde UI) → limpia flag de usuario
+  // ▶️ Resume MANUAL (desde UI) → limpia flag de usuario y escanea pendientes
   resume(): void { 
     this.paused = false;
     this.pausedByUser = false;
-    console.log('[ContingencyController] paused=false (USER)'); 
+    console.log('[ContingencyController] paused=false (USER)');
+    // 🔍 Escanear carpeta incoming para procesar archivos .fac pendientes
+    this.scanPendingFacs();
   }
   
   // ⏸️ Pausa AUTOMÁTICA (por WS down) → SÍ se auto-resume
@@ -409,6 +399,24 @@ export class ContingencyController {
   }
 
   // ===== Fallback inline secuencial =====
+  // 🔍 Escanear carpeta incoming y encolar .fac pendientes
+  private scanPendingFacs(): void {
+    try {
+      const cfg = this.cfg;
+      const entries = fs.readdirSync(cfg.incoming)
+        .filter((n) => /\.fac$/i.test(String(n || '')))
+        .filter((n) => !/\.(res|err|pdf)$/i.test(String(n || '')));
+      if (entries.length) {
+        try { console.warn('[fac.scan.pending]', { count: entries.length }); } catch {}
+        const sorted = entries.sort((a,b)=>a.localeCompare(b));
+        for (const name of sorted) {
+          const full = path.join(cfg.incoming, name);
+          try { this.handleIncoming(full, cfg); console.warn('[fac.scan.enqueue]', { filePath: full }); } catch {}
+        }
+      }
+    } catch {}
+  }
+
   private enqueueInlineFallback(filePath: string): void {
     try {
       if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith('.fac')) return;
