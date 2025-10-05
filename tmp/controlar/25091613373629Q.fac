@@ -13,9 +13,14 @@ EMAIL:ismaelmauriciosuarez@gmail.com
 WHATSAPP:+542615945032
 MONEDA:PESOS
 ITEM:
-     1          EFECTIVO:EFECTIVO                                                                                   0.10
-     1         -->DEPOSITO BAN GALICIA               MENDOZA                                                    40000.00 
-*******************************************************GRACIAS**********************************************************
+     1   EFECTIVO:EFECTIVO                                                                      0.10
+     1   -->DEPOSITO BAN GALICIA               MENDOZA                                      40000.00
+     1   -->DEPOSITO BAN GALICIA               MENDOZA                                      40000.00
+     1   -->DEPOSITO BAN GALICIA               MENDOZA                                     154647.29
+     1   EFECTIVO:EFECTIVO                                                                     -0.10
+     1   -->DEPOSITO BAN GALICIA               MENDOZA                                    -154647.29
+     1   EFECTIVO:EFECTIVO                                                                     -0.10 
+*******************************************************GRACIAS**************************************
 TOTALES:
 NETO 21%  :        0.00
 NETO 10.5%:        0.00
@@ -34,6 +39,6 @@ Para ser aplicado a: S
 OBS.PIE:
  * DOCUMENDO NO VALIDO COMO FACTURA *
 Esto no es una factura respaldatoria de su compra, sino una constancia del pago de su factura
-Debe ir acompa�ado de la factua que sera emitida al retirar el material y/o sercvicio correspondiente
+Debe ir acompa ado de la factua que sera emitida al retirar el material y/o sercvicio correspondiente
 Defensa del consumidor Mendoza:08002226678 o al 148 opcion 3
 ** GRACIAS POR SU VISITA **

@@ -157,7 +157,8 @@
     <!-- Indicador ARCA/AFIP health y Control Spool -->
     <div class="fixed bottom-4 left-4 flex items-center gap-2">
         <img id="arcaIndicator" src="./icons/arca_verde.png" alt="ARCA" class="w-10 h-10 rounded-full shadow" title="ARCA"/>
-        <button id="btnSpoolToggle" class="px-3 py-1.5 text-sm rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow" title="Pausar/Reanudar procesamiento .fac" disabled>
+        <!-- Botón Spool: solo visible en pestaña Inicio -->
+        <button id="btnSpoolToggle" class="px-3 py-1.5 text-sm rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow" title="Pausar/Reanudar procesamiento .fac" disabled style="display:block;">
             ⏸️
         </button>
     </div>

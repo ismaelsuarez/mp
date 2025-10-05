@@ -12,9 +12,12 @@ function selectPane(name: 'home' | 'table' | 'fact') {
     if (badge) badge.style.display = 'none';
     if (auto) auto.style.display = 'none';
     if (timer) timer.style.display = 'none';
-    // Mostrar el indicador ARCA sólo en Inicio
+    // Mostrar el indicador ARCA y botón Spool sólo en Inicio
     const arca = document.getElementById('arcaIndicator') as HTMLElement | null;
     if (arca) arca.style.display = name === 'home' ? 'block' : 'none';
+    
+    const spool = document.getElementById('btnSpoolToggle') as HTMLElement | null;
+    if (spool) spool.style.display = name === 'home' ? 'block' : 'none';
 }
 
 function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {
