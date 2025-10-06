@@ -24,8 +24,18 @@ type Quotes = {
   divisas: Row[];
 };
 
+function getEncryptionKey(): string | undefined {
+  try {
+    const keyPath = path.join(app.getPath('userData'), 'config.key');
+    if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath, 'utf8');
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function getStore(): Store<{ config?: any }> {
-  return new Store({ name: 'settings' });
+  return new Store({ name: 'settings', encryptionKey: getEncryptionKey() });
 }
 
 function getUserDataDir(): string {
@@ -68,10 +78,17 @@ async function fetchHtml(): Promise<string> {
     validateStatus: s => s >= 200 && s < 500,
   });
   const buf = Buffer.from(resp.data as ArrayBuffer);
-  let text = buf.toString('utf8');
-  // Si hay reemplazos o no parece HTML, intentar latin1
-  if (!/(<!doctype|<html)/i.test(text) || text.includes('\uFFFD') || /�/.test(text)) {
-    try { text = buf.toString('latin1'); } catch {}
+  let text: string | null = null;
+  // 1) UTF-8
+  try { text = buf.toString('utf8'); } catch { text = null; }
+  // 2) Si no parece HTML o contiene caracteres de reemplazo, probar ISO-8859-1 (latin1)
+  if (!text || !/(<!doctype|<html)/i.test(text) || /�/.test(text)) {
+    try { const t = buf.toString('latin1'); if (/(<!doctype|<html)/i.test(t)) text = t; } catch {}
+  }
+  // 3) Fallback adicional: Windows-1252 aproximado (latin1 ya cubre la mayoría de casos)
+  if (!text || !/(<!doctype|<html)/i.test(text)) {
+    // último intento: tratar como binary y retirar nulos
+    try { text = buf.toString('binary').replace(/\x00/g, ''); } catch {}
   }
   if (!text || typeof text !== 'string') throw new Error('BNA vacío');
   return text;
@@ -149,6 +166,7 @@ function allRows(q: Quotes): Row[] {
 
 export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q); if (!rows.length) throw new Error('Sin USD');
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
@@ -188,6 +206,7 @@ export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
 
 export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q); if (!rows.length) throw new Error('Sin filas');
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
@@ -205,6 +224,7 @@ export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
 
 export async function writeBnaCsvAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q);
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const hdr = ['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
   const js = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const lines = [hdr.join(',')];
@@ -218,6 +238,7 @@ export async function writeBnaCsvAll(q: Quotes, file: string): Promise<string> {
 
 export async function writeBnaXlsxAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q);
+  try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('COTIZACIONES');
   ws.addRow(['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
   for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
@@ -255,17 +276,19 @@ export async function runBnaOnceAndSend(): Promise<{ outDir: string; files: { db
   await writeBnaCsvAll(q, csv);
   await writeBnaXlsxAll(q, xls);
 
-  // Alias fijo
+  // Alias fijo: dolar.dbf (pisar siempre)
   const aliasDbf = path.join(dir, 'dolar.dbf');
+  try { if (fs.existsSync(aliasDbf)) fs.unlinkSync(aliasDbf); } catch {}
   try { fs.copyFileSync(dbf, aliasDbf); } catch {}
 
   // Envío por FTP Mercado Pago (config dedicada)
   try {
     const { sendMpFtpFiles, sendMpDbf } = require('./FtpService');
-    if (sendMpFtpFiles) {
-      await sendMpFtpFiles([dbf, csv, xls], ['dolar.dbf', 'dolar.csv', 'dolar.xlsx']);
-    } else if (sendMpDbf) {
+    // Enviar SOLO dolar.dbf
+    if (sendMpDbf) {
       await sendMpDbf(aliasDbf, 'dolar.dbf', { force: true });
+    } else if (sendMpFtpFiles) {
+      await sendMpFtpFiles([aliasDbf], ['dolar.dbf']);
     }
   } catch {}
 
