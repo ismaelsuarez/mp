@@ -2013,11 +2013,11 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     const dir = String(cfg.AUTO_REMOTE_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp');
 		try {
 			if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return false;
-			remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
+            remoteWatcher = fs.watch(dir, { persistent: true }, (_event, filename) => {
 				try {
 					const name = String(filename || '');
 					if (!name) return;
-					if (!/^(mp.*|a13.*)\.txt$/i.test(name)) return;
+                    if (!/^(mp.*|a13.*|dolar(\..*)?)\.txt$/i.test(name)) return;
 					if (unifiedScanBusy) return;
 					unifiedScanBusy = true;
 					setTimeout(async () => {
@@ -2307,12 +2307,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 			let processed = 0;
 			if (remoteDir && fs.existsSync(remoteDir)) {
 				const entries = fs.readdirSync(remoteDir);
-				const toProcess = entries.filter(name => /^(mp.*|a13.*)\.txt$/i.test(name));
+                const toProcess = entries.filter(name => /^(mp.*|a13.*|dolar(\..*)?)\.txt$/i.test(name));
 				// Procesar solo el primero por ciclo para evitar contención de archivos
 				const first = toProcess[0];
 				if (first) {
 					const full = path.join(remoteDir, first);
-					if (/^a13.*\.txt$/i.test(first)) {
+                    if (/^a13.*\.txt$/i.test(first)) {
 						try {
 							const { processA13TriggerFile, cleanupOldA13Reports } = require('./services/A13FilesService');
 							await processA13TriggerFile(full);
@@ -2323,7 +2323,17 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						}
 						try { fs.unlinkSync(full); } catch {}
 						processed += 1;
-					} else {
+                    } else if (/^dolar(\..*)?\.txt$/i.test(first)) {
+                        try {
+                            const { runBnaOnceAndSend } = require('./services/BnaService');
+                            await runBnaOnceAndSend();
+                            if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
+                        } catch (e: any) {
+                            if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `BNA error: ${String(e?.message || e)}` });
+                        }
+                        try { fs.unlinkSync(full); } catch {}
+                        processed += 1;
+                    } else {
 						await runReportFlowAndNotify('remoto');
 						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
 						try { fs.unlinkSync(full); } catch {}
