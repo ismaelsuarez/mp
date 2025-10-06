@@ -187,6 +187,13 @@
 						</div>
 
 						<label>ID de usuario (opcional) <input id="MP_USER_ID" /></label>
+						
+						<!-- Botón Guardar MP -->
+						<div class="flex items-center gap-2">
+							<button type="button" id="btnSaveMp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar Mercado Pago</button>
+							<span id="mpSaveStatus" class="text-xs text-slate-400"></span>
+						</div>
+						
 						<div class="row">
 							<button type="button" id="btnTest" class="bg-blue-600 text-white border-transparent">Probar conexión</button>
 							<span id="testStatus"></span>
@@ -1529,6 +1536,76 @@
                 });
             } catch {}
         } catch {}
+    })();
+
+    // ===== Mercado Pago Config (Cargar y Guardar) =====
+    (async function setupMercadoPagoUI(){
+        try {
+            // Cargar configuración al iniciar
+            const res = await window.api.getConfig();
+            const cfg = res || {};
+            
+            // Setear valores en los inputs
+            const get = (id) => document.getElementById(id);
+            const set = (id, val) => { const el = get(id); if (el) el.value = val ?? ''; };
+            const setChk = (id, val) => { const el = get(id); if (el) el.checked = !!val; };
+            
+            set('MP_ACCESS_TOKEN', cfg.MP_ACCESS_TOKEN);
+            set('MP_USER_ID', cfg.MP_USER_ID);
+            set('MP_TZ', cfg.MP_TZ);
+            set('MP_WINDOW_START', cfg.MP_WINDOW_START);
+            set('MP_WINDOW_END', cfg.MP_WINDOW_END);
+            set('MP_DATE_FROM', cfg.MP_DATE_FROM);
+            set('MP_DATE_TO', cfg.MP_DATE_TO);
+            set('MP_DAYS_BACK', cfg.MP_DAYS_BACK);
+            setChk('MP_NO_DATE_FILTER', cfg.MP_NO_DATE_FILTER);
+            set('MP_RANGE', cfg.MP_RANGE);
+            set('MP_STATUS', cfg.MP_STATUS);
+            set('MP_LIMIT', cfg.MP_LIMIT);
+            set('MP_MAX_PAGES', cfg.MP_MAX_PAGES);
+            
+            console.log('[config.html] Mercado Pago config loaded');
+            
+            // Botón Guardar
+            const btnSave = get('btnSaveMp');
+            const statusEl = get('mpSaveStatus');
+            if (btnSave) {
+                btnSave.addEventListener('click', async () => {
+                    try {
+                        if (statusEl) statusEl.textContent = 'Guardando...';
+                        
+                        const payload = {
+                            MP_ACCESS_TOKEN: get('MP_ACCESS_TOKEN')?.value || '',
+                            MP_USER_ID: get('MP_USER_ID')?.value || '',
+                            MP_TZ: get('MP_TZ')?.value || '',
+                            MP_WINDOW_START: get('MP_WINDOW_START')?.value || '',
+                            MP_WINDOW_END: get('MP_WINDOW_END')?.value || '',
+                            MP_DATE_FROM: get('MP_DATE_FROM')?.value || '',
+                            MP_DATE_TO: get('MP_DATE_TO')?.value || '',
+                            MP_DAYS_BACK: get('MP_DAYS_BACK')?.value || '',
+                            MP_NO_DATE_FILTER: get('MP_NO_DATE_FILTER')?.checked || false,
+                            MP_RANGE: get('MP_RANGE')?.value || '',
+                            MP_STATUS: get('MP_STATUS')?.value || '',
+                            MP_LIMIT: get('MP_LIMIT')?.value || '',
+                            MP_MAX_PAGES: get('MP_MAX_PAGES')?.value || '',
+                        };
+                        
+                        const base = await window.api.getConfig();
+                        await window.api.saveConfig({ ...(base||{}), ...payload });
+                        
+                        if (statusEl) statusEl.textContent = '✅ Guardado';
+                        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+                        console.log('[config.html] Mercado Pago config saved');
+                    } catch (e) {
+                        if (statusEl) statusEl.textContent = `❌ Error: ${e?.message || 'Error'}`;
+                        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+                        console.error('[config.html] Failed to save MP config:', e);
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('[config.html] Failed to load MP config:', e);
+        }
     })();
 
     // ===== Recibo Config (PV y contador) =====

@@ -5,6 +5,7 @@ import chokidar, { FSWatcher } from 'chokidar';
 import { SqliteQueueStore, getQueueStore } from '../services/queue/SqliteQueueStore';
 import { WSHealthService } from '../ws/WSHealthService';
 import { CircuitBreaker } from '../ws/CircuitBreaker';
+import { cajaLog } from '../services/CajaLogService';
 
 type CtrStatus = { running: boolean; paused: boolean; enqueued: number; processing: number };
 
@@ -23,6 +24,8 @@ export class ContingencyController {
   private store: SqliteQueueStore;
   private watcher: FSWatcher | null = null;
   private running = false;
+  private paused = false;  // 🔑 Control temporal de pausa (NO persistente)
+  private pausedByUser = false;  // 🔑 Pausa manual del usuario (NO auto-resume)
   private processing = false; // concurrency=1
   private wsHealth: WSHealthService;
   private circuit: CircuitBreaker;
@@ -47,29 +50,28 @@ export class ContingencyController {
     // Watcher de incoming
     this.watcher = chokidar.watch(cfg.incoming, { persistent: true, ignoreInitial: true, awaitWriteFinish: { stabilityThreshold: cfg.minStableMs, pollInterval: 100 } });
     this.watcher.on('add', async (filePath: string) => {
+      // 🔍 Filtrar: solo procesar archivos .fac
+      const base = path.basename(filePath);
+      if (!/\.fac$/i.test(base)) {
+        try { console.warn('[fac.skip.not-fac]', { filePath, base }); } catch {}
+        return;
+      }
+      // ⏸️ Si está pausado por el usuario, NO procesar
+      if (this.paused) {
+        try { console.warn('[fac.skip.paused]', { filePath, pausedByUser: this.pausedByUser }); } catch {}
+        return;
+      }
       try { const sz = fs.statSync(filePath).size; console.warn('[fac.detected]', { filePath, size: sz }); } catch {}
       try { await this.handleIncoming(filePath, cfg); } catch (e: any) { try { console.warn('[queue.enqueue.fail]', { filePath, reason: String(e?.message || e) }); } catch {} }
     });
     this.running = true;
     // Suscripción a salud WS
-    this.wsHealth.on('down', () => { try { this.pause(); console.warn('[contingency] WS DOWN → pausa'); } catch {} });
-    this.wsHealth.on('up', () => { try { this.resume(); console.info('[contingency] WS UP → resume'); } catch {} });
+    this.wsHealth.on('down', () => { try { this.pauseAuto(); console.warn('[contingency] WS DOWN → auto-pausa'); } catch {} });
+    this.wsHealth.on('up', () => { try { this.resumeAuto(); console.info('[contingency] WS UP → auto-resume'); } catch {} });
     this.wsHealth.on('degraded', () => { try { console.warn('[contingency] WS DEGRADED'); } catch {} });
     this.wsHealth.start();
     // Escaneo inicial: encolar .fac ya presentes (evita perder archivos previos al arranque)
-    try {
-      const entries = fs.readdirSync(cfg.incoming)
-        .filter((n) => /\.fac$/i.test(String(n || '')))
-        .filter((n) => !/\.(res|err|pdf)$/i.test(String(n || '')));
-      if (entries.length) {
-        try { console.warn('[fac.scan.init]', { count: entries.length }); } catch {}
-        const sorted = entries.sort((a,b)=>a.localeCompare(b));
-        for (const name of sorted) {
-          const full = path.join(cfg.incoming, name);
-          try { this.handleIncoming(full, cfg); console.warn('[fac.scan.enqueue]', { filePath: full }); } catch {}
-        }
-      }
-    } catch {}
+    this.scanPendingFacs();
     // Rehidratación: mover PROCESSING>120s a RETRY al bootstrap
     try {
       const db = (require('../services/queue/QueueDB') as any).getQueueDB().driver;
@@ -85,6 +87,10 @@ export class ContingencyController {
     const tick = async () => {
       if (!this.running) return;
       if (this.processing) return setTimeout(tick, 200);
+      // ⏸️ Si está pausado, NO consumir cola
+      if (this.paused) {
+        return setTimeout(tick, 500);
+      }
       if (!this.circuit.shouldPop()) {
         try { console.warn('[contingency] circuit=DOWN; queue=PAUSED'); } catch {}
         return setTimeout(tick, 1000);
@@ -122,16 +128,61 @@ export class ContingencyController {
     setTimeout(tick, 300);
   }
 
-  pause(): void { this.store.pause(); }
-  resume(): void { this.store.resume(); }
-  status(): CtrStatus { const s = this.store.getStats(); return { running: this.running, paused: s.paused, enqueued: s.enqueued, processing: s.processing }; }
+  // ⏸️ Pausa MANUAL (desde UI) → NO se auto-resume
+  pause(): void { 
+    this.paused = true;
+    this.pausedByUser = true;
+    console.log('[ContingencyController] paused=true (USER)'); 
+  }
+  
+  // ▶️ Resume MANUAL (desde UI) → limpia flag de usuario y escanea pendientes
+  resume(): void { 
+    this.paused = false;
+    this.pausedByUser = false;
+    console.log('[ContingencyController] paused=false (USER)');
+    // 🔍 Escanear carpeta incoming para procesar archivos .fac pendientes
+    this.scanPendingFacs();
+  }
+  
+  // ⏸️ Pausa AUTOMÁTICA (por WS down) → SÍ se auto-resume
+  private pauseAuto(): void {
+    this.paused = true;
+    // NO setear pausedByUser → permite auto-resume
+    console.log('[ContingencyController] paused=true (AUTO)');
+  }
+  
+  // ▶️ Resume AUTOMÁTICO (por WS up) → solo si no está pausado por usuario
+  private resumeAuto(): void {
+    if (!this.pausedByUser) {
+      this.paused = false;
+      console.log('[ContingencyController] paused=false (AUTO)');
+    }
+  }
+  
+  // 🛑 Detener completamente el controller (cerrar watcher, detener wsHealth)
+  stop(): void {
+    try { this.watcher?.close(); } catch {}
+    try { this.wsHealth.stop(); } catch {}
+    this.watcher = null;
+    this.running = false;
+    this.processing = false;
+  }
+  
+  status(): CtrStatus { 
+    const s = this.store.getStats(); 
+    return { 
+      running: this.running, 
+      paused: this.paused,  // Usar estado en memoria, NO SQLite
+      enqueued: s.enqueued, 
+      processing: s.processing 
+    }; 
+  }
 
   enqueueFacFromPath(filePath: string, cfg?: { staging?: string }): number {
     try {
-      const stats = this.store.getStats();
-      if (stats.paused) {
-        try { console.warn('[contingency] queue paused → fallback inline', { filePath }); } catch {}
-        this.enqueueInlineFallback(filePath);
+      // ⏸️ Si está pausado por el usuario, NO hacer NADA
+      if (this.paused) {
+        try { console.warn('[contingency] queue paused → SKIP (no inline)', { filePath, pausedByUser: this.pausedByUser }); } catch {}
         return -1;
       }
       // Normalizar siempre: mover a staging y encolar con la ruta de staging
@@ -148,13 +199,41 @@ export class ContingencyController {
     // Mover a staging atómicamente
     const base = path.basename(filePath);
     const dst = path.join(cfg.staging, base);
-    try { const sz = fs.statSync(filePath).size; console.warn('[fac.stable.ok]', { filePath, size: sz }); } catch {}
-    try { fs.renameSync(filePath, dst); } catch { /* cross-device fallback */ fs.copyFileSync(filePath, dst); try { fs.unlinkSync(filePath); } catch {} }
-    try { console.warn('[fac.stage.ok]', { from: filePath, to: dst }); } catch {}
+    
+    // Log: archivo detectado con tamaño
+    try { 
+      const sz = fs.statSync(filePath).size; 
+      console.warn('[fac.stable.ok]', { filePath, size: sz }); 
+      cajaLog.info(`Detectado ${base}`, `${(sz / 1024).toFixed(1)} KB`);
+    } catch {}
+    
+    // Mover a staging
+    let stagingMethod = 'rename';
+    try { 
+      fs.renameSync(filePath, dst); 
+    } catch (errRename) { 
+      // cross-device fallback: copy + delete
+      stagingMethod = 'copy+delete';
+      try { 
+        fs.copyFileSync(filePath, dst); 
+        try { fs.unlinkSync(filePath); } catch (errUnlink) { 
+          stagingMethod = 'copy-only (unlink failed)';
+          try { console.warn('[fac.stage.warn]', { from: filePath, to: dst, reason: 'unlink-failed', error: String(errUnlink) }); } catch {}
+        }
+      } catch (errCopy) {
+        try { console.warn('[fac.stage.fail]', { from: filePath, to: dst, reason: 'copy-failed', error: String(errCopy) }); } catch {}
+        throw errCopy; // Re-lanzar para que se maneje arriba
+      }
+    }
+    try { console.warn('[fac.stage.ok]', { from: filePath, to: dst, method: stagingMethod }); } catch {}
+    
+    // Calcular hash y encolar
     const sha = this.sha256OfFileSafe(dst);
     try { console.warn('[fac.sha.ok]', { filePath: dst, sha }); } catch {}
     const id = this.store.enqueue({ type: 'fac.process', payload: { filePath: dst }, sha256: sha });
     try { console.warn('[queue.enqueue.ok]', { id, filePath: dst }); } catch {}
+    
+    cajaLog.process(`Encolado ${base}`, `ID: ${id} | Staging`);
   }
 
   private async processJob(id: number, payload: any, cfg: any) {
@@ -172,10 +251,13 @@ export class ContingencyController {
       } else if (staged && fs.existsSync(staged)) {
         src = staged;
       } else if ((doneP && fs.existsSync(doneP)) || (errP && fs.existsSync(errP))) {
-        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        try { console.warn('[fac.already-processed.skip]', { filePath: srcRaw, foundIn: doneP && fs.existsSync(doneP) ? 'done' : 'error' }); } catch {}
+        cajaLog.warn(`${base} ya procesado`, 'Skip');
         return; // ACK arriba sin reprocesar
       } else {
-        try { console.warn('[fac.missing.skip]', { filePath: srcRaw }); } catch {}
+        // ❌ No encontrado en ningún directorio (incoming, staging, processing, done, error)
+        try { console.warn('[fac.not-found.skip]', { filePath: srcRaw, searched: [cfg.incoming, cfg.staging, cfg.processing, cfg.done, cfg.error] }); } catch {}
+        cajaLog.warn(`${base} no encontrado en sistema`, 'Saltado • Posible error de staging');
         return; // ACK arriba
       }
     }
@@ -188,7 +270,12 @@ export class ContingencyController {
         try {
           const entries = fs.readdirSync(d);
           const found = entries.find((f) => path.basename(f, path.extname(f)).toLowerCase() === base && f.toLowerCase().endsWith('.res'));
-          if (found) { console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); this.store.ack(id); return; }
+          if (found) { 
+            console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); 
+            cajaLog.warn(`${name} duplicado`, 'Ya existe .res');
+            this.store.ack(id); 
+            return; 
+          }
         } catch {}
       }
     } catch {}
@@ -197,7 +284,9 @@ export class ContingencyController {
     if (src !== lockPath) {
       try { fs.renameSync(src, lockPath); } catch { fs.copyFileSync(src, lockPath); try { fs.unlinkSync(src); } catch {} }
       try { console.warn('[fac.lock.ok]', { from: src, to: lockPath }); } catch {}
+      cajaLog.process(`Procesando ${name}`, 'Bloqueado en processing/');
     }
+    
     try {
       // Detectar TIPO rápidamente para enrutar al pipeline correcto
       const readLoose = (p: string): string => {
@@ -218,15 +307,18 @@ export class ContingencyController {
 
       // Avisar al UI que comenzamos a procesar
       try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `Procesando ${kind === 'recibo' ? 'REC' : (kind === 'remito' ? 'REM' : 'FAC')} ${name}` }); } catch {}
+      cajaLog.info(`Tipo detectado: ${tipo || 'DESCONOCIDO'}`, name);
 
       if (kind === 'recibo') {
         const { processFacFile } = require('../modules/facturacion/facProcessor');
         const out: any = await processFacFile(lockPath);
         try { console.warn('[recibo.ok]', { out }); } catch {}
+        cajaLog.success(`RECIBO ${name}`, 'Completado');
       } else if (kind === 'remito') {
         const { processRemitoFacFile } = require('../modules/facturacion/remitoProcessor');
         const out: any = await processRemitoFacFile(lockPath);
         try { console.warn('[remito.ok]', { out }); } catch {}
+        cajaLog.success(`REMITO ${name}`, 'Completado');
       } else {
         // Facturas / Notas A/B
         const { processFacturaFacFile } = require('../modules/facturacion/facProcessor');
@@ -234,10 +326,16 @@ export class ContingencyController {
         if (!r || r.ok !== true) {
           const errMsg = String((r && r.reason) || 'PERMANENT_ERROR');
           try { console.warn('[queue.process.fail]', { id, filePath: lockPath, reason: errMsg }); } catch {}
+          
           // Tratar como transitorio: AFIP sin CAE/número, NTP, error de red/DNS y 'Comprobante en proceso'
           if (/AFIP\s*sin\s*CAE|AFIP_NO_CAE|AFIP_NO_NUMERO|NTP_|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network|en\s*proceso/i.test(errMsg)) {
+            cajaLog.warn(`${name} error transitorio`, errMsg);
             throw new Error(errMsg);
           }
+          
+          // Error permanente
+          cajaLog.error(`${name} falló`, errMsg);
+          
           // Generar .res de error mínimo si el pipeline no lo hizo
           try {
             const { generateRes, parseFac } = require('./pipeline');
@@ -245,35 +343,53 @@ export class ContingencyController {
             await generateRes(dto, undefined, errMsg);
             try { console.warn('[res.err.ok]', { filePath: lockPath }); } catch {}
           } catch {}
+          
           const errPath = path.join(cfg.error, name);
           try { fs.renameSync(lockPath, errPath); } catch { try { fs.copyFileSync(lockPath, errPath); fs.unlinkSync(lockPath); } catch {} }
+          cajaLog.error(`${name} → error/`, `Movido a carpeta error`);
           throw new Error('PERMANENT_ERROR');
         }
         try { console.warn('[afip.cae.ok]', { cae: String(r.cae || ''), vto: String(r.caeVto || r.vto || '') }); } catch {}
+        cajaLog.logFacturaEmitida(
+          r.tipoTexto || 'FACTURA',
+          r.numero || '?',
+          r.cae || '?',
+          r.caeVto || r.vto || '',
+          r.total || 0
+        );
       }
       // DONE: si el pipeline ya borró el .fac (tras enviar .res por FTP), saltar move
       if (fs.existsSync(lockPath)) {
         const donePath = path.join(cfg.done, name);
         try { fs.renameSync(lockPath, donePath); } catch { try { fs.copyFileSync(lockPath, donePath); fs.unlinkSync(lockPath); } catch {} }
         try { console.warn('[fac.done.ok]', { from: lockPath, to: donePath }); } catch {}
+        cajaLog.success(`${name} → done/`, 'Procesado correctamente');
       } else {
         try { console.warn('[fac.done.ok]', { from: lockPath, to: '(deleted by pipeline after RES_OK)' }); } catch {}
+        cajaLog.success(`${name} → enviado FTP`, 'Eliminado tras RES_OK');
       }
     } catch (e) {
       const err = e as any;
       const msg = String(err?.message || err);
+      const name = path.basename(lockPath);
+      
       if (msg === 'PERMANENT_ERROR') throw e;
       if (/AFIPError/.test(String(err?.name)) && /transient/.test(String(err?.kind))) {
         // Dejar el archivo en processing para el reintento
+        cajaLog.warn(`${name} en processing/`, 'Reintento programado');
         throw e;
       }
       // Considerar también transitorio si el mensaje indica 'Comprobante en proceso', 'AFIP sin CAE' o errores de red/DNS
       if (/AFIP\s*sin\s*CAE|en\s*proceso|ENOTFOUND|EAI_AGAIN|ECONNRESET|ECONNREFUSED|ETIMEDOUT|timeout|network/i.test(msg)) {
+        cajaLog.warn(`${name} error transitorio`, msg);
         throw e;
       }
+      
+      // Error permanente no manejado arriba
       try { console.warn('[queue.process.exception]', { id, filePath: lockPath, error: msg }); } catch {}
       const errPath = path.join(cfg.error, name);
       try { fs.renameSync(lockPath, errPath); } catch { fs.copyFileSync(lockPath, errPath); try { fs.unlinkSync(lockPath); } catch {} }
+      cajaLog.error(`${name} → error/`, msg);
       throw e;
     }
   }
@@ -283,6 +399,24 @@ export class ContingencyController {
   }
 
   // ===== Fallback inline secuencial =====
+  // 🔍 Escanear carpeta incoming y encolar .fac pendientes
+  private scanPendingFacs(): void {
+    try {
+      const cfg = this.cfg;
+      const entries = fs.readdirSync(cfg.incoming)
+        .filter((n) => /\.fac$/i.test(String(n || '')))
+        .filter((n) => !/\.(res|err|pdf)$/i.test(String(n || '')));
+      if (entries.length) {
+        try { console.warn('[fac.scan.pending]', { count: entries.length }); } catch {}
+        const sorted = entries.sort((a,b)=>a.localeCompare(b));
+        for (const name of sorted) {
+          const full = path.join(cfg.incoming, name);
+          try { this.handleIncoming(full, cfg); console.warn('[fac.scan.enqueue]', { filePath: full }); } catch {}
+        }
+      }
+    } catch {}
+  }
+
   private enqueueInlineFallback(filePath: string): void {
     try {
       if (typeof filePath !== 'string' || !filePath.toLowerCase().endsWith('.fac')) return;

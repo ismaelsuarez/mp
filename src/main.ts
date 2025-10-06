@@ -25,6 +25,7 @@ import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGalic
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
 import { WSHealthService } from './ws/WSHealthService';
+import { bootstrapContingency, shutdownContingency, restartContingency } from './main/bootstrap/contingency';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -490,6 +491,7 @@ function isWebUrl(value: string): boolean {
 
 // (revertido) normalización de rutas eliminada a pedido del cliente
 
+// Store de configuración
 let store: Store<{ config?: Record<string, unknown> }>;
 try {
     store = new Store<{ config?: Record<string, unknown> }>({ name: 'settings', encryptionKey: getEncryptionKey() });
@@ -683,9 +685,10 @@ app.whenReady().then(() => {
     ensureTodayLogExists();
     try { Menu.setApplicationMenu(null); } catch {}
     try {
-        const { bootstrapContingency } = require('./main/bootstrap/contingency');
-        bootstrapContingency();
-    } catch {}
+        bootstrapContingency(store);  // 🔑 Pasar el store como parámetro
+    } catch (e: any) {
+        console.error('[main] Failed to bootstrap contingency:', e?.message || e);
+    }
 
     // WS Health → emitir estado a la UI (ARCA/AFIP)
     try {
@@ -833,7 +836,9 @@ app.whenReady().then(() => {
 	ipcMain.handle('facturacion:config:get-watcher-dir', async () => {
 		try {
 			const cfg: any = store.get('config') || {};
-			return { ok: true, dir: String(cfg.FACT_FAC_DIR || cfg.FTP_SRV_ROOT || 'C:\\tmp'), enabled: true };
+			const enabled = cfg.FACT_FAC_WATCH !== false; // true por defecto
+			const dir = String(cfg.FACT_FAC_DIR || 'C:\\tmp');
+			return { ok: true, dir, enabled };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -844,11 +849,19 @@ app.whenReady().then(() => {
 			const { dir, enabled } = payload || ({} as any);
 			const cfg: any = store.get('config') || {};
 			if (typeof dir === 'string' && dir.trim()) cfg.FACT_FAC_DIR = dir;
-			// Forzar activado por defecto
-			cfg.FACT_FAC_WATCH = true;
+			// Permitir activar/desactivar
+			cfg.FACT_FAC_WATCH = enabled !== false; // true por defecto
 			store.set('config', cfg);
-			restartWatchersIfNeeded();
-			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: true };
+			// 🎯 Reiniciar SOLO el watcher de .fac (NO tocar remoteWatcher ni imageWatcher)
+			stopFacWatcher();
+			startFacWatcher();
+			try {
+				restartContingency(store);  // 🔑 Pasar el store como parámetro
+				console.log('[admin] Contingency watcher restarted', { dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH });
+			} catch (e: any) {
+				console.error('[admin] Failed to restart contingency:', e?.message || e);
+			}
+			return { ok: true, dir: cfg.FACT_FAC_DIR, enabled: cfg.FACT_FAC_WATCH };
 		} catch (e: any) {
 			return { ok: false, error: String(e?.message || e) };
 		}
@@ -1333,6 +1346,23 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     }
   });
 
+  // ===== Caja: cargar logs históricos (últimas 24h) =====
+  ipcMain.handle('caja:get-logs', async (_e, { sinceMs, limit }: { sinceMs?: number; limit?: number } = {}) => {
+    try {
+      // Importación dinámica para evitar problemas en dev/prod
+      const { getCajaLogStore } = await import('./services/CajaLogStore');
+      const store = getCajaLogStore();
+      
+      // Por defecto: últimas 24h, máximo 1000 logs
+      const logs = store.getLogsSince(sinceMs, limit || 1000);
+      
+      return { success: true, logs };
+    } catch (error: any) {
+      console.error('[main] Error loading caja logs:', error);
+      return { success: false, error: String(error?.message || error), logs: [] };
+    }
+  });
+
   // ===== Caja: resumen diario por archivos .res (Opción B) =====
   ipcMain.handle('caja:get-summary', async (_e, { fechaIso }: { fechaIso: string }) => {
     try {
@@ -1492,6 +1522,36 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		} catch (e: any) {
 			console.error('[caja:cleanup-res] Error al ejecutar limpieza:', e);
 			return { ok: false, deleted: 0, totalSize: 0, files: [], error: String(e?.message || e) };
+		}
+	});
+
+	// ⏸️ Pausar watcher .fac temporalmente (solo si Admin=ON)
+	ipcMain.handle('caja:watcher:pause', async () => {
+		try {
+			const { pauseContingency } = await import('./main/bootstrap/contingency');
+			return pauseContingency();
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// ▶️ Reanudar watcher .fac (solo si Admin=ON)
+	ipcMain.handle('caja:watcher:resume', async () => {
+		try {
+			const { resumeContingency } = await import('./main/bootstrap/contingency');
+			return resumeContingency();
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
+	// 📊 Obtener estado del watcher (running, paused, adminEnabled)
+	ipcMain.handle('caja:watcher:status', async () => {
+		try {
+			const { getContingencyDetailedStatus } = await import('./main/bootstrap/contingency');
+			return { ok: true, status: getContingencyDetailedStatus() };
+		} catch (e: any) {
+			return { ok: false, status: { running: false, paused: false, enqueued: 0, processing: 0, adminEnabled: false }, error: String(e?.message || e) };
 		}
 	});
 
@@ -1742,7 +1802,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	createTray();
     app.on('before-quit', () => { 
         isQuitting = true; 
-        try { const { shutdownContingency } = require('./main/bootstrap/contingency'); shutdownContingency(); } catch {}
+        try { shutdownContingency(); } catch (e: any) {
+            console.error('[main] Failed to shutdown contingency:', e?.message || e);
+        }
     });
 
 	// Programación automática
@@ -2019,6 +2081,15 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		} catch {}
 	}
 
+	// Función helper para enviar logs al modo Caja
+	function sendCajaLog(message: string) {
+		try {
+			if (mainWindow && !mainWindow.isDestroyed()) {
+				mainWindow.webContents.send('caja-log', message);
+			}
+		} catch {}
+	}
+
 	async function processFacQueue() {
 		if (facProcessing) return;
 		facProcessing = true;
@@ -2029,6 +2100,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				try {
 					if (!fs.existsSync(job.fullPath)) {
 						try { logWarning('FAC omitido (no existe)', { filename: job.filename }); } catch {}
+						sendCajaLog(`⚠️ ${job.filename}: archivo no existe`);
 						continue;
 					}
 					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
@@ -2038,14 +2110,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						const m = raw.match(/\bTIPO:\s*(.+)/i);
 						tipo = (m?.[1] || '').trim().toUpperCase();
 					} catch {}
+					
+					// Log de inicio con tipo detectado
+					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
+					
 					if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
+						sendCajaLog(`✅ RECIBO ${job.filename} → Completado`);
 					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
 						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
+						sendCajaLog(`✅ REMITO ${job.filename} → Completado`);
                     } else if (
 						tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
 						tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
@@ -2058,16 +2136,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						try {
 							if (out && out.ok) {
 								logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out });
+								sendCajaLog(`✅ ${tipo} ${job.filename} → Nº ${out.numero || '?'} CAE: ${out.cae || '?'}`);
 							} else {
 								logWarning('FAC FACTURA/NOTA falló', { filename: job.filename, output: out });
+								sendCajaLog(`❌ ${tipo} ${job.filename} → ${out?.reason || 'Error desconocido'}`);
 							}
 						} catch {}
 					} else {
 						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
+						sendCajaLog(`⚠️ ${job.filename} → tipo "${tipo}" no soportado`);
 					}
 				} catch (e) {
 					// No abortar toda la cola: registrar y continuar con el siguiente
 					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
+					sendCajaLog(`❌ ${job.filename} → ${String((e as any)?.message || e)}`);
 				}
 			}
 		} finally {
@@ -2095,7 +2177,10 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		const dedicatedEnabled = cfg.FACT_FAC_WATCH !== false; // activado por defecto
 		const ftpCoupledEnabled = cfg.FTP_SRV_ENABLED === true;
 		const enabled = dedicatedEnabled || ftpCoupledEnabled;
-		if (!enabled) return false;
+		if (!enabled) {
+			logInfo('Fac watcher (UI bridge) disabled by config', { FACT_FAC_WATCH: cfg.FACT_FAC_WATCH });
+			return false;
+		}
 		const dirsSet = new Set<string>();
 		const addDir = (d?: string) => {
 			const dir = String(d || '').trim();

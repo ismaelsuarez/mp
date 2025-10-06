@@ -16,6 +16,7 @@ declare global {
 			getAutoTimer?(): Promise<any>;
 			onAutoNotice?(callback: (payload: any) => void): void;
 			onAutoTimerUpdate?(callback: (payload: any) => void): void;
+			onCajaLog?(callback: (message: string) => void): void;
 			testConnection(): Promise<any>;
 			openOutDir(): Promise<any>;
 			openTodayLog(): Promise<any>;

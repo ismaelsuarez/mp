@@ -12,9 +12,12 @@ function selectPane(name: 'home' | 'table' | 'fact') {
     if (badge) badge.style.display = 'none';
     if (auto) auto.style.display = 'none';
     if (timer) timer.style.display = 'none';
-    // Mostrar el indicador ARCA sólo en Inicio
+    // Mostrar el indicador ARCA y botón Spool sólo en Inicio
     const arca = document.getElementById('arcaIndicator') as HTMLElement | null;
     if (arca) arca.style.display = name === 'home' ? 'block' : 'none';
+    
+    const spool = document.getElementById('btnSpoolToggle') as HTMLElement | null;
+    if (spool) spool.style.display = name === 'home' ? 'block' : 'none';
 }
 
 function setAutoIndicator(active: boolean, paused: boolean = false, dayDisabled: boolean = false) {
@@ -133,23 +136,142 @@ async function handleAutoButtonClick() {
     }
 }
 
-function appendLog(line: string) {
+// Variable global para controlar auto-scroll
+let autoScrollEnabled = true;
+
+function appendLog(lineOrMessage: string | any) {
     const box = document.getElementById('cajaLogs') as HTMLElement | null;
     if (!box) return;
-    // Hora local de la PC (no UTC) en formato HH:MM:SS
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2,'0');
-    const mm = String(now.getMinutes()).padStart(2,'0');
-    const ss = String(now.getSeconds()).padStart(2,'0');
-    const at = `${hh}:${mm}:${ss}`;
-    const current = (box.textContent || '').split('\n').filter(Boolean);
-    const maxLines = 50; // Aumentado para aprovechar el scroll (antes: 4)
-    current.push(`[${at}] ${line}`);
-    const trimmed = current.slice(-maxLines);
-    box.textContent = trimmed.join('\n');
     
-    // Auto-scroll al final cuando se agrega nueva línea
-    box.scrollTop = box.scrollHeight;
+    // Hora local de la PC (no UTC) en formato HH:MM:SS
+    // Si el mensaje tiene timestamp propio (logs históricos), usarlo
+    const timestamp = (typeof lineOrMessage === 'object' && lineOrMessage.timestamp) 
+        ? new Date(lineOrMessage.timestamp) 
+        : new Date();
+    const hh = String(timestamp.getHours()).padStart(2,'0');
+    const mm = String(timestamp.getMinutes()).padStart(2,'0');
+    const ss = String(timestamp.getSeconds()).padStart(2,'0');
+    const at = `${hh}:${mm}:${ss}`;
+    
+    // Crear un nuevo div para cada línea de log
+    const logLine = document.createElement('div');
+    logLine.style.whiteSpace = 'nowrap';
+    logLine.style.padding = '2px 0';
+    
+    // Si es un objeto estructurado (nuevo sistema)
+    if (typeof lineOrMessage === 'object' && lineOrMessage.text) {
+        const msg = lineOrMessage;
+        
+        // Colores según el nivel
+        let color = '#94a3b8'; // slate-400 por defecto
+        switch (msg.level) {
+            case 'success':
+                color = '#4ade80'; // green-400
+                break;
+            case 'error':
+                color = '#f87171'; // red-400
+                break;
+            case 'warning':
+                color = '#fbbf24'; // amber-400
+                break;
+            case 'process':
+                color = '#60a5fa'; // blue-400
+                break;
+            case 'info':
+                color = '#94a3b8'; // slate-400
+                break;
+        }
+        
+        logLine.style.color = color;
+        
+        // Formato: [HH:MM:SS] 🔔 Mensaje principal | Detalle adicional
+        const icon = msg.icon || '';
+        const timestampStr = `[${at}]`;
+        const mainText = msg.text;
+        const detail = msg.detail ? ` | ${msg.detail}` : '';
+        
+        logLine.textContent = `${timestampStr} ${icon} ${mainText}${detail}`;
+    } else {
+        // Retrocompatibilidad con strings simples (sistema viejo)
+        logLine.style.color = '#94a3b8'; // slate-400
+        logLine.textContent = `[${at}] ${String(lineOrMessage)}`;
+    }
+    
+    // Agregar la línea al contenedor
+    box.appendChild(logLine);
+    
+    // Limitar a las últimas 200 líneas para no saturar el DOM
+    const maxLines = 200;
+    while (box.children.length > maxLines) {
+        box.removeChild(box.firstChild!);
+    }
+    
+    // Actualizar contador
+    updateLogCounter();
+    
+    // Auto-scroll al final cuando se agrega nueva línea (si está habilitado)
+    if (autoScrollEnabled) {
+        box.scrollTop = box.scrollHeight;
+    }
+}
+
+function updateLogCounter() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    const counter = document.getElementById('logCounter') as HTMLElement | null;
+    if (!box || !counter) return;
+    
+    const count = box.children.length;
+    counter.textContent = `${count} log${count !== 1 ? 's' : ''}`;
+}
+
+function clearLogs() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    if (!box) return;
+    
+    box.innerHTML = '';
+    updateLogCounter();
+    appendLog('Logs limpiados');
+}
+
+function copyLogs() {
+    const box = document.getElementById('cajaLogs') as HTMLElement | null;
+    if (!box) return;
+    
+    const lines: string[] = [];
+    for (let i = 0; i < box.children.length; i++) {
+        const line = box.children[i].textContent || '';
+        if (line) lines.push(line);
+    }
+    
+    const text = lines.join('\n');
+    
+    // Intentar copiar al portapapeles
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(() => {
+            appendLog('✅ Logs copiados al portapapeles');
+        }).catch(() => {
+            appendLog('❌ Error al copiar');
+        });
+    } else {
+        // Fallback para navegadores sin clipboard API
+        appendLog('❌ Clipboard no disponible');
+    }
+}
+
+function toggleAutoScroll() {
+    autoScrollEnabled = !autoScrollEnabled;
+    const btn = document.getElementById('btnPauseScroll') as HTMLButtonElement | null;
+    if (!btn) return;
+    
+    if (autoScrollEnabled) {
+        btn.textContent = '⏸️ Auto-scroll';
+        btn.title = 'Pausar auto-scroll';
+        appendLog('✅ Auto-scroll habilitado');
+    } else {
+        btn.textContent = '▶️ Auto-scroll';
+        btn.title = 'Reanudar auto-scroll';
+        appendLog('⏸️ Auto-scroll pausado');
+    }
 }
 
 function renderLast8(rows: Array<{ id: any; status: any; amount: any; date?: any }>) {
@@ -369,6 +491,81 @@ window.addEventListener('DOMContentLoaded', () => {
 		await (window.api as any).openView?.('config');
 	});
 
+	// Controles del visor de logs
+	document.getElementById('btnClearLogs')?.addEventListener('click', clearLogs);
+	document.getElementById('btnCopyLogs')?.addEventListener('click', copyLogs);
+	document.getElementById('btnPauseScroll')?.addEventListener('click', toggleAutoScroll);
+
+	// 🔧 Control del Spool (.fac processing)
+	async function updateSpoolUI() {
+		try {
+			const result = await (window.api as any).caja.watcherStatus();
+			const status = result?.status || { running: false, paused: false, adminEnabled: false };
+			
+			const btn = document.getElementById('btnSpoolToggle') as HTMLButtonElement | null;
+			if (!btn) return;
+			
+			// Si Admin desactivó el watcher, deshabilitar botón
+			if (!status.adminEnabled || !status.running) {
+				btn.disabled = true;
+				btn.textContent = '🔒';
+				btn.title = 'Spool desactivado por administrador';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-slate-700 text-slate-400 border border-slate-600 shadow cursor-not-allowed opacity-50';
+				return;
+			}
+			
+			// Si Admin está ON, permitir pausar/reanudar
+			btn.disabled = false;
+			if (status.paused) {
+				btn.textContent = '▶️';
+				btn.title = 'Reanudar Spool (procesamiento .fac)';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-rose-700 hover:bg-rose-600 text-slate-200 border border-rose-600 shadow';
+			} else {
+				btn.textContent = '⏸️';
+				btn.title = 'Pausar Spool (procesamiento .fac)';
+				btn.className = 'px-3 py-1.5 text-sm rounded bg-emerald-700 hover:bg-emerald-600 text-slate-200 border border-emerald-600 shadow';
+			}
+		} catch (e) {
+			console.error('[caja] Error updating spool UI:', e);
+		}
+	}
+	
+	async function toggleSpool() {
+		try {
+			const statusResult = await (window.api as any).caja.watcherStatus();
+			const currentStatus = statusResult?.status || { paused: false };
+			
+			if (currentStatus.paused) {
+				// Reanudar
+				const result = await (window.api as any).caja.watcherResume();
+				if (result?.ok) {
+					appendLog({ level: 'success', icon: '▶️', text: 'Spool reanudado', detail: 'Procesamiento de .fac activado' });
+				} else {
+					appendLog({ level: 'error', icon: '❌', text: 'Error al reanudar Spool', detail: result?.error || 'Error desconocido' });
+				}
+			} else {
+				// Pausar
+				const result = await (window.api as any).caja.watcherPause();
+				if (result?.ok) {
+					appendLog({ level: 'warning', icon: '⏸️', text: 'Spool pausado', detail: 'No se procesarán archivos .fac nuevos' });
+				} else {
+					appendLog({ level: 'error', icon: '❌', text: 'Error al pausar Spool', detail: result?.error || 'Error desconocido' });
+				}
+			}
+			
+			// Actualizar UI inmediatamente
+			await updateSpoolUI();
+		} catch (e: any) {
+			appendLog({ level: 'error', icon: '❌', text: 'Error al cambiar estado del Spool', detail: String(e?.message || e) });
+		}
+	}
+	
+	document.getElementById('btnSpoolToggle')?.addEventListener('click', toggleSpool);
+	
+	// Actualizar estado del spool cada 5 segundos
+	updateSpoolUI();
+	setInterval(updateSpoolUI, 5000);
+
 	// Notificaciones automáticas
 	window.api.onAutoNotice?.((payload) => {
 		if ((payload as any)?.error) {
@@ -403,6 +600,35 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
         (window as any).api?.onWsHealth?.((p: any) => { if (p?.status) setArcaIndicator(p.status); });
     } catch {}
+
+	// Logs de procesamiento .fac (backend → frontend)
+	window.api.onCajaLog?.((message: string | any) => {
+		appendLog(message);
+	});
+
+	// 📜 Cargar logs históricos del último día al abrir la ventana
+	async function loadHistoricalLogs() {
+		try {
+			const result = await (window.api as any).caja.getLogs();
+			if (result?.success && result?.logs?.length > 0) {
+				console.log(`[Caja] Cargando ${result.logs.length} logs históricos...`);
+				for (const log of result.logs) {
+					// Reconstruir el mensaje con el timestamp original
+					appendLog({
+						level: log.level,
+						icon: log.icon,
+						text: log.text,
+						detail: log.detail,
+						timestamp: log.timestamp // Usar timestamp original del log
+					});
+				}
+				appendLog({ level: 'info', icon: '📜', text: `${result.logs.length} logs históricos cargados`, detail: 'Últimas 24 horas' });
+			}
+		} catch (error) {
+			console.error('[Caja] Error loading historical logs:', error);
+		}
+	}
+	loadHistoricalLogs();
 
 	refreshAutoIndicator();
 	refreshTimer();

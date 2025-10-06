@@ -18,8 +18,13 @@
     /* Scrollbar personalizado para logs (tema oscuro) */
     #cajaLogs {
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
         scroll-behavior: smooth;
+        font-family: 'Courier New', monospace;
+        line-height: 1.6;
+    }
+    #cajaLogs > div {
+        white-space: nowrap;
     }
     #cajaLogs::-webkit-scrollbar {
         width: 8px;
@@ -34,6 +39,21 @@
     }
     #cajaLogs::-webkit-scrollbar-thumb:hover {
         background: #64748b; /* slate-500 */
+    }
+    /* Scrollbar horizontal */
+    #cajaLogs::-webkit-scrollbar:horizontal {
+        height: 8px;
+    }
+    #cajaLogs::-webkit-scrollbar-track:horizontal {
+        background: #1e293b;
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb:horizontal {
+        background: #475569;
+        border-radius: 4px;
+    }
+    #cajaLogs::-webkit-scrollbar-thumb:horizontal:hover {
+        background: #64748b;
     }
     </style>
 </head>
@@ -59,6 +79,19 @@
 
     <main class="container mt-2">
 		<section id="pane-home" class="tab-pane" style="display:block;">
+            <!-- Controles del visor de logs -->
+            <div class="flex items-center gap-2 mb-1">
+                <button id="btnClearLogs" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Limpiar logs">
+                    🗑️ Limpiar
+                </button>
+                <button id="btnCopyLogs" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Copiar todo">
+                    📋 Copiar
+                </button>
+                <button id="btnPauseScroll" class="px-2 py-0.5 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600" title="Pausar auto-scroll">
+                    ⏸️ Auto-scroll
+                </button>
+                <span id="logCounter" class="ml-auto text-xs text-slate-400"></span>
+            </div>
             <div id="cajaLogs" class="bg-black border border-slate-600 rounded-md p-3 h-48 overflow-auto font-mono text-sm shadow-inner"></div>
 		</section>
 
@@ -121,9 +154,13 @@
         </section>
 	</main>
 
-    <!-- Indicador ARCA/AFIP health -->
-    <div class="fixed bottom-4 left-4">
+    <!-- Indicador ARCA/AFIP health y Control Spool -->
+    <div class="fixed bottom-4 left-4 flex items-center gap-2">
         <img id="arcaIndicator" src="./icons/arca_verde.png" alt="ARCA" class="w-10 h-10 rounded-full shadow" title="ARCA"/>
+        <!-- Botón Spool: solo visible en pestaña Inicio -->
+        <button id="btnSpoolToggle" class="px-3 py-1.5 text-sm rounded bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 disabled:opacity-50 disabled:cursor-not-allowed shadow" title="Pausar/Reanudar procesamiento .fac" disabled style="display:block;">
+            ⏸️
+        </button>
     </div>
     <script src="../dist/src/caja.js"></script>
 </body>

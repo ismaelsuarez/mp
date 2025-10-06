@@ -814,12 +814,8 @@ class AfipService {
         neto: comprobante.totales.neto,
         iva: comprobante.totales.iva,
         total: comprobante.totales.total,
-        detalle: comprobante.items.map(item => ({
-          descripcion: item.descripcion,
-          cantidad: item.cantidad,
-          precioUnitario: item.precioUnitario,
-          alicuotaIva: item.alicuotaIva
-        })),
+        // ✅ NO se envía detalle a ARCA/ATM (solo requieren totales según manual MTXCA)
+        // detalle: [], // Opcional y no requerido
         observaciones: comprobante.observaciones,
         codigoOperacion: comprobante.codigoOperacion
       };

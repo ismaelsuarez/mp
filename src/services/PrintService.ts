@@ -1,7 +1,8 @@
-// Refactor: Abandonamos webContents.print para evitar el bug de “página negra”.
+// Refactor: Abandonamos webContents.print para evitar el bug de "página negra".
 // Enviamos el PDF directamente al spooler del SO usando pdf-to-printer.
 import { print as printNative } from 'pdf-to-printer';
 import path from 'path';
+import { cajaLog } from './CajaLogService';
 
 // Logs de depuración opcionales (habilitar con PRINT_DEBUG=1)
 const DEBUG_PRINT = process.env.PRINT_DEBUG === '1';
@@ -29,18 +30,29 @@ export async function printPdf(filePath: string, printerName?: string, copies: n
   }
 
   // Impresión directa al spooler del SO (evita motor de render de Electron/Chromium)
+  const fileName = path.basename(abs);
+  const numCopies = Math.max(1, Math.floor(copies || 1));
+  
   try {
     await printNative(abs, {
       printer: printerName || undefined,
-      copies: Math.max(1, Math.floor(copies || 1)),
+      copies: numCopies,
     } as any);
+    
+    // Log exitoso
+    cajaLog.logImpresion(numCopies, printerName);
+    
   } catch (err: any) {
     // Mensaje claro si falta la librería
     const msg = String(err?.message || err);
     if (/Cannot find module 'pdf-to-printer'/.test(msg)) {
+      cajaLog.logImpresionError('Falta dependencia pdf-to-printer');
       throw new Error('Falta la dependencia pdf-to-printer. Ejecute: npm install pdf-to-printer');
     }
     if (DEBUG_PRINT) console.error('[PrintService] error pdf-to-printer', msg);
+    
+    // Log de error
+    cajaLog.logImpresionError(msg);
     throw err;
   }
 }

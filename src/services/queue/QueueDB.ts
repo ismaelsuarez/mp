@@ -66,7 +66,19 @@ CREATE TABLE IF NOT EXISTS queue_audit (
 CREATE TABLE IF NOT EXISTS queue_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
-);`;
+);
+
+CREATE TABLE IF NOT EXISTS caja_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  timestamp INTEGER NOT NULL,
+  level TEXT NOT NULL,
+  icon TEXT NOT NULL,
+  text TEXT NOT NULL,
+  detail TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_caja_logs_timestamp ON caja_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_caja_logs_level ON caja_logs(level);`;
     try { this._db.exec(sql); } catch {}
   }
 }

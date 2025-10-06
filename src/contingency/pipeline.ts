@@ -49,7 +49,8 @@ export function parseFac(filePath: string): FacDTO {
   if (i >= 0) {
     for (let k = i + 1; k < lines.length; k++) {
       const row = lines[k]; if (/^TOTALES:/.test(row)) break;
-      const m1 = row.match(/^\s*(\d+)\s+(.*?)\s+([0-9.,]+)\s+(?:([0-9.,]+)%\s+)?([0-9.,]+)\s*$/);
+      // Soporta valores negativos en unitario, alícuota y total (bonificaciones, descuentos)
+      const m1 = row.match(/^\s*(\d+)\s+(.*?)\s+([-+]?[0-9.,]+)\s+(?:([-+]?\d{1,2}(?:[.,]\d{1,2})?)%\s+)?([-+]?[0-9.,]+)\s*$/);
       if (m1) {
         const cantidad = Number(m1[1]);
         const descripcion = m1[2].trim();

@@ -85,6 +85,9 @@ contextBridge.exposeInMainWorld('api', {
     onWsHealth(callback: (payload: { status: 'up'|'degraded'|'down'; at?: number; details?: any }) => void) {
         ipcRenderer.on('ws-health-update', (_e, payload) => callback(payload));
     },
+	onCajaLog(callback: (message: string) => void) {
+		ipcRenderer.on('caja-log', (_e, message) => callback(message));
+	},
 	async testConnection() {
 		return await ipcRenderer.invoke('test-connection');
 	},
@@ -184,7 +187,12 @@ contextBridge.exposeInMainWorld('api', {
 	caja: {
 		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),
 		cleanupRes: (options?: { daysToKeep?: number; dryRun?: boolean }) => ipcRenderer.invoke('caja:cleanup-res', options),
-		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind })
+		openDir: (kind: 'processing'|'done'|'error'|'out') => ipcRenderer.invoke('caja:open-dir', { kind }),
+		getLogs: (options?: { sinceMs?: number; limit?: number }) => ipcRenderer.invoke('caja:get-logs', options || {}),
+		// Control del watcher .fac
+		watcherPause: () => ipcRenderer.invoke('caja:watcher:pause'),
+		watcherResume: () => ipcRenderer.invoke('caja:watcher:resume'),
+		watcherStatus: () => ipcRenderer.invoke('caja:watcher:status')
 	},
 	// Recibo config (PV y contador)
 	recibo: {

@@ -28,8 +28,8 @@ export interface ComprobanteProvincialParams {
   iva: number;
   total: number;
   
-  // Detalle de items
-  detalle: Array<{
+  // Detalle de items (opcional - ARCA/ATM no lo requieren según manual MTXCA)
+  detalle?: Array<{
     descripcion: string;
     cantidad: number;
     precioUnitario: number;

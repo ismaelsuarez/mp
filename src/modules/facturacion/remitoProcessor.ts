@@ -26,6 +26,7 @@ type ParsedRemito = {
     domicilio?: string;
   };
   itemsRemito: Array<{ cantidad: number; descripcion: string; total: number }>;
+  itemsRawLines: string[]; // ✅ Líneas RAW entre ITEM: y TOTALES:
   pagos: Array<{ medio: string; detalle: string; importe: number }>;
   totales: { neto21: number; neto105: number; neto27: number; exento: number; iva21: number; iva105: number; iva27: number; total: number };
   obs: {
@@ -102,6 +103,20 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
   const ivaReceptor = get('IVARECEPTOR:');
   const domicilio = get('DOMICILIO:');
 
+  // ✅ Captura RAW de líneas entre ITEM: y TOTALES:
+  const itemStart = lines.findIndex((l) => l.trim() === 'ITEM:');
+  const totStart = lines.findIndex((l) => l.trim() === 'TOTALES:');
+  const itemsRawLines: string[] = [];
+  if (itemStart >= 0) {
+    const end = totStart > itemStart ? totStart : lines.length;
+    for (let i = itemStart + 1; i < end; i++) {
+      const row = lines[i];
+      if (!row || !row.trim()) continue;
+      itemsRawLines.push(row); // Captura línea completa (con espacios)
+    }
+  }
+
+  // Parseo legacy (por si acaso)
   const itemsLines = getBlock('ITEM:');
   const itemsRemito = [] as Array<{ cantidad: number; descripcion: string; total: number }>;
   for (const rawLn of itemsLines) {
@@ -192,6 +207,7 @@ function parseFacRemito(content: string, fileName: string): ParsedRemito {
     whatsapp: whatsapp || undefined,
     receptor: { codigo, nombre, docTipo, docNro, condicionTxt, ivaReceptor, domicilio },
     itemsRemito,
+    itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     pagos,
     totales: { neto21, neto105, neto27, exento, iva21, iva105, iva27, total },
     obs: { cabecera1: cab1Lines, cabecera2: cab2Lines, pie: pieWrapped, atendio, hora, mail, pago },
@@ -350,7 +366,8 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     observaciones: parsed.obs.cabecera2.filter(Boolean).slice(0, 2).join('\n'),
     pieObservaciones: parsed.obs.pie.filter(Boolean).join('\n'),
     fiscal: (parsed.fiscal && parsed.fiscal.length) ? parsed.fiscal.join('\n') : undefined,
-    items: parsed.itemsRemito.map((it) => ({ descripcion: it.descripcion, cantidad: it.cantidad, unitario: it.total, iva: 0, total: it.total })),
+    items: [], // ✅ Array vacío (se usa itemsRawLines en su lugar)
+    itemsRawLines: parsed.itemsRawLines, // ✅ Líneas RAW entre ITEM: y TOTALES:
     netoGravado: (parsed.totales.neto21 || 0) + (parsed.totales.neto105 || 0) + (parsed.totales.neto27 || 0),
     ivaPorAlicuota: { '21': parsed.totales.iva21 || 0, '10.5': parsed.totales.iva105 || 0, '27': parsed.totales.iva27 || 0 },
     ivaTotal: (parsed.totales.iva21 || 0) + (parsed.totales.iva105 || 0) + (parsed.totales.iva27 || 0),
@@ -372,67 +389,15 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     tryCopy(outRed2Dir);
   } catch {}
 
-  // Email si corresponde
-  try {
-    const to = (parsed.email || '').trim();
-    const isValidEmail = (s: string) => /.+@.+\..+/.test(s);
-    if (to && isValidEmail(to)) {
-      try {
-        const { sendReceiptEmail } = await import('../../services/EmailService');
-        await sendReceiptEmail(to, localOutPath, {
-          subject: 'Remito',
-          title: 'Remito',
-          intro: 'Adjuntamos el remito correspondiente.',
-          bodyHtml: '<p>Gracias por su preferencia.</p>'
-        });
-      } catch (e) {
-        try { console.warn('[remito] envío de email falló:', (e as any)?.message || String(e)); } catch {}
-      }
-    }
-  } catch {}
+  // Helper para enviar logs al modo Caja
+  const sendCajaLog = (msg: string) => {
+    try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win && !win.isDestroyed()) win.webContents.send('caja-log', msg); } catch {}
+  };
 
-  // WhatsApp si corresponde
-  try {
-    const phone = (parsed.whatsapp || '').trim();
-    if (phone) {
-      const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
-      const onlyDigits = phone.replace(/[^0-9]/g, '');
-      const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
-      const stamp = dayjs().format('HHmmss');
-      const rand = Math.random().toString(36).slice(2, 4);
-      const wfaName = `wfa${stamp}${rand}.txt`;
-      const wfaPath = path.join(outLocalDir as string, wfaName);
-      const lines = [
-        normalizedPhone,
-        clienteNombreFull2,
-        path.basename(localOutPath),
-        'Que tal, somos de Todo Computacion',
-        'Adjuntamos "el remito realizado."',
-      ];
-      try { fs.writeFileSync(wfaPath, lines.join('\n'), 'utf8'); } catch {}
-      try {
-        const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
-        await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
-        try { fs.unlinkSync(wfaPath); } catch {}
-      } catch (e) {
-        try { console.warn('[remito] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
-      }
-    }
-  } catch {}
-
-  // Impresión
-  try {
-    const copies = Math.max(0, Number(parsed.copias || 0));
-    if (copies > 0) {
-      const { printPdf } = await import('../../services/PrintService');
-      await printPdf(localOutPath, remitoCfg.printerName, copies);
-    }
-  } catch {}
-
-  // Incrementar contador
+  // ✅ PASO 1: Incrementar contador
   saveRemitoConfig(cfgPath, { pv: remitoCfg.pv, contador: (data.empresa.numero || 0) + 1 });
 
-  // Generar .res con sufijo 'r'
+  // ✅ PASO 2: Generar .res INMEDIATAMENTE (CRÍTICO)
   let resPath: string | null = null;
   try {
     const now = new Date();
@@ -463,17 +428,119 @@ export async function processRemitoFacFile(fullPath: string): Promise<string> {
     try { const outDir = path.join(app.getPath('userData'), 'fac', 'out'); fs.mkdirSync(outDir, { recursive: true }); fs.copyFileSync(resPath, path.join(outDir, path.basename(resPath))); } catch {}
   } catch {}
 
-  // Enviar .res por FTP y limpiar
+  // ✅ PASO 3: Enviar .res por FTP INMEDIATAMENTE (CRÍTICO)
   try {
     if (resPath && fs.existsSync(resPath)) {
       try { console.log('[remito] Intentando enviar .res por FTP:', path.basename(resPath)); } catch {}
       await sendArbitraryFile(resPath, path.basename(resPath));
+      sendCajaLog(`  └─ .res OK → FTP`);
       try { const { BrowserWindow } = require('electron'); const win = BrowserWindow.getAllWindows()?.[0]; if (win) win.webContents.send('auto-report-notice', { info: `RES OK ${path.basename(resPath)}` }); } catch {}
       try { fs.unlinkSync(resPath); } catch {}
       try { fs.unlinkSync(fullPath); } catch {}
       try { console.log('[remito] .res enviado por FTP y archivos limpiados'); } catch {}
     }
-  } catch {}
+  } catch (e) {
+    sendCajaLog(`  └─ .res ❌ → ${String((e as any)?.message || 'error')}`);
+  }
+
+  // 🔄 PASO 4: Tareas SECUNDARIAS en PARALELO (NO BLOQUEAN)
+  const secondaryTasks = [];
+
+  // Tarea: Email
+  const emailTo = (parsed.email || '').trim();
+  const isValidEmail = (s: string) => /.+@.+\..+/.test(s);
+  if (emailTo && isValidEmail(emailTo)) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const { sendReceiptEmail } = await import('../../services/EmailService');
+          await sendReceiptEmail(emailTo, localOutPath, {
+            subject: 'Remito',
+            title: 'Remito',
+            intro: 'Adjuntamos el remito correspondiente.',
+            bodyHtml: '<p>Gracias por su preferencia.</p>'
+          });
+          sendCajaLog(`  └─ Email OK → ${emailTo}`);
+          return { task: 'email', success: true };
+        } catch (e) {
+          try { console.warn('[remito] envío de email falló:', (e as any)?.message || String(e)); } catch {}
+          sendCajaLog(`  └─ Email ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'email', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Tarea: WhatsApp
+  const phone = (parsed.whatsapp || '').trim();
+  if (phone) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const clienteNombreFull2 = ((parsed.receptor.codigo ? `(${parsed.receptor.codigo}) ` : '') + (parsed.receptor.nombre || '').trim()).trim();
+          const onlyDigits = phone.replace(/[^0-9]/g, '');
+          const normalizedPhone = onlyDigits.startsWith('54') ? ('+' + onlyDigits) : ('+54' + onlyDigits);
+          const stamp = dayjs().format('HHmmss');
+          const rand = Math.random().toString(36).slice(2, 4);
+          const wfaName = `wfa${stamp}${rand}.txt`;
+          const wfaPath = path.join(outLocalDir as string, wfaName);
+          const lines = [
+            normalizedPhone,
+            clienteNombreFull2,
+            path.basename(localOutPath),
+            'Que tal, somos de Todo Computacion',
+            'Adjuntamos "el remito realizado."',
+          ];
+          fs.writeFileSync(wfaPath, lines.join('\n'), 'utf8');
+          const { sendFilesToWhatsappFtp } = await import('../../services/FtpService');
+          await sendFilesToWhatsappFtp([localOutPath, wfaPath], [path.basename(localOutPath), path.basename(wfaPath)]);
+          sendCajaLog(`  └─ WhatsApp OK → ${normalizedPhone}`);
+          try { fs.unlinkSync(wfaPath); } catch {}
+          return { task: 'whatsapp', success: true };
+        } catch (e) {
+          try { console.warn('[remito] envío WhatsApp FTP falló:', (e as any)?.message || String(e)); } catch {}
+          sendCajaLog(`  └─ WhatsApp ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'whatsapp', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Tarea: Impresión
+  const copies = Math.max(0, Number(parsed.copias || 0));
+  if (copies > 0) {
+    secondaryTasks.push(
+      (async () => {
+        try {
+          const { printPdf } = await import('../../services/PrintService');
+          await printPdf(localOutPath, remitoCfg.printerName, copies);
+          sendCajaLog(`  └─ Impresión OK (${copies} copia${copies>1?'s':''})`);
+          return { task: 'print', success: true };
+        } catch (e) {
+          sendCajaLog(`  └─ Impresión ❌ → ${String((e as any)?.message || 'error')}`);
+          return { task: 'print', success: false, error: String((e as any)?.message || 'error') };
+        }
+      })()
+    );
+  }
+
+  // Ejecutar todas las tareas secundarias EN PARALELO (sin bloquear)
+  if (secondaryTasks.length > 0) {
+    Promise.allSettled(secondaryTasks).then(results => {
+      try {
+        const summary = results.map((r, i) => {
+          if (r.status === 'fulfilled') {
+            return `${r.value.task}: ${r.value.success ? 'OK' : 'FAIL'}`;
+          } else {
+            return `task_${i}: ERROR`;
+          }
+        }).join(', ');
+        console.log(`[remito] Tareas secundarias completadas: ${summary}`);
+      } catch {}
+    }).catch(() => {
+      console.warn('[remito] Error inesperado en tareas secundarias');
+    });
+  }
 
   return localOutPath;
 }
