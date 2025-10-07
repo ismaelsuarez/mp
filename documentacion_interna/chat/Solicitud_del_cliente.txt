@@ -1,0 +1,317 @@
+Rol: Senior NestJS + Node (Electron).
+Salida: Sólo código de los archivos indicados. Sin explicaciones, sin comentarios extensos, no tocar configs globales.
+Objetivo: Implementar flujo BNA que se dispare cuando aparezca un archivo dolar.txt en una carpeta “inbox” (por defecto C:\tmp, configurable). Al disparar:
+
+Scrapear https://www.bna.com.ar/Personas (tabs “Cotización Billetes” y “Cotización Divisas”).
+
+Normalizar USD (billetes y divisas) → armar dolar.dbf, dolar.csv, dolar.xlsx (con columnas solicitadas).
+
+Guardar localmente en userData/bna/reportes/.
+
+Enviar por FTP de Mercado Pago usando el FtpService ya existente (misma config/flujo que MP).
+
+Limpiar reportes locales con más de N días (default 7; configurable).
+
+Todo sin .env: leer settings desde electron-store en userData (si faltan claves, usar defaults seguros).
+
+Crear/actualizar:
+1) package.json (añadir deps si faltan)
+{
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cheerio": "^1.0.0-rc.12",
+    "dbffile": "^4.0.0",
+    "exceljs": "^4.4.0",
+    "electron-store": "^8.1.0"
+  }
+}
+
+2) src/bna/bna.module.ts
+import { Module } from '@nestjs/common';
+import { CacheModule } from '@nestjs/cache-manager';
+import { BnaService } from './bna.service';
+import { BnaOrchestrator } from './bna.orchestrator';
+import { BnaTrigger } from './bna.trigger';
+
+@Module({
+  imports: [CacheModule.register({ ttl: 300, max: 100 })],
+  providers: [BnaService, BnaOrchestrator, BnaTrigger],
+  exports: [BnaService, BnaOrchestrator],
+})
+export class BnaModule {}
+
+3) src/bna/bna.service.ts (scraping + helpers + escritura DBF/CSV/XLSX)
+import { Injectable, Inject, InternalServerErrorException } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import type { Cache } from 'cache-manager';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
+import * as fs from 'fs';
+import * as path from 'path';
+import { DBFFile } from 'dbffile';
+import ExcelJS from 'exceljs';
+
+export type Row = {
+  tipo: 'BILLETES'|'DIVISAS';
+  moneda: string;
+  cod: string;
+  compra: number|null;
+  venta: number|null;
+  unidad: number; // 1 o 100
+};
+export type Quotes = {
+  fuente: 'BNA';
+  fecha: string;  // YYYY-MM-DD
+  hora?: string;  // HH:mm
+  billetes: Row[];
+  divisas: Row[];
+};
+
+@Injectable()
+export class BnaService {
+  constructor(@Inject(CACHE_MANAGER) private readonly cache: Cache) {}
+
+  // ===== settings / rutas (userData + electron-store) =====
+  getUserDataDir(): string {
+    try { const { app } = require('electron'); if (app?.getPath) return app.getPath('userData'); } catch {}
+    const appData = process.env.APPDATA || (process.platform === 'darwin'
+      ? path.join(process.env.HOME || '', 'Library/Application Support')
+      : path.join(process.env.HOME || '', '.config'));
+    return path.join(appData, 'Tc-Mp');
+  }
+  getStore(): any {
+    const Store = require('electron-store');
+    return new Store({ name: 'settings' });
+  }
+  getInboxDir(): string {
+    const s = this.getStore();
+    return s.get('dolar.inboxDir', 'C:\\\\tmp');
+  }
+  getOutDir(): string {
+    const base = path.join(this.getUserDataDir(), 'bna', 'reportes');
+    if (!fs.existsSync(base)) fs.mkdirSync(base, { recursive: true });
+    return base;
+  }
+  getRetentionDays(): number {
+    const s = this.getStore();
+    const n = Number(s.get('dolar.retentionDays', 7));
+    return Number.isFinite(n) && n > 0 ? n : 7;
+  }
+
+  // ===== scraping =====
+  private async fetchHtml(): Promise<string> {
+    const { data } = await axios.get('https://www.bna.com.ar/Personas', {
+      timeout: 15000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Node; BNA-Scraper)' },
+      validateStatus: s => s >= 200 && s < 500,
+    });
+    if (!data || typeof data !== 'string') throw new InternalServerErrorException('BNA vacío');
+    return data;
+  }
+  private parseNumberAR(s: string): number|null {
+    if (!s) return null;
+    const t = s.replace(/\./g,'').replace(/,/g,'.').replace(/[^\d.\-]/g,'').trim();
+    if (!t || t === '.' || t === '-') return null;
+    const n = Number(t); return Number.isFinite(n) ? n : null;
+  }
+  private toIsoFromSlash(dmy: string): string|undefined {
+    const m = dmy?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); if (!m) return undefined;
+    return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  private codMap(name: string): { cod: string; unidad: number } {
+    const n = name.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase();
+    const star = /\*$/.test(name.trim());
+    const base: Record<string,string> = {
+      'dolar u.s.a':'USD','dólar u.s.a':'USD','euro':'EUR','libra esterlina':'GBP','franco suizos':'CHF','yenes':'JPY',
+      'dolares canadienses':'CAD','dólares canadienses':'CAD','coronas danesas':'DKK','coronas noruegas':'NOK','coronas suecas':'SEK',
+      'yuan':'CNY','dolar australiano':'AUD','dólar australiano':'AUD'
+    };
+    const key = Object.keys(base).find(k => n.startsWith(k)) || '';
+    return { cod: base[key] || 'XXX', unidad: star ? 100 : 1 };
+  }
+  private parsePane($: cheerio.CheerioAPI, paneSel: string, tipo: 'BILLETES'|'DIVISAS') {
+    const pane = $(paneSel).first();
+    const table = pane.find('table').first();
+    const headerDate = table.find('th.fechaCot').first().text().trim();
+    const fecha = this.toIsoFromSlash(headerDate);
+    let hora: string|undefined;
+    const foot = pane.find('td, p, div').filter((_,el)=>/Hora\s+Actualizaci[oó]n/i.test($(el).text())).first().text();
+    const h = foot.match(/Hora\s+Actualizaci[oó]n:\s*([0-2]?\d:[0-5]\d)/i); if (h) hora = h[1];
+
+    const rows: Row[] = [];
+    table.find('tbody tr').each((_, tr) => {
+      const tds = $(tr).find('td'); if (tds.length < 3) return;
+      const name = $(tds[0]).text().replace(/\s+/g,' ').trim(); if (!name) return;
+      const compra = this.parseNumberAR($(tds[1]).text());
+      const venta  = this.parseNumberAR($(tds[2]).text());
+      const { cod, unidad } = this.codMap(name);
+      rows.push({ tipo, moneda: name.replace(/\s*\*$/,''), cod, compra, venta, unidad });
+    });
+    return { fecha, hora, rows };
+  }
+  private async scrape(): Promise<Quotes> {
+    const html = await this.fetchHtml();
+    const $ = cheerio.load(html);
+    const bil = this.parsePane($, '#billetes, #divBilletes, div.tab-content > div[id*=billete]', 'BILLETES');
+    const div = this.parsePane($, '#divisas, #divDivisas, div.tab-content > div[id*=divisa]', 'DIVISAS');
+    const fecha = bil.fecha || div.fecha; if (!fecha) throw new InternalServerErrorException('Sin fecha');
+    const hora = bil.hora || div.hora;
+    return { fuente:'BNA', fecha, hora, billetes: bil.rows, divisas: div.rows };
+  }
+  async getQuotes(): Promise<Quotes> {
+    const c = await this.cache.get<Quotes>('bna:quotes'); if (c) return c;
+    const q = await this.scrape(); await this.cache.set('bna:quotes', q, 300_000); return q;
+  }
+  usdRows(q: Quotes): Row[] {
+    return [
+      ...q.billetes.filter(r => r.cod === 'USD'),
+      ...q.divisas.filter(r => r.cod === 'USD'),
+    ];
+  }
+
+  // ===== writers =====
+  async writeDbf(q: Quotes, file: string): Promise<string> {
+    const rows = this.usdRows(q); if (!rows.length) throw new InternalServerErrorException('Sin USD');
+    const dbf = await DBFFile.create(file, [
+      { name:'FECHA',type:'D' }, { name:'HORA',type:'C',size:5 },
+      { name:'TIPO',type:'C',size:10 }, { name:'MONEDA',type:'C',size:20 },
+      { name:'COD',type:'C',size:5 }, { name:'COMPRA',type:'N',size:12,decs:4 },
+      { name:'VENTA',type:'N',size:12,decs:4 }, { name:'UNIDAD',type:'N',size:5,decs:0 },
+      { name:'FUENTE',type:'C',size:10 }
+    ]);
+    const jsDate = new Date(q.fecha+'T00:00:00'); const hora = q.hora || '';
+    await dbf.appendRecords(rows.map(r => ({
+      FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
+      COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE:'BNA'
+    })));
+    return file;
+  }
+  async writeCsv(q: Quotes, file: string): Promise<string> {
+    const rows = this.usdRows(q);
+    const hdr = ['fecha','hora','tipo','moneda','cod','compra','venta','unidad','fuente'];
+    const js = (v: any) => (v==null?'':String(v).replace(/"/g,'""'));
+    const lines = [hdr.join(',')];
+    for (const r of rows) lines.push([
+      q.fecha, q.hora||'', r.tipo, r.moneda, r.cod,
+      r.compra ?? '', r.venta ?? '', r.unidad, 'BNA'
+    ].map(v => `"${js(v)}"`).join(','));
+    fs.writeFileSync(file, lines.join('\n'), 'utf8');
+    return file;
+  }
+  async writeXlsx(q: Quotes, file: string): Promise<string> {
+    const rows = this.usdRows(q);
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('USD');
+    ws.addRow(['fecha','hora','tipo','moneda','cod','compra','venta','unidad','fuente']);
+    for (const r of rows) ws.addRow([q.fecha, q.hora||'', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+    await wb.xlsx.writeFile(file); return file;
+  }
+
+  ensureDir(p: string) { const d = path.dirname(p); if (!fs.existsSync(d)) fs.mkdirSync(d,{recursive:true}); }
+  makeOutPaths(prefix: string) {
+    const dir = this.getOutDir();
+    const dbf = path.join(dir, `${prefix}.dbf`);
+    const csv = path.join(dir, `${prefix}.csv`);
+    const xls = path.join(dir, `${prefix}.xlsx`);
+    return { dir, dbf, csv, xls };
+  }
+
+  cleanupOld(dir: string, days: number) {
+    const now = Date.now(), ms = days*24*60*60*1000;
+    if (!fs.existsSync(dir)) return;
+    for (const f of fs.readdirSync(dir)) {
+      const p = path.join(dir, f);
+      try {
+        const st = fs.statSync(p);
+        if (now - st.mtimeMs > ms) fs.unlinkSync(p);
+      } catch {}
+    }
+  }
+}
+
+4) src/bna/bna.orchestrator.ts (ejecución + FTP MP)
+import { Injectable } from '@nestjs/common';
+import * as path from 'path';
+import { BnaService } from './bna.service';
+
+// Reutiliza el FtpService dedicado de MP (ya existente en tu app)
+let ftpApi: any;
+try { ftpApi = require('../services/FtpService'); } catch { ftpApi = null; }
+
+@Injectable()
+export class BnaOrchestrator {
+  constructor(private readonly bna: BnaService) {}
+
+  async runOnce() {
+    const q = await this.bna.getQuotes();
+    const prefix = `dolar_${q.fecha.replace(/-/g,'')}`;
+    const { dir, dbf, csv, xls } = this.bna.makeOutPaths(prefix);
+    this.bna.ensureDir(dbf);
+
+    await this.bna.writeDbf(q, dbf);
+    await this.bna.writeCsv(q, csv);
+    await this.bna.writeXlsx(q, xls);
+
+    // alias fijo (si necesitás uno)
+    const aliasDbf = path.join(dir, 'dolar.dbf');
+    try { require('fs').copyFileSync(dbf, aliasDbf); } catch {}
+
+    // Envío por FTP Mercado Pago (reutiliza configuración dedicada)
+    if (ftpApi && (ftpApi.sendMpFtpFiles || ftpApi.sendMpDbf)) {
+      if (ftpApi.sendMpFtpFiles) {
+        await ftpApi.sendMpFtpFiles([dbf, csv, xls], ['dolar.dbf','dolar.csv','dolar.xlsx']);
+      } else {
+        await ftpApi.sendMpDbf(aliasDbf, 'dolar.dbf', { force: true });
+      }
+    }
+
+    // Limpieza
+    this.bna.cleanupOld(dir, this.bna.getRetentionDays());
+
+    return { ok: true, outDir: dir, files: { dbf, csv, xls } };
+  }
+}
+
+5) src/bna/bna.trigger.ts (watcher de dolar.txt)
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { BnaService } from './bna.service';
+import { BnaOrchestrator } from './bna.orchestrator';
+
+@Injectable()
+export class BnaTrigger implements OnModuleInit, OnModuleDestroy {
+  private timer?: NodeJS.Timer;
+
+  constructor(private readonly bna: BnaService, private readonly orch: BnaOrchestrator) {}
+
+  onModuleInit() {
+    const dir = this.bna.getInboxDir();
+    if (!fs.existsSync(dir)) try { fs.mkdirSync(dir, { recursive: true }); } catch {}
+    this.timer = setInterval(() => this.poll(dir), 2000);
+  }
+
+  onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
+
+  private async poll(dir: string) {
+    let files: string[] = [];
+    try { files = fs.readdirSync(dir); } catch { return; }
+    const triggers = files.filter(f => /^dolar(\..*)?\.txt$/i.test(f));
+    if (!triggers.length) return;
+
+    for (const f of triggers) {
+      const full = path.join(dir, f);
+      try {
+        await this.orch.runOnce();
+        try { fs.unlinkSync(full); } catch {}
+      } catch (e) {
+        // opcional: log a archivo/IPC
+      }
+    }
+  }
+}
+
+(Opcional) Si tu AppModule no importa el módulo:
+import { Module } from '@nestjs/common';
+import { BnaModule } from './bna/bna.module';
+@Module({ imports: [BnaModule] })
+export class AppModule {}

@@ -9,6 +9,7 @@ Este índice reúne la documentación vigente. Si un archivo no aparece aquí, s
 #### 2) Arquitectura de la app
 - `ui-architecture.md`: estructura del proceso Electron (main/renderer), IPC y módulos UI.
 - `code-architecture-audit.md`: principios y dependencias a alto nivel.
+- `INFORME_TECNICO_MERCADO_PAGO.md`: flujo Mercado Pago (consulta → reportes → FTP mp.dbf).
 
 #### 3) Base de datos y performance
 - `sqlite-usage.md`: pautas de uso de SQLite (PRAGMAs, WAL, concurrencia) y buenas prácticas.

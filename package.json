@@ -1,6 +1,6 @@
 {
   "name": "tc-mp",
-  "version": "1.0.21",
+  "version": "1.0.22",
   "private": true,
   "description": "Aplicación de gestión de pagos de Mercado Pago para TODO-Computación",
   "author": "TODO-Computación <pc@tcmza.com.ar>",
@@ -129,6 +129,7 @@
     "axios": "^1.10.0",
     "basic-ftp": "^5.0.5",
     "better-sqlite3": "^9.6.0",
+    "cheerio": "^1.1.2",
     "chokidar": "^4.0.3",
     "dayjs": "^1.11.13",
     "dbffile": "^1.12.0",
