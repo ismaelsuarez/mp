@@ -101,6 +101,41 @@ function parseNumberAR(s: string): number | null {
   const n = Number(t); return Number.isFinite(n) ? n : null;
 }
 
+function formatNumberEsAR(n: number | null | undefined, decs = 4): string {
+  if (n == null) return '';
+  try {
+    return new Intl.NumberFormat('es-AR', {
+      useGrouping: true,
+      minimumFractionDigits: decs,
+      maximumFractionDigits: decs,
+    }).format(n);
+  } catch {
+    // Fallback manual si Intl falla: miles '.' y decimales ','
+    const fixed = (Math.round((n + Number.EPSILON) * Math.pow(10, decs)) / Math.pow(10, decs))
+      .toFixed(decs);
+    const [ent, frac] = fixed.split('.');
+    const withGroup = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return frac ? `${withGroup},${frac}` : withGroup;
+  }
+}
+
+function formatNumberEnUS(n: number | null | undefined, decs = 4): string {
+  if (n == null) return '';
+  try {
+    return new Intl.NumberFormat('en-US', {
+      useGrouping: true,
+      minimumFractionDigits: decs,
+      maximumFractionDigits: decs,
+    }).format(n);
+  } catch {
+    const fixed = (Math.round((n + Number.EPSILON) * Math.pow(10, decs)) / Math.pow(10, decs))
+      .toFixed(decs);
+    const [ent, frac] = fixed.split('.');
+    const withGroup = ent.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return frac ? `${withGroup}.${frac}` : withGroup;
+  }
+}
+
 function toIsoFromSlash(dmy: string): string | undefined {
   const m = dmy?.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (!m) return undefined;
@@ -167,17 +202,18 @@ function allRows(q: Quotes): Row[] {
 export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q); if (!rows.length) throw new Error('Sin USD');
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+  // COMPRA/VENTA como texto ya formateado en-US (miles "," decimales ".")
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
-    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 12, decs: 4 },
-    { name: 'VENTA', type: 'N', size: 12, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
+    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'C', size: 20 },
+    { name: 'VENTA', type: 'C', size: 20 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
     FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
-    COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
+    COMPRA: formatNumberEnUS(r.compra, 4), VENTA: formatNumberEnUS(r.venta, 4), UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
 }
@@ -189,7 +225,8 @@ export async function writeBnaCsv(q: Quotes, file: string): Promise<string> {
   const lines = [hdr.join(',')];
   for (const r of rows) lines.push([
     q.fecha, q.hora || '', r.tipo, r.moneda, r.cod,
-    r.compra ?? '', r.venta ?? '', r.unidad, 'BNA'
+    // Para CSV: números formateados es-AR (miles '.' decimales ',')
+    formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
   fs.writeFileSync(file, lines.join('\n'), 'utf8');
   return file;
@@ -200,6 +237,12 @@ export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('USD');
   ws.addRow(['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
   for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  // Formato numérico amigable (Excel aplicará separadores locales del sistema)
+  const compraCol = 6, ventaCol = 7;
+  for (let i = 2; i <= rows.length + 1; i++) {
+    const c1 = ws.getCell(i, compraCol); c1.numFmt = '#,##0.0000';
+    const c2 = ws.getCell(i, ventaCol); c2.numFmt = '#,##0.0000';
+  }
   await wb.xlsx.writeFile(file);
   return file;
 }
@@ -207,17 +250,18 @@ export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
 export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q); if (!rows.length) throw new Error('Sin filas');
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
+  // COMPRA/VENTA como texto formateado en-US
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
-    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 12, decs: 4 },
-    { name: 'VENTA', type: 'N', size: 12, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
+    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'C', size: 20 },
+    { name: 'VENTA', type: 'C', size: 20 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
     FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
-    COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
+    COMPRA: formatNumberEnUS(r.compra, 4), VENTA: formatNumberEnUS(r.venta, 4), UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
 }
@@ -230,7 +274,7 @@ export async function writeBnaCsvAll(q: Quotes, file: string): Promise<string> {
   const lines = [hdr.join(',')];
   for (const r of rows) lines.push([
     q.fecha, q.hora || '', r.tipo, r.moneda, r.cod,
-    r.compra ?? '', r.venta ?? '', r.unidad, 'BNA'
+    formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
   fs.writeFileSync(file, lines.join('\n'), 'utf8');
   return file;
@@ -242,6 +286,11 @@ export async function writeBnaXlsxAll(q: Quotes, file: string): Promise<string> 
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('COTIZACIONES');
   ws.addRow(['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
   for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  const compraCol = 6, ventaCol = 7;
+  for (let i = 2; i <= rows.length + 1; i++) {
+    const c1 = ws.getCell(i, compraCol); c1.numFmt = '#,##0.0000';
+    const c2 = ws.getCell(i, ventaCol); c2.numFmt = '#,##0.0000';
+  }
   await wb.xlsx.writeFile(file);
   return file;
 }
