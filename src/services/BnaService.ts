@@ -96,9 +96,37 @@ async function fetchHtml(): Promise<string> {
 
 function parseNumberAR(s: string): number | null {
   if (!s) return null;
-  const t = s.replace(/\./g, '').replace(/,/g, '.').replace(/[^\d.\-]/g, '').trim();
-  if (!t || t === '.' || t === '-') return null;
-  const n = Number(t); return Number.isFinite(n) ? n : null;
+  const raw = s.replace(/[^\d,.\-]/g, '').trim();
+  if (!raw) return null;
+  const hasComma = raw.includes(',');
+  const hasDot = raw.includes('.');
+  let t = raw;
+  if (hasComma && hasDot) {
+    const lastComma = raw.lastIndexOf(',');
+    const lastDot = raw.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      // coma decimal, punto miles → "1.234,5678"
+      t = raw.replace(/\./g, '').replace(',', '.');
+    } else {
+      // punto decimal, coma miles → "1,234.5678"
+      t = raw.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    // asume coma decimal → "1455,00"
+    t = raw.replace(/\./g, '').replace(',', '.');
+  } else if (hasDot) {
+    // Puede ser decimal con punto "1421.0000" o miles "1.234.567"
+    const parts = raw.split('.');
+    if (parts.length > 2 && parts.every((p, i) => i === 0 || p.length === 3)) {
+      // patrón de miles → quitar puntos
+      t = raw.replace(/\./g, '');
+    } else {
+      t = raw; // decimal con punto
+    }
+  }
+  if (!t || t === '.' || t === '-' || t === ',') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 function formatNumberEsAR(n: number | null | undefined, decs = 4): string {
@@ -202,18 +230,18 @@ function allRows(q: Quotes): Row[] {
 export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q); if (!rows.length) throw new Error('Sin USD');
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
-  // COMPRA/VENTA como texto ya formateado en-US (miles "," decimales ".")
+  // COMPRA/VENTA numéricos (DBF no almacena separadores visuales)
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
-    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'C', size: 20 },
-    { name: 'VENTA', type: 'C', size: 20 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
+    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 14, decs: 4 },
+    { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
     FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
-    COMPRA: formatNumberEnUS(r.compra, 4), VENTA: formatNumberEnUS(r.venta, 4), UNIDAD: r.unidad, FUENTE: 'BNA'
+    COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
 }
@@ -250,18 +278,18 @@ export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
 export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q); if (!rows.length) throw new Error('Sin filas');
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
-  // COMPRA/VENTA como texto formateado en-US
+  // COMPRA/VENTA numéricos (visuales dependen del lector)
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
-    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'C', size: 20 },
-    { name: 'VENTA', type: 'C', size: 20 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
+    { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 14, decs: 4 },
+    { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
     FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
-    COMPRA: formatNumberEnUS(r.compra, 4), VENTA: formatNumberEnUS(r.venta, 4), UNIDAD: r.unidad, FUENTE: 'BNA'
+    COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
 }
