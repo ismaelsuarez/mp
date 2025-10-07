@@ -14,6 +14,7 @@ type Row = {
   compra: number | null;
   venta: number | null;
   unidad: number; // 1 o 100
+  fechaCot?: string; // YYYY-MM-DD (fecha informada en la tabla del HTML)
 };
 
 type Quotes = {
@@ -198,7 +199,7 @@ function parsePane($: cheerio.CheerioAPI, paneSel: string, tipo: 'BILLETES' | 'D
     const compra = parseNumberAR($(tds[1]).text());
     const venta = parseNumberAR($(tds[2]).text());
     const { cod, unidad } = codMap(name);
-    rows.push({ tipo, moneda: name.replace(/\s*\*$/, ''), cod, compra, venta, unidad });
+    rows.push({ tipo, moneda: name.replace(/\s*\*$/, ''), cod, compra, venta, unidad, fechaCot: fecha });
   });
   return { fecha, hora, rows };
 }
@@ -233,6 +234,7 @@ export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
   // COMPRA/VENTA numéricos (DBF no almacena separadores visuales)
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
+    { name: 'FECHACOT', type: 'D', size: 8 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
     { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 14, decs: 4 },
     { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
@@ -240,7 +242,8 @@ export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
-    FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
+    FECHA: jsDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : jsDate,
+    TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
     COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
@@ -248,11 +251,11 @@ export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
 
 export async function writeBnaCsv(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q);
-  const hdr = ['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
+  const hdr = ['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
   const js = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const lines = [hdr.join(',')];
   for (const r of rows) lines.push([
-    q.fecha, q.hora || '', r.tipo, r.moneda, r.cod,
+    q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
     // Para CSV: números formateados es-AR (miles '.' decimales ',')
     formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
@@ -263,10 +266,10 @@ export async function writeBnaCsv(q: Quotes, file: string): Promise<string> {
 export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q);
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('USD');
-  ws.addRow(['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
-  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  ws.addRow(['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
+  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
   // Formato numérico amigable (Excel aplicará separadores locales del sistema)
-  const compraCol = 6, ventaCol = 7;
+  const compraCol = 7, ventaCol = 8;
   for (let i = 2; i <= rows.length + 1; i++) {
     const c1 = ws.getCell(i, compraCol); c1.numFmt = '#,##0.0000';
     const c2 = ws.getCell(i, ventaCol); c2.numFmt = '#,##0.0000';
@@ -281,6 +284,7 @@ export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
   // COMPRA/VENTA numéricos (visuales dependen del lector)
   const dbf = await DBFFile.create(file, [
     { name: 'FECHA', type: 'D', size: 8 }, { name: 'HORA', type: 'C', size: 5 },
+    { name: 'FECHACOT', type: 'D', size: 8 },
     { name: 'TIPO', type: 'C', size: 10 }, { name: 'MONEDA', type: 'C', size: 20 },
     { name: 'COD', type: 'C', size: 5 }, { name: 'COMPRA', type: 'N', size: 14, decs: 4 },
     { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
@@ -288,7 +292,8 @@ export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
   ] as any);
   const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
-    FECHA: jsDate, HORA: hora, TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
+    FECHA: jsDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : jsDate,
+    TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
     COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
   return file;
@@ -297,11 +302,11 @@ export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
 export async function writeBnaCsvAll(q: Quotes, file: string): Promise<string> {
   const rows = allRows(q);
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
-  const hdr = ['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
+  const hdr = ['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
   const js = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const lines = [hdr.join(',')];
   for (const r of rows) lines.push([
-    q.fecha, q.hora || '', r.tipo, r.moneda, r.cod,
+    q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
     formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
   fs.writeFileSync(file, lines.join('\n'), 'utf8');
@@ -312,9 +317,9 @@ export async function writeBnaXlsxAll(q: Quotes, file: string): Promise<string> 
   const rows = allRows(q);
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('COTIZACIONES');
-  ws.addRow(['fecha', 'hora', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
-  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
-  const compraCol = 6, ventaCol = 7;
+  ws.addRow(['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
+  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  const compraCol = 7, ventaCol = 8;
   for (let i = 2; i <= rows.length + 1; i++) {
     const c1 = ws.getCell(i, compraCol); c1.numFmt = '#,##0.0000';
     const c2 = ws.getCell(i, ventaCol); c2.numFmt = '#,##0.0000';
