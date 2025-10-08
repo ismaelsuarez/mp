@@ -240,9 +240,14 @@ export async function writeBnaDbf(q: Quotes, file: string): Promise<string> {
     { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 5, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
-  const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
+  // FECHA: fecha del día del reporte (local)
+  const now = new Date();
+  const reportDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // FECHACOT fallback: fecha informada por BNA si existe, si no usar fecha del reporte
+  const cotFallbackDate = q.fecha ? new Date(q.fecha + 'T00:00:00') : reportDate;
+  const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
-    FECHA: jsDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : jsDate,
+    FECHA: reportDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : cotFallbackDate,
     TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
     COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
@@ -254,8 +259,10 @@ export async function writeBnaCsv(q: Quotes, file: string): Promise<string> {
   const hdr = ['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
   const js = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const lines = [hdr.join(',')];
+  const now = new Date();
+  const fechaReporte = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   for (const r of rows) lines.push([
-    q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
+    fechaReporte, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
     // Para CSV: números formateados es-AR (miles '.' decimales ',')
     formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
@@ -267,7 +274,9 @@ export async function writeBnaXlsx(q: Quotes, file: string): Promise<string> {
   const rows = usdRows(q);
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('USD');
   ws.addRow(['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
-  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  const now = new Date();
+  const fechaReporte = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  for (const r of rows) ws.addRow([fechaReporte, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
   // Formato numérico amigable (Excel aplicará separadores locales del sistema)
   const compraCol = 7, ventaCol = 8;
   for (let i = 2; i <= rows.length + 1; i++) {
@@ -290,9 +299,14 @@ export async function writeBnaDbfAll(q: Quotes, file: string): Promise<string> {
     { name: 'VENTA', type: 'N', size: 14, decs: 4 }, { name: 'UNIDAD', type: 'N', size: 6, decs: 0 },
     { name: 'FUENTE', type: 'C', size: 10 }
   ] as any);
-  const jsDate = new Date(q.fecha + 'T00:00:00'); const hora = q.hora || '';
+  // FECHA: fecha del día del reporte
+  const now = new Date();
+  const reportDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // FECHACOT fallback: fecha BNA (si existe), si no usar fecha del reporte
+  const cotFallbackDate = q.fecha ? new Date(q.fecha + 'T00:00:00') : reportDate;
+  const hora = q.hora || '';
   await dbf.appendRecords(rows.map(r => ({
-    FECHA: jsDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : jsDate,
+    FECHA: reportDate, HORA: hora, FECHACOT: r.fechaCot ? new Date(r.fechaCot + 'T00:00:00') : cotFallbackDate,
     TIPO: r.tipo, MONEDA: r.moneda, COD: r.cod,
     COMPRA: r.compra ?? 0, VENTA: r.venta ?? 0, UNIDAD: r.unidad, FUENTE: 'BNA'
   })) as any);
@@ -305,8 +319,10 @@ export async function writeBnaCsvAll(q: Quotes, file: string): Promise<string> {
   const hdr = ['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente'];
   const js = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const lines = [hdr.join(',')];
+  const now = new Date();
+  const fechaReporte = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   for (const r of rows) lines.push([
-    q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
+    fechaReporte, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod,
     formatNumberEsAR(r.compra, 4), formatNumberEsAR(r.venta, 4), r.unidad, 'BNA'
   ].map(v => `"${js(v)}"`).join(','));
   fs.writeFileSync(file, lines.join('\n'), 'utf8');
@@ -318,7 +334,9 @@ export async function writeBnaXlsxAll(q: Quotes, file: string): Promise<string> 
   try { if (fs.existsSync(file)) fs.unlinkSync(file); } catch {}
   const wb = new (ExcelJS as any).Workbook(); const ws = wb.addWorksheet('COTIZACIONES');
   ws.addRow(['fecha', 'hora', 'fechaCot', 'tipo', 'moneda', 'cod', 'compra', 'venta', 'unidad', 'fuente']);
-  for (const r of rows) ws.addRow([q.fecha, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
+  const now = new Date();
+  const fechaReporte = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  for (const r of rows) ws.addRow([fechaReporte, q.hora || '', r.fechaCot || '', r.tipo, r.moneda, r.cod, r.compra, r.venta, r.unidad, 'BNA']);
   const compraCol = 7, ventaCol = 8;
   for (let i = 2; i <= rows.length + 1; i++) {
     const c1 = ws.getCell(i, compraCol); c1.numFmt = '#,##0.0000';
