@@ -82,9 +82,8 @@ export async function renderRetencionPdf({ layout, outputPath, retencionTexto }:
 
   let y = yStart;
   for (const rawLine of lines) {
-    const line = rawLine.replace(/[\t ]+$/g, '');
-    // Dibujar cada línea sin word-wrap
-    // Respetar alineaciones del .txt: no wrap, ni trimming a la izquierda
+    const line = rawLine; // no recortar espacios: conservar formato original
+    // Dibujar cada línea sin word-wrap (monoespaciado)
     doc.text(line, x, y, { lineBreak: false });
     y += baseLineHeight + lineGap;
     if (y + baseLineHeight > bottomLimit) {
