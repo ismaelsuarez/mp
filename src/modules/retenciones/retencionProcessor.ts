@@ -42,34 +42,35 @@ export async function processRetencionTxt(fullPath: string): Promise<void> {
   assertDirConfigured(cfg.outLocal, 'Ruta Local (retenciones) es obligatoria');
 
   // Leer texto crudo (utf8)
-  const raw = fs.readFileSync(fullPath, 'utf8');
-  const numero = (raw.match(/NUMERO:\s*([0-9\-]+)/i)?.[1] || 'SINNUM');
-  const yyyymm = dayjs().format('YYYYMM');
+  const retencionTexto = fs.readFileSync(fullPath, 'utf8');
+  const numero = (retencionTexto.match(/NUMERO:\s*([0-9\-]+)/i)?.[1] || 'SINNUM');
 
-  const outBase = path.join(cfg.outLocal as string, 'Retenciones', `F${yyyymm}`);
-  fs.mkdirSync(outBase, { recursive: true });
+  // Nombre de salida y paths en raíz (sin subcarpetas)
+  const pdfName = `B${numero}.pdf`;
 
-  const pdfName = `RET_${numero}.pdf`;
-  const outLocalPath = path.join(outBase, pdfName);
+  const ensureDir = (p: string) => { try { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); } catch {} };
+  ensureDir(String(cfg.outLocal || '').trim());
+  const outLocalPath = path.join(String(cfg.outLocal || '').trim(), pdfName);
 
   try {
     await renderRetencionPdf({
-      text: raw,
+      retencionTexto,
       outputPath: outLocalPath,
       bgPath: tryPath(path.join(process.cwd(), 'templates', 'FirmaDa.jpg'), path.join(process.cwd(), 'public', 'Noimage.jpg')),
       fonts: {
         regular: path.join(process.cwd(), 'src', 'modules', 'fonts', 'CONSOLA.TTF'),
         bold: path.join(process.cwd(), 'src', 'modules', 'fonts', 'CONSOLAB.TTF'),
       },
+      box: { x: 60, y: 110, width: 475, lineGap: 1.6 },
     });
 
     // Copias a red
-    for (const dstRaw of [cfg.outRed1, cfg.outRed2]) {
+    const redTargets = [cfg.outRed1, cfg.outRed2].filter(Boolean) as string[];
+    for (const dstRaw of redTargets) {
       const dst = String(dstRaw || '').trim();
       if (!dst) continue;
-      const dstDir = path.join(dst, 'Retenciones', `F${yyyymm}`);
-      try { fs.mkdirSync(dstDir, { recursive: true }); } catch {}
-      try { fs.copyFileSync(outLocalPath, path.join(dstDir, pdfName)); } catch {}
+      ensureDir(dst);
+      try { fs.copyFileSync(outLocalPath, path.join(dst, pdfName)); } catch {}
     }
 
     // Borrar el .txt original si todo salió bien

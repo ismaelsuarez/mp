@@ -3,13 +3,16 @@ import PDFDocument from 'pdfkit';
 
 export type RetencionFonts = { regular?: string; bold?: string };
 
-export async function renderRetencionPdf(args: {
-  text: string;
+type RenderArgs = {
+  retencionTexto: string;
   outputPath: string;
   bgPath?: string;
   fonts?: RetencionFonts;
-}): Promise<void> {
-  const { text, outputPath, bgPath, fonts } = args;
+  box?: { x: number; y: number; width: number; lineGap?: number };
+};
+
+export async function renderRetencionPdf(args: RenderArgs): Promise<void> {
+  const { retencionTexto, outputPath, bgPath, fonts, box } = args;
   const doc = new PDFDocument({ size: 'A4', margin: 36 });
   const stream = fs.createWriteStream(outputPath);
   doc.pipe(stream);
@@ -32,20 +35,16 @@ export async function renderRetencionPdf(args: {
     }
   } catch {}
 
-  try {
-    doc.font('regular');
-  } catch {
-    // fallback a fuente por defecto si no se registró
-  }
+  try { doc.font('regular'); } catch {}
   doc.fontSize(10);
 
-  const pageWidth = doc.page.width;
-  const margin = 36;
-  const x = margin + 4; // 40 como en la especificación
-  const y = margin + 4;
-  const width = pageWidth - (margin * 2) - 8; // pageWidth - 80 aprox
+  // Caja controlada (similar a Remitos)
+  const x = box?.x ?? 60;
+  const y = box?.y ?? 110;
+  const width = box?.width ?? (doc.page.width - 120);
+  const lineGap = box?.lineGap ?? 1.6;
 
-  doc.text(String(text || ''), x, y, { width, lineGap: 2 });
+  doc.text(String(retencionTexto || ''), x, y, { width, lineGap });
   doc.end();
 
   await new Promise<void>((res, rej) => {
