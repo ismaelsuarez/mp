@@ -19,10 +19,10 @@ Nota: El watcher de .fac existente también integra retencion*.txt para mantener
 - Enrutamiento: si el nombre cumple retencion*.txt, se invoca processRetencionTxt(fullPath) del módulo Retenciones.
 
 4) Configuración persistente
-- Archivo: config/retencion.config.json (en desarrollo) con migración a app.getPath('userData')/config/retencion.config.json en instalación.
-- Estructura:
+- Archivo: config/retencion.config.json (semilla) con migración a app.getPath('userData')/config/retencion.config.json en instalación.
+- Estructura base:
 {
-  "outLocal": "C:\\1_AFIP",
+  "outLocal": "C:\\RETENCIONES",
   "outRed1": "",
   "outRed2": ""
 }
@@ -37,34 +37,29 @@ Nota: El watcher de .fac existente también integra retencion*.txt para mantener
   2. Extraer número para nombre de salida:
      - Regla: primera coincidencia de NUMERO: <valor> usando /NUMERO:\s*([0-9\-]+)/i.
      - Si no hay número: usar SINNUM.
-  3. Determinar carpeta de salida local: path.join(outLocal, 'Retenciones', 'F' + YYYYMM) (creación recursiva).
-  4. Generar PDF local con nombre RET_<NUMERO>.pdf.
-  5. Copiar el PDF a outRed1 y outRed2 (si están configuradas), replicando la estructura Retenciones/FYYYYMM.
+  3. Nombre: `B<NUMERO>.pdf` (sin guión bajo) y guardar directo en la raíz de cada ruta configurada (sin subcarpetas).
+  4. Generar PDF local con layout central y monoespaciado.
+  5. Copiar el PDF a outRed1 y outRed2 (si están configuradas) en su raíz.
   6. Limpieza: borrar el .txt original si todo salió bien.
   7. Error: mover el .txt a subcarpeta errores/ con timestamp.
 
 Nombrado del PDF
-- Formato: RET_<NUMERO>.pdf. Ejemplos:
-  - Entrada: NUMERO: 2025-00002800 → RET_2025-00002800.pdf
-  - Entrada sin NUMERO: → RET_SINNUM.pdf
+- Formato: `B<NUMERO>.pdf`. Ejemplos:
+  - Entrada: NUMERO: 2025-00002800 → B2025-00002800.pdf
+  - Entrada sin NUMERO: → BSINNUM.pdf
 
 6) Render del PDF (monoespaciado con fondo)
-- Archivo: src/modules/retenciones/retencionRenderer.ts.
+- Archivo: src/modules/retenciones/retencionRenderer.ts (usa layout central).
 - Motor: pdfkit.
-- Tamaño: A4, margen 36 pt.
-- Fondo: templates/FirmaDa.jpg a página completa; fallback a public/Noimage.jpg si no existe.
-- Fuentes:
-  - Regular: src/modules/fonts/CONSOLA.TTF
-  - Bold: src/modules/fonts/CONSOLAB.TTF
-- Texto crudo:
-  - Se renderiza tal cual, monoespaciado, sin remaquetar.
-  - Coordenadas: x=40, y=40, width=pageWidth-80.
-  - lineGap: 2 para mejora de lectura.
+- Fondo: templates/FirmaDa.jpg (fallback public/Noimage.jpg).
+- Fuentes: CONSOLA.TTF / CONSOLAB.TTF.
+- Layout centralizado: invoiceLayout.mendoza.ts → `invoiceLayout.retencion.blocks.body { x,y,width,lineGap,fontSize }`.
+- Render sin cortes: respeta líneas del `.txt` (sin word-wrap); normaliza CRLF→LF; `paragraphGap:0`.
 
-7) Salidas y estructura de carpetas
-- Local: outLocal/Retenciones/FYYYYMM/RET_<NUMERO>.pdf
-- Red 1 (opcional): outRed1/Retenciones/FYYYYMM/RET_<NUMERO>.pdf
-- Red 2 (opcional): outRed2/Retenciones/FYYYYMM/RET_<NUMERO>.pdf
+7) Salidas
+- Local: outLocal\B<NUMERO>.pdf
+- Red 1 (opcional): outRed1\B<NUMERO>.pdf
+- Red 2 (opcional): outRed2\B<NUMERO>.pdf
 
 8) Limpieza y manejo de errores
 - Éxito: se elimina el .txt original tras generar/copiar el PDF.
@@ -94,8 +89,8 @@ Otra línea...
    - El retencion.txt deja de estar en C:\tmp (borrado) o, si falla, aparece en C:\tmp\errores\YYYYMMDD_HHmmss_retencion.txt.
 
 11) Logs y diagnóstico
-- Vista Caja: muestra mensajes como "✅ RET retencion.txt → Completado".
-- Consola principal: logs "RETENCION finalizado".
+- Vista Caja: muestra mensajes como "✅ RET retencion.txt → Nº <NUMERO> Completado" y persiste 24 h (CajaLogStore).
+- Consola principal: logs "RETENCION finalizado" con metadatos.
 - Si no genera PDF: revisar que outLocal exista y tenga permisos; validar que el archivo tenga NUMERO: y esté en UTF-8; verificar fondo templates/FirmaDa.jpg (hay fallback a public/Noimage.jpg).
 
 12) Limitaciones (versión inicial)

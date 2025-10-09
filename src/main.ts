@@ -2283,18 +2283,21 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		let ftpErrorMessage: string | undefined;
 		try {
 			const mpPath = (result as any)?.files?.mpDbfPath;
-			if (mpPath && fs.existsSync(mpPath)) {
-				ftpAttempted = true;
-				const { sendMpDbf } = require('./services/FtpService');
-				const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
-				if (ftpResult.skipped) {
-					ftpSkipped = true;
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
-				} else {
-					ftpSent = true;
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
-				}
-			}
+						if (mpPath && fs.existsSync(mpPath)) {
+							ftpAttempted = true;
+							const { sendMpDbf } = require('./services/FtpService');
+							const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
+							const { cajaLog } = require('./services/CajaLogService');
+							if (ftpResult.skipped) {
+								ftpSkipped = true;
+								if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
+								try { cajaLog.info('MP FTP sin cambios', mpPath); } catch {}
+							} else {
+								ftpSent = true;
+								if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
+								try { cajaLog.success('MP FTP enviado', mpPath); } catch {}
+							}
+						}
 		} catch (e) {
 			ftpErrorMessage = String((e as any)?.message || e);
 			console.warn('[main] auto FTP send failed:', e);
@@ -2338,6 +2341,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							await processA13TriggerFile(full);
 							try { cleanupOldA13Reports(1); } catch {}
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `A13 procesado: ${first}` });
+							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('A13 procesado', first); } catch {}
 						} catch (e: any) {
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `A13 error: ${String(e?.message || e)}` });
 						}
@@ -2347,7 +2351,8 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                         try {
                             const { runBnaOnceAndSend } = require('./services/BnaService');
                             await runBnaOnceAndSend();
-                            if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
+							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('BNA procesado', first); } catch {}
                         } catch (e: any) {
                             if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `BNA error: ${String(e?.message || e)}` });
                         }
@@ -2356,6 +2361,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                     } else {
 						await runReportFlowAndNotify('remoto');
 						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
+						try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('Archivo remoto procesado', first); } catch {}
 						try { fs.unlinkSync(full); } catch {}
 						processed += 1;
 					}

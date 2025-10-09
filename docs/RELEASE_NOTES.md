@@ -1,5 +1,24 @@
 # Notas de versión
 
+## 1.0.25
+Fecha de publicación: 2025-10-09
+- Retenciones (nuevo módulo)
+  - Watcher: detección y escaneo inicial de `retencion*.txt` en la carpeta observada (por defecto `C:\tmp`).
+  - Procesamiento: genera PDF monoespaciado con fondo `templates/FirmaDa.jpg` (fallback `public/Noimage.jpg`).
+  - Nombre y salida: `B<NUMERO>.pdf` (sin guión bajo); guarda directo en la raíz de cada ruta (`outLocal`, `outRed1`, `outRed2`). Default `outLocal=C:\RETENCIONES` (configurable en UI/JSON).
+  - Layout central: `invoiceLayout.mendoza.ts → invoiceLayout.retencion.blocks.body` controla caja (x,y,width,lineGap,fontSize). Renderer consume este layout.
+  - Render sin cortes: se respeta exactamente el ancho de cada línea del `.txt` (sin word-wrap); normalización de CRLF→LF y colapso de líneas vacías; `paragraphGap:0`.
+  - UI: sección “Retenciones” en Configuración para guardar Rutas (Local/Red1/Red2).
+  - Logs de Caja: inicio/fin con Nº extraído; persistencia 24 h vía `CajaLogService`/`CajaLogStore`.
+  - Watcher inicial: al abrir la app, si ya existe `retencion.txt` en la carpeta, se procesa en el arranque.
+- Automatización (remoto): mensajes persistentes 24 h y más claros para
+  - `mp.txt`: “MP FTP enviado/sin cambios”.
+  - `dolar.txt`: “BNA procesado”.
+  - `a13.txt`: “A13 procesado”.
+- Varios
+  - Placeholders/semillas: `config/retencion.config.json` con `C:\RETENCIONES` y placeholder de UI actualizado.
+  - Sin cambios en Facturación/Recibos/Remitos: renderer general intacto.
+
 ## 1.0.20
 Fecha de publicación: 2025-10-01
 - Facturación (AFIP/ARCA)
