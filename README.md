@@ -1,22 +1,54 @@
-### Proyecto MP – Reportes de Pagos Mercado Pago (TypeScript + Electron)
+### Proyecto MP – Gestión de Reportes, Facturación y Automatización (TypeScript + Electron)
 
-Este proyecto genera reportes operativos de ventas (Pagos) usando el SDK oficial de Mercado Pago, y envía por email los archivos resultantes (CSV, CSV full, XLSX y DBF) junto con un resumen JSON. Sirve como base estable para futuras ampliaciones (reportes de liquidaciones/finanzas y snapshots de saldo).
+Aplicación de escritorio (Electron) para operar con:
+- Reportes de ventas de Mercado Pago (SDK oficial) y envíos por email/FTP.
+- Facturación/Comprobantes: Recibos, Remitos y Facturas/Notas (AFIP/ARCA).
+- Automatización por archivos (watchers) para disparar procesos.
+- Generación de PDFs (pdfkit) y distribución a rutas locales/red.
+- Visor de logs persistentes (24 h) en “Modo Caja”.
 
 ---
 
-### Alcance y funcionalidades
+### Panorama general (funcionalidades)
 
-- Integración SDK oficial (`mercadopago`) para listar pagos vía `payments/search`.
-- Generación de salidas en `out/`:
-  - `transactions-YYYY-MM-DD.csv` (curado)
-  - `transactions-full-YYYY-MM-DD.csv` (todas las columnas aplanadas)
-  - `transactions-full-YYYY-MM-DD.xlsx` (tabla Excel)
-  - `transactions-detailed-YYYY-MM-DD.dbf` (curado, compatible dBase)
-  - `balance-YYYY-MM-DD.json` (resumen con ingresos/devoluciones aproximados desde pagos)
-- Envío por email de los archivos adjuntos si hay SMTP y destinatario configurados.
-- Filtros de fecha configurables: día completo, rango por fechas o sin filtro.
-- Paginación configurable para cubrir conjuntos de datos grandes.
-- Modo remoto (Automatización): colocar un `.txt` cuyo nombre comience con `mp` en una carpeta configurable (por defecto `C:\tmp`) dispara el mismo flujo que "Descargar MP".
+- Reportes MP
+  - Integración SDK oficial (`mercadopago`) vía `payments/search`.
+  - Salidas: CSV curado, CSV full, XLSX y DBF, más `balance-YYYY-MM-DD.json`.
+  - Envío por Email (SMTP) y por FTP opcional (configurable).
+  - Filtros: día completo (TZ), rango manual o sin filtro (diagnóstico).
+
+- Facturación/Comprobantes (AFIP/ARCA)
+  - Pipelines de Recibos y Remitos a partir de `.fac` (cola secuencial, watcher de carpeta).
+  - Facturas/Notas A/B (en construcción estable): emisión con AFIP/ARCA, PDF, CAE y layout configurable.
+  - PDF con `pdfkit` y layout `invoiceLayout.mendoza.ts`.
+  - Distribución de PDFs a Rutas Local/Red1/Red2.
+
+- Retenciones (nuevo)
+  - Watcher para `retencion*.txt` (incluye escaneo inicial al abrir la app).
+  - PDF monoespaciado con fondo; nombre `B<NUMERO>.pdf` (sin guión bajo) guardado en la raíz de `outLocal/outRed*`.
+  - Caja de texto configurable desde layout central (`invoiceLayout.retencion.blocks.body`).
+
+- Automatización (disparadores por archivo)
+  - `mp.txt`: ejecuta flujo de reportes MP; FTP forzado de `mp.dbf` cuando aplica.
+  - `dolar.txt`: obtiene cotizaciones BNA, genera/actualiza `dolar.dbf/csv/xlsx` y publica por FTP MP.
+  - `a13.txt`: dispara proceso A13 (padrones/consultas según servicio).
+  - Persistencia de logs: todos los eventos se guardan 24 h y se muestran en “Modo Caja”.
+
+- Modo Caja (UI)
+  - Visor de logs en vivo + históricos (24 h, SQLite) con indicadores de estado.
+  - Resumen diario por `.res` de facturación (FA/FB/NC…): totales/cantidades y rango emitido.
+
+- Modo Imagen (visor)
+  - Muestra imagen/video/pdf según archivo de control (`direccion.txt`), con opciones de ventana (`VENTANA=`), info y numerador.
+  - Fallback inteligente (si falta imagen, intenta `.mp4` o usa `public/Noimage.jpg`).
+
+- FTP integrado
+  - Cliente FTP para envío de archivos/DBF.
+  - Servidor FTP opcional embebido (configurable desde UI) para pruebas.
+
+- Infraestructura
+  - Auto‑update (GitHub Releases privadas) y build para Windows.
+  - Persistencia de configuración en `app.getPath('userData')/config/*.json` (migración desde `config/`).
 
 ---
 
@@ -27,6 +59,7 @@ Este proyecto genera reportes operativos de ventas (Pagos) usando el SDK oficial
 - Servicio SDK CLI: `mp-sdk/services/MercadoPagoService.ts`
 - `dist/`: salida compilada de TypeScript
 - `out/`: carpeta de salida de la CLI creada en tiempo de ejecución
+- `Documentos/MP-Reportes`: salida de la app de escritorio
 - `.env`: variables de entorno (para CLI)
 - `package.json`: scripts y dependencias del proyecto
 
@@ -244,7 +277,6 @@ TZ=America/Argentina/Buenos_Aires
 - Resultados vacíos: confirmar TZ y rango; probar `MP_NO_DATE_FILTER=true` como diagnóstico.
 - Faltan operaciones: usar `MP_RANGE=date_last_updated` para capturar aprobaciones/actualizaciones del día.
 - Archivos muy grandes: ajustar `MP_LIMIT` y `MP_MAX_PAGES`.
-
 - Electron en WSL: instalar librerías del sistema (`libnss3`, `libgtk-3-0`, `libxss1`, `libasound2t64`, etc.) y `xdg-utils`. En Windows 11 con WSLg suele funcionar directo; de lo contrario, configurar un servidor X y `DISPLAY`.
 
 ---

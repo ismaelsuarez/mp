@@ -2114,7 +2114,17 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					// Log de inicio con tipo detectado
 					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
 					
-					if (tipo === 'RECIBO') {
+					if (/^retencion.*\.txt$/i.test(job.filename)) {
+							const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
+							const out = await processRetencionTxt(job.fullPath);
+							try {
+								logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
+								// Persistir en CajaLogStore con formato unificado
+								const { cajaLog } = require('./services/CajaLogService');
+								cajaLog.success('RET OK', `Archivo: ${job.filename} • Nº ${out?.numero || '?'} • ${out?.outLocalPath || ''}`);
+							} catch {}
+							sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
+					} else if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
@@ -2161,7 +2171,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try {
 			if (!dir || !fs.existsSync(dir)) return;
 			const entries = fs.readdirSync(dir);
-			const facs = entries.filter(name => name && /\.fac$/i.test(name)).sort((a, b) => a.localeCompare(b));
+			const facs = entries
+				.filter(name => name && (/\.fac$/i.test(name) || /^retencion.*\.txt$/i.test(name)))
+				.sort((a, b) => a.localeCompare(b));
 			for (const name of facs) {
 				const full = path.join(dir, name);
 				enqueueFacFile({ filename: name, fullPath: full });
@@ -2198,6 +2210,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
 					try {
 						logInfo('UI FAC detectado → emitir fileReady', { filename, fullPath });
+						// Retenciones: encolar y procesar en la cola secuencial local
+						if (/^retencion.*\.txt$/i.test(filename)) {
+							enqueueFacFile({ filename, fullPath, rawContent });
+							processFacQueue();
+							return;
+						}
 						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
 						const legacy = (global as any).legacyFacWatcherEmitter;
 						if (legacy && typeof legacy.emit === 'function') {
@@ -2213,6 +2231,8 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
 					facWatcherGroup.push({ instance, watcher: handle, dir });
 					logInfo('Fac watcher (UI bridge) started', { dir });
+					// Escaneo inicial: encolar .fac y retencion*.txt ya presentes al iniciar
+					try { scanFacDirAndEnqueue(dir); } catch {}
 					anyOk = true;
 				}
 			} catch {}
@@ -2263,18 +2283,21 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		let ftpErrorMessage: string | undefined;
 		try {
 			const mpPath = (result as any)?.files?.mpDbfPath;
-			if (mpPath && fs.existsSync(mpPath)) {
-				ftpAttempted = true;
-				const { sendMpDbf } = require('./services/FtpService');
-				const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
-				if (ftpResult.skipped) {
-					ftpSkipped = true;
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
-				} else {
-					ftpSent = true;
-					if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
-				}
-			}
+						if (mpPath && fs.existsSync(mpPath)) {
+							ftpAttempted = true;
+							const { sendMpDbf } = require('./services/FtpService');
+							const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
+							const { cajaLog } = require('./services/CajaLogService');
+							if (ftpResult.skipped) {
+								ftpSkipped = true;
+								if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
+								try { cajaLog.info('MP FTP sin cambios', mpPath); } catch {}
+							} else {
+								ftpSent = true;
+								if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: enviado OK` });
+								try { cajaLog.success('MP FTP enviado', mpPath); } catch {}
+							}
+						}
 		} catch (e) {
 			ftpErrorMessage = String((e as any)?.message || e);
 			console.warn('[main] auto FTP send failed:', e);
@@ -2318,6 +2341,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							await processA13TriggerFile(full);
 							try { cleanupOldA13Reports(1); } catch {}
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `A13 procesado: ${first}` });
+							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('A13 procesado', first); } catch {}
 						} catch (e: any) {
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `A13 error: ${String(e?.message || e)}` });
 						}
@@ -2327,7 +2351,8 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                         try {
                             const { runBnaOnceAndSend } = require('./services/BnaService');
                             await runBnaOnceAndSend();
-                            if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
+							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
+							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('BNA procesado', first); } catch {}
                         } catch (e: any) {
                             if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `BNA error: ${String(e?.message || e)}` });
                         }
@@ -2336,6 +2361,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                     } else {
 						await runReportFlowAndNotify('remoto');
 						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
+						try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('Archivo remoto procesado', first); } catch {}
 						try { fs.unlinkSync(full); } catch {}
 						processed += 1;
 					}
@@ -3476,6 +3502,52 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
       const current = readFacturasCfg();
       const next = { ...current, ...(cfg || {}) };
       const res = writeFacturasCfg(next);
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+
+  // ===== Retenciones config (simple) =====
+  function getRetencionCfgPath(): string {
+    try { return path.join(app.getPath('userData'), 'config', 'retencion.config.json'); }
+    catch { return path.join(process.cwd(), 'config', 'retencion.config.json'); }
+  }
+  function readRetencionCfg(): { outLocal?: string; outRed1?: string; outRed2?: string } {
+    try {
+      const pUser = getRetencionCfgPath();
+      let txt: string | undefined;
+      try { txt = fs.readFileSync(pUser, 'utf8'); }
+      catch {
+        const legacy = path.join(process.cwd(), 'config', 'retencion.config.json');
+        if (fs.existsSync(legacy)) {
+          try { const t2 = fs.readFileSync(legacy, 'utf8'); fs.mkdirSync(path.dirname(pUser), { recursive: true }); fs.writeFileSync(pUser, t2); txt = t2; } catch {}
+        }
+        if (!txt) throw new Error('no-config');
+      }
+      const j = JSON.parse(txt || '{}');
+      return { outLocal: String(j.outLocal||''), outRed1: String(j.outRed1||''), outRed2: String(j.outRed2||'') };
+    } catch { return { outLocal: '', outRed1: '', outRed2: '' }; }
+  }
+  function writeRetencionCfg(next: { outLocal?: string; outRed1?: string; outRed2?: string }) {
+    try {
+      const p = getRetencionCfgPath();
+      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+      let existing: any = {};
+      try { existing = JSON.parse(fs.readFileSync(p, 'utf8') || '{}'); } catch {}
+      const merged = { ...existing, ...next };
+      fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: e?.message || String(e) }; }
+  }
+
+  ipcMain.handle('retencion:get-config', async () => {
+    try { const cfg = readRetencionCfg(); return { ok: true, config: cfg }; }
+    catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('retencion:save-config', async (_e, cfg: { outLocal?: string; outRed1?: string; outRed2?: string }) => {
+    try {
+      const current = readRetencionCfg();
+      const next = { ...current, ...(cfg||{}) };
+      const res = writeRetencionCfg(next);
       return res.ok ? { ok: true } : { ok: false, error: res.error };
     } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
   });

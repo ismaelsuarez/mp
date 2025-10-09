@@ -166,6 +166,27 @@
                             </div>
 						</div>
 					</details>
+					<!-- Retenciones (rutas de salida) -->
+					<details id="sec-retenciones" class="group border border-slate-700 rounded-md">
+						<summary class="cursor-pointer px-3 py-2 bg-slate-800 rounded-t-md text-sm font-semibold select-none">Retenciones</summary>
+						<div class="p-3 space-y-3">
+							<div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+								<label>Ruta Local (obligatoria)
+									<input id="RET_OUT_LOCAL" placeholder="C:\\RETENCIONES" />
+								</label>
+								<label>Ruta Red 1 (opcional)
+									<input id="RET_OUT_RED1" placeholder="\\\\server\\share\\Retenciones" />
+								</label>
+								<label>Ruta Red 2 (opcional)
+									<input id="RET_OUT_RED2" placeholder="\\\\server2\\share\\Retenciones" />
+								</label>
+							</div>
+							<div class="flex items-center gap-2">
+								<button type="button" id="btnRetencionGuardar" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">Guardar Retenciones</button>
+								<span id="retencionStatus" class="text-xs text-slate-400"></span>
+							</div>
+						</div>
+					</details>
 					</div>
 				</details>
 
@@ -2081,6 +2102,38 @@
       btnTestPrint?.addEventListener('click', testPrint);
 
       async function openIf(pathStr){ try { if (pathStr && window.api?.openPath) await window.api.openPath(pathStr); } catch {} }
+
+      // ===== Retenciones: carga y guardado =====
+      (async function initRetenciones(){
+        const status = document.getElementById('retencionStatus');
+        const btn = document.getElementById('btnRetencionGuardar');
+        const OUT_LOCAL = document.getElementById('RET_OUT_LOCAL');
+        const OUT_RED1 = document.getElementById('RET_OUT_RED1');
+        const OUT_RED2 = document.getElementById('RET_OUT_RED2');
+        try {
+          const res = await window.api.retencion.getConfig();
+          if (res?.ok && res.config) {
+            OUT_LOCAL.value = res.config.outLocal || '';
+            OUT_RED1.value = res.config.outRed1 || '';
+            OUT_RED2.value = res.config.outRed2 || '';
+          }
+        } catch {}
+        btn?.addEventListener('click', async ()=>{
+          status.textContent = 'Guardando…';
+          try {
+            const payload = {
+              outLocal: OUT_LOCAL.value?.trim(),
+              outRed1: OUT_RED1.value?.trim(),
+              outRed2: OUT_RED2.value?.trim(),
+            };
+            const save = await window.api.retencion.saveConfig(payload);
+            status.textContent = save?.ok ? 'Guardado ✔' : ('Error: ' + (save?.error||'desconocido'));
+          } catch (e) {
+            status.textContent = 'Error: ' + (e?.message || e);
+          }
+          setTimeout(()=>{ status.textContent=''; }, 2500);
+        });
+      })();
       btnOpenLocal?.addEventListener('click', ()=> openIf(get('FAC_OUT_LOCAL')?.value));
       btnOpenRed1?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED1')?.value));
       btnOpenRed2?.addEventListener('click', ()=> openIf(get('FAC_OUT_RED2')?.value));

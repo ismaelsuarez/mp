@@ -150,4 +150,22 @@ const layoutMendoza: Config = {
 
 export default layoutMendoza;
 
+// ===== Retenciones layout (centralizado) =====
+export type TextBox = { x: number; y: number; width: number; lineGap?: number; fontSize?: number };
+
+export const invoiceLayout = {
+  retencion: {
+    background: 'templates/FirmaDa.jpg',
+    fonts: {
+      regular: 'src/modules/fonts/CONSOLA.TTF',
+      bold: 'src/modules/fonts/CONSOLAB.TTF',
+    },
+    blocks: {
+      // Valores que respetan el formato original del retencion.txt
+      body: { x: 28, y: 5, width: 475, lineGap: 4, fontSize: 11 } as TextBox,
+    },
+  },
+} as const;
+
+export type RetencionLayout = typeof invoiceLayout['retencion'];
 
