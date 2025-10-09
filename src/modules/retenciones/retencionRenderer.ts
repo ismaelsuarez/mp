@@ -29,12 +29,34 @@ export async function renderRetencionPdf({ layout, outputPath, retencionTexto }:
 	doc.fontSize(body.fontSize ?? 10);
 
 	// Caja controlada
-	const x = body.x;
-	const y = body.y;
-	const width = body.width;
-	const lineGap = body.lineGap ?? 1.6;
+  const x = body.x;
+  const yStart = body.y;
+  const lineGap = body.lineGap ?? 1.6;
 
-	doc.text(String(retencionTexto || ''), x, y, { width, lineGap, paragraphGap: 0 });
+  const content = String(retencionTexto || '').replace(/\r\n?/g, '\n');
+  const lines = content.split('\n');
+  const baseLineHeight = doc.currentLineHeight();
+  const bottomLimit = doc.page.height - 36; // mantener margen inferior de 36
+
+  let y = yStart;
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/[\t ]+$/g, '');
+    // Dibujar cada línea sin word-wrap
+    doc.text(line, x, y, { lineBreak: false });
+    y += baseLineHeight + lineGap;
+    if (y + baseLineHeight > bottomLimit) {
+      doc.addPage({ size: 'A4', margin: 36 });
+      // Redibujar fondo en nuevas páginas si existe
+      try {
+        const bg = layout.background;
+        if (bg && fs.existsSync(bg)) {
+          const { width, height } = doc.page;
+          doc.image(bg, 0, 0, { width, height });
+        }
+      } catch {}
+      y = yStart;
+    }
+  }
 	doc.end();
 
 	await new Promise<void>((res, rej) => {
