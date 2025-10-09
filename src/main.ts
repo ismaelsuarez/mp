@@ -2115,10 +2115,15 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
 					
 					if (/^retencion.*\.txt$/i.test(job.filename)) {
-						const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
-						await processRetencionTxt(job.fullPath);
-						try { logSuccess('RETENCION finalizado', { filename: job.filename }); } catch {}
-						sendCajaLog(`✅ RET ${job.filename} → Completado`);
+							const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
+							const out = await processRetencionTxt(job.fullPath);
+							try {
+								logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
+								// Persistir en CajaLogStore con formato unificado
+								const { cajaLog } = require('./services/CajaLogService');
+								cajaLog.success('RET OK', `Archivo: ${job.filename} • Nº ${out?.numero || '?'} • ${out?.outLocalPath || ''}`);
+							} catch {}
+							sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
 					} else if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);

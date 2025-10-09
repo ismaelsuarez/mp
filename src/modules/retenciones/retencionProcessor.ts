@@ -38,7 +38,7 @@ function tryPath(primary: string, fallback: string): string {
   return fallback;
 }
 
-export async function processRetencionTxt(fullPath: string): Promise<void> {
+export async function processRetencionTxt(fullPath: string): Promise<{ numero: string; outLocalPath: string; pdfName: string }> {
   const cfg = readRetencionCfg();
   assertDirConfigured(cfg.outLocal, 'Ruta Local (retenciones) es obligatoria');
 
@@ -73,6 +73,7 @@ export async function processRetencionTxt(fullPath: string): Promise<void> {
 
     // Borrar el .txt original si todo salió bien
     try { fs.unlinkSync(fullPath); } catch {}
+    return { numero, outLocalPath, pdfName };
   } catch (e) {
     // Si falla, mover a errores/ con timestamp
     try {
