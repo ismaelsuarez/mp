@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import dayjs from 'dayjs';
 import { renderRetencionPdf } from './retencionRenderer';
+import { invoiceLayout } from '../../invoiceLayout.mendoza';
 
 function getUserDataConfigPath(): string | null {
   try {
@@ -53,16 +54,8 @@ export async function processRetencionTxt(fullPath: string): Promise<void> {
   const outLocalPath = path.join(String(cfg.outLocal || '').trim(), pdfName);
 
   try {
-    await renderRetencionPdf({
-      retencionTexto,
-      outputPath: outLocalPath,
-      bgPath: tryPath(path.join(process.cwd(), 'templates', 'FirmaDa.jpg'), path.join(process.cwd(), 'public', 'Noimage.jpg')),
-      fonts: {
-        regular: path.join(process.cwd(), 'src', 'modules', 'fonts', 'CONSOLA.TTF'),
-        bold: path.join(process.cwd(), 'src', 'modules', 'fonts', 'CONSOLAB.TTF'),
-      },
-      box: { x: 60, y: 110, width: 475, lineGap: 1.6 },
-    });
+    const baseLayout = invoiceLayout.retencion;
+    await renderRetencionPdf({ layout: baseLayout, outputPath: outLocalPath, retencionTexto });
 
     // Copias a red
     const redTargets = [cfg.outRed1, cfg.outRed2].filter(Boolean) as string[];
