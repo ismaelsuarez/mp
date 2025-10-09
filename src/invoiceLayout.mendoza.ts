@@ -161,7 +161,8 @@ export const invoiceLayout = {
       bold: 'src/modules/fonts/CONSOLAB.TTF',
     },
     blocks: {
-      body: { x: 28, y: 5, width: 490, lineGap: 4, fontSize: 11 } as TextBox,
+      // Valores que respetan el formato original del retencion.txt
+      body: { x: 28, y: 5, width: 475, lineGap: 4, fontSize: 8.5 } as TextBox,
     },
   },
 } as const;
