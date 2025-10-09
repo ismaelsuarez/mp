@@ -2226,6 +2226,8 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
 					facWatcherGroup.push({ instance, watcher: handle, dir });
 					logInfo('Fac watcher (UI bridge) started', { dir });
+					// Escaneo inicial: encolar .fac y retencion*.txt ya presentes al iniciar
+					try { scanFacDirAndEnqueue(dir); } catch {}
 					anyOk = true;
 				}
 			} catch {}

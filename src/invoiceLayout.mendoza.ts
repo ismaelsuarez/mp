@@ -161,7 +161,7 @@ export const invoiceLayout = {
       bold: 'src/modules/fonts/CONSOLAB.TTF',
     },
     blocks: {
-      body: { x: 50, y: 5, width: 490, lineGap: 0.5, fontSize: 11 } as TextBox,
+      body: { x: 45, y: 5, width: 490, lineGap: 0.5, fontSize: 11 } as TextBox,
     },
   },
 } as const;
