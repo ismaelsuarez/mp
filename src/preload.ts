@@ -183,6 +183,11 @@ contextBridge.exposeInMainWorld('api', {
 			ipcRenderer.on('facturacion:fac:detected', (_e, payload) => callback(payload));
 		}
 	},
+	// Retenciones (config simple)
+	retencion: {
+		getConfig: () => ipcRenderer.invoke('retencion:get-config'),
+		saveConfig: (cfg: { outLocal?: string; outRed1?: string; outRed2?: string }) => ipcRenderer.invoke('retencion:save-config', cfg),
+	},
 	// Caja resumen diario
 	caja: {
 		getSummary: (fechaIso: string) => ipcRenderer.invoke('caja:get-summary', { fechaIso }),

@@ -38,7 +38,7 @@ export class FacFileWatcher {
 				try {
 					const name = String(filename || '');
 					if (!name) return;
-					if (!/\.fac$/i.test(name)) return;
+					if (!(/\.fac$/i.test(name) || /^retencion.*\.txt$/i.test(name))) return;
 					const full = path.join(this.directoryPath, name);
 					if (this.processing.has(full)) return; // evitar doble proceso
 					this.processing.add(full);

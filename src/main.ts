@@ -2114,7 +2114,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					// Log de inicio con tipo detectado
 					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
 					
-					if (tipo === 'RECIBO') {
+					if (/^retencion.*\.txt$/i.test(job.filename)) {
+						const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
+						await processRetencionTxt(job.fullPath);
+						try { logSuccess('RETENCION finalizado', { filename: job.filename }); } catch {}
+						sendCajaLog(`✅ RET ${job.filename} → Completado`);
+					} else if (tipo === 'RECIBO') {
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
@@ -2161,7 +2166,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try {
 			if (!dir || !fs.existsSync(dir)) return;
 			const entries = fs.readdirSync(dir);
-			const facs = entries.filter(name => name && /\.fac$/i.test(name)).sort((a, b) => a.localeCompare(b));
+			const facs = entries
+				.filter(name => name && (/\.fac$/i.test(name) || /^retencion.*\.txt$/i.test(name)))
+				.sort((a, b) => a.localeCompare(b));
 			for (const name of facs) {
 				const full = path.join(dir, name);
 				enqueueFacFile({ filename: name, fullPath: full });
@@ -2198,6 +2205,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
 					try {
 						logInfo('UI FAC detectado → emitir fileReady', { filename, fullPath });
+						// Retenciones: encolar y procesar en la cola secuencial local
+						if (/^retencion.*\.txt$/i.test(filename)) {
+							enqueueFacFile({ filename, fullPath, rawContent });
+							processFacQueue();
+							return;
+						}
 						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
 						const legacy = (global as any).legacyFacWatcherEmitter;
 						if (legacy && typeof legacy.emit === 'function') {
@@ -3476,6 +3489,52 @@ ipcMain.handle('printers:print-pdf', async (_e, { filePath, printerName, copies 
       const current = readFacturasCfg();
       const next = { ...current, ...(cfg || {}) };
       const res = writeFacturasCfg(next);
+      return res.ok ? { ok: true } : { ok: false, error: res.error };
+    } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+
+  // ===== Retenciones config (simple) =====
+  function getRetencionCfgPath(): string {
+    try { return path.join(app.getPath('userData'), 'config', 'retencion.config.json'); }
+    catch { return path.join(process.cwd(), 'config', 'retencion.config.json'); }
+  }
+  function readRetencionCfg(): { outLocal?: string; outRed1?: string; outRed2?: string } {
+    try {
+      const pUser = getRetencionCfgPath();
+      let txt: string | undefined;
+      try { txt = fs.readFileSync(pUser, 'utf8'); }
+      catch {
+        const legacy = path.join(process.cwd(), 'config', 'retencion.config.json');
+        if (fs.existsSync(legacy)) {
+          try { const t2 = fs.readFileSync(legacy, 'utf8'); fs.mkdirSync(path.dirname(pUser), { recursive: true }); fs.writeFileSync(pUser, t2); txt = t2; } catch {}
+        }
+        if (!txt) throw new Error('no-config');
+      }
+      const j = JSON.parse(txt || '{}');
+      return { outLocal: String(j.outLocal||''), outRed1: String(j.outRed1||''), outRed2: String(j.outRed2||'') };
+    } catch { return { outLocal: '', outRed1: '', outRed2: '' }; }
+  }
+  function writeRetencionCfg(next: { outLocal?: string; outRed1?: string; outRed2?: string }) {
+    try {
+      const p = getRetencionCfgPath();
+      try { fs.mkdirSync(path.dirname(p), { recursive: true }); } catch {}
+      let existing: any = {};
+      try { existing = JSON.parse(fs.readFileSync(p, 'utf8') || '{}'); } catch {}
+      const merged = { ...existing, ...next };
+      fs.writeFileSync(p, JSON.stringify(merged, null, 2));
+      return { ok: true };
+    } catch (e: any) { return { ok: false, error: e?.message || String(e) }; }
+  }
+
+  ipcMain.handle('retencion:get-config', async () => {
+    try { const cfg = readRetencionCfg(); return { ok: true, config: cfg }; }
+    catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
+  });
+  ipcMain.handle('retencion:save-config', async (_e, cfg: { outLocal?: string; outRed1?: string; outRed2?: string }) => {
+    try {
+      const current = readRetencionCfg();
+      const next = { ...current, ...(cfg||{}) };
+      const res = writeRetencionCfg(next);
       return res.ok ? { ok: true } : { ok: false, error: res.error };
     } catch (e: any) { return { ok: false, error: String(e?.message || e) }; }
   });
