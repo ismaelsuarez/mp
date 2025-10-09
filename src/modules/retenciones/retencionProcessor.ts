@@ -43,7 +43,12 @@ export async function processRetencionTxt(fullPath: string): Promise<void> {
   assertDirConfigured(cfg.outLocal, 'Ruta Local (retenciones) es obligatoria');
 
   // Leer texto crudo (utf8)
-  const retencionTexto = fs.readFileSync(fullPath, 'utf8');
+  // Normalizar saltos y reducir líneas en blanco consecutivas
+  const retencionTextoRaw = fs.readFileSync(fullPath, 'utf8');
+  const retencionTexto = retencionTextoRaw
+    .replace(/\r\n/g, '\n')              // CRLF -> LF
+    .replace(/[\t ]+$/gm, '')             // limpiar espacios a derecha
+    .replace(/\n[\t ]*\n[\t ]*/g, '\n\n'); // colapsar múltiples vacías en una
   const numero = (retencionTexto.match(/NUMERO:\s*([0-9\-]+)/i)?.[1] || 'SINNUM');
 
   // Nombre de salida y paths en raíz (sin subcarpetas)

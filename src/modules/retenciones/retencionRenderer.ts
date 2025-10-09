@@ -34,7 +34,7 @@ export async function renderRetencionPdf({ layout, outputPath, retencionTexto }:
 	const width = body.width;
 	const lineGap = body.lineGap ?? 1.6;
 
-	doc.text(String(retencionTexto || ''), x, y, { width, lineGap });
+	doc.text(String(retencionTexto || ''), x, y, { width, lineGap, paragraphGap: 0 });
 	doc.end();
 
 	await new Promise<void>((res, rej) => {
