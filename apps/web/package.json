@@ -1,0 +1,11 @@
+{
+  "name": "@tc-mp/web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Next.js web frontend - Skeleton",
+  "scripts": {
+    "dev": "echo 'Web skeleton - not yet implemented'",
+    "build": "echo 'Web skeleton - not yet implemented'"
+  }
+}
+

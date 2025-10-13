@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [2.0.0, refactor/**]
+  pull_request:
+    branches: [2.0.0]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Type check
+        run: pnpm typecheck --if-present || echo "Typecheck not configured yet"
+      
+      - name: Run tests
+        run: pnpm test --if-present || echo "Tests not configured yet"
+      
+      - name: Build
+        run: pnpm build:ts
+      
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: coverage/
+

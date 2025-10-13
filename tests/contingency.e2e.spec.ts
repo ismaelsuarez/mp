@@ -26,14 +26,18 @@ describe('contingency e2e (simplificado)', () => {
     minStableMs: 50,
   } as const;
 
-  beforeAll(() => { Object.values(cfg).forEach((d) => { try { fs.mkdirSync(d, { recursive: true }); } catch {} }); });
+  beforeAll(() => {
+    [cfg.incoming, cfg.staging, cfg.processing, cfg.done, cfg.error, cfg.outDir].forEach((d) => {
+      try { fs.mkdirSync(d, { recursive: true }); } catch {}
+    });
+  });
   afterAll(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch {} });
 
   it('lote FIFO y borrado tras RES_OK (stub de éxito)', async () => {
     process.env.AFIP_STUB_MODE = 'ok';
     const store = new SqliteQueueStore();
     const controller = new ContingencyController(store as any);
-    controller.start({ ...cfg });
+    controller.start();
     writeFac(cfg.incoming, 'a.fac');
     writeFac(cfg.incoming, 'b.fac');
     writeFac(cfg.incoming, 'c.fac');

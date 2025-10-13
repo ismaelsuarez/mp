@@ -1,0 +1,22 @@
+{
+  "name": "@tc-mp/infra",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tc-mp/shared": "workspace:*",
+    "axios": "^1.10.0",
+    "chokidar": "^4.0.3",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^1.0.0"
+  }
+}
+

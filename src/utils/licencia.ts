@@ -2,7 +2,8 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { HMAC_MASTER_SECRET, LICENSE_ENCRYPTION_KEY } from './config';
+import { HMAC_MASTER_SECRET, LICENSE_ENCRYPTION_KEY } from '@shared/constants/licencia';
+import { computeSerial as computeSerialCore, validarSerial as validarSerialCore } from '@core/licencia/validators';
 
 type LicensePayload = {
 	nombreCliente: string;
@@ -10,19 +11,18 @@ type LicensePayload = {
 	palabraSecreta: string;
 };
 
+/**
+ * @deprecated Use computeSerial from @core/licencia/validators
+ */
 function computeSerial(nombreCliente: string, palabraSecreta: string): string {
-	const cleanName = String(nombreCliente || '').trim();
-	const cleanSecret = String(palabraSecreta || '').trim();
-	const data = `${cleanName}::${cleanSecret}`;
-	const mac = crypto.createHmac('sha256', HMAC_MASTER_SECRET).update(data).digest('hex').toUpperCase();
-	const first20 = mac.slice(0, 20);
-	return first20.match(/.{1,4}/g)?.join('-') || first20;
+	return computeSerialCore(nombreCliente, palabraSecreta);
 }
 
+/**
+ * @deprecated Use validarSerial from @core/licencia/validators
+ */
 export function validarSerial(nombreCliente: string, palabraSecreta: string, serial: string): boolean {
-	const expected = computeSerial(nombreCliente, palabraSecreta).replace(/[^A-Z0-9]/g, '');
-	const provided = String(serial || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-	return expected.length === provided.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+	return validarSerialCore(nombreCliente, palabraSecreta, serial);
 }
 
 function getUserDataPath(): string {

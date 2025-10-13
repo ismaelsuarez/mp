@@ -1,19 +1,9 @@
-export type PerfilPermisos = {
-  facturacion: boolean;
-  caja: boolean;
-  administracion: boolean;
-  configuracion: boolean;
-  consulta?: boolean;
-};
+/**
+ * @deprecated Este archivo es un shim de compatibilidad.
+ * Usa @shared/types/perfiles en su lugar.
+ * 
+ * TODO(phase-8): Eliminar este shim después de actualizar todos los imports
+ */
 
-export type PerfilParametros = Record<string, unknown>;
-
-export interface Perfil {
-  id?: number;
-  nombre: string;
-  permisos: PerfilPermisos;
-  parametros: PerfilParametros;
-  created_at?: string;
-}
-
-
+// Re-export desde @shared para mantener compatibilidad
+export * from '@shared/types/perfiles';

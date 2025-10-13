@@ -1,0 +1,219 @@
+ROL: Actúa como arquitecto/a de software experto/a en Electron (Windows), TypeScript, Next.js, y refactorización segura.
+
+REPO: https://github.com/ismaelsuarez/mp
+
+CONTEXTO NO NEGOCIABLE
+
+El proyecto está en producción y NO se puede romper la funcionalidad existente.
+
+Empaquetado Electron para Windows.
+
+Configuración en producción desde la UI (no .env en prod). .env solo opcional en desarrollo para prefill.
+
+TypeScript en todo el código; estricto ("strict": true); sin any.
+
+Node 18.20.4, PNPM monorepo.
+
+Testing: unificar a Vitest (más rápido/TS-friendly). Si aparece “Jest” en tareas heredadas, reemplazar por Vitest con equivalentes (RTL, cobertura, etc.).
+
+OBJETIVOS GENERALES
+
+Reestructuración profesional con separación clara frontend / backend / electron y capas core (dominio) / infra (integraciones).
+
+Requisitos no funcionales:
+
+Velocidad: tiempo de arranque de UI, builds y tests rápidos.
+
+Escalabilidad: arquitectura modular y extensible.
+
+Robustez: reintentos/timeout/circuit-breaker, watchers a prueba de fallos.
+
+Seguridad: secretos en keytar, logs con redacción, nada sensible en web.
+
+Versatilidad/Flexibilidad: paquetes reutilizables, path-aliases, CI/CD.
+
+Buenas prácticas exigidas por homologación:
+
+TS sin errores ni warnings, ESLint sin warnings, Prettier consistente.
+
+Sin console.log en producción (usar logger).
+
+Nombres descriptivos (inglés), archivos .ts/.tsx.
+
+Patrones Repository/Service/Controller en backend.
+
+Validación con Zod y manejador de errores centralizado.
+
+ESTRUCTURA DE DIRECTORIOS (CREAR / RESPETAR)
+
+No mover lógica crítica en la Fase 1; solo esqueleto + aliases (shims si hace falta).
+
+mp/
+├── apps/
+│   ├── electron/                # App Electron: main/preload/renderer + Settings UI
+│   │   ├── main.ts
+│   │   ├── preload.ts
+│   │   └── renderer/
+│   ├── web/                     # (Opcional) Next.js frontend
+│   │   ├── src/
+│   │   ├── pages/
+│   │   └── components/
+│   ├── server/                  # Backend HTTP (API REST)
+│   │   └── src/
+│   │       ├── app.ts
+│   │       ├── routes/
+│   │       ├── controllers/     # Controller (HTTP)
+│   │       ├── services/        # Orquesta casos de uso (usa core/infra)
+│   │       ├── repositories/    # Repository pattern (usa infra/adapters)
+│   │       ├── adapters/        # Puentes server ⇆ infra/core
+│   │       ├── middlewares/
+│   │       └── schemas/         # Zod: DTO/validations
+│   └── cli/                     # (si aplica) utilidades/runner
+│       └── src/
+├── packages/
+│   ├── core/                    # Dominio puro (MP/ARCA/AFIP, reglas, PDFs)
+│   │   └── src/index.ts
+│   ├── infra/                   # Integraciones/soporte plataforma
+│   │   └── src/
+│   │       ├── http/            # axios/fetch con timeout, retries, CB
+│   │       ├── watchers/        # safeWatch (rename atómico, cola, dedupe)
+│   │       ├── logger/          # pino con redaction + correlation-id
+│   │       └── config/          # loader desde UI (electron-store + keytar)
+│   ├── shared/                  # Tipos/utilidades/constantes puras
+│   │   ├── types/
+│   │   ├── utils/
+│   │   └── constants/
+│   ├── ui/                      # Componentes UI compartidos (agnósticos)
+│   └── config/                  # tsconfig/eslint/vitest compartidos
+├── tests/
+│   ├── unit/    # tests colocalizados también (*.test.ts/tsx)
+│   ├── e2e/
+│   └── smoke/
+└── docs/
+
+
+Path aliases (raíz tsconfig):
+
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["packages/core/src/*"],
+      "@infra/*": ["packages/infra/src/*"],
+      "@shared/*": ["packages/shared/src/*"]
+    }
+  }
+}
+
+LINEAMIENTOS TÉCNICOS APLICAR
+
+Server (API REST): patrones Controller → Service → Repository, validaciones Zod, manejador de errores único (mapear a 4xx/5xx), helmet/cors/hpp, rate-limit opcional.
+
+Electron (Windows): Settings UI; persistencia electron-store cifrada (encryptionKey guardada en keytar); secretos (tokens/credenciales) solo en keytar; IPC seguro (settings:get/set/test).
+
+HTTP resiliente: timeout 5–10s, retries exponenciales con jitter, circuit-breaker (opossum u otro), Idempotency-Key listo para POST.
+
+Watchers robustos: awaitWriteFinish → rename atómico → mover a .processing/ → dedupe por hash (TTL) → .done/ → cola p-limit (1–3) + restart controlado.
+
+Logs: pino con redacción de PII/tokens, correlation-id por request/job, niveles. Sin console.log en prod.
+
+Testing: Vitest (unit/integration), React Testing Library en web, mocks de red (MSW) si aplica, coverage ≥ 80%.
+
+Lint/Format: ESLint + Prettier estrictos; reglas para “no any”, import/order, forbidden console en prod.
+
+Next.js (si apps/web existe): next/image, next/font, ISR donde tenga sentido, code-splitting y lazy loading.
+
+Electron build: electron-builder Windows: asar, ícono, metadata, auto-update, tamaño minimizado, firma (si hay cert).
+
+Si tu entorno soporta “Background Agent” de Cursor, monitoriza progreso por fases. Si no existe apps/web, crea esqueleto pero no lo acoples a flujos críticos.
+
+PLAN POR FASES (9 fases, sin romper lo que funciona)
+Fase 1 — Red de seguridad + estructura base + testing unificado (SIN cambios funcionales)
+
+Objetivo: dejar esqueleto monorepo, TS estricto y pruebas con Vitest sin tocar lógica.
+Tareas:
+
+Rama refactor/structure-init-vitest-cleanup.
+
+.nvmrc = v18.20.4, packageManager: "pnpm@^9". Remover package-lock.json/yarn.lock si existen.
+
+Crear estructura apps/ y packages/ como arriba; añadir path aliases.
+
+TS strict a true (si rompe, permitir excepciones acotadas con TODO, y listado en PR).
+
+Unificar Vitest: scripts "test", "test:watch". Si hay Jest, migrar o aislar; no introducir Jest nuevo.
+
+CI mínima (.github/workflows/ci.yml): install, -if-present (typecheck/lint/test/build).
+
+Limpieza (solo reporte): depcheck, ts-prune/unimported → docs/cleanup/REPORT.md.
+
+Smokes: docs/smokes/ para validar que todo sigue igual (Electron, CLI, PDFs, watchers).
+Aceptación: build y ejecución idénticas; Vitest funcionando; reporte de limpieza generado; docs creadas.
+
+Fase 2 — Migración gradual a @core/@infra/@shared con shims
+
+Objetivo: mover 1 dominio por vez (MP reportes, PDFs, etc.) sin romper imports (shims/barrels).
+Aceptación: smokes y CI verdes; imports viejos siguen resolviendo.
+
+Fase 3 — Config por UI (Electron) + seguridad de secretos
+
+Objetivo: reemplazar .env en prod por Settings UI + electron-store cifrado + keytar; perfiles homologation/production; IPC settings:get/set/test.
+Aceptación: cambiar config desde UI reinicia watchers/controladores sin cuelgues; secretos jamás en texto plano.
+
+Fase 4 — Infra resiliente (HTTP + logger + errores)
+
+Objetivo: timeouts/retries/jitter/circuit-breaker; logger con redacción y correlation-id; manejador de errores homogéneo.
+Aceptación: resiliencia ante fallos transitorios; logs trazables; nada sensible en logs.
+
+Fase 5 — Watchers a prueba de fallos
+
+Objetivo: anti archivos parciales y reprocesos; backpressure con cola; restart seguro.
+Aceptación: 0 reprocesos, 0 lecturas parciales; cambio de rutas por UI sin error.
+
+Fase 6 — Optimización
+
+Next.js (si existe apps/web): next/image, next/font, next.config optimizado, ISR, code-splitting, lazy.
+
+Bundle: analyzer (Next o Vite según app), tree-shaking, dividir chunks, reporte antes/después.
+
+Electron: electron-builder optimizado (asar, auto-update, tamaño, uso de RAM/CPU).
+Aceptación: tamaños y tiempos mejorados con reporte comparativo.
+
+Fase 7 — Testing y cobertura (Vitest)
+
+Objetivo: ≥ 80% coverage con Vitest (unit/integration/E2E); RTL para React.
+Aceptación: cobertura ≥ 80%, suites verdes en CI; sin Jest.
+
+Fase 8 — Build & Config profesional
+
+Objetivo: .eslintrc estricto, .prettierrc, tsconfig strict, .gitignore, .dockerignore (si aplica); build Electron Windows (exe), auto-update, ícono, metadata; sin console.log en prod.
+Aceptación: build prod sin errores, instalador funcional, audit OK.
+
+Fase 9 — Documentación + Checklist de homologación
+
+Objetivo: README.md pro, CHANGELOG.md, CONTRIBUTING.md (si aplica), docs/ARCHITECTURE.md, docs/API.md; Checklist de homologación y verificación final.
+Aceptación: todo check ✅ (TS/ESLint/Prettier OK, sin logs en prod, tipos en todo, arquitectura clara, coverage ≥ 80%, build OK, docs completas).
+
+EJECUTA AHORA – ENTREGABLES DE FASE 1 (abrir PR)
+
+Crear rama refactor/structure-init-vitest-cleanup.
+
+Aplicar tareas de Fase 1 exactamente como arriba.
+
+Abrir PR con:
+
+Título: chore(phase-1): monorepo structure + TS strict + Vitest + cleanup report (no functional changes)
+
+Descripción: cambios por archivo/carpeta, smokes, resultados de docs/cleanup/REPORT.md, lista de excepciones TS (si las hubo), confirmación explícita de cero cambios funcionales, próxima fase.
+
+Si algo no existe en el repo (p. ej. apps/web), crear sólo esqueleto sin acoplar a flujos críticos; documentar en PR bajo “Notas”.
+
+REGLAS DE CALIDAD (aplicar en todas las fases)
+
+TS estricto, sin any, nombres en inglés, sin console.log en prod.
+
+ESLint + Prettier obligatorios; CI falla si hay warnings/errores.
+
+Commits/PRs chicos y descriptivos; checklist de aceptación incluido.
+
+Rollback fácil: cambios estructurales acompañados de shims; nada de “big bang”.

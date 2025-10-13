@@ -14,14 +14,29 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
+      "@core/*": ["packages/core/src/*"],
+      "@infra/*": ["packages/infra/src/*"],
+      "@shared/*": ["packages/shared/src/*"],
+      "@electron/*": ["apps/electron/*"],
       "afip-local/*": ["sdk/afip.ts-main/src/*"]
     }
   },
-  "include": ["src/**/*", "mp-sdk/**/*", "types/**/*", "scripts/**/*", "sdk/afip.ts-main/src/**/*"],
+  "include": [
+    "src/**/*",
+    "apps/**/*",
+    "packages/**/*",
+    "mp-sdk/**/*",
+    "types/**/*",
+    "scripts/**/*",
+    "sdk/afip.ts-main/src/**/*",
+    "tests/**/*"
+  ],
   "exclude": [
     "node_modules",
     "out",
     "dist",
+    "coverage",
+    "build",
     "src/**/__tests__/**",
     "**/*.test.ts",
     "**/*.test.tsx"

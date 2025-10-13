@@ -1,21 +1,21 @@
+/**
+ * @deprecated Este archivo es un shim parcial de compatibilidad.
+ * Usa @core/afip/helpers para funciones puras.
+ * 
+ * TODO(phase-8): Eliminar este shim después de actualizar todos los imports
+ */
+
 import { TipoComprobante, Comprobante } from '../types';
 import dayjs from 'dayjs';
+import * as CoreHelpers from '@core/afip/helpers';
 
 export class AfipHelpers {
   /**
    * Mapea el tipo de comprobante interno al código AFIP
+   * @deprecated Use mapTipoCbte from @core/afip/helpers
    */
   static mapTipoCbte(tipo: TipoComprobante): number {
-    switch (tipo) {
-      case 'A': return 1;            // Factura A
-      case 'B': return 6;            // Factura B
-      case 'C': return 11;           // Factura C
-      case 'FA': return 1;           // Alias Factura A
-      case 'FB': return 6;           // Alias Factura B
-      case 'RECIBO': return 4;       // Recibo A (ajustar según uso requerido)
-      case 'NC': return 13;          // Nota de Crédito C por defecto
-      default: return 11;            // Por defecto, usar C
-    }
+    return CoreHelpers.mapTipoCbte(tipo);
   }
 
   /**
@@ -34,55 +34,36 @@ export class AfipHelpers {
 
   /**
    * Mapea el porcentaje de IVA al ID de alícuota AFIP
+   * @deprecated Use mapIvaIdFromPercentage from @core/afip/calculators
    */
   static mapIvaId(porcentaje: number): number {
-    switch (porcentaje) {
-      case 10.5: return 4; // IVA 10.5%
-      case 21: return 5;   // IVA 21%
-      case 27: return 6;   // IVA 27%
-      default: return 5;   // Por defecto IVA 21%
-    }
+    const { mapIvaIdFromPercentage } = require('@core/afip/calculators');
+    return mapIvaIdFromPercentage(porcentaje);
   }
 
   /**
    * Mapea un CbteTipo WSFE estándar al correspondiente MiPyME (FCE)
    * 1->201, 2->202, 3->203, 6->206, 7->207, 8->208, 11->211, 12->212, 13->213
+   * @deprecated Use mapToMiPymeCbte from @core/afip/calculators
    */
   static mapToMiPymeCbte(cbteTipo: number): number {
-    const map: Record<number, number> = {
-      1: 201, 2: 202, 3: 203, 6: 206, 7: 207, 8: 208, 11: 211, 12: 212, 13: 213
-    };
-    return map[cbteTipo] ?? cbteTipo;
+    const { mapToMiPymeCbte } = require('@core/afip/calculators');
+    return mapToMiPymeCbte(cbteTipo);
   }
 
   /**
    * Construye el array de IVA para AFIP agrupando por alícuota
+   * @deprecated Use buildIvaArray from @core/afip/calculators
    */
   static buildIvaArray(items: Comprobante['items']): any[] {
-    const ivaArray: any[] = [];
-    const bases = new Map<number, number>();
-
-    // Sumar bases por alícuota
-    for (const item of items) {
-      const base = item.cantidad * item.precioUnitario;
-      bases.set(item.iva, (bases.get(item.iva) || 0) + base);
-    }
-
-    // Construir array de IVA para AFIP
-    for (const [alic, base] of bases) {
-      ivaArray.push({
-        Id: this.mapIvaId(alic),
-        BaseImp: base,
-        Importe: (base * alic) / 100
-      });
-    }
-
-    return ivaArray;
+    const { buildIvaArray } = require('@core/afip/calculators');
+    return buildIvaArray(items);
   }
 
   /**
    * Consolida los totales por alícuota para WSFEv1 (FECAESolicitar)
    * Retorna solo montos consolidados y el array Iva[] por alícuota.
+   * @deprecated Use consolidateTotals from @core/afip/calculators
    */
   static consolidateTotals(items: Comprobante['items']): {
     ImpTotConc: number;
@@ -93,46 +74,13 @@ export class AfipHelpers {
     ImpTotal: number;
     Iva: Array<{ Id: number; BaseImp: number; Importe: number }>;
   } {
-    const netoPorAli: Map<number, number> = new Map();
-    const ivaPorAli: Map<number, number> = new Map();
-
-    let impOpEx = 0; // Operaciones exentas (alícuota 0)
-
-    for (const item of items || []) {
-      const base = (item.cantidad || 0) * (item.precioUnitario || 0);
-      const ali = Number(item.iva || 0);
-      if (ali === 0) { impOpEx += base; continue; }
-      const impIva = (base * ali) / 100;
-      netoPorAli.set(ali, (netoPorAli.get(ali) || 0) + base);
-      ivaPorAli.set(ali, (ivaPorAli.get(ali) || 0) + impIva);
-    }
-
-    const ImpNeto = Array.from(netoPorAli.values()).reduce((a, b) => a + b, 0);
-    const ImpIVA = Array.from(ivaPorAli.values()).reduce((a, b) => a + b, 0);
-    const ImpTotConc = 0;
-    const ImpTrib = 0;
-    const ImpOpEx = impOpEx;
-    const ImpTotal = ImpNeto + ImpIVA + ImpTotConc + ImpTrib + ImpOpEx;
-
-    const Iva: Array<{ Id: number; BaseImp: number; Importe: number }> = [];
-    for (const [ali, base] of netoPorAli.entries()) {
-      const importe = ivaPorAli.get(ali) || 0;
-      Iva.push({ Id: this.mapIvaId(ali), BaseImp: this.formatNumber(base), Importe: this.formatNumber(importe) });
-    }
-
-    return {
-      ImpTotConc: this.formatNumber(ImpTotConc),
-      ImpOpEx: this.formatNumber(ImpOpEx),
-      ImpTrib: this.formatNumber(ImpTrib),
-      ImpNeto: this.formatNumber(ImpNeto),
-      ImpIVA: this.formatNumber(ImpIVA),
-      ImpTotal: this.formatNumber(ImpTotal),
-      Iva
-    };
+    const { consolidateTotals } = require('@core/afip/calculators');
+    return consolidateTotals(items);
   }
 
   /**
    * Construye la URL del QR para AFIP
+   * @deprecated Use buildQrUrl from @core/afip/validators
    */
   static buildQrUrl(data: {
     cuit: number;
@@ -143,61 +91,26 @@ export class AfipHelpers {
     fecha: string;
     cae: string;
   }): string {
-    const qrData = {
-      ver: 1,
-      fecha: dayjs(data.fecha, 'YYYYMMDD').format('YYYY-MM-DD'),
-      cuit: data.cuit,
-      ptoVta: data.ptoVta,
-      tipoCmp: data.tipoCmp,
-      nroCmp: data.nroCmp,
-      importe: Number(data.importe.toFixed(2)),
-      moneda: 'PES',
-      ctz: 1,
-      tipoDocRec: 99,
-      nroDocRec: 0,
-      tipoCodAut: 'E',
-      codAut: Number(data.cae)
-    };
-
-    const base = 'https://www.afip.gob.ar/fe/qr/?p=';
-    const payload = Buffer.from(JSON.stringify(qrData)).toString('base64');
-    return base + payload;
+    const { buildQrUrl } = require('@core/afip/validators');
+    return buildQrUrl(data);
   }
 
   /**
    * Valida que los datos del comprobante sean correctos
+   * @deprecated Use validateComprobante from @core/afip/validators
    */
   static validateComprobante(comprobante: Comprobante): string[] {
-    const errors: string[] = [];
-
-    if (!comprobante.fecha || comprobante.fecha.length !== 8) {
-      errors.push('Fecha debe estar en formato YYYYMMDD');
-    }
-
-    if (comprobante.puntoVenta <= 0) {
-      errors.push('Punto de venta debe ser mayor a 0');
-    }
-
-    if (comprobante.numero <= 0) {
-      errors.push('Número de comprobante debe ser mayor a 0');
-    }
-
-    if (!comprobante.items || comprobante.items.length === 0) {
-      errors.push('El comprobante debe tener al menos un item');
-    }
-
-    if (comprobante.totales.total <= 0) {
-      errors.push('El total debe ser mayor a 0');
-    }
-
-    return errors;
+    const { validateComprobante } = require('@core/afip/validators');
+    return validateComprobante(comprobante);
   }
 
   /**
    * Formatea un número para AFIP (sin decimales)
+   * @deprecated Use formatNumberForAfip from @core/afip/calculators
    */
   static formatNumber(value: number): number {
-    return Math.round(value * 100) / 100;
+    const { formatNumberForAfip } = require('@core/afip/calculators');
+    return formatNumberForAfip(value);
   }
 
   /**
