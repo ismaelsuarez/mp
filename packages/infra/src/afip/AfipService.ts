@@ -1,6 +1,6 @@
 import path from 'path';
 import { getDb } from '@infra/database';
-import { CompatAfip } from '../../../../src/modules/facturacion/adapters/CompatAfip';
+import { CompatAfip } from '../../../../apps/electron/src/modules/facturacion/adapters/CompatAfip';
 
 /**
  * Input para crear un comprobante electrónico AFIP

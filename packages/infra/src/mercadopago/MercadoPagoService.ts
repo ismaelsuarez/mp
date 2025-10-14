@@ -2,7 +2,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
-import { recordError } from '../../../../src/services/ErrorNotificationService';
+import { recordError } from '../../../../apps/electron/src/services/ErrorNotificationService';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';

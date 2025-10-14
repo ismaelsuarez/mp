@@ -1,6 +1,6 @@
 import fs from 'fs';
-import { generateCalibrationPdf } from './pdfRenderer';
-import layout from './invoiceLayout.mendoza';
+import { generateCalibrationPdf } from '../apps/electron/src/pdfRenderer';
+import layout from '../apps/electron/src/invoiceLayout.mendoza';
 
 (async () => {
   const outputDir = 'test-output';

@@ -19,8 +19,8 @@ import { OtpService } from './services/OtpService';
 import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 import { getDb } from './services/DbService';
 import { getFacturacionService } from '@electron/services/FacturacionService';
-import { afipService } from './modules/facturacion/afipService';
-import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
+import { afipService } from '../apps/electron/src/modules/facturacion/afipService';
+import { getProvinciaManager } from '../apps/electron/src/modules/facturacion/provincia/ProvinciaManager';
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
 import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
@@ -1350,7 +1350,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
   ipcMain.handle('caja:get-logs', async (_e, { sinceMs, limit }: { sinceMs?: number; limit?: number } = {}) => {
     try {
       // Importación dinámica para evitar problemas en dev/prod
-      const { getCajaLogStore } = await import('./services/CajaLogStore');
+      const { getCajaLogStore } = await import('../apps/electron/src/services/CajaLogStore');
       const store = getCajaLogStore();
       
       // Por defecto: últimas 24h, máximo 1000 logs
@@ -1502,7 +1502,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	// Cotización AFIP completa (DOL/EUR, con política flexible)
 	ipcMain.handle('facturacion:cotizacion:consultar', async (_e, payload: { moneda: 'DOL'|'EUR'; fecha?: string; canMisMonExt?: 'S'|'N' }) => {
 		try {
-			const { consultarCotizacionAfip } = await import('./modules/facturacion/cotizacionHelper');
+			const { consultarCotizacionAfip } = await import('../apps/electron/src/modules/facturacion/cotizacionHelper');
 			const result = await consultarCotizacionAfip(payload);
 			return { ok: true, data: result };
 		} catch (e: any) {

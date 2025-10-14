@@ -2,7 +2,7 @@
 // Enviamos el PDF directamente al spooler del SO usando pdf-to-printer.
 import { print as printNative } from 'pdf-to-printer';
 import path from 'path';
-import { cajaLog } from './CajaLogService';
+import { cajaLog } from '../../apps/electron/src/services/CajaLogService';
 
 // Logs de depuración opcionales (habilitar con PRINT_DEBUG=1)
 const DEBUG_PRINT = process.env.PRINT_DEBUG === '1';

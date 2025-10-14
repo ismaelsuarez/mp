@@ -50,7 +50,8 @@ export default defineConfig({
       '@core': path.resolve(__dirname, './packages/core/src'),
       '@infra': path.resolve(__dirname, './packages/infra/src'),
       '@shared': path.resolve(__dirname, './packages/shared/src'),
-      '@electron': path.resolve(__dirname, './apps/electron'),
+      '@electron': path.resolve(__dirname, './apps/electron/src'),
+      'afip-local': path.resolve(__dirname, './sdk/afip.ts-main/src'),
       'src': path.resolve(__dirname, './src')
     }
   }

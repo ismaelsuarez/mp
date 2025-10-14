@@ -6,8 +6,8 @@ import dayjs from 'dayjs';
 import { Client } from 'basic-ftp';
 import crypto from 'crypto';
 import { logFtp, logSuccess, logWarning } from '@infra/logger';
-import { recordError } from '../../../../src/services/ErrorNotificationService';
-import { cajaLog } from '../../../../src/services/CajaLogService';
+import { recordError } from '../../../../apps/electron/src/services/ErrorNotificationService';
+import { cajaLog } from '../../../../apps/electron/src/services/CajaLogService';
 
 function getEncryptionKey(): string | undefined {
 	try {

@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import dayjs from 'dayjs';
-import { generateInvoicePdf } from '../../../../../src/pdfRenderer';
-import layoutMendoza from '../../../../../src/invoiceLayout.mendoza';
+import { generateInvoicePdf } from '../../pdfRenderer';
+import layoutMendoza from '../../invoiceLayout.mendoza';
 import { sendArbitraryFile } from '@infra/ftp';
 
 type ParsedRemito = {

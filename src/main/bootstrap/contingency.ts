@@ -106,7 +106,7 @@ export function bootstrapContingency(store?: Store): void {
 		// 🗑️ Iniciar limpieza automática de logs antiguos (cada 1 hora)
 		try {
 			// Importación dinámica para evitar problemas de inicialización
-			import('../../services/CajaLogStore').then(({ getCajaLogStore }) => {
+			import('../../../apps/electron/src/services/CajaLogStore').then(({ getCajaLogStore }) => {
 				const store = getCajaLogStore();
 				// Limpieza inicial
 				store.cleanupOldLogs();

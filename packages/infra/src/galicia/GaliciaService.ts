@@ -2,7 +2,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import Store from 'electron-store';
-import { recordError } from '../../../../src/services/ErrorNotificationService';
+import { recordError } from '../../../../apps/electron/src/services/ErrorNotificationService';
 import { logError, logInfo, logSuccess } from '@infra/logger';
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 

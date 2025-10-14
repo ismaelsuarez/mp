@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import Store from 'electron-store';
-import { cajaLog } from './CajaLogService';
+import { cajaLog } from '../../apps/electron/src/services/CajaLogService';
 
 function getEncryptionKey(): string | undefined {
 	try {

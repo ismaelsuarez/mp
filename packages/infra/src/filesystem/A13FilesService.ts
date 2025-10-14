@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import dayjs from 'dayjs';
 import { app } from 'electron';
-import { getOutDir } from '../../../../src/services/ReportService';
+import { getOutDir } from '../../../../apps/electron/src/services/ReportService';
 import { DBFFile } from 'dbffile';
 import { sendMpDbf } from '@infra/ftp';
 

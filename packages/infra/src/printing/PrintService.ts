@@ -6,7 +6,7 @@
  */
 import { print as printNative } from 'pdf-to-printer';
 import path from 'path';
-import { cajaLog } from '../../../../src/services/CajaLogService';
+import { cajaLog } from '../../../../apps/electron/src/services/CajaLogService';
 
 // Logs de depuración opcionales (habilitar con PRINT_DEBUG=1)
 const DEBUG_PRINT = process.env.PRINT_DEBUG === '1';

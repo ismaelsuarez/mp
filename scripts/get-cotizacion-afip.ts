@@ -39,7 +39,7 @@ Module.prototype.require = function(id: string) {
   return originalRequire.apply(this, arguments as any);
 };
 
-import { AfipService } from '../src/modules/facturacion/afipService';
+import { AfipService } from '../apps/electron/src/modules/facturacion/afipService';
 
 interface CotizacionResult {
   moneda: string;

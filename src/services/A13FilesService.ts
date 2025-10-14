@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import dayjs from 'dayjs';
 import { app } from 'electron';
-import { getOutDir } from './ReportService';
+import { getOutDir } from '../../apps/electron/src/services/ReportService';
 import { DBFFile } from 'dbffile';
 import { sendMpDbf } from './FtpService';
 
