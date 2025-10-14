@@ -9,10 +9,15 @@ export default defineConfig({
       'src/**/*.spec.ts',
       'tests/**/*.test.ts',
       'tests/**/*.spec.ts',
-      'sdk/**/*.test.ts',
       'packages/**/*.test.ts'
     ],
-    exclude: ['node_modules', 'dist', 'coverage', 'build'],
+    exclude: [
+      'node_modules',
+      'dist',
+      'coverage',
+      'build',
+      'sdk/**/*.test.ts' // SDK AFIP usa Jest, no Vitest
+    ],
     globals: true,
     threads: false,
     hookTimeout: 30000,
@@ -42,8 +47,7 @@ export default defineConfig({
       functions: 80,
       branches: 75,
       statements: 80
-    },
-    setupFiles: ['./src/modules/facturacion/__tests__/setup.ts']
+    }
   },
   resolve: {
     alias: {
