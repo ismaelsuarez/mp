@@ -5,11 +5,11 @@ import { app, shell } from 'electron';
 import dayjs from 'dayjs';
 import { getDb } from '@infra/database';
 import { getAfipService, ComprobanteInput } from '@infra/afip';
-import { afipService } from '../../../../src/modules/facturacion/afipService';
-import { Comprobante, TipoComprobante } from '../../../../src/modules/facturacion/types';
-import { ResultadoProvincial } from '../../../../src/modules/facturacion/provincia/IProvinciaService';
+import { afipService } from '../modules/facturacion/afipService';
+import { Comprobante, TipoComprobante } from '../modules/facturacion/types';
+import { ResultadoProvincial } from '../modules/facturacion/provincia/IProvinciaService';
 import { getFacturaGenerator, PlantillaTipo } from './FacturaGenerator';
-import { generateInvoicePdf } from '../../../../src/pdfRenderer';
+import { generateInvoicePdf } from '../pdfRenderer';
 
 // CommonJS requires
 // eslint-disable-next-line @typescript-eslint/no-var-requires

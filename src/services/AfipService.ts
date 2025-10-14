@@ -1,6 +1,6 @@
 import path from 'path';
 import { getDb } from './DbService';
-import { CompatAfip } from '../modules/facturacion/adapters/CompatAfip';
+import { CompatAfip } from '@electron/modules/facturacion/adapters/CompatAfip';
 
 export type ComprobanteInput = {
 	pto_vta: number;

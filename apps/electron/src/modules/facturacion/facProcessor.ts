@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { app } from 'electron';
 import dayjs from 'dayjs';
-import { generateInvoicePdf } from '../../../../../src/pdfRenderer';
+import { generateInvoicePdf } from '../../pdfRenderer';
 import { getDb } from '@infra/database';
-import layoutMendoza from '../../../../../src/invoiceLayout.mendoza';
+import layoutMendoza from '../../invoiceLayout.mendoza';
 import { sendArbitraryFile } from '@infra/ftp';
-import { validateSystemTime } from '../../../../../src/modules/facturacion/utils/TimeValidator';
+import { validateSystemTime } from './utils/TimeValidator';
 
 type ParsedRecibo = {
   tipo: 'RECIBO';

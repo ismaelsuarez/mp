@@ -1,7 +1,7 @@
 import fs from 'fs';
-import layout from './invoiceLayout.mendoza';
-import { generateInvoicePdf } from './pdfRenderer';
-import type { InvoiceData } from './pdfRenderer';
+import layout from '@electron/invoiceLayout.mendoza';
+import { generateInvoicePdf } from '@electron/pdfRenderer';
+import type { InvoiceData } from '@electron/pdfRenderer';
 
 (async () => {
   const data: InvoiceData = {

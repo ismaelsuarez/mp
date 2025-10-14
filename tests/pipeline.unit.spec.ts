@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseFac, validate, buildRequest } from '../src/contingency/pipeline';
-import { monthStartFromYYYYMMDD } from '../src/modules/facturacion/afip/helpers';
+import { monthStartFromYYYYMMDD } from '@electron/modules/facturacion/afip/helpers';
 
 describe('pipeline unit', () => {
   it('parse/validate ok', () => {
