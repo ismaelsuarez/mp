@@ -1,0 +1,12 @@
+# Configuración PNPM
+# Aprobar builds de paquetes críticos conocidos y seguros
+enable-pre-post-scripts=true
+
+# Builds aprobados específicamente (paquetes seguros y necesarios)
+# electron: Necesita descargar binarios del framework
+# argon2: Módulo nativo de criptografía
+# better-sqlite3: Módulo nativo de base de datos
+# Los siguientes son opcionales pero inofensivos:
+# esbuild: Bundler (descarga binarios)
+# puppeteer: Browser automation (descarga Chromium)
+

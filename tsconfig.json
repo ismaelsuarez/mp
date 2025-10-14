@@ -17,7 +17,7 @@
       "@core/*": ["packages/core/src/*"],
       "@infra/*": ["packages/infra/src/*"],
       "@shared/*": ["packages/shared/src/*"],
-      "@electron/*": ["apps/electron/*"],
+      "@electron/*": ["apps/electron/src/*"],
       "afip-local/*": ["sdk/afip.ts-main/src/*"]
     }
   },

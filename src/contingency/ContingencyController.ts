@@ -5,7 +5,7 @@ import chokidar, { FSWatcher } from 'chokidar';
 import { SqliteQueueStore, getQueueStore } from '../services/queue/SqliteQueueStore';
 import { WSHealthService } from '../ws/WSHealthService';
 import { CircuitBreaker } from '../ws/CircuitBreaker';
-import { cajaLog } from '../services/CajaLogService';
+import { cajaLog } from '@electron/services/CajaLogService';
 
 type CtrStatus = { running: boolean; paused: boolean; enqueued: number; processing: number };
 

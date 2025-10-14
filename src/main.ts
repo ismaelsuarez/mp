@@ -9,16 +9,16 @@ import dotenv from 'dotenv';
 dotenv.config();
 import { searchPaymentsWithConfig, testConnection } from './services/MercadoPagoService';
 import { startFtpServer, stopFtpServer, isFtpServerRunning } from './services/FtpServerService';
-import { generateFiles, getOutDir } from './services/ReportService';
+import { generateFiles, getOutDir } from '@electron/services/ReportService';
 import { testFtp, sendTodayDbf, sendDbf, sendArbitraryFile, testWhatsappFtp, sendWhatsappFile } from './services/FtpService';
 import { sendReportEmail } from './services/EmailService';
 import { logInfo, logSuccess, logError, logWarning, logMp, logFtp, logAuth, getTodayLogPath, ensureLogsDir, ensureTodayLogExists } from './services/LogService';
-import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from './services/ErrorNotificationService';
+import { recordError, getErrorNotificationConfig, updateErrorNotificationConfig, getErrorSummary, clearOldErrors, resetErrorNotifications } from '@electron/services/ErrorNotificationService';
 import { AuthService } from './services/AuthService';
 import { OtpService } from './services/OtpService';
 import { licenciaExisteYValida, validarSerial, guardarLicencia, cargarLicencia, recuperarSerial } from './utils/licencia';
 import { getDb } from './services/DbService';
-import { getFacturacionService } from './services/FacturacionService';
+import { getFacturacionService } from '@electron/services/FacturacionService';
 import { afipService } from './modules/facturacion/afipService';
 import { getProvinciaManager } from './modules/facturacion/provincia/ProvinciaManager';
 import { getGaliciaSaldos, getGaliciaMovimientos, crearGaliciaCobranza, getGaliciaCobros, testGaliciaConnection } from './services/GaliciaService';
@@ -1332,7 +1332,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
       fs.writeFileSync(tmpPath, raw, 'utf8');
       try { logInfo('UI_EMIT:tmp:written', { tmpPath, bytes: Buffer.byteLength(raw, 'utf8') }); } catch {}
 
-      const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+      const { processFacturaFacFile } = require('../apps/electron/src/modules/facturacion/facProcessor');
       try { logInfo('UI_EMIT:process:start', { tmpPath }); } catch {}
       const result = await processFacturaFacFile(tmpPath);
       try {
@@ -2120,17 +2120,17 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							try {
 								logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
 								// Persistir en CajaLogStore con formato unificado
-								const { cajaLog } = require('./services/CajaLogService');
+								const { cajaLog } = require('@electron/services/CajaLogService');
 								cajaLog.success('RET OK', `Archivo: ${job.filename} • Nº ${out?.numero || '?'} • ${out?.outLocalPath || ''}`);
 							} catch {}
 							sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
 					} else if (tipo === 'RECIBO') {
-						const { processFacFile } = require('./modules/facturacion/facProcessor');
+						const { processFacFile } = require('../apps/electron/src/modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
 						sendCajaLog(`✅ RECIBO ${job.filename} → Completado`);
 					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
-						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
+						const { processRemitoFacFile } = require('../apps/electron/src/modules/facturacion/remitoProcessor');
 						const out = await processRemitoFacFile(job.fullPath);
 						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
 						sendCajaLog(`✅ REMITO ${job.filename} → Completado`);
@@ -2141,7 +2141,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						/^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo) ||
 						/^(1|6|2|7|3|8)$/.test(tipo)
                     ) {
-						const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
+						const { processFacturaFacFile } = require('../apps/electron/src/modules/facturacion/facProcessor');
 						const out = await processFacturaFacFile(job.fullPath);
 						try {
 							if (out && out.ok) {
@@ -2287,7 +2287,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							ftpAttempted = true;
 							const { sendMpDbf } = require('./services/FtpService');
 							const ftpResult = await sendMpDbf(mpPath, undefined, { force: true });
-							const { cajaLog } = require('./services/CajaLogService');
+							const { cajaLog } = require('@electron/services/CajaLogService');
 							if (ftpResult.skipped) {
 								ftpSkipped = true;
 								if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `FTP: sin cambios - no se envía` });
@@ -2341,7 +2341,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							await processA13TriggerFile(full);
 							try { cleanupOldA13Reports(1); } catch {}
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `A13 procesado: ${first}` });
-							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('A13 procesado', first); } catch {}
+							try { const { cajaLog } = require('@electron/services/CajaLogService'); cajaLog.success('A13 procesado', first); } catch {}
 						} catch (e: any) {
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `A13 error: ${String(e?.message || e)}` });
 						}
@@ -2352,7 +2352,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                             const { runBnaOnceAndSend } = require('./services/BnaService');
                             await runBnaOnceAndSend();
 							if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `BNA procesado: ${first}` });
-							try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('BNA procesado', first); } catch {}
+							try { const { cajaLog } = require('@electron/services/CajaLogService'); cajaLog.success('BNA procesado', first); } catch {}
                         } catch (e: any) {
                             if (mainWindow) mainWindow.webContents.send('auto-report-notice', { error: `BNA error: ${String(e?.message || e)}` });
                         }
@@ -2361,7 +2361,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
                     } else {
 						await runReportFlowAndNotify('remoto');
 						if (mainWindow) mainWindow.webContents.send('auto-report-notice', { info: `Se procesó archivo remoto: ${first}` });
-						try { const { cajaLog } = require('./services/CajaLogService'); cajaLog.success('Archivo remoto procesado', first); } catch {}
+						try { const { cajaLog } = require('@electron/services/CajaLogService'); cajaLog.success('Archivo remoto procesado', first); } catch {}
 						try { fs.unlinkSync(full); } catch {}
 						processed += 1;
 					}

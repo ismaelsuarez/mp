@@ -1,0 +1,10 @@
+{
+  "allowed": [
+    "electron",
+    "argon2",
+    "better-sqlite3",
+    "esbuild",
+    "puppeteer"
+  ]
+}
+

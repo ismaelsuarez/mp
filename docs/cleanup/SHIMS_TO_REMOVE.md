@@ -1,222 +1,169 @@
-# Shims a Remover en Fase 8
+# 📋 Inventario de Shims (Backward Compatibility)
 
-**Fecha creación**: Octubre 2025  
-**Estado**: Documentación de shims creados durante Fase 2
-
-## Qué son los Shims
-
-Los **shims** son archivos que re-exportan código desde las nuevas ubicaciones en `packages/` para mantener compatibilidad con código existente que importa desde las ubicaciones antiguas en `src/`.
-
-**Propósito**:
-- Permitir migración gradual sin romper código
-- Código nuevo puede usar imports de `@shared/@core/@infra`
-- Código viejo sigue funcionando via shims
-
-**Eliminación**: Fase 8 (después de actualizar todos los imports)
+**Fecha**: 14 de Octubre, 2025  
+**Estado**: Fase 2 completada - **13 shims activos**
 
 ---
 
-## Shims Creados
+## 🎯 Propósito
 
-### Tipos (@shared/types)
+Los shims permiten migración gradual sin breaking changes. Todos los imports originales siguen funcionando vía re-exports desde `@shared`, `@core`, o `@infra`.
 
-#### 1. src/modules/facturacion/types.ts
-- **Creado**: Fase 2, Iteración 1
-- **Re-exporta desde**: `@shared/types/facturacion`
-- **Tipos exportados**: ~31 (Factura, Empresa, Cliente, Comprobante, etc.)
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*modules/facturacion/types" src/ --exclude-dir=node_modules
-  ```
-
-#### 2. src/modules/facturacion/afip/types.ts
-- **Creado**: Fase 2, Iteración 1
-- **Re-exporta desde**: `@shared/types/afip`
-- **Tipos exportados**: ~21 + 5 enums (AfipVoucherResponse, CbteTipo, DocTipo, etc.)
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*facturacion/afip/types" src/ --exclude-dir=node_modules
-  ```
-
-#### 3. src/modules/perfiles/types.ts
-- **Creado**: Fase 2, Iteración 1
-- **Re-exporta desde**: `@shared/types/perfiles`
-- **Tipos exportados**: 3 (Perfil, PerfilPermisos, PerfilParametros)
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*perfiles/types" src/ --exclude-dir=node_modules
-  ```
-
-### Helpers (@core/afip)
-
-#### 4. src/modules/facturacion/afip/helpers.ts
-- **Creado**: Fase 2, Iteración 2 y 3
-- **Re-exporta desde**: `@core/afip/helpers`, `@core/afip/calculators`, `@core/afip/validators`
-- **Tipo**: Shim parcial (mantiene AfipHelpers class pero usa core helpers)
-- **Funciones migradas** (Iteración 2): mapTipoCbte, mapClaseYTipoACbteTipo, monthStartFromYYYYMMDD
-- **Funciones migradas** (Iteración 3): buildIvaArray, consolidateTotals, buildQrUrl, validateComprobante, formatNumber
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*afip/helpers" src/ --exclude-dir=node_modules
-  ```
-
-### Constantes (@shared/constants)
-
-#### 5. src/utils/config.ts
-- **Creado**: Fase 2, Iteración 3
-- **Re-exporta desde**: `@shared/constants/licencia`
-- **Constantes exportadas**: 2 (HMAC_MASTER_SECRET, LICENSE_ENCRYPTION_KEY)
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*utils/config" src/ --exclude-dir=node_modules
-  ```
-
-### Validators (@core/licencia)
-
-#### 6. src/utils/licencia.ts
-- **Creado**: Fase 2, Iteración 3
-- **Re-exporta desde**: `@core/licencia/validators`, `@shared/constants/licencia`
-- **Tipo**: Shim parcial (mantiene funciones de infra, delega validadores puros a core)
-- **Funciones migradas**: validarSerial, computeSerial
-- **Funciones de infra**: guardarLicencia, cargarLicencia, recuperarSerial (no migradas aún)
-- **Comando para buscar usos**:
-  ```bash
-  grep -r "from.*utils/licencia" src/ --exclude-dir=node_modules
-  ```
+**⚠️ Importante**: Estos archivos deben removerse en **Fase 8** después de actualizar todos los imports a los nuevos paths.
 
 ---
 
-## Estadísticas
+## 📦 Shims de Fase 2.1 (@shared)
 
-| Tipo | Cantidad | Ubicación Original | Nueva Ubicación |
-|------|----------|-------------------|-----------------|
-| Tipos de facturación | 31 | src/modules/facturacion/types.ts | @shared/types/facturacion |
-| Tipos AFIP | 21 + 5 enums | src/modules/facturacion/afip/types.ts | @shared/types/afip |
-| Tipos perfiles | 3 | src/modules/perfiles/types.ts | @shared/types/perfiles |
-| Tipos time | 4 interfaces | N/A (nuevos) | @shared/types/time |
-| Constantes AFIP | 3 mapeos | N/A (extraídos) | @shared/constants/afip |
-| Constantes licencia | 2 | src/utils/config.ts | @shared/constants/licencia |
-| Helpers AFIP | 10 funciones | src/modules/facturacion/afip/helpers.ts | @core/afip/helpers |
-| Calculators AFIP | 5 funciones | src/modules/facturacion/afip/helpers.ts | @core/afip/calculators |
-| Validators AFIP | 4 funciones | src/modules/facturacion/afip/helpers.ts | @core/afip/validators |
-| Validators licencia | 3 funciones | src/utils/licencia.ts | @core/licencia/validators |
+### Tipos
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/modules/facturacion/types.ts` | `@shared/types` | `grep -r "from.*modules/facturacion/types" src/` |
+| `src/modules/facturacion/afip/types.ts` | `@shared/types` | `grep -r "from.*facturacion/afip/types" src/` |
+| `src/modules/perfiles/types.ts` | `@shared/types` | `grep -r "from.*perfiles/types" src/` |
 
-**Total de shims**: 6 archivos  
-**Total de exports migrados**: ~80+ tipos/funciones/constantes
+### Utilidades
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/utils/config.ts` | `@shared/utils` | `grep -r "from.*utils/config" src/` |
 
 ---
 
-## Plan de Eliminación (Fase 8)
+## 📦 Shims de Fase 2.2 (@core)
 
-### Paso 1: Actualizar Imports
-Buscar y reemplazar todos los imports que usan rutas relativas por imports de packages:
+### Helpers AFIP
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/modules/facturacion/afip/helpers.ts` | `@core/afip` | `grep -r "from.*facturacion/afip/helpers" src/` |
 
-```bash
-# Ejemplo: Actualizar imports de tipos de facturación
-find src/ -name "*.ts" -exec sed -i "s|from ['\"].*modules/facturacion/types['\"]|from '@shared/types/facturacion'|g" {} \;
+### Validadores Licencia
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/utils/licencia.ts` | `@core/licencia` | `grep -r "from.*utils/licencia" src/` |
+
+---
+
+## 📦 Shims de Fase 2.3 (@infra)
+
+### Database Services
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/services/DbService.shim.ts` | `@infra/database` | `grep -r "from.*services/DbService" src/` |
+| `src/services/queue/QueueDB.shim.ts` | `@infra/database/queue` | `grep -r "from.*queue/QueueDB" src/` |
+| `src/services/queue/SqliteQueueStore.shim.ts` | `@infra/database/queue` | `grep -r "from.*queue/SqliteQueueStore" src/` |
+
+### Logger
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/services/LogService.shim.ts` | `@infra/logger` | `grep -r "from.*services/LogService" src/` |
+
+### HTTP Clients
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/services/AfipService.shim.ts` | `@infra/afip` | `grep -r "from.*services/AfipService" src/` |
+| `src/services/MercadoPagoService.shim.ts` | `@infra/mercadopago` | `grep -r "from.*services/MercadoPagoService" src/` |
+| `src/services/BnaService.shim.ts` | `@infra/bna` | `grep -r "from.*services/BnaService" src/` |
+| `src/services/GaliciaService.shim.ts` | `@infra/galicia` | `grep -r "from.*services/GaliciaService" src/` |
+
+### Communication
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/services/EmailService.shim.ts` | `@infra/email` | `grep -r "from.*services/EmailService" src/` |
+| `src/services/FtpService.shim.ts` | `@infra/ftp` | `grep -r "from.*services/FtpService" src/` |
+| `src/services/FtpServerService.shim.ts` | `@infra/ftp` | `grep -r "from.*services/FtpServerService" src/` |
+
+### Storage, Printing, Filesystem, Auth
+| Shim Original | Redirige a | Comando para buscar usages |
+|---------------|------------|----------------------------|
+| `src/services/SecureStore.shim.ts` | `@infra/storage` | `grep -r "from.*services/SecureStore" src/` |
+| `src/services/PrintService.shim.ts` | `@infra/printing` | `grep -r "from.*services/PrintService" src/` |
+| `src/services/A13FilesService.shim.ts` | `@infra/filesystem` | `grep -r "from.*services/A13FilesService" src/` |
+| `src/services/AuthService.shim.ts` | `@infra/auth` | `grep -r "from.*services/AuthService" src/` |
+| `src/services/OtpService.shim.ts` | `@infra/auth` | `grep -r "from.*services/OtpService" src/` |
+
+---
+
+## 📊 Resumen por Categoría
+
+| Categoría | Shims | Estado |
+|-----------|-------|--------|
+| **@shared (tipos)** | 3 | ✅ Fase 2.1 |
+| **@shared (utils)** | 1 | ✅ Fase 2.1 |
+| **@core (afip)** | 1 | ✅ Fase 2.2 |
+| **@core (licencia)** | 1 | ✅ Fase 2.2 |
+| **@infra (database)** | 3 | ✅ Fase 2.3 |
+| **@infra (logger)** | 1 | ✅ Fase 2.3 |
+| **@infra (http)** | 4 | ✅ Fase 2.3 |
+| **@infra (comm)** | 3 | ✅ Fase 2.3 |
+| **@infra (storage/auth)** | 5 | ✅ Fase 2.3 |
+| **TOTAL** | **22** | ✅ |
+
+---
+
+## 🔄 Proceso de Remoción (Fase 8)
+
+### 1. Buscar usages
+Para cada shim, ejecutar el comando grep correspondiente para encontrar todos los imports que lo usan.
+
+### 2. Actualizar imports
+Reemplazar todos los imports al shim con imports directos al nuevo path:
+
+```typescript
+// ❌ Viejo (via shim)
+import { getDb } from './services/DbService';
+
+// ✅ Nuevo (directo)
+import { getDb } from '@infra/database';
 ```
 
-### Paso 2: Verificar Build
+### 3. Verificar build y tests
 ```bash
 pnpm build:ts
-```
-
-### Paso 3: Ejecutar Tests
-```bash
 pnpm test
 ```
 
-### Paso 4: Eliminar Shims
-Una vez que no haya imports a las ubicaciones viejas:
+### 4. Remover shim
+Una vez que todos los imports se actualizaron y las pruebas pasan:
 ```bash
-# Verificar que no hay imports
-grep -r "from.*modules/facturacion/types" src/ --exclude-dir=node_modules
-
-# Si no hay resultados, eliminar shim
-rm src/modules/facturacion/types.ts
+rm src/services/DbService.shim.ts
 ```
 
-### Paso 5: Repetir para cada Shim
-Hacer lo mismo para:
-- `src/modules/facturacion/afip/types.ts`
-- `src/modules/perfiles/types.ts`
-- `src/modules/facturacion/afip/helpers.ts`
-- `src/utils/config.ts`
-- `src/utils/licencia.ts`
+### 5. Commit incremental
+Commit por cada shim removido para facilitar debug si algo falla.
 
 ---
 
-## Verificación de Dependencias
+## ⚠️ Dependencias entre Shims
 
-### Comando para Listar Imports Viejos
-```bash
-# Buscar todos los imports que usan rutas relativas a módulos
-grep -rn "from ['\"]\.\..*modules" src/ --include="*.ts" | grep -v "node_modules"
-```
+### Orden de remoción recomendado:
 
-### Comando para Listar Imports Nuevos (@shared/@core/@infra)
-```bash
-# Verificar uso de nuevos imports
-grep -rn "from ['\"]@\(shared\|core\|infra\)" src/ --include="*.ts"
-```
+1. **@shared** (base, sin dependencias)
+2. **@core** (puede depender de @shared)
+3. **@infra** (puede depender de @core y @shared)
 
----
-
-## Estrategia de Actualización Progresiva
-
-### Opción A: Big Bang (Fase 8)
-- Actualizar todos los imports a la vez
-- Ejecutar script de búsqueda y reemplazo
-- Eliminar todos los shims de una vez
-- **Ventaja**: Limpieza rápida
-- **Desventaja**: Alto riesgo si algo falla
-
-### Opción B: Gradual (Recomendada)
-- Actualizar imports por módulo/dominio
-- Verificar tests después de cada módulo
-- Eliminar shims uno por uno
-- **Ventaja**: Bajo riesgo, fácil rollback
-- **Desventaja**: Toma más tiempo
+### Dentro de @infra:
+1. Logger (base, pocos dependientes)
+2. Database (usado por muchos)
+3. Storage, Auth (dependencias internas)
+4. HTTP Clients (dependencias externas)
+5. Communication, Filesystem (último nivel)
 
 ---
 
-## Notas Importantes
+## 📝 Checklist de Remoción
 
-### Compatibilidad
-- ✅ Código viejo sigue funcionando via shims
-- ✅ Código nuevo puede usar imports de packages
-- ✅ Build compila sin errores
-- ✅ Tests pasan sin cambios
-
-### Testing
-- Los shims permiten ejecutar tests existentes sin cambios
-- Tests nuevos deben usar imports de packages
-- Coverage se mantiene igual
-
-### Build Time
-- Los shims no degradan build time
-- Path aliases resuelven eficientemente
-- No hay overhead en runtime
+- [ ] Completar Fase 3-7 (migración completa)
+- [ ] Buscar y actualizar todos los imports a @shared
+- [ ] Remover shims de @shared
+- [ ] Buscar y actualizar todos los imports a @core
+- [ ] Remover shims de @core
+- [ ] Buscar y actualizar todos los imports a @infra
+- [ ] Remover shims de @infra
+- [ ] Verificar build final sin shims
+- [ ] Smoke tests completos
+- [ ] Commit final: "chore: remove all migration shims"
 
 ---
 
-## Checklist Pre-Eliminación (Fase 8)
-
-Antes de eliminar shims, verificar:
-
-- [ ] Buscar imports viejos: `grep -r "from.*modules/facturacion/types" src/`
-- [ ] No hay resultados (todos actualizados)
-- [ ] Build compila: `pnpm build:ts`
-- [ ] Tests pasan: `pnpm test`
-- [ ] Coverage mantiene ≥80%
-- [ ] Smoke tests manuales OK
-- [ ] Documentar cambios en CHANGELOG
-
-Solo después de ✅ todos los items, eliminar shims.
-
----
-
-**Última actualización**: Octubre 2025  
-**Responsable**: Equipo de desarrollo  
-**Próxima revisión**: Fase 8 (build config profesional)
-
+**Estado actual**: ✅ Todos los shims funcionando  
+**Siguiente paso**: Continuar con Fase 3, remover shims en Fase 8
