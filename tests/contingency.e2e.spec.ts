@@ -33,9 +33,23 @@ describe('contingency e2e (simplificado)', () => {
   });
   afterAll(() => { try { fs.rmSync(base, { recursive: true, force: true }); } catch {} });
 
-  it.skip('lote FIFO y borrado tras RES_OK (stub de éxito) - TODO: Mock Electron app', async () => {
-    // SKIP: Este test require mockear Electron app.getPath()
-    // TODO(fase-6): Implementar mock adecuado o inyección de dependencias
+  it.skip('lote FIFO y borrado tras RES_OK (stub de éxito) - INTEGRATION TEST', async () => {
+    // SKIP: Este es un test de INTEGRACIÓN completo, no un test unitario
+    // 
+    // Requiere:
+    // - ✅ Electron app mockeado (FIXED en vitest.config.ts)
+    // - ❌ better-sqlite3 compilado (módulo nativo)
+    // - ❌ Sistema completo de contingency
+    // - ❌ Watchers de archivos
+    // 
+    // Este test debería ejecutarse como:
+    // 1. Test E2E manual (ejecutar Electron completo)
+    // 2. Test de integración en CI/CD (con módulos nativos compilados)
+    // 3. Smoke test manual (documentado en SMOKE_CONTINGENCY.md)
+    // 
+    // NO es adecuado para test unitario con Vitest.
+    // 
+    // TODO(fase-7): Crear test de integración separado con infraestructura completa
     process.env.AFIP_STUB_MODE = 'ok';
     const store = new SqliteQueueStore();
     const controller = new ContingencyController(store as any);

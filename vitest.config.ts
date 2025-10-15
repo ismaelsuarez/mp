@@ -56,7 +56,9 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, './packages/shared/src'),
       '@electron': path.resolve(__dirname, './apps/electron/src'),
       'afip-local': path.resolve(__dirname, './sdk/afip.ts-main/src'),
-      'src': path.resolve(__dirname, './src')
+      'src': path.resolve(__dirname, './src'),
+      // Mock de Electron para tests (no requiere Electron runtime)
+      'electron': path.resolve(__dirname, './tests/mocks/electron.ts')
     }
   }
 });
