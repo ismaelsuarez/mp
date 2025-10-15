@@ -7,7 +7,7 @@
   "homepage": "https://tcmza.com.ar",
   "license": "LICENSE",
   "type": "commonjs",
-  "main": "dist/src/main.js",
+  "main": "dist/main.js",
   "packageManager": "pnpm@^9.0.0",
   "scripts": {
     "db:inspect": "ts-node scripts/inspect_sqlite.ts",
@@ -26,7 +26,8 @@
     "release": "npm run build:ts && electron-builder -w --publish always",
     "build:windows": "node scripts/build-windows.js",
     "icons:gen": "node scripts/generate-icons.js",
-    "build:ts": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
+    "build:ts": "tsc -b tsconfig.json && tsc-alias -p tsconfig.json",
+    "build:clean": "rimraf dist .tsbuildinfo",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -57,8 +58,12 @@
     "appId": "com.ismael.miapp",
     "productName": "Tc-Mp",
     "artifactName": "Tc-Mp-${version}.${ext}",
-    "asar": false,
-    "compression": "store",
+    "asar": true,
+    "asarUnpack": [
+      "**/*.node",
+      "**/sdk/afip.ts-main/src/soap/wsdl/**"
+    ],
+    "compression": "maximum",
     "publish": [
       {
         "provider": "github",
@@ -68,12 +73,12 @@
       }
     ],
     "files": [
-      "src/**/*",
-      "public/**/*",
-      "mp-sdk/**/*",
       "dist/**/*",
-      "docs/**/*",
+      "public/**/*",
       "templates/**/*",
+      "!dist/**/*.map",
+      "!dist/**/*.d.ts",
+      "!**/*.ts",
       {
         "from": "sdk/afip.ts-main/src/soap/wsdl",
         "to": "dist/sdk/afip.ts-main/src/soap/wsdl",

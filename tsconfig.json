@@ -19,7 +19,10 @@
       "@shared/*": ["packages/shared/src/*"],
       "@electron/*": ["apps/electron/src/*"],
       "afip-local/*": ["sdk/afip.ts-main/src/*"]
-    }
+    },
+    "incremental": true,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "removeComments": true
   },
   "include": [
     "src/**/*",

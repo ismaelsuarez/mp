@@ -8,6 +8,7 @@ copiawhaf:Zone.Identifier
 reparar.dbf
 
 dist/
+.tsbuildinfo
 
 # Archivos de sesión de WhatsApp
 #data/sessions/bot.qr.png

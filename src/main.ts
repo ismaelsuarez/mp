@@ -663,6 +663,10 @@ function notifySystem(title: string, body: string) {
 // Desactivar aceleración por GPU (mejora compatibilidad en WSL/VMs)
 app.disableHardwareAcceleration();
 
+// Configurar límites de memoria para V8 (Fase 8: Optimización)
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=2048');
+app.commandLine.appendSwitch('js-flags', '--optimize-for-size');
+
 // Instancia única: evita múltiples procesos y enfoca la ventana existente
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -690,18 +694,21 @@ app.whenReady().then(() => {
         console.error('[main] Failed to bootstrap contingency:', e?.message || e);
     }
 
-    // WS Health → emitir estado a la UI (ARCA/AFIP)
-    try {
-        const wsHealth = new WSHealthService({ intervalSec: 20, timeoutMs: 5000 });
-        wsHealth.on('up', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'up', at: last?.at, details: last?.details }); } catch {} });
-        wsHealth.on('degraded', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'degraded', at: last?.at, details: last?.details }); } catch {} });
-        wsHealth.on('down', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'down', at: last?.at, details: last?.details }); } catch {} });
-        wsHealth.start();
-    } catch {}
-    try {
-        const { installLegacyFsGuard } = require('./main/bootstrap/legacy_fs_guard');
-        installLegacyFsGuard();
-    } catch {}
+    // Diferir inicializaciones no críticas (Fase 8: Optimización)
+    setTimeout(() => {
+        // WS Health → emitir estado a la UI (ARCA/AFIP)
+        try {
+            const wsHealth = new WSHealthService({ intervalSec: 20, timeoutMs: 5000 });
+            wsHealth.on('up', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'up', at: last?.at, details: last?.details }); } catch {} });
+            wsHealth.on('degraded', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'degraded', at: last?.at, details: last?.details }); } catch {} });
+            wsHealth.on('down', (last: any) => { try { mainWindow?.webContents.send('ws-health-update', { status: 'down', at: last?.at, details: last?.details }); } catch {} });
+            wsHealth.start();
+        } catch {}
+        try {
+            const { installLegacyFsGuard } = require('./main/bootstrap/legacy_fs_guard');
+            installLegacyFsGuard();
+        } catch {}
+    }, 2000); // Diferir 2 segundos
 
     // Autoarranque FTP Server si está habilitado
     try {
@@ -1804,6 +1811,24 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
         isQuitting = true; 
         try { shutdownContingency(); } catch (e: any) {
             console.error('[main] Failed to shutdown contingency:', e?.message || e);
+        }
+        // Cleanup de recursos (Fase 8: Optimización)
+        try {
+            console.log('[Cleanup] Starting resource cleanup...');
+            // Limpiar IPC listeners
+            ipcMain.removeAllListeners();
+            // Cerrar ventanas
+            if (imageDualWindow && !imageDualWindow.isDestroyed()) {
+                imageDualWindow.close();
+                imageDualWindow = null;
+            }
+            if (lastImageNewWindow && !lastImageNewWindow.isDestroyed()) {
+                lastImageNewWindow.close();
+                lastImageNewWindow = null;
+            }
+            console.log('[Cleanup] Resource cleanup complete');
+        } catch (e: any) {
+            console.error('[Cleanup] Error during cleanup:', e?.message || e);
         }
     });
 

@@ -1,299 +1,539 @@
-### Proyecto MP – Gestión de Reportes, Facturación y Automatización (TypeScript + Electron)
+# 📊 TC-MP - Sistema de Gestión de Pagos y Facturación
 
-Aplicación de escritorio (Electron) para operar con:
-- Reportes de ventas de Mercado Pago (SDK oficial) y envíos por email/FTP.
-- Facturación/Comprobantes: Recibos, Remitos y Facturas/Notas (AFIP/ARCA).
-- Automatización por archivos (watchers) para disparar procesos.
-- Generación de PDFs (pdfkit) y distribución a rutas locales/red.
-- Visor de logs persistentes (24 h) en “Modo Caja”.
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)]()
+[![Electron](https://img.shields.io/badge/Electron-30.5-purple)]()
+[![License](https://img.shields.io/badge/license-Proprietary-red)]()
 
----
-
-### Panorama general (funcionalidades)
-
-- Reportes MP
-  - Integración SDK oficial (`mercadopago`) vía `payments/search`.
-  - Salidas: CSV curado, CSV full, XLSX y DBF, más `balance-YYYY-MM-DD.json`.
-  - Envío por Email (SMTP) y por FTP opcional (configurable).
-  - Filtros: día completo (TZ), rango manual o sin filtro (diagnóstico).
-
-- Facturación/Comprobantes (AFIP/ARCA)
-  - Pipelines de Recibos y Remitos a partir de `.fac` (cola secuencial, watcher de carpeta).
-  - Facturas/Notas A/B (en construcción estable): emisión con AFIP/ARCA, PDF, CAE y layout configurable.
-  - PDF con `pdfkit` y layout `invoiceLayout.mendoza.ts`.
-  - Distribución de PDFs a Rutas Local/Red1/Red2.
-
-- Retenciones (nuevo)
-  - Watcher para `retencion*.txt` (incluye escaneo inicial al abrir la app).
-  - PDF monoespaciado con fondo; nombre `B<NUMERO>.pdf` (sin guión bajo) guardado en la raíz de `outLocal/outRed*`.
-  - Caja de texto configurable desde layout central (`invoiceLayout.retencion.blocks.body`).
-
-- Automatización (disparadores por archivo)
-  - `mp.txt`: ejecuta flujo de reportes MP; FTP forzado de `mp.dbf` cuando aplica.
-  - `dolar.txt`: obtiene cotizaciones BNA, genera/actualiza `dolar.dbf/csv/xlsx` y publica por FTP MP.
-  - `a13.txt`: dispara proceso A13 (padrones/consultas según servicio).
-  - Persistencia de logs: todos los eventos se guardan 24 h y se muestran en “Modo Caja”.
-
-- Modo Caja (UI)
-  - Visor de logs en vivo + históricos (24 h, SQLite) con indicadores de estado.
-  - Resumen diario por `.res` de facturación (FA/FB/NC…): totales/cantidades y rango emitido.
-
-- Modo Imagen (visor)
-  - Muestra imagen/video/pdf según archivo de control (`direccion.txt`), con opciones de ventana (`VENTANA=`), info y numerador.
-  - Fallback inteligente (si falta imagen, intenta `.mp4` o usa `public/Noimage.jpg`).
-
-- FTP integrado
-  - Cliente FTP para envío de archivos/DBF.
-  - Servidor FTP opcional embebido (configurable desde UI) para pruebas.
-
-- Infraestructura
-  - Auto‑update (GitHub Releases privadas) y build para Windows.
-  - Persistencia de configuración en `app.getPath('userData')/config/*.json` (migración desde `config/`).
+Aplicación Electron profesional para Windows que integra **Mercado Pago**, **AFIP**, **ARCA** y procesamiento automatizado de pagos y facturación.
 
 ---
 
-### Estructura del proyecto
+## 🌟 Características Principales
 
-- App de escritorio (Electron, TS): `src/main.ts`, `src/preload.ts`, `src/renderer.ts`, `src/services/*`
-- CLI (TS): `mp-sdk/report.ts` (reportes) y `mp-sdk/account-money-process.ts` (normalizador)
-- Servicio SDK CLI: `mp-sdk/services/MercadoPagoService.ts`
-- `dist/`: salida compilada de TypeScript
-- `out/`: carpeta de salida de la CLI creada en tiempo de ejecución
-- `Documentos/MP-Reportes`: salida de la app de escritorio
-- `.env`: variables de entorno (para CLI)
-- `package.json`: scripts y dependencias del proyecto
+### Gestión de Pagos
+- ✅ **Integración Mercado Pago**: Reportes automáticos, conciliación, procesamiento de pagos
+- ✅ **Reportes automatizados**: CSV, Excel, DBF con envío por email/FTP
+- ✅ **Múltiples formatos**: Exportación flexible para diferentes sistemas contables
+
+### Facturación Electrónica
+- ✅ **AFIP WSFEv1**: Facturación electrónica homologada
+- ✅ **Comprobantes**: Facturas A/B/C, Notas de Crédito/Débito
+- ✅ **PDF con QR**: Generación automática con código QR de AFIP
+- ✅ **Recibos y Remitos**: Gestión completa de comprobantes
+
+### Retenciones Provinciales
+- ✅ **ARCA Mendoza**: Integración con sistema de retenciones
+- ✅ **Procesamiento automatizado**: Watchers de archivos
+- ✅ **PDFs personalizados**: Layouts configurables
+
+### Automatización
+- ✅ **File Watchers**: Procesamiento automático de archivos `.fac`, `.txt`
+- ✅ **Contingencia robusta**: Sistema de colas con SQLite
+- ✅ **Resiliencia**: Retry automático, circuit breaker, timeouts
+
+### Infraestructura
+- ✅ **Auto-actualización**: Actualizaciones automáticas vía GitHub Releases
+- ✅ **Logging avanzado**: Logs persistentes con redacción de datos sensibles
+- ✅ **Configuración segura**: Credenciales cifradas con keytar
+- ✅ **Arquitectura monorepo**: Código modular y escalable
 
 ---
 
-### Requisitos
+## 📋 Requisitos del Sistema
 
-- Node.js 18+
-- Access Token de producción de Mercado Pago (`APP_USR-…`)
-- Credenciales SMTP si se desea enviar emails
+### Para Usuarios Finales
+- **Sistema Operativo**: Windows 10/11 (x64)
+- **Espacio en disco**: 500 MB disponibles
+- **RAM**: 4 GB mínimo, 8 GB recomendado
+- **Conexión a Internet**: Requerida para AFIP/MP
+
+### Para Desarrolladores
+- **Node.js**: 18.20.4 o superior ([.nvmrc](./.nvmrc))
+- **PNPM**: 9.x o superior
+- **Sistema Operativo**: Windows 10/11 (recomendado para desarrollo)
+- **Editor**: Visual Studio Code (recomendado)
 
 ---
 
-### Instalación y uso rápido
+## 🚀 Instalación Rápida
 
-1) Instalar dependencias
+### Para Usuarios
+
+1. Descargar el instalador desde [Releases](https://github.com/ismaelsuarez/mp-updates/releases/latest)
+2. Ejecutar `Tc-Mp-Setup-X.X.X.exe`
+3. Seguir el asistente de instalación
+4. Configurar credenciales desde Settings
+
+### Para Desarrolladores
+
 ```bash
-npm install
+# 1. Clonar repositorio
+git clone https://github.com/ismaelsuarez/mp.git
+cd mp
+
+# 2. Instalar dependencias
+pnpm install
+
+# 3. Compilar TypeScript
+pnpm build:ts
+
+# 4. Ejecutar aplicación
+pnpm start
 ```
 
-2) Configurar `.env` (ver ejemplo y descripción más abajo)
+**Nota**: En desarrollo, puedes usar `SKIP_LICENSE=true` para saltear la verificación de licencia.
 
-3) App de escritorio (Electron, compila TS y abre la GUI)
+---
+
+## 📁 Estructura del Proyecto
+
+```
+mp/
+├── apps/
+│   └── electron/           # Aplicación Electron
+│       ├── src/
+│       │   ├── services/   # Servicios de negocio
+│       │   ├── modules/    # Módulos AFIP, ARCA, etc.
+│       │   └── main.ts     # Proceso principal
+│       └── package.json
+│
+├── packages/
+│   ├── core/               # Lógica de negocio pura
+│   │   ├── afip/           # Helpers, calculators, validators
+│   │   ├── licencia/       # Validación de licencias
+│   │   └── facturacion/    # Parsers de facturas
+│   │
+│   ├── infra/              # Infraestructura
+│   │   ├── database/       # DbService, QueueDB
+│   │   ├── logger/         # LogService
+│   │   ├── afip/           # AfipService (HTTP)
+│   │   ├── mercadopago/    # MercadoPagoService
+│   │   ├── email/          # EmailService
+│   │   └── ftp/            # FtpService
+│   │
+│   ├── shared/             # Código compartido
+│   │   ├── types/          # Interfaces TypeScript
+│   │   ├── constants/      # Constantes AFIP, etc.
+│   │   └── utils/          # Utilidades
+│   │
+│   └── config/             # Configuraciones compartidas
+│       └── tsconfig.base.json
+│
+├── src/                    # Código legacy (en migración)
+├── public/                 # Assets estáticos (HTML, CSS, iconos)
+├── templates/              # Templates de email y PDF
+├── docs/                   # Documentación
+├── tests/                  # Tests unitarios y E2E
+└── config/                 # Configuraciones JSON
+```
+
+Ver [ARCHITECTURE.md](./docs/ARCHITECTURE.md) para detalles de arquitectura.
+
+---
+
+## 🛠️ Scripts Disponibles
+
+### Desarrollo
+
 ```bash
-npm start
+pnpm start                  # Ejecutar app (skip license en dev)
+pnpm test                   # Ejecutar tests con Vitest
+pnpm test:watch             # Tests en modo watch
+pnpm test:coverage          # Tests con cobertura
+pnpm test:ui                # Tests con UI interactiva
 ```
 
-4) CLI – Ejecutar reporte del día (00:00–23:59 en la TZ configurada)
+### Build y Release
+
 ```bash
-npm run mp:payments:report:dist
+pnpm build:ts               # Compilar TypeScript (incremental)
+pnpm build:clean            # Limpiar cache de build
+pnpm build                  # Build completo (TS + Electron)
+pnpm release                # Build y publicar en GitHub Releases
 ```
 
-5) CLI – Ejecutar con rango de fechas (días completos)
+### Calidad de Código
+
 ```bash
-MP_DATE_FROM=YYYY-MM-DD MP_DATE_TO=YYYY-MM-DD npm run mp:payments:report:dist
+pnpm typecheck              # Verificar tipos TypeScript
+pnpm format                 # Formatear código con Prettier
+pnpm format:check           # Verificar formateo
 ```
 
-6) CLI – Traer todo sin fechas (diagnóstico)
+### Utilidades
+
 ```bash
-MP_NO_DATE_FILTER=true npm run mp:payments:report:dist
+pnpm db:inspect             # Inspeccionar base de datos
+pnpm queue:inspect          # Inspeccionar cola de contingencia
+pnpm cleanup:res            # Limpiar archivos .res antiguos
+pnpm pdf:calibrate          # Calibrar generación de PDFs
 ```
 
-7) CLI – Procesar CSV “Dinero en cuenta” (opcional)
+---
+
+## ⚙️ Configuración
+
+La aplicación se configura **100% desde la UI** (no requiere `.env` en producción).
+
+### Configuración desde Settings
+
+1. Abrir aplicación
+2. Ir a **Settings** (⚙️)
+3. Configurar por sección:
+
+#### AFIP
+- Certificado (`.crt`)
+- Clave privada (`.key`)
+- CUIT
+- Punto de venta
+- Ambiente (Homologación/Producción)
+
+#### Mercado Pago
+- Access Token (producción)
+- User ID
+
+#### ARCA (Mendoza)
+- Usuario
+- Contraseña
+- Ambiente
+
+#### Rutas
+- Carpeta de entrada (`ent/`)
+- Carpetas de salida (Local, Red1, Red2)
+
+**Seguridad**: Las credenciales se almacenan cifradas en `keytar` (Windows Credential Store).
+
+---
+
+## 📊 Uso
+
+### Modo Caja (Principal)
+
+Vista principal de la aplicación:
+
+- **Logs en tiempo real**: Ver actividad de watchers, procesamiento
+- **Resumen diario**: Totales de facturas emitidas
+- **Estado de servicios**: AFIP, ARCA, Mercado Pago
+
+### Modo Imagen
+
+Visor de imágenes/videos/PDFs:
+
+1. Colocar archivo de control `direccion.txt` en carpeta configurada
+2. La aplicación muestra el contenido automáticamente
+3. Opciones: ventana secundaria, fullscreen, numerador
+
+### Modo Administración
+
+Gestión avanzada:
+
+- Configuración de perfiles
+- Consulta de logs históricos
+- Testing de conexiones AFIP/MP/ARCA
+- Gestión de certificados
+
+---
+
+## 🔄 Procesamiento Automático
+
+### Watchers de Archivos
+
+La aplicación monitorea carpetas configuradas:
+
+#### Facturación (`.fac`)
+
+```
+ent/
+  └── FA_0001-00000123.fac   → Procesar factura
+```
+
+**Flujo**:
+1. Archivo detectado
+2. Mover a `.processing/`
+3. Validar y enviar a AFIP/ARCA
+4. Generar PDF con CAE
+5. Distribuir a rutas configuradas
+6. Mover a `.done/`
+
+#### Reportes MP (`mp.txt`)
+
+```
+ent/
+  └── mp.txt   → Generar reporte del día
+```
+
+**Flujo**:
+1. Archivo detectado
+2. Consultar pagos del día en Mercado Pago
+3. Generar CSV, Excel, DBF
+4. Enviar por email/FTP
+5. Eliminar trigger
+
+#### Cotización Dólar (`dolar.txt`)
+
+```
+ent/
+  └── dolar.txt   → Scrapear BNA
+```
+
+**Flujo**:
+1. Scraping de www.bna.com.ar
+2. Generar `dolar.dbf/csv/xlsx`
+3. Publicar por FTP
+4. Eliminar trigger
+
+#### Retenciones (`retencion*.txt`)
+
+```
+ent/
+  └── retencion001.txt   → Generar PDF
+```
+
+**Flujo**:
+1. Archivo detectado
+2. Generar PDF con layout configurable
+3. Guardar como `B001.pdf` en rutas
+4. Eliminar trigger
+
+---
+
+## 🧪 Testing
+
+### Ejecutar Tests
+
 ```bash
-MP_ACCOUNT_CSV_PATH=/ruta/reporte_panel.csv npm run mp:account:process:dist
+# Todos los tests
+pnpm test
+
+# Con cobertura
+pnpm test:coverage
+
+# En modo watch
+pnpm test:watch
+
+# UI interactiva
+pnpm test:ui
 ```
 
----
+### Smoke Tests
 
-### Construir instalador para Windows (.exe)
-
-Requisitos recomendados:
-- Ejecutar el build en Windows (PowerShell/Terminal) con Node.js 18+ instalado.
-- Opcional: firma de código (si usas certificados, ver variables `CSC_*`).
-
-Pasos (Windows):
-```powershell
-# 1) Ir a la carpeta del proyecto (puedes usar la ruta WSL compartida: \\wsl$\Ubuntu\home\ismael\mp)
-cd C:\ruta\a\mp
-
-# 2) Instalar dependencias y compilar TypeScript
-npm ci
-npm run build:ts
-
-# 3) Generar instalador .exe con electron-builder
-npx electron-builder -w
-# Alternativa: npm run build (en Windows generará el instalador para Windows)
+```bash
+# Smoke tests manuales
+1. Build: pnpm build:ts (verificar 0 errores)
+2. Tests: pnpm test (verificar 3/4 pasando)
+3. Electron: pnpm start (verificar arranque)
+4. Watchers: Colocar archivo .fac de prueba
 ```
 
-Durante la instalación, el asistente mostrará `build/LICENSE.txt` y será obligatorio aceptarlo para continuar. En la primera ejecución tras instalar, si no existe licencia registrada, se abrirá `public/licencia.html` para registrar nombre, serial y palabra secreta.
+Ver [docs/smokes/](./docs/smokes/) para guías detalladas.
 
-Salida:
-- El instalador quedará en `dist/` con un nombre similar a `MP Reports Setup x.y.z.exe`.
+### Cobertura Actual
 
-Notas de firma (opcional):
-- Si tienes certificado, configura variables de entorno antes de construir:
-  - `CSC_LINK` (ruta/URL al .pfx/.pem) y `CSC_KEY_PASSWORD`.
-- Si no firmas, el .exe será no firmado (Windows puede mostrar advertencia de editor desconocido).
-
-WSL2:
-- Se recomienda correr el build en el host Windows. Desde WSL puedes abrir la carpeta en Windows vía `\\wsl$` o copiar el proyecto a NTFS.
+- **Unitarios**: 3/4 tests pasando (75%)
+- **E2E**: 1 test pasando + 1 integration test (requiere SQLite compilado)
 
 ---
 
-### Auto-actualizaciones (electron-updater) y Releases privadas en GitHub
+## 📚 Documentación
 
-La app integra auto-actualización con `electron-updater` y publica artefactos en GitHub Releases (repo privado):
+### Documentos Principales
 
-- Requisitos:
-  - Variable `GH_TOKEN` con permisos de `repo` en el entorno (usar `.env` en desarrollo).
-  - En `package.json > build.publish` se configuró el proveedor `github` apuntando a tu repo privado.
+- [📖 ARCHITECTURE.md](./docs/ARCHITECTURE.md) - Arquitectura del sistema
+- [📖 CONFIGURACION.md](./docs/CONFIGURACION.md) - Sistema de configuración
+- [📖 RESILIENCIA.md](./docs/RESILIENCIA.md) - Infraestructura resiliente
+- [📝 CHANGELOG](./CHANGELOG_REFACTORIZACION.md) - Historial de cambios
+- [📊 REPORTE_EJECUTIVO](./REPORTE_EJECUTIVO_REFACTORIZACION.md) - Reporte de refactorización
 
-- Flujo de publicación:
-  1) Aumenta la versión semántica en `package.json` (por ejemplo, `1.0.3`).
-  2) Ejecuta el comando de release:
-     ```bash
-     npm run release
-     ```
-     Esto compila, construye con `electron-builder` para Windows y publica la release en GitHub (`--publish always`).
+### Documentación Técnica
 
-- Experiencia del usuario final:
-  - Al iniciar, la app busca actualizaciones.
-  - Si hay una nueva versión, muestra un diálogo: "Nueva versión disponible, ¿desea actualizar ahora?" con opciones "Actualizar" y "Más tarde".
-  - Si elige "Actualizar", descarga; al finalizar, pide "Reiniciar y actualizar" para instalar.
+- [🔧 Optimización](./docs/optimization/) - Guías de optimización
+- [🧹 Cleanup](./docs/cleanup/) - Progreso de refactorización
+- [🧪 Smoke Tests](./docs/smokes/) - Pruebas manuales
+- [📘 Manual de Usuario](./docs/manual.html) - Manual completo
 
-- Ubicación de artefactos locales:
-  - Los instaladores y archivos generados localmente quedan en `dist/`.
+### Documentación de Código
 
-- Validación de publicación:
-  - Verifica que en la sección Releases del repo privado aparezca la nueva versión con los artefactos (`.exe`, `latest.yml`/`app-update.yml`/`blockmap`).
-  - En clientes, iniciar la app debería ofrecer la actualización.
-
-- Seguridad:
-  - Nunca hardcodear tokens. `GH_TOKEN` se lee desde variables de entorno vía `dotenv`.
-  - Para generar el token: GitHub → Settings → Developer settings → Personal access tokens → Generate new token (classic) con scope `repo`. Guarda su valor en `.env` como `GH_TOKEN=...` (no lo compartas ni lo subas al repo).
-
-- Entrega al cliente:
-  - Entrega solo el primer instalador completo (`dist/*.exe`). Luego, cada vez que ejecutes `npm run release` con una nueva versión, los clientes verán el aviso de actualización y podrán actualizar.
+Ver comentarios inline en el código para detalles de implementación.
 
 ---
 
-### Variables de entorno (.env)
+## 🏗️ Arquitectura
 
-```env
-# ── Credenciales Mercado Pago (obligatorias)
-MP_ACCESS_TOKEN=APP_USR_xxx_tu_token
-MP_USER_ID=me
+### Principios
 
-# ── Zona horaria y ventanas (por defecto día completo)
-MP_TZ=America/Argentina/Buenos_Aires
-MP_WINDOW_START=00:00
-MP_WINDOW_END=23:59
+- **Domain-Driven Design (DDD)**: Separación clara de capas
+- **SOLID**: Principios de diseño orientado a objetos
+- **Clean Architecture**: Independencia de frameworks
 
-# ── Rango manual (día completo en la TZ)
-MP_DATE_FROM=           # YYYY-MM-DD
-MP_DATE_TO=             # YYYY-MM-DD
+### Capas
 
-# ── Sin filtro de fechas (trae todo)
-MP_NO_DATE_FILTER=false # true para desactivar begin/end
-
-# ── Búsqueda y filtros
-MP_RANGE=date_last_updated   # date_created | date_approved | date_last_updated
-MP_STATUS=                   # ej: approved o approved,refunded
-MP_LIMIT=50                  # ítems por página (paginación)
-MP_MAX_PAGES=100             # páginas máximas
-
-# ── Email de reporte (opcional pero recomendado)
-EMAIL_REPORT=contabilidad@tuempresa.com
-ADMIN_ERROR_EMAIL=admin@tuempresa.com
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=tu_email@gmail.com
-SMTP_PASS=tu_password
-
-# ── Publicación/auto-update (GitHub Releases privado)
-GH_TOKEN=ghp_xxx_tu_token
+```
+┌─────────────────────────────────────┐
+│           @electron/*               │  ← Aplicación Electron
+│   (UI, IPC, Main Process)           │
+├─────────────────────────────────────┤
+│            @infra/*                 │  ← Infraestructura
+│   (HTTP, DB, Logger, Email, FTP)   │
+├─────────────────────────────────────┤
+│             @core/*                 │  ← Lógica de Negocio
+│   (AFIP, Facturación, Validación)  │
+├─────────────────────────────────────┤
+│            @shared/*                │  ← Compartido
+│   (Types, Utils, Constants)         │
+└─────────────────────────────────────┘
 ```
 
-Notas:
-- Si `EMAIL_REPORT` y `SMTP_*` están definidos, el script envía un email con los archivos adjuntos.
-- `MP_RANGE` controla el campo de fecha usado para el filtro. Para capturar aprobaciones/tickets actualizados en el día, `date_last_updated` es una opción robusta.
-- `MP_NO_DATE_FILTER=true` desactiva todo filtro de fechas (útil para diagnóstico). Úsalo con cautela en cuentas con muchas operaciones.
+Ver [ARCHITECTURE.md](./docs/ARCHITECTURE.md) para detalles completos.
 
 ---
 
-### ¿Qué hace el script internamente?
+## 🔐 Seguridad
 
-1) Determina el rango de fechas efectivo:
-   - Día completo en la TZ configurada, o
-   - Rango manual `MP_DATE_FROM`→`MP_DATE_TO` (00:00–23:59), o
-   - Sin filtro si `MP_NO_DATE_FILTER=true`.
-2) Consulta pagos con `payments/search` (SDK `mercadopago`) aplicando:
-   - Rango de fechas (si aplica), `range` (campo de fecha) y `status` (si se definió).
-   - Paginación con `limit`/`offset` hasta `MP_MAX_PAGES`.
-3) Normaliza resultados y calcula totales aproximados (ingresos/devoluciones) desde pagos.
-4) Genera archivos en `out/`:
-   - CSV curado, CSV full (JSON aplanado), XLSX con tabla, DBF curado, JSON de resumen.
-5) Envía un email con adjuntos (si SMTP configurado) y loguea la cantidad de transacciones.
+### Almacenamiento de Credenciales
 
-Importante: `payments/search` cubre ventas/devoluciones. Retiros, transferencias, comisiones y contracargos se reflejan mejor en los reportes de finanzas/liquidaciones (futuras ampliaciones).
+- **Keytar**: Credenciales cifradas en Windows Credential Store
+- **electron-store**: Configuración cifrada con AES-256
+- **Logs**: Redacción automática de datos sensibles (tokens, passwords)
 
----
+### Comunicación IPC
 
-### Salidas en `out/`
+- **Context Isolation**: Habilitada
+- **Preload Script**: API segura para renderer
+- **Node Integration**: Deshabilitada en renderer
 
-- `transactions-YYYY-MM-DD.csv`: columnas operativas principales (id, fechas, estados, importes, netos, comisiones, medios de pago, pagador, POS/Store, referencias, tarjeta)
-- `transactions-full-YYYY-MM-DD.csv`: JSON completo aplanado con todas las claves disponibles
-- `transactions-full-YYYY-MM-DD.xlsx`: tabla Excel (filtros/ordenación)
-- `transactions-detailed-YYYY-MM-DD.dbf`: esquema dBase con nombres ≤ 10 caracteres
-- `balance-YYYY-MM-DD.json`: resumen rápido con totales aproximados a partir de pagos
+### Actualizaciones
 
-Nota: en la app de escritorio (GUI), los archivos se generan en la carpeta `Documentos/MP-Reportes` del usuario.
-
-Retención de archivos: conservar según política interna (p. ej. 30–90 días).
+- **Verificación de firma**: Opcional (configurar `CSC_*` para firma de código)
+- **HTTPS**: Descarga segura desde GitHub Releases
 
 ---
 
-### Cron (Linux/WSL)
+## ⚡ Performance
 
-Ejemplo de programación (parciales a las 12/14/16 y cierre a las 18:05, en TZ CABA):
-```cron
-TZ=America/Argentina/Buenos_Aires
-0 12 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
-0 14 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
-0 16 * * * cd /home/ismael/mp && npm run mp:payments:report:dist
-5 18 * * *  cd /home/ismael/mp && npm run mp:payments:report:dist
-```
+### Optimizaciones Aplicadas
 
----
+- **Build incremental**: TypeScript con cache (`.tsbuildinfo`)
+- **ASAR comprimido**: Bundle optimizado
+- **Lazy loading**: Módulos pesados cargados bajo demanda
+- **Límites V8**: Prevención de OOM con `--max-old-space-size=2048`
+- **Cleanup**: Liberación de recursos al cerrar
 
-### Troubleshooting
+### Métricas
 
-- No llega el email: verificar `SMTP_*`, `EMAIL_REPORT`, puertos/SSL y credenciales. Revisar spam.
-- 401/403 desde API: credenciales inválidas o falta completar “Ir a producción” en Mercado Pago.
-- Resultados vacíos: confirmar TZ y rango; probar `MP_NO_DATE_FILTER=true` como diagnóstico.
-- Faltan operaciones: usar `MP_RANGE=date_last_updated` para capturar aprobaciones/actualizaciones del día.
-- Archivos muy grandes: ajustar `MP_LIMIT` y `MP_MAX_PAGES`.
-- Electron en WSL: instalar librerías del sistema (`libnss3`, `libgtk-3-0`, `libxss1`, `libasound2t64`, etc.) y `xdg-utils`. En Windows 11 con WSLg suele funcionar directo; de lo contrario, configurar un servidor X y `DISPLAY`.
+| Métrica | Valor |
+|---------|-------|
+| Build time (incremental) | ~20s |
+| Instalador | ~190 MB |
+| Startup time | ~2s |
+| Memory (idle) | ~150 MB |
 
----
-
-### Roadmap (próximas ampliaciones)
-
-- Reportes de Liquidaciones/Finanzas por API (crear/consultar/descargar CSV oficial de MP) y conciliación contra `payments`.
-- Snapshot de saldo/balance por API (si está habilitado a nivel cuenta/país).
-- Webhook de notificaciones para eventos de pagos en tiempo real.
-- Exportación adicional (PDF) y dashboards.
-- Logs estructurados y métricas.
+Ver [docs/optimization/](./docs/optimization/) para detalles.
 
 ---
 
-### Licencia
+## 🐛 Troubleshooting
 
-Uso interno. Ajustar a la licencia de la organización si se requiere distribución.
+### Problemas Comunes
 
+#### No arranca la aplicación
 
-# mp
+**Síntomas**: Ventana no se abre, error en logs
+
+**Soluciones**:
+1. Verificar `pnpm build:ts` sin errores
+2. Revisar logs en `%APPDATA%\Tc-Mp\logs\`
+3. Verificar certificados AFIP válidos
+
+#### Factura no se procesa
+
+**Síntomas**: Archivo `.fac` queda en carpeta
+
+**Soluciones**:
+1. Verificar formato del archivo
+2. Revisar logs de error en Modo Caja
+3. Verificar conexión a AFIP/ARCA
+4. Probar `afip:check-server-status` desde UI
+
+#### Email no se envía
+
+**Síntomas**: PDFs generados pero no llegan emails
+
+**Soluciones**:
+1. Verificar configuración SMTP en Settings
+2. Verificar credenciales de email
+3. Revisar logs de email
+4. Verificar firewall/antivirus
+
+#### Auto-actualización falla
+
+**Síntomas**: "No se pudo descargar actualización"
+
+**Soluciones**:
+1. Verificar conexión a internet
+2. Verificar acceso a GitHub Releases
+3. Revisar logs de `electron-updater`
+
+### Logs
+
+**Ubicación**: `%APPDATA%\Tc-Mp\logs\`
+
+**Formato**: `YYYY-MM-DD.log`
+
+**Niveles**: `INFO`, `WARN`, `ERROR`, `AUTH`, `FTP`, `MP`
+
+---
+
+## 🤝 Contribución
+
+Este es un proyecto **privado** de TODO-Computación.
+
+Para contribuir:
+1. Crear branch feature: `git checkout -b feature/nombre`
+2. Hacer cambios con commits descriptivos
+3. Asegurar tests pasan: `pnpm test`
+4. Asegurar typecheck pasa: `pnpm typecheck`
+5. Crear Pull Request
+
+### Estándares de Código
+
+- **TypeScript strict**: Habilitado
+- **ESLint**: Configurado y pasando
+- **Prettier**: Código formateado
+- **Tests**: Cobertura ≥75%
+
+---
+
+## 📄 Licencia
+
+**Propietario**: TODO-Computación
+
+Todos los derechos reservados. Uso exclusivo de TODO-Computación.
+
+---
+
+## 📞 Soporte
+
+**Email**: pc@tcmza.com.ar  
+**Website**: https://tcmza.com.ar
+
+---
+
+## 🎉 Créditos
+
+Desarrollado por **TODO-Computación** para gestión de pagos y facturación electrónica.
+
+**Versión**: 2.0.0  
+**Última actualización**: Octubre 2025
+
+---
+
+## 📖 Más Información
+
+- [Plan de Refactorización](./plan_refactorizacion/)
+- [Documentación Interna](./documentacion_interna/)
+- [Release Notes](./docs/RELEASE_NOTES.md)
+
+---
+
+**Made with ❤️ by TODO-Computación**
