@@ -7,7 +7,7 @@
   "homepage": "https://tcmza.com.ar",
   "license": "LICENSE",
   "type": "commonjs",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "packageManager": "pnpm@^9.0.0",
   "scripts": {
     "db:inspect": "ts-node scripts/inspect_sqlite.ts",

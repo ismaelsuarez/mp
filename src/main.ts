@@ -1279,7 +1279,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	// Padrón 13: consulta
 	ipcMain.handle('facturacion:padron13:consulta', async (_e, payload: { cuit: number }) => {
 		try {
-			const { consultarPadronAlcance13 } = require('./modules/facturacion/padron');
+			const { consultarPadronAlcance13 } = require('@electron/modules/facturacion/padron');
 			const data = await consultarPadronAlcance13(Number(payload?.cuit));
 			return { ok: true, data };
 		} catch (e: any) {
@@ -1290,7 +1290,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 	// Padrón 13: ping/dummy
 	ipcMain.handle('facturacion:padron13:ping', async () => {
 		try {
-			const { pingPadron13 } = require('./modules/facturacion/padron');
+			const { pingPadron13 } = require('@electron/modules/facturacion/padron');
 			const r = await pingPadron13();
 			return r;
 		} catch (e: any) {
@@ -1599,7 +1599,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						? 'https://wswhomo.afip.gov.ar/wsbfev1/service.asmx'
 						: 'https://servicios1.afip.gov.ar/wsbfev1/service.asmx';
 					// eslint-disable-next-line @typescript-eslint/no-var-requires
-					const { ArcaClient } = require('./modules/facturacion/arca/ArcaClient');
+					const { ArcaClient } = require('@electron/modules/facturacion/arca/ArcaClient');
 					const certPath = String(cfg?.cert_path || '');
 					const keyPath = String(cfg?.key_path || '');
 					const client = new ArcaClient(baseUrl, certPath, keyPath);
@@ -2140,7 +2140,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
 					
 					if (/^retencion.*\.txt$/i.test(job.filename)) {
-							const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
+							const { processRetencionTxt } = require('@electron/modules/retenciones/retencionProcessor');
 							const out = await processRetencionTxt(job.fullPath);
 							try {
 								logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
@@ -2226,7 +2226,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
     if (dedicatedEnabled) addDir(cfg.FACT_FAC_DIR || 'C:\\tmp');
     if (ftpCoupledEnabled) addDir(cfg.FTP_SRV_ROOT || 'C:\\tmp');
     if (dirsSet.size === 0) addDir('C:\\tmp');
-		const { createFacWatcher } = require('./modules/facturacion/facWatcher');
+		const { createFacWatcher } = require('@electron/modules/facturacion/facWatcher');
 		let anyOk = false;
 		for (const dirRaw of Array.from(dirsSet)) {
 			const dir = String(dirRaw);
@@ -3363,7 +3363,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try {
 			// Cargar on-demand para evitar ciclos
 			// eslint-disable-next-line @typescript-eslint/no-var-requires
-			const { afipService } = require('./modules/facturacion/afipService');
+			const { afipService } = require('@electron/modules/facturacion/afipService');
 			const res = await afipService.consultarCotizacionMoneda(args || {});
 			return res;
 		} catch (e:any) {
