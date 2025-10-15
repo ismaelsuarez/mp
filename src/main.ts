@@ -1406,7 +1406,20 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
           const full = path.join(dir, name);
           let txt = '';
           try { txt = fs.readFileSync(full, 'utf8'); } catch { continue; }
-          if (!reDate.test(txt)) continue; // filtrar por fecha del comprobante
+          
+          // 🔍 FIX: Buscar SOLO en el campo específico "FECHA COMPROBANTE :" (no en otros campos como VENCIMIENTO CAE)
+          const mFechaComp = txt.match(/FECHA\s+COMPROBANTE\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
+          if (!mFechaComp) {
+            // Si el archivo .res no tiene "FECHA COMPROBANTE", es inválido
+            continue;
+          }
+          const fechaEncontrada = mFechaComp[1]; // Ej: "15/10/2025"
+          const fechaBuscada = `${d}/${m}/${y}`;  // Ej: "15/10/2025"
+          if (fechaEncontrada !== fechaBuscada) {
+            // La fecha del comprobante NO coincide con la fecha buscada
+            continue;
+          }
+          
           const lower = name.toLowerCase();
           let tipo: Row['tipo'] | null = null;
           
