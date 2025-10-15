@@ -1,0 +1,394 @@
+You are an expert Node.js/TypeScript/Electron/Prisma engineer. Apply the following changes to this repository to integrate Payway (Prisma / PayStore Terminals) end-to-end. Keep edits minimal, strongly-typed, and production-ready.
+
+GOAL
+
+Ship a working MVP of card payments via Payway with:
+
+Admin UI (no .env): save config + secrets cifrados.
+
+Prisma models + repo real.
+
+HTTP client + service (request+polling, reversal, settlement).
+
+.fac watcher that orquesta pago → factura → .res (con reversa si AFIP falla).
+
+Route “/admin/payway”.
+
+The project already contains these files from mp/src/modules/payway/payway-stubs. We will wire and complete them, not rewrite from scratch.
+
+0) Dependencies
+
+Ensure these are in package.json (add if missing):
+
+"dependencies": {
+  "axios": "^1.7.0",
+  "keytar": "^7.9.0"
+},
+"devDependencies": {
+  "vitest": "^1.5.0",
+  "@types/node": "^20.11.0",
+  "typescript": "^5.4.0"
+}
+
+
+If Electron app hardens CSP etc., keep as is (no changes needed here).
+
+1) Prisma – merge schema y migración
+
+Mergea mp/src/modules/payway/payway-stubs/prisma/schema.payway.prisma dentro de prisma/schema.prisma (enums y models: PaymentSession, PaywayPayment, PaymentTerminal, PaymentProviderConfig, AppSecret). No elimines tu esquema previo.
+
+Asegurate de no duplicar enums o modelos.
+
+Tras merge, prepara para ejecutar (el equipo correrá npx prisma migrate dev -n "payway_init").
+
+Si el repo no tiene un cliente Prisma centralizado, crear:
+
+// mp/src/libs/prisma.ts
+import { PrismaClient } from '@prisma/client';
+export const prisma = new PrismaClient();
+
+
+Si ya existe, úsalo en vez de crear uno nuevo (detecta la ruta actual y reutilízala).
+
+2) Repo real de configuración (cifrado + Prisma)
+
+Crear mp/src/modules/payway/repos/PaywayConfigRepo.ts:
+
+import { prisma } from '@/libs/prisma'; // ADAPT: usa la ruta de tu prisma existente
+import { makeLocalEncryptor } from '../../payway/payway-stubs/src/lib/crypto/secretStore';
+
+export type PaywayConfig = {
+  branchId: string;
+  cuitCuil: string;
+  baseUrl: string;
+  apikey: string;               // secreto
+  defaultMerchantId: string;
+  defaultTerminalId: string;
+  defaultSerial: string;
+  pollIntervalMs: number;
+  pollMaxSeconds: number;
+  settlementTime?: string;
+  allowUnrefRefund: boolean;
+};
+
+const PROVIDER = 'PAYWAY';
+
+export class PaywayConfigRepo {
+  constructor(private passphrase: string) {}
+
+  private enc() {
+    return makeLocalEncryptor(this.passphrase);
+  }
+
+  async upsert(cfg: PaywayConfig) {
+    // 1) Guardar config pública
+    await prisma.paymentProviderConfig.upsert({
+      where: { branchId: cfg.branchId },
+      create: {
+        branchId: cfg.branchId,
+        cuitCuil: cfg.cuitCuil,
+        baseUrl: cfg.baseUrl,
+        printMethod: 'MOBITEF_NON_FISCAL',
+        defaultCurrency: 'ARS',
+        pollIntervalMs: cfg.pollIntervalMs,
+        pollMaxSeconds: cfg.pollMaxSeconds,
+        settlementTime: cfg.settlementTime,
+        allowUnrefRefund: cfg.allowUnrefRefund,
+      },
+      update: {
+        cuitCuil: cfg.cuitCuil,
+        baseUrl: cfg.baseUrl,
+        pollIntervalMs: cfg.pollIntervalMs,
+        pollMaxSeconds: cfg.pollMaxSeconds,
+        settlementTime: cfg.settlementTime,
+        allowUnrefRefund: cfg.allowUnrefRefund,
+      }
+    });
+
+    // 2) Guardar secretos (apikey + datos por defecto de terminal) cifrados
+    const { encrypt } = this.enc();
+    const payload = encrypt({
+      apikey: cfg.apikey,
+      defaultMerchantId: cfg.defaultMerchantId,
+      defaultTerminalId: cfg.defaultTerminalId,
+      defaultSerial: cfg.defaultSerial,
+    });
+
+    await prisma.appSecret.upsert({
+      where: { scope_provider: { scope: cfg.branchId, provider: PROVIDER } },
+      create: { provider: PROVIDER, scope: cfg.branchId, ciphertext: Buffer.from(payload, 'base64') },
+      update: { ciphertext: Buffer.from(payload, 'base64') }
+    });
+
+    return cfg;
+  }
+
+  async get(branchId: string): Promise<PaywayConfig | null> {
+    const config = await prisma.paymentProviderConfig.findUnique({ where: { branchId } });
+    if (!config) return null;
+
+    const secret = await prisma.appSecret.findUnique({ where: { scope_provider: { scope: branchId, provider: PROVIDER } } });
+    if (!secret) return null;
+
+    const { decrypt } = this.enc();
+    const data = decrypt(Buffer.from(secret.ciphertext).toString('base64'));
+
+    return {
+      branchId,
+      cuitCuil: config.cuitCuil,
+      baseUrl: config.baseUrl,
+      apikey: data.apikey,
+      defaultMerchantId: data.defaultMerchantId,
+      defaultTerminalId: data.defaultTerminalId,
+      defaultSerial: data.defaultSerial,
+      pollIntervalMs: config.pollIntervalMs,
+      pollMaxSeconds: config.pollMaxSeconds,
+      settlementTime: config.settlementTime ?? undefined,
+      allowUnrefRefund: config.allowUnrefRefund,
+    };
+  }
+}
+
+
+Nota: el cifrado usa passphrase (pedila al admin en el arranque). Si ya usás keytar, podés guardar esta passphrase también en OS Keychain (opcional).
+
+3) Service factory + job de cierre
+
+Crear mp/src/modules/payway/serviceFactory.ts:
+
+import { PaywayService } from './payway-stubs/src/payments/payway/PaywayService';
+import { PaywayConfigRepo } from './repos/PaywayConfigRepo';
+
+let repoSingleton: PaywayConfigRepo | null = null;
+
+// Llámalo al boot de la app con la passphrase del admin (o recuperada de keytar).
+export function initPaywayRepo(passphrase: string) {
+  repoSingleton = new PaywayConfigRepo(passphrase);
+}
+
+export async function makePaywayService(branchId: string) {
+  if (!repoSingleton) throw new Error('initPaywayRepo(passphrase) must be called first');
+  const cfg = await repoSingleton.get(branchId);
+  if (!cfg) throw new Error(`Config Payway no encontrada para la sucursal ${branchId}`);
+
+  return new PaywayService({
+    baseUrl: cfg.baseUrl,
+    apikey: cfg.apikey,
+    cuitCuil: cfg.cuitCuil,
+    pollIntervalMs: cfg.pollIntervalMs,
+    pollMaxSeconds: cfg.pollMaxSeconds,
+    defaultMerchantId: cfg.defaultMerchantId,
+    defaultTerminalId: cfg.defaultTerminalId,
+    defaultSerial: cfg.defaultSerial,
+  });
+}
+
+
+Crear mp/src/modules/payway/startSettlementJob.ts:
+
+import { startSettlementJob } from './payway-stubs/src/jobs/settlementJob';
+import { makePaywayService } from './serviceFactory';
+
+// Llamalo luego del login/boot con la sucursal activa
+export async function startDailySettlement(branchId: string, hhmm: string) {
+  const service = await makePaywayService(branchId);
+  return startSettlementJob(service, hhmm);
+}
+
+4) UI de administración
+
+Crear mp/src/modules/payway/AdminPage.tsx:
+
+import React, { useState } from 'react';
+import PaywayAdmin, { PaywayAdminForm } from './payway-stubs/src/ui/admin/payway/PaywayAdmin';
+import { PaywayConfigRepo } from './repos/PaywayConfigRepo';
+
+// Inyección de passphrase temporal. En producción pedila al admin en el login.
+const PASSPHRASE_PLACEHOLDER = 'cambiar-esto-en-produccion';
+
+export default function AdminPaywayPage() {
+  const [msg, setMsg] = useState<string>('');
+  const repo = new PaywayConfigRepo(PASSPHRASE_PLACEHOLDER);
+
+  return (
+    <div className="p-4">
+      <PaywayAdmin
+        initial={{
+          baseUrl: 'https://api-sandbox.prismamediosdepago.com/v1/paystore_terminals',
+          pollIntervalMs: 1500,
+          pollMaxSeconds: 120,
+          splitPolicy: 'ALL_OR_NOTHING'
+        }}
+        onSave={async (cfg: PaywayAdminForm) => {
+          await repo.upsert({
+            branchId: cfg.branchId,
+            cuitCuil: cfg.cuitCuil,
+            baseUrl: cfg.baseUrl,
+            apikey: cfg.apikey,
+            defaultMerchantId: cfg.defaultMerchantId,
+            defaultTerminalId: cfg.defaultTerminalId,
+            defaultSerial: cfg.defaultSerial,
+            pollIntervalMs: cfg.pollIntervalMs,
+            pollMaxSeconds: cfg.pollMaxSeconds,
+            settlementTime: cfg.settlementTime,
+            allowUnrefRefund: cfg.allowUnrefRefund
+          });
+          setMsg('Configuración guardada.');
+        }}
+        onTestConnection={async (cfg) => {
+          try {
+            // Conexión: sólo valida que podamos guardar y leer
+            await repo.upsert({
+              branchId: cfg.branchId,
+              cuitCuil: cfg.cuitCuil,
+              baseUrl: cfg.baseUrl,
+              apikey: cfg.apikey,
+              defaultMerchantId: cfg.defaultMerchantId,
+              defaultTerminalId: cfg.defaultTerminalId,
+              defaultSerial: cfg.defaultSerial,
+              pollIntervalMs: cfg.pollIntervalMs,
+              pollMaxSeconds: cfg.pollMaxSeconds,
+              settlementTime: cfg.settlementTime,
+              allowUnrefRefund: cfg.allowUnrefRefund
+            });
+            const read = await repo.get(cfg.branchId);
+            return { ok: !!read, message: !!read ? 'Config OK' : 'No se pudo leer config' };
+          } catch (e:any) { return { ok:false, message: e.message }; }
+        }}
+        onTestPayment={async () => {
+          return { ok: true, message: 'Test placeholder: realizar pago $1 en sandbox desde flujo .fac' };
+        }}
+        onSettlementNow={async () => {
+          return { ok: true, message: 'Trigger manual se hace desde menú de caja (pendiente de UI)' };
+        }}
+      />
+      {msg && <div className="mt-3 text-sm">{msg}</div>}
+    </div>
+  );
+}
+
+
+Agregar la ruta de esta página al router de administración:
+
+Busca el archivo donde se definen las rutas de Admin (usa ripgrep/búsqueda global: “<Routes>”, “/admin”, “Sidebar”).
+
+Añadí una entrada de menú “Payway” que navegue a /admin/payway.
+
+Registra el route:
+
+// ejemplo genérico
+import AdminPaywayPage from '@/modules/payway/AdminPage';
+// dentro de <Routes>
+<Route path="/admin/payway" element={<AdminPaywayPage />} />
+
+5) Watcher .fac → orquestación de pago + factura + .res
+
+Integrar el watcher en el pipeline existente que procesa .fac.
+Buscar dónde hoy se leen archivos .fac. En ese módulo:
+
+import { processFacWithPayway } from '@/modules/payway/payway-stubs/src/watchers/fac-payway';
+import { initPaywayRepo, makePaywayService } from '@/modules/payway/serviceFactory';
+
+// En el boot de la app (una sola vez), inicializar repo con passphrase:
+initPaywayRepo('cambiar-esto-en-produccion'); // TODO: pedir al admin y no loguear
+
+// En el punto donde recibís un .fac:
+export async function onFacDetected(fullPath: string, branchId: string) {
+  // Si el archivo trae "COBRO: PAYWAY" el processFacWithPayway actúa, sino devuelve null
+  const payway = await makePaywayService(branchId);
+  const resFile = await processFacWithPayway(fullPath, payway);
+
+  if (resFile) {
+    // ya generó el .res con pagos + factura o error
+    return resFile;
+  }
+  // Si no era Payway, sigue tu flujo actual
+  // ...
+}
+
+6) Conexión con AFIP (reemplazar stub)
+
+En mp/src/modules/payway/payway-stubs/src/watchers/fac-payway.ts hay un stub emitirFacturaAFIP().
+Reemplazar por un adapter hacia tu módulo real de facturación:
+
+Busca en el repo el módulo que emite factura (probablemente en mp/src/modules/facturacion/...).
+
+Exportá (o crea un adapter) con esta firma:
+
+// mp/src/modules/facturacion/emitirFacturaAdapter.ts
+export async function emitirFacturaPayway(/* inputs que ya tenés en tu pipeline */) {
+  // Llama a tu lógica actual y mapea el resultado:
+  // return { tipo, ptoVta, nro, cae, vtoCae, total, ivaContenido }
+}
+
+
+En fac-payway.ts, reemplaza la función stub por:
+
+import { emitirFacturaPayway } from '@/modules/facturacion/emitirFacturaAdapter';
+
+async function emitirFacturaAFIP() {
+  return emitirFacturaPayway(/* pasa lo que necesites de tu pipeline */);
+}
+
+
+Regla: si la factura falla, el watcher ya hace reversal y deja .res con ERROR_FACTURACION.
+
+7) Seguridad básica
+
+Verifica que no se logueen apikey ni payloads con PAN. Dejar sólo last4, auth_code, ticket.
+
+Electron: mantener nodeIntegration:false, contextIsolation:true, sandbox:true, CSP activo.
+
+El passphrase para cifrado: pedirla al Admin al iniciar (modifica initPaywayRepo() para leerla desde un prompt seguro/local).
+
+8) Scripts útiles
+
+En package.json agrega:
+
+"scripts": {
+  "test:payway": "vitest run test/payments/payway/facParser.spec.ts",
+  "migrate": "prisma migrate dev"
+}
+
+9) Pruebas de aceptación (sandbox)
+
+En Admin → Payway, cargá:
+
+baseUrl: https://api-sandbox.prismamediosdepago.com/v1/paystore_terminals
+
+cuitCuil + apikey + terminal/serial/merchant de sandbox.
+
+Dejá un .fac con bloque:
+
+COBRO: PAYWAY
+ID_ORDEN: DEMO-0001
+TOTAL: 100.00
+MONEDA: ARS
+PAGO: TARJETA=VISA; IMPORTE=100.00; CUOTAS=1; PLAN=NACIONAL
+
+
+Verificá:
+
+Aprobado → se emite factura → .res con ESTADO:OK.
+
+AFIP falla (forzá un throw en el adapter) → reversal → .res ERROR_FACTURACION.
+
+Declinado → .res DECLINADO.
+
+Opcional: corre startDailySettlement('SUCURSAL-001','23:55') o invoca settlement manual desde consola.
+
+10) Definition of Done
+
+Compila sin errores TS.
+
+Admin “Payway” guarda/lee config cifrada.
+
+.fac con COBRO: PAYWAY dispara el flujo → .res correcto.
+
+Reversa automática si no hay CAE.
+
+Nada sensible en logs.
+
+Tests básicos (npm run test:payway) pasan.
+
+If any ambiguity arises (router location, prisma client path), search the repo and adapt imports/paths accordingly, leaving comments // ADAPT: where you made an assumption.

@@ -1,0 +1,78 @@
+// Add these models/enums into your existing prisma/schema.prisma
+enum PayStatus { REQUESTED PROCESSING APPROVED DECLINED CANCELED UNDONE REFUNDED ERROR }
+enum SessionStatus { OPEN PARTIAL COMPLETED INVOICING INVOICED REVERSED ERROR }
+enum SplitPolicy { ALL_OR_NOTHING PARCIAL_PERMITIDO }
+
+model PaymentSession {
+  id             String @id @default(cuid())
+  externalRef    String @unique
+  totalCents     Int
+  remainingCents Int
+  policy         SplitPolicy @default(ALL_OR_NOTHING)
+  status         SessionStatus @default(OPEN)
+  payments       PaywayPayment[]
+  branchId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PaywayPayment {
+  id                 String   @id @default(cuid())
+  sessionId          String?
+  session            PaymentSession? @relation(fields: [sessionId], references: [id])
+  externalRef        String
+  amountCents        Int
+  currency           String   @default("ARS")
+  brand              String?
+  installments       Int?
+  plan               String?
+  merchantId         String?
+  terminalId         String?
+  terminalSerial     String?
+  providerPaymentId  String?
+  status             PayStatus @default(REQUESTED)
+  authCode           String?
+  ticketNumber       String?
+  last4              String?
+  errorCode          String?
+  errorMessage       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model PaymentTerminal {
+  id         String @id @default(cuid())
+  alias      String
+  merchantId String
+  terminalId String
+  serial     String
+  branchId   String
+  enabled    Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model PaymentProviderConfig {
+  id               String @id @default(cuid())
+  branchId         String
+  cuitCuil         String
+  baseUrl          String
+  printMethod      String  @default("MOBITEF_NON_FISCAL")
+  defaultCurrency  String  @default("ARS")
+  pollIntervalMs   Int     @default(1500)
+  pollMaxSeconds   Int     @default(120)
+  settlementTime   String?
+  allowUnrefRefund Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model AppSecret {
+  id         String  @id @default(cuid())
+  provider   String  // 'PAYWAY'
+  scope      String  // 'GLOBAL' | branchId
+  version    Int     @default(1)
+  ciphertext Bytes
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
