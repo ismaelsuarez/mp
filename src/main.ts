@@ -2138,6 +2138,26 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 							} catch {}
 							sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
 					} else if (tipo === 'RECIBO') {
+						// Payway: si el .fac tiene bloque COBRO: PAYWAY, procesar primero con Payway
+						try {
+							const { parsePaywayBlock } = require('./modules/payway/payway-stubs/src/payments/payway/facParser');
+							const blk = parsePaywayBlock(raw);
+							if (blk) {
+								const { initPaywayRepo, makePaywayService } = require('./modules/payway/serviceFactory');
+								const pass = (function(){ try { const dir = app.getPath('userData'); const keyPath = path.join(dir, 'config.key'); return fs.existsSync(keyPath) ? fs.readFileSync(keyPath,'utf8') : 'local'; } catch { return 'local'; } })();
+								try { initPaywayRepo(pass); } catch {}
+								const cfg: any = store.get('config') || {};
+								const branchId = String(cfg.BRANCH_ID || cfg.SUCURSAL_ID || 'DEFAULT');
+								const payway = await makePaywayService(branchId);
+								const { processFacWithPayway } = require('./modules/payway/payway-stubs/src/watchers/fac-payway');
+								const resPath = await processFacWithPayway(job.fullPath, payway);
+								if (resPath) {
+									try { logSuccess('FAC RECIBO (Payway) finalizado', { filename: job.filename, output: resPath }); } catch {}
+									sendCajaLog(`✅ RECIBO ${job.filename} → Payway OK`);
+									continue;
+								}
+							}
+						} catch {}
 						const { processFacFile } = require('./modules/facturacion/facProcessor');
 						const out = await processFacFile(job.fullPath);
 						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
