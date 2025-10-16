@@ -1,0 +1,10 @@
+{
+  "baseUrl": "https://api-sandbox.prismamediosdepago.com/v1/paystore_terminals",
+  "apikey": "REEMPLAZAR_CON_APIKEY_SANDBOX",
+  "cuitCuil": "30-12345678-9",
+  "defaultMerchantId": "MERCHANT_ID_SANDBOX",
+  "defaultTerminalId": "TERMINAL_ID_SANDBOX",
+  "defaultSerial": "SERIAL_SANDBOX",
+  "pollIntervalMs": 1500,
+  "pollMaxSeconds": 120
+}

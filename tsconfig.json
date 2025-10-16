@@ -24,6 +24,7 @@
     "dist",
     "src/**/__tests__/**",
     "**/*.test.ts",
-    "**/*.test.tsx"
+    "**/*.test.tsx",
+    "src/modules/payway/payway-stubs/src/ui/**"
   ]
 }
