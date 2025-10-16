@@ -2116,62 +2116,36 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 						sendCajaLog(`⚠️ ${job.filename}: archivo no existe`);
 						continue;
 					}
-					try { logInfo('FAC procesamiento iniciado', { filename: job.filename }); } catch {}
-					const raw = fs.readFileSync(job.fullPath, 'utf8');
-					let tipo = '';
-					try {
-						const m = raw.match(/\bTIPO:\s*(.+)/i);
-						tipo = (m?.[1] || '').trim().toUpperCase();
-					} catch {}
 					
-					// Log de inicio con tipo detectado
-					sendCajaLog(`📄 Iniciando ${tipo || 'FAC'} → ${job.filename}`);
+					// ⚠️ SOLO procesar retenciones en esta cola
+					// Los archivos .fac (facturas/notas/recibos/remitos) son manejados por ContingencyController
+					// para evitar procesamiento duplicado que causaba emisión doble a AFIP
+					// (fix duplicación de facturas reportado por cliente - Oct 2025)
 					
 					if (/^retencion.*\.txt$/i.test(job.filename)) {
-							const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
-							const out = await processRetencionTxt(job.fullPath);
-							try {
-								logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
-								// Persistir en CajaLogStore con formato unificado
-								const { cajaLog } = require('./services/CajaLogService');
-								cajaLog.success('RET OK', `Archivo: ${job.filename} • Nº ${out?.numero || '?'} • ${out?.outLocalPath || ''}`);
-							} catch {}
-							sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
-					} else if (tipo === 'RECIBO') {
-						const { processFacFile } = require('./modules/facturacion/facProcessor');
-						const out = await processFacFile(job.fullPath);
-						try { logSuccess('FAC RECIBO finalizado', { filename: job.filename, output: out }); } catch {}
-						sendCajaLog(`✅ RECIBO ${job.filename} → Completado`);
-					} else if (tipo === 'REMITO' || /R\.fac$/i.test(job.filename)) {
-						const { processRemitoFacFile } = require('./modules/facturacion/remitoProcessor');
-						const out = await processRemitoFacFile(job.fullPath);
-						try { logSuccess('FAC REMITO finalizado', { filename: job.filename, output: out }); } catch {}
-						sendCajaLog(`✅ REMITO ${job.filename} → Completado`);
-                    } else if (
-						tipo === 'FACTURA A' || tipo === 'FA' || /A\.fac$/i.test(job.filename) ||
-						tipo === 'FACTURA B' || tipo === 'FB' || /B\.fac$/i.test(job.filename) ||
-						/^(NOTA\s+(DE\s+)?CREDITO|NOTA\s+(DE\s+)?DEBITO)/i.test(tipo) ||
-						/^NC[AB]$/i.test(tipo) || /^ND[AB]$/i.test(tipo) ||
-						/^(1|6|2|7|3|8)$/.test(tipo)
-                    ) {
-						const { processFacturaFacFile } = require('./modules/facturacion/facProcessor');
-						const out = await processFacturaFacFile(job.fullPath);
+						try { logInfo('RETENCION procesamiento iniciado', { filename: job.filename }); } catch {}
+						const { processRetencionTxt } = require('./modules/retenciones/retencionProcessor');
+						const out = await processRetencionTxt(job.fullPath);
 						try {
-							if (out && out.ok) {
-								logSuccess('FAC FACTURA/NOTA finalizado', { filename: job.filename, output: out });
-								sendCajaLog(`✅ ${tipo} ${job.filename} → Nº ${out.numero || '?'} CAE: ${out.cae || '?'}`);
-							} else {
-								logWarning('FAC FACTURA/NOTA falló', { filename: job.filename, output: out });
-								sendCajaLog(`❌ ${tipo} ${job.filename} → ${out?.reason || 'Error desconocido'}`);
-							}
+							logSuccess('RETENCION finalizado', { filename: job.filename, numero: out?.numero, output: out?.outLocalPath });
+							// Persistir en CajaLogStore con formato unificado
+							const { cajaLog } = require('./services/CajaLogService');
+							cajaLog.success('RET OK', `Archivo: ${job.filename} • Nº ${out?.numero || '?'} • ${out?.outLocalPath || ''}`);
 						} catch {}
+						sendCajaLog(`✅ RET ${job.filename} → Nº ${out?.numero || '?'} Completado`);
+					} else if (/\.fac$/i.test(job.filename)) {
+						// ❌ DESHABILITADO: procesamiento de .fac
+						// Si un .fac llegó a esta cola (no debería), lo ignoramos
+						// ContingencyController se encargará de procesarlo
+						try { logWarning('FAC ignorado en legacy queue (será procesado por ContingencyController)', { filename: job.filename }); } catch {}
+						sendCajaLog(`ℹ️ ${job.filename} → procesado por sistema de contingencia`);
 					} else {
-						try { logInfo('FAC tipo no soportado aún', { filename: job.filename, tipo }); } catch {}
-						sendCajaLog(`⚠️ ${job.filename} → tipo "${tipo}" no soportado`);
+						try { logWarning('Archivo tipo no reconocido', { filename: job.filename }); } catch {}
+						sendCajaLog(`⚠️ ${job.filename} → tipo no reconocido`);
 					}
 				} catch (e) {
 					// No abortar toda la cola: registrar y continuar con el siguiente
-					try { logWarning('FAC procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
+					try { logWarning('Procesamiento falló', { filename: job.filename, error: String((e as any)?.message || e) }); } catch {}
 					sendCajaLog(`❌ ${job.filename} → ${String((e as any)?.message || e)}`);
 				}
 			}
@@ -2184,8 +2158,12 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		try {
 			if (!dir || !fs.existsSync(dir)) return;
 			const entries = fs.readdirSync(dir);
+			// ⚠️ SOLO procesar retenciones aquí
+			// Los archivos .fac son manejados exclusivamente por ContingencyController
+			// para evitar procesamiento duplicado que causaba emisión doble a AFIP
+			// (fix duplicación de facturas reportado por cliente - Oct 2025)
 			const facs = entries
-				.filter(name => name && (/\.fac$/i.test(name) || /^retencion.*\.txt$/i.test(name)))
+				.filter(name => name && /^retencion.*\.txt$/i.test(name))  // ❌ Removido: /\.fac$/i
 				.sort((a, b) => a.localeCompare(b));
 			for (const name of facs) {
 				const full = path.join(dir, name);
@@ -2222,19 +2200,22 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) { continue; }
 				const instance = createFacWatcher(dir, async ({ filename, fullPath, rawContent }: any) => {
 					try {
-						logInfo('UI FAC detectado → emitir fileReady', { filename, fullPath });
-						// Retenciones: encolar y procesar en la cola secuencial local
+						// ⚠️ SOLO procesar retenciones en este watcher
+						// Los archivos .fac son manejados exclusivamente por ContingencyController
+						// para evitar procesamiento duplicado que causaba emisión doble a AFIP
+						// (fix duplicación de facturas reportado por cliente - Oct 2025)
 						if (/^retencion.*\.txt$/i.test(filename)) {
+							logInfo('UI RETENCION detectado', { filename, fullPath });
 							enqueueFacFile({ filename, fullPath, rawContent });
 							processFacQueue();
 							return;
 						}
-						if (mainWindow) mainWindow.webContents.send('facturacion:fac:detected', { filename, rawContent });
-						const legacy = (global as any).legacyFacWatcherEmitter;
-						if (legacy && typeof legacy.emit === 'function') {
-							legacy.emit('fileReady', fullPath);
-						} else {
-							logWarning('UI FAC fileReady bridge no disponible; esperar contingencia', { fullPath });
+						// ❌ DESHABILITADO: procesamiento de .fac 
+						// Si llegara un .fac aquí (no debería), lo ignoramos silenciosamente
+						// ContingencyController se encargará de procesarlo
+						if (/\.fac$/i.test(filename)) {
+							logInfo('UI FAC ignorado (manejado por ContingencyController)', { filename, fullPath });
+							return;
 						}
 					} catch {}
 				});
@@ -2243,8 +2224,9 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					const handle = (instance as any).watcher || null;
 					if (!facWatcher) { facWatcher = handle; facWatcherInstance = instance; }
 					facWatcherGroup.push({ instance, watcher: handle, dir });
-					logInfo('Fac watcher (UI bridge) started', { dir });
-					// Escaneo inicial: encolar .fac y retencion*.txt ya presentes al iniciar
+					logInfo('Fac watcher (UI bridge - solo retenciones) started', { dir });
+					// Escaneo inicial: encolar SOLO retencion*.txt ya presentes al iniciar
+					// Los .fac son manejados por ContingencyController para evitar duplicación
 					try { scanFacDirAndEnqueue(dir); } catch {}
 					anyOk = true;
 				}

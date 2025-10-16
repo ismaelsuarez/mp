@@ -271,8 +271,22 @@ export class ContingencyController {
           const entries = fs.readdirSync(d);
           const found = entries.find((f) => path.basename(f, path.extname(f)).toLowerCase() === base && f.toLowerCase().endsWith('.res'));
           if (found) { 
-            console.warn('[fac.duplicate.skip]', { filePath: src, res: path.join(d, found) }); 
-            cajaLog.warn(`${name} duplicado`, 'Ya existe .res');
+            const resPath = path.join(d, found);
+            console.warn('[fac.duplicate.skip]', { filePath: src, res: resPath }); 
+            
+            // 🔥 BORRAR el archivo .fac duplicado de staging/processing
+            try {
+              if (fs.existsSync(src)) {
+                fs.unlinkSync(src);
+                console.warn('[fac.duplicate.deleted]', { filePath: src, reason: 'Ya procesado - .res encontrado' });
+              }
+            } catch (errDel) {
+              console.error('[fac.duplicate.delete.fail]', { filePath: src, error: String(errDel) });
+            }
+            
+            // 📢 Notificar a UI Caja (persistido por 24h en CajaLogStore)
+            cajaLog.warn(`${name} YA PROCESADO`, `Duplicado ignorado • .res: ${path.basename(found)}`);
+            
             this.store.ack(id); 
             return; 
           }

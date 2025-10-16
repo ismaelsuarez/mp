@@ -68,7 +68,56 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
 - Resumen diario (Caja): handler `caja:get-summary` computa, por fecha, filas `FB, FA, NCB, NCA, REC, REM` con columnas `Tipo|Desde|Hasta|Total` y un footer `Total (FA+FB)`.
 - Salud WS estricta: `WSHealthService` clasifica `up|degraded|down` con reglas más estrictas (HTTP sin respuesta ⇒ `down`; respuesta parcial o lenta ⇒ `degraded`; DNS+HTTP pleno ⇒ `up`).
 
-### 1 quater) Fix crítico: Clasificación incorrecta como EXENTO (Oct 2025)
+### 1 quater) Fix crítico: Duplicación de facturas por doble watcher (Oct 16, 2025)
+**Problema identificado:** El sistema tenía **3 watchers simultáneos** observando `C:\tmp`, causando que el mismo archivo `.fac` se procesara múltiples veces, generando **dos llamadas a AFIP** con **dos CAE/números diferentes** para un solo `.fac`.
+
+**Arquitectura problemática:**
+1. **ContingencyController** (watcher principal con cola SQLite + idempotencia SHA256)
+2. **legacyWatcher** (wrapper chokidar en bootstrap que llamaba a ContingencyController via adapter)
+3. **facWatcher** (watcher legacy en main.ts con cola en memoria, sin idempotencia)
+
+**Race condition:**
+- Los 3 watchers detectaban el archivo estable al mismo tiempo (~1500ms)
+- ContingencyController movía a staging y encolaba con SHA256
+- legacyWatcher intentaba mover/encolar (posible duplicación)
+- facWatcher procesaba directamente con `processFacturaFacFile` (sin staging, sin SHA256, sin check de .res)
+- Timing window: ambos leían el archivo ANTES de que existiera el `.res`
+- Check de duplicados fallaba porque el `.res` aún no se había generado
+- Resultado: **dos emisiones AFIP → dos CAE diferentes**
+
+**Solución implementada:**
+- **Deshabilitar procesamiento de `.fac` en facWatcher** (mantener solo retenciones)
+- Archivos modificados:
+  - `src/main.ts` líneas 2106-2155 (`processFacQueue`): solo procesa `retencion*.txt`, ignora `.fac`
+  - `src/main.ts` líneas 2183-2200 (`scanFacDirAndEnqueue`): filtra solo `retencion*.txt`
+  - `src/main.ts` líneas 2227-2246 (callback watcher): ignora `.fac`, solo encola retenciones
+  - `src/main.ts` línea 2253: log actualizado "solo retenciones"
+- **ContingencyController** es ahora el único punto de entrada para archivos `.fac`
+- Retenciones (`retencion*.txt`) siguen siendo procesadas por facWatcher (sin conflicto)
+
+**Comentarios en código:**
+```typescript
+// ⚠️ SOLO procesar retenciones en esta cola
+// Los archivos .fac (facturas/notas/recibos/remitos) son manejados por ContingencyController
+// para evitar procesamiento duplicado que causaba emisión doble a AFIP
+// (fix duplicación de facturas reportado por cliente - Oct 2025)
+```
+
+**Validación:**
+- ✅ Un solo watcher procesa `.fac` (ContingencyController)
+- ✅ Idempotencia por SHA256 + check de `.res` antes de procesar
+- ✅ Pause/Resume desde UI Caja funciona correctamente (solo ContingencyController)
+- ✅ Escaneo de pendientes al resume: `scanPendingFacs()` encola archivos en `C:\tmp`
+- ✅ Retenciones siguen funcionando en facWatcher sin conflicto
+- ✅ legacyWatcher sigue conectando con ContingencyController (sin duplicación porque comparte la misma instancia)
+
+**Impacto:**
+- Elimina duplicación de facturas reportada por cliente
+- Mantiene toda la funcionalidad existente (retenciones, pause/resume, escaneo)
+- Reduce complejidad: un solo punto de entrada para facturación AFIP
+- Preserva resiliencia del sistema (cola SQLite, circuit breaker, backoff)
+
+### 1 quinquies) Fix crítico: Clasificación incorrecta como EXENTO (Oct 2025)
 **Problema identificado:** Facturas B y Notas de Crédito B se reportaban con montos clasificados como EXENTO cuando no correspondía, causando discrepancias con los reportes AFIP/ARCA. El sistema recalculaba totales desde items en lugar de usar los TOTALES parseados del `.fac`.
 
 **Síntomas:**
@@ -242,13 +291,13 @@ flowchart TD
 
 ### 5 bis) Watcher .fac — flujos y manejo (end-to-end)
 - Componentes:
-  - `src/contingency/ContingencyController.ts` (watcher/cola), `src/contingency/LegacyWatcherAdapter.ts` (bridge legacy `fileReady`), `src/main/bootstrap/contingency.ts` (bootstrap), `src/main.ts` (watchers alternos), `src/contingency/pipeline.ts` (parse/validate/buildRequest/generatePdf/generateRes), `src/modules/facturacion/facProcessor.ts` (procesamiento directo), `src/afip/AFIPBridge.ts` (AFIP real/stub).
+  - `src/contingency/ContingencyController.ts` (watcher/cola), `src/contingency/LegacyWatcherAdapter.ts` (bridge legacy `fileReady`), `src/main/bootstrap/contingency.ts` (bootstrap), `src/main.ts` (facWatcher legacy: **solo retenciones desde Oct 16, 2025**), `src/contingency/pipeline.ts` (parse/validate/buildRequest/generatePdf/generateRes), `src/modules/facturacion/facProcessor.ts` (procesamiento directo), `src/afip/AFIPBridge.ts` (AFIP real/stub).
 - Directorios y constantes (ver 2 bis):
   - Entrada fija `C:\tmp`; base `app.getPath('userData')/fac`; subcarpetas `staging/processing/done/error/out`; estabilidad `FAC_MIN_STABLE_MS=1500`; WS (`WS_TIMEOUT_MS=12000`, `WS_RETRY_MAX=6`, `WS_BACKOFF_BASE_MS=1500`); circuito (`WS_CIRCUIT_FAILURE_THRESHOLD=5`, `WS_CIRCUIT_COOLDOWN_SEC=90`, `WS_HEALTH_INTERVAL_SEC=20`).
 - Disparadores del watcher:
   1) Principal (contingencia): `chokidar` en `C:\tmp` → evento `add` (archivo estable) → mover a `staging` → `enqueue fac.process` con `sha256`.
   2) Legacy (opcional): si existe emisor que emite `fileReady(filePath)`, el adapter invoca `enqueueFacFromPath(filePath)`.
-  3) Alterno (main): según configuración, detecta `.fac` y llama a `processFacturaFacFile/processFacFile` (sin cola). Riesgo de doble proceso si coexiste con la cola. Recomendación: deshabilitar el alterno y centralizar en cola + fallback inline.
+  3) ~~Alterno (main)~~ **DESHABILITADO (Oct 16, 2025)**: facWatcher en main.ts ahora **solo procesa retenciones** (`retencion*.txt`). Los archivos `.fac` son ignorados para evitar procesamiento duplicado. **Causa raíz eliminada**: se reportó duplicación de facturas (dos CAE para un mismo .fac) causada por race condition entre ContingencyController y facWatcher.
 - Flujo nominal por cola (worker):
   - `pop` (si circuito lo permite) → mover a `processing` → `facProcessor.processFacturaFacFile(lockPath)` → genera PDF en `outLocal/outRed*`, genera `.res` completo en `processing`, envía `.res` por FTP y borra `.res` + `.fac` → controlador mueve a `done` (si el `.fac` aún existe) → `ack`.
   - Errores: transientes (red/AFIP 5xx/timeout) ⇒ `nack` con backoff + `CircuitBreaker.recordFailure()`; permanentes (validación/negocio) ⇒ `.res` de error y mover a `error`.
