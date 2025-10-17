@@ -210,17 +210,22 @@ export class ContingencyController {
     // 🛡️ CONTROL DE DUPLICADOS TEMPRANO: Verificar si ya existe .res ANTES de encolar
     try {
       const baseName = path.basename(base, path.extname(base)).toLowerCase();
+      // Extraer últimos 8 caracteres del .fac para comparar con .res (que usa slice(-8))
+      const shortBase = baseName.slice(-8);  // Ej.: "25101711351638" → "11351638"
       const candDirs = [cfg.outDir, cfg.processing, cfg.done, cfg.staging].filter(Boolean);
       for (const d of candDirs) {
         try {
           const entries = fs.readdirSync(d);
-          const foundRes = entries.find((f) => 
-            path.basename(f, path.extname(f)).toLowerCase() === baseName && 
-            f.toLowerCase().endsWith('.res')
-          );
+          // Buscar .res que coincida con los primeros 7 caracteres (el 8vo es el sufijo de tipo)
+          const foundRes = entries.find((f) => {
+            if (!f.toLowerCase().endsWith('.res')) return false;
+            const resBase = path.basename(f, path.extname(f)).toLowerCase();
+            // Comparar primeros 7 caracteres (sin el sufijo de tipo)
+            return resBase.slice(0, 7) === shortBase.slice(0, 7);
+          });
           if (foundRes) {
             const resPath = path.join(d, foundRes);
-            console.warn('[fac.duplicate.early-skip]', { filePath, res: resPath, reason: 'Ya procesado (early check)' });
+            console.warn('[fac.duplicate.early-skip]', { filePath, res: resPath, facShort: shortBase, resShort: path.basename(foundRes, path.extname(foundRes)), reason: 'Ya procesado (early check)' });
             
             // 🔥 BORRAR el archivo .fac duplicado INMEDIATAMENTE (sin mover a staging)
             try {
@@ -299,14 +304,22 @@ export class ContingencyController {
     // Evitar reprocesar si ya existe un .res del mismo basename
     try {
       const base = path.basename(name, path.extname(name)).toLowerCase();
+      // Extraer últimos 8 caracteres del .fac para comparar con .res (que usa slice(-8))
+      const shortBase = base.slice(-8);  // Ej.: "25101711351638" → "11351638"
       const candDirs = [cfg.outDir, cfg.processing, cfg.done].filter(Boolean);
       for (const d of candDirs) {
         try {
           const entries = fs.readdirSync(d);
-          const found = entries.find((f) => path.basename(f, path.extname(f)).toLowerCase() === base && f.toLowerCase().endsWith('.res'));
+          // Buscar .res que coincida con los primeros 7 caracteres (el 8vo es el sufijo de tipo)
+          const found = entries.find((f) => {
+            if (!f.toLowerCase().endsWith('.res')) return false;
+            const resBase = path.basename(f, path.extname(f)).toLowerCase();
+            // Comparar primeros 7 caracteres (sin el sufijo de tipo)
+            return resBase.slice(0, 7) === shortBase.slice(0, 7);
+          });
           if (found) { 
             const resPath = path.join(d, found);
-            console.warn('[fac.duplicate.skip]', { filePath: src, res: resPath }); 
+            console.warn('[fac.duplicate.skip]', { filePath: src, res: resPath, facShort: shortBase, resShort: path.basename(found, path.extname(found)) }); 
             
             // 🔥 BORRAR el archivo .fac duplicado de staging/processing
             try {
