@@ -139,79 +139,121 @@ async function handleAutoButtonClick() {
 // Variable global para controlar auto-scroll
 let autoScrollEnabled = true;
 
+// 🚀 Sistema de batching ligero para evitar stalls en alta frecuencia
+let logQueue: any[] = [];
+let isProcessingQueue = false;
+let lastLogTime = Date.now();
+
 function appendLog(lineOrMessage: string | any) {
-    const box = document.getElementById('cajaLogs') as HTMLElement | null;
-    if (!box) return;
+    // Agregar a la cola
+    logQueue.push(lineOrMessage);
     
-    // Hora local de la PC (no UTC) en formato HH:MM:SS
-    // Si el mensaje tiene timestamp propio (logs históricos), usarlo
-    const timestamp = (typeof lineOrMessage === 'object' && lineOrMessage.timestamp) 
-        ? new Date(lineOrMessage.timestamp) 
-        : new Date();
-    const hh = String(timestamp.getHours()).padStart(2,'0');
-    const mm = String(timestamp.getMinutes()).padStart(2,'0');
-    const ss = String(timestamp.getSeconds()).padStart(2,'0');
-    const at = `${hh}:${mm}:${ss}`;
+    // Actualizar indicador de "última actualización"
+    updateLastLogIndicator();
     
-    // Crear un nuevo div para cada línea de log
-    const logLine = document.createElement('div');
-    logLine.style.whiteSpace = 'nowrap';
-    logLine.style.padding = '2px 0';
+    // Procesar la cola si no está procesando
+    if (!isProcessingQueue) {
+        processLogQueue();
+    }
+}
+
+function processLogQueue() {
+    if (isProcessingQueue) return;
+    if (logQueue.length === 0) return;
     
-    // Si es un objeto estructurado (nuevo sistema)
-    if (typeof lineOrMessage === 'object' && lineOrMessage.text) {
-        const msg = lineOrMessage;
-        
-        // Colores según el nivel
-        let color = '#94a3b8'; // slate-400 por defecto
-        switch (msg.level) {
-            case 'success':
-                color = '#4ade80'; // green-400
-                break;
-            case 'error':
-                color = '#f87171'; // red-400
-                break;
-            case 'warning':
-                color = '#fbbf24'; // amber-400
-                break;
-            case 'process':
-                color = '#60a5fa'; // blue-400
-                break;
-            case 'info':
-                color = '#94a3b8'; // slate-400
-                break;
+    isProcessingQueue = true;
+    
+    // Usar requestAnimationFrame para render suave sin bloquear
+    requestAnimationFrame(() => {
+        const box = document.getElementById('cajaLogs') as HTMLElement | null;
+        if (!box) {
+            isProcessingQueue = false;
+            return;
         }
         
-        logLine.style.color = color;
+        // Procesar hasta 20 logs por frame (balance entre latencia y performance)
+        const batch = logQueue.splice(0, 20);
         
-        // Formato: [HH:MM:SS] 🔔 Mensaje principal | Detalle adicional
-        const icon = msg.icon || '';
-        const timestampStr = `[${at}]`;
-        const mainText = msg.text;
-        const detail = msg.detail ? ` | ${msg.detail}` : '';
+        // Crear un fragment para agregar todo de una vez (un solo reflow)
+        const fragment = document.createDocumentFragment();
         
-        logLine.textContent = `${timestampStr} ${icon} ${mainText}${detail}`;
-    } else {
-        // Retrocompatibilidad con strings simples (sistema viejo)
-        logLine.style.color = '#94a3b8'; // slate-400
-        logLine.textContent = `[${at}] ${String(lineOrMessage)}`;
-    }
-    
-    // Agregar la línea al contenedor
-    box.appendChild(logLine);
-    
-    // Limitar a las últimas 200 líneas para no saturar el DOM
-    const maxLines = 200;
-    while (box.children.length > maxLines) {
-        box.removeChild(box.firstChild!);
-    }
-    
-    // Actualizar contador
-    updateLogCounter();
-    
-    // Auto-scroll al final cuando se agrega nueva línea (si está habilitado)
-    if (autoScrollEnabled) {
-        box.scrollTop = box.scrollHeight;
+        for (const lineOrMessage of batch) {
+            // Hora local de la PC (no UTC) en formato HH:MM:SS
+            const timestamp = (typeof lineOrMessage === 'object' && lineOrMessage.timestamp) 
+                ? new Date(lineOrMessage.timestamp) 
+                : new Date();
+            const hh = String(timestamp.getHours()).padStart(2,'0');
+            const mm = String(timestamp.getMinutes()).padStart(2,'0');
+            const ss = String(timestamp.getSeconds()).padStart(2,'0');
+            const at = `${hh}:${mm}:${ss}`;
+            
+            // Crear un nuevo div para cada línea de log
+            const logLine = document.createElement('div');
+            logLine.style.whiteSpace = 'nowrap';
+            logLine.style.padding = '2px 0';
+            
+            // Si es un objeto estructurado
+            if (typeof lineOrMessage === 'object' && lineOrMessage.text) {
+                const msg = lineOrMessage;
+                
+                // Colores según el nivel
+                let color = '#94a3b8';
+                switch (msg.level) {
+                    case 'success': color = '#4ade80'; break;
+                    case 'error': color = '#f87171'; break;
+                    case 'warning': color = '#fbbf24'; break;
+                    case 'process': color = '#60a5fa'; break;
+                    case 'info': color = '#94a3b8'; break;
+                }
+                
+                logLine.style.color = color;
+                const icon = msg.icon || '';
+                const timestampStr = `[${at}]`;
+                const mainText = msg.text;
+                const detail = msg.detail ? ` | ${msg.detail}` : '';
+                logLine.textContent = `${timestampStr} ${icon} ${mainText}${detail}`;
+            } else {
+                // Retrocompatibilidad con strings simples
+                logLine.style.color = '#94a3b8';
+                logLine.textContent = `[${at}] ${String(lineOrMessage)}`;
+            }
+            
+            fragment.appendChild(logLine);
+        }
+        
+        // Agregar todo el fragment de una vez (un solo reflow)
+        box.appendChild(fragment);
+        
+        // Limitar a las últimas 200 líneas
+        const maxLines = 200;
+        while (box.children.length > maxLines) {
+            box.removeChild(box.firstChild!);
+        }
+        
+        // Actualizar contador
+        updateLogCounter();
+        
+        // Auto-scroll si está habilitado
+        if (autoScrollEnabled) {
+            box.scrollTop = box.scrollHeight;
+        }
+        
+        isProcessingQueue = false;
+        
+        // Si hay más logs en la cola, procesar en el siguiente frame
+        if (logQueue.length > 0) {
+            processLogQueue();
+        }
+    });
+}
+
+function updateLastLogIndicator() {
+    lastLogTime = Date.now();
+    const indicator = document.getElementById('logLastUpdate');
+    if (indicator) {
+        indicator.style.color = '#4ade80'; // verde
+        indicator.textContent = '●';
+        indicator.title = `Última actualización: ${new Date().toLocaleTimeString()}`;
     }
 }
 
@@ -605,6 +647,28 @@ window.addEventListener('DOMContentLoaded', () => {
 	window.api.onCajaLog?.((message: string | any) => {
 		appendLog(message);
 	});
+	
+	// 🔄 Watchdog: detectar si los logs se "tildan" (no actualizan por >30s)
+	setInterval(() => {
+		const now = Date.now();
+		const indicator = document.getElementById('logLastUpdate');
+		if (!indicator) return;
+		
+		const timeSinceLastLog = now - lastLogTime;
+		
+		if (timeSinceLastLog > 30000) {
+			// Más de 30 segundos sin logs → indicador rojo (posible problema)
+			indicator.style.color = '#f87171'; // rojo
+			indicator.textContent = '●';
+			indicator.title = `⚠️ Sin logs desde hace ${Math.floor(timeSinceLastLog / 1000)}s`;
+		} else if (timeSinceLastLog > 15000) {
+			// Entre 15-30s → indicador amarillo (alerta)
+			indicator.style.color = '#fbbf24'; // amarillo
+			indicator.textContent = '●';
+			indicator.title = `Último log hace ${Math.floor(timeSinceLastLog / 1000)}s`;
+		}
+		// Si es menor a 15s, el indicador ya está verde por updateLastLogIndicator()
+	}, 5000); // Revisar cada 5 segundos
 
 	// 📜 Cargar logs históricos del último día al abrir la ventana
 	async function loadHistoricalLogs() {

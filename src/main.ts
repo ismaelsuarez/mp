@@ -517,7 +517,8 @@ function createMainWindow() {
 			preload: path.join(__dirname, 'preload.js'),
 			contextIsolation: true,
 			nodeIntegration: false,
-			devTools: true
+			devTools: true,
+			backgroundThrottling: false  // 🔥 Evita que los timers se "tilden" en background
 		}
 	});
 
