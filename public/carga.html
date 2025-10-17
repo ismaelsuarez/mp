@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>TODO-COMPUTACIÓN – Carga de archivos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      -webkit-app-region: no-drag;
+      user-select: none;
+    }
+    .ok-overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 4rem;
+      font-weight: 800;
+      color: #16a34a;
+      background: rgba(255,255,255,0.90);
+      z-index: 9999;
+    }
+    .dropzone {
+      border: 2px dashed #94a3b8;
+      border-radius: 12px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dropzone:hover {
+      background: #f8fafc;
+      border-color: #64748b;
+    }
+    .dropzone.dragover {
+      background: #f1f5f9;
+      border-color: #3b82f6;
+      border-width: 3px;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+  </style>
+</head>
+<body class="bg-white text-slate-800">
+  <main class="max-w-5xl mx-auto p-6 space-y-6">
+    <!-- Header -->
+    <header class="space-y-2 border-b pb-4">
+      <h1 class="text-2xl font-bold text-slate-900">📁 Carga de archivos</h1>
+      <p class="text-sm text-slate-600">Arrastrá uno o varios archivos. La extensión debe coincidir con lo solicitado.</p>
+    </header>
+
+    <!-- Metadata: Nombre, Extensión, URIs -->
+    <section id="meta" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <!-- Nombre y Extensión -->
+      <div class="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+        <div class="mb-2">
+          <span class="font-semibold text-blue-900">NOMBRE:</span>
+          <span id="nombre" class="mono text-blue-950 ml-2 font-medium"></span>
+        </div>
+        <div>
+          <span class="font-semibold text-blue-900">EXTENSIÓN:</span>
+          <span id="ext" class="mono text-blue-950 ml-2 font-medium uppercase"></span>
+        </div>
+      </div>
+      
+      <!-- URIs destino -->
+      <div class="p-4 rounded-lg bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200">
+        <div class="font-semibold text-emerald-900 mb-2">URIs destino:</div>
+        <ul id="uris" class="list-disc pl-5 mono text-xs text-emerald-950 space-y-1 max-h-20 overflow-y-auto"></ul>
+        <div class="text-xs text-emerald-700 mt-2 italic">
+          El primer URI es obligatorio; si hay más, se copiará a todos.
+        </div>
+      </div>
+    </section>
+
+    <!-- Dropzone -->
+    <section>
+      <div id="dropzone" class="dropzone">
+        <div class="text-xl font-semibold text-slate-700 mb-2">
+          📂 Arrastrá tus archivos aquí
+        </div>
+        <div class="text-sm text-slate-500">
+          o hacé clic para seleccionar desde el explorador
+        </div>
+        <input id="fileInput" type="file" class="hidden" multiple />
+      </div>
+    </section>
+
+    <!-- Tabla de archivos -->
+    <section class="border rounded-lg overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-100 text-left text-slate-700 border-b-2 border-slate-300">
+          <tr>
+            <th class="py-3 px-4 font-semibold">Nombre real</th>
+            <th class="py-3 px-4 font-semibold">Nombre a guardar</th>
+            <th class="py-3 px-4 w-24 text-center font-semibold">Borrar</th>
+          </tr>
+        </thead>
+        <tbody id="filesBody" class="divide-y divide-slate-200"></tbody>
+      </table>
+      <p id="tableEmpty" class="text-sm text-slate-400 text-center py-8 italic">
+        No hay archivos agregados.
+      </p>
+    </section>
+
+    <!-- Botones de acción -->
+    <section class="flex gap-3 justify-end pt-4 border-t">
+      <button
+        id="btnCancel"
+        class="px-6 py-2.5 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-colors shadow-md"
+      >
+        ❌ Anular
+      </button>
+      <button
+        id="btnProcess"
+        class="px-6 py-2.5 rounded-lg font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+        disabled
+      >
+        ✅ Procesar
+      </button>
+    </section>
+  </main>
+
+  <!-- Overlay de éxito -->
+  <div id="okOverlay" class="ok-overlay">
+    <div class="text-center">
+      <div class="text-8xl mb-4">✅</div>
+      <div>OK</div>
+    </div>
+  </div>
+
+  <!-- Script del renderer (NO module, IIFE) -->
+  <script src="../dist/src/renderer/carga.js"></script>
+</body>
+</html>
+

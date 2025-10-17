@@ -1,0 +1,4 @@
+NOMBRE: 02125123
+EXTENSION: pdf
+URI= C:\tmp\destino1
+URI= C:\tmp\destino2

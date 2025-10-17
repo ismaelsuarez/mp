@@ -26,6 +26,7 @@ import { getSecureStore } from './services/SecureStore';
 import { printPdf } from './services/PrintService';
 import { WSHealthService } from './ws/WSHealthService';
 import { bootstrapContingency, shutdownContingency, restartContingency } from './main/bootstrap/contingency';
+import { enqueueCarga } from './services/carga/CargaQueue';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -2037,6 +2038,19 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 		/* unificado: sin acción */
 	}
 
+	// ===== Handler para archivos carga*.txt =====
+	function handleCargaFile(fullPath: string, filename: string) {
+		try {
+			logInfo('Detectado carga*.txt', { filename, fullPath });
+			// Encolar para procesamiento (la cola maneja estabilidad y parsing)
+			enqueueCarga(fullPath, filename).catch((err) => {
+				logError('Error al encolar carga*.txt', { filename, error: err?.message || String(err) });
+			});
+		} catch (err: any) {
+			logError('Error al manejar carga*.txt', { filename, error: err?.message || String(err) });
+		}
+	}
+
 	// Watchers en tiempo real (sin intervalo)
 	function startRemoteWatcher(): boolean {
 		stopRemoteWatcher();
@@ -2049,6 +2063,15 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 				try {
 					const name = String(filename || '');
 					if (!name) return;
+                    
+					// 🔥 NUEVO: Detectar archivos carga*.txt y procesarlos separadamente
+					if (/^carga.*\.txt$/i.test(name)) {
+						const fullPath = path.join(dir, name);
+						handleCargaFile(fullPath, name);
+						return;
+					}
+					
+					// Procesamiento normal de mp.txt, dolar.txt, etc.
                     if (!/^(mp.*|a13.*|dolar(\..*)?)\.txt$/i.test(name)) return;
 					if (unifiedScanBusy) return;
 					unifiedScanBusy = true;
@@ -2058,7 +2081,7 @@ ipcMain.handle('mp-ftp:send-dbf', async () => {
 					}, 150);
 				} catch {}
 			});
-			logInfo('Remote watcher started', { dir });
+			logInfo('Remote watcher started (incluye carga*.txt)', { dir });
 			return true;
 		} catch {
 			return false;

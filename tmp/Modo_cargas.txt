@@ -1,0 +1,564 @@
+Agregar una nueva función al Modo Imagen para procesar archivos de carga. El sistema debe:
+
+Escuchar C:\tmp por archivos cuyo nombre comience con carga y termine en .txt (ej.: carga1251.txt).
+
+Al detectar uno, moverlo a una carpeta de trabajo dedicada (sin tocar el sistema de contingencia existente).
+
+Parsear su contenido (líneas en el orden):
+
+NOMBRE: (obligatorio, nombre base para los archivos a guardar)
+
+EXTENSION: (obligatorio, ej. pdf, docx, png…)
+
+URI= (1..N líneas; la primera es obligado guardar; si hay más, también copiar allí)
+
+Abrir una nueva ventana tipo VENTANA=carga (independiente como VENTANA=nueva, pero aislada) que muestre:
+
+NOMBRE, EXTENSION, y la lista de URIs (primera = obligatoria, demás = opcionales)
+
+Un dropzone para arrastrar 1..N archivos
+
+Validación: la extensión real de cada archivo debe coincidir con EXTENSION:; si no, mostrar error en la fila y no permitir procesar.
+
+Tabla:
+
+Nombre real                 Nombre a guardar           [borrar]
+facturadecompras.pdf   ==>  02125123.pdf              (x)
+facturanexa.pdf        ==>  02125123-1.pdf            (x)
+…
+
+
+Regla de nombres: el primero NOMBRE.ext, los siguientes NOMBRE-1.ext, NOMBRE-2.ext, etc.
+
+Botones: Anular (rojo) y Procesar (verde).
+
+Anular: borrar el .txt que disparó el flujo y cerrar ventana.
+
+Procesar:
+
+Para cada archivo dropeado: copiar con el nombre destino a todas las URIs informadas (crear carpetas si no existen, respetando mayúsculas del texto).
+
+Si todo OK, borrar el .txt procesado; mostrar OK centrado por 2s y cerrar ventana.
+
+Si falla algo, mostrar error claro (qué archivo/URI falló) y permitir corregir sin cerrar.
+
+⚠️ Requisitos de compatibilidad
+
+No romper la lógica de “Modo Imagen” y sus estilos (public/imagen.html).
+
+Reutilizar el sistema de logging existente (consola/logs) sin inventar uno nuevo.
+
+Mantener “subir al frente” sin robar foco como ya está implementado.
+
+Windows + rutas UNC (\\server\share\path) y discos locales (C:\..., D:\...).
+
+No usar .env nuevo: definir constantes en un módulo de config interno.
+
+Estructura a crear/modificar
+public/
+  imagen.html                 (existente, no romper)
+  carga.html                  (NUEVO) UI/UX para la ventana de carga
+
+src/
+  main/
+    bootstrap/
+      carga.ts               (NUEVO) registra watcher + cola
+    windows/
+      cargaWindow.ts         (NUEVO) fábrica de BrowserWindow VENTANA=carga
+  preload/
+    carga.preload.ts         (NUEVO) bridge seguro para IPC + diálogos
+  renderer/
+    carga.ts                 (NUEVO) lógica de UI (drag&drop, tabla, IPC)
+  services/
+    carga/
+      CargaWatcher.ts        (NUEVO) `chokidar` sobre `C:\tmp\carga*.txt`
+      CargaParser.ts         (NUEVO) parseo y validaciones
+      CargaQueue.ts          (NUEVO) cola FIFO si llegan múltiples .txt
+      CargaProcessor.ts      (NUEVO) copiar archivos a URIs + mkdir recursivo
+  main.ts                    (tocar mínimamente: importar bootstrap/carga)
+
+Constantes de configuración (sin .env)
+
+Crear src/services/carga/config.ts:
+
+export const CARGA_SOURCE_DIR = "C:\\tmp";                         // watcher
+export const CARGA_WORK_DIR   = "C:\\tmp\\cargas_work";            // donde se mueve el .txt para trabajar
+export const CARGA_OK_DIR     = "C:\\tmp\\cargas_ok";              // (opcional) si querés archivar .txt exitosos
+export const CARGA_ERR_DIR    = "C:\\tmp\\cargas_error";           // (opcional) si falla algo
+export const SUCCESS_MILLISECONDS = 2000;                          // cartel OK
+export const WINDOW_DIMENSIONS = { width: 900, height: 620 };      // tamaño razonable
+
+Lógica del watcher
+
+src/services/carga/CargaWatcher.ts
+
+import chokidar from "chokidar";
+import fs from "fs/promises";
+import path from "path";
+import { CARGA_SOURCE_DIR, CARGA_WORK_DIR } from "./config";
+import { ensureDir } from "./fsUtils";
+import { enqueueCarga } from "./CargaQueue";
+
+const reFile = /^carga.*\.txt$/i;
+
+export function startCargaWatcher() {
+  ensureDir(CARGA_WORK_DIR).catch(()=>{});
+  const watcher = chokidar.watch(CARGA_SOURCE_DIR, { ignoreInitial: false, depth: 0 });
+
+  watcher.on("add", async (filePath) => {
+    const base = path.basename(filePath);
+    if (!reFile.test(base)) return;
+
+    try {
+      await ensureDir(CARGA_WORK_DIR);
+      const dest = path.join(CARGA_WORK_DIR, base);
+      await fs.rename(filePath, dest); // mover para trabajar
+      await enqueueCarga(dest);
+      // log: enqueue ok
+    } catch (err) {
+      // log error mover/encolar
+    }
+  });
+
+  return watcher;
+}
+
+
+src/services/carga/fsUtils.ts
+
+import fs from "fs/promises";
+
+export async function ensureDir(dir: string) {
+  await fs.mkdir(dir, { recursive: true });
+}
+
+
+src/services/carga/CargaQueue.ts
+
+import { BrowserWindow } from "electron";
+import { openCargaWindow } from "../../main/windows/cargaWindow";
+import { parseCargaTxt } from "./CargaParser";
+
+type QueueItem = { txtPath: string };
+const q: QueueItem[] = [];
+let busy = false;
+
+export async function enqueueCarga(txtPath: string) {
+  q.push({ txtPath });
+  if (!busy) processQueue();
+}
+
+async function processQueue() {
+  busy = true;
+  while (q.length) {
+    const { txtPath } = q.shift()!;
+    try {
+      const parsed = await parseCargaTxt(txtPath);
+      await openCargaWindow({ txtPath, parsed }); // maneja flujo y espera cierre
+    } catch (err) {
+      // log error parse/open; opcional mover a ERR_DIR
+    }
+  }
+  busy = false;
+}
+
+
+src/services/carga/CargaParser.ts
+
+import fs from "fs/promises";
+
+export type CargaData = {
+  nombre: string;        // NOMBRE:
+  extension: string;     // EXTENSION: (sin punto, ej "pdf")
+  uris: string[];        // 1..N
+};
+
+export async function parseCargaTxt(txtPath: string): Promise<CargaData> {
+  const raw = await fs.readFile(txtPath, "utf8");
+  const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+  let nombre = "";
+  let extension = "";
+  const uris: string[] = [];
+
+  for (const line of lines) {
+    if (/^NOMBRE\s*:/i.test(line)) {
+      nombre = line.split(":")[1]?.trim() || "";
+    } else if (/^EXTENSION\s*:/i.test(line)) {
+      extension = line.split(":")[1]?.trim() || "";
+    } else if (/^URI\s*=/i.test(line)) {
+      uris.push(line.split("=")[1]?.trim() || "");
+    }
+  }
+
+  if (!nombre) throw new Error("Falta NOMBRE:");
+  if (!extension) throw new Error("Falta EXTENSION:");
+  if (uris.length === 0) throw new Error("Debe venir al menos un URI=");
+
+  // Sanitizaciones básicas
+  nombre = nombre.replace(/[\\/:*?"<>|]/g, "_");
+  extension = extension.replace(/^\./, "").toLowerCase();
+
+  return { nombre, extension, uris };
+}
+
+
+src/services/carga/CargaProcessor.ts
+
+import path from "path";
+import fs from "fs/promises";
+import { ensureDir } from "./fsUtils";
+
+export type FileToProcess = { realPath: string; targetName: string };
+
+export async function processFilesToUris(files: FileToProcess[], uris: string[]) {
+  for (const file of files) {
+    const buf = await fs.readFile(file.realPath); // para copiar a varias URIs
+    for (const uri of uris) {
+      const destDir = uri; // respeta mayúsculas como vienen
+      await ensureDir(destDir);
+      const destPath = path.join(destDir, file.targetName);
+      await fs.writeFile(destPath, buf);
+    }
+  }
+}
+
+Ventana VENTANA=carga
+
+src/main/windows/cargaWindow.ts
+
+import { BrowserWindow, ipcMain, app } from "electron";
+import path from "path";
+import fs from "fs/promises";
+import { processFilesToUris } from "../../services/carga/CargaProcessor";
+import { SUCCESS_MILLISECONDS } from "../../services/carga/config";
+
+type OpenOpts = {
+  txtPath: string;
+  parsed: { nombre: string; extension: string; uris: string[] };
+};
+
+export function openCargaWindow(opts: OpenOpts): Promise<void> {
+  return new Promise((resolve) => {
+    const win = new BrowserWindow({
+      width: 900,
+      height: 620,
+      show: false,
+      frame: true, // puede ser frameless si lo usan así
+      webPreferences: {
+        preload: path.join(app.getAppPath(), "dist", "src", "preload", "carga.preload.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+      },
+    });
+
+    win.once("ready-to-show", () => win.show());
+
+    // Cargar HTML de carga
+    win.loadFile(path.join(app.getAppPath(), "public", "carga.html"));
+
+    // Enviar datos de inicio
+    ipcMain.once("carga:request-init", (e) => {
+      e.reply("carga:init", opts.parsed);
+    });
+
+    // Cancelar
+    ipcMain.once("carga:cancel", async () => {
+      try { await fs.unlink(opts.txtPath); } catch {}
+      if (!win.isDestroyed()) win.close();
+      resolve();
+    });
+
+    // Procesar
+    ipcMain.once("carga:process", async (event, files: { realPath: string; targetName: string }[]) => {
+      try {
+        await processFilesToUris(files, opts.parsed.uris);
+        try { await fs.unlink(opts.txtPath); } catch {}
+        event.reply("carga:done", { ok: true, ms: SUCCESS_MILLISECONDS });
+      } catch (err: any) {
+        event.reply("carga:error", { message: err?.message || String(err) });
+      }
+    });
+
+    win.on("closed", () => resolve());
+  });
+}
+
+
+src/preload/carga.preload.ts
+
+import { contextBridge, ipcRenderer, dialog } from "electron";
+
+contextBridge.exposeInMainWorld("CargaAPI", {
+  requestInit() { ipcRenderer.send("carga:request-init"); },
+  onInit(cb: (data:any)=>void) { ipcRenderer.on("carga:init", (_e, d)=>cb(d)); },
+  cancel() { ipcRenderer.send("carga:cancel"); },
+  process(files: {realPath:string; targetName:string}[]) {
+    ipcRenderer.send("carga:process", files);
+  },
+  onDone(cb:(p:{ok:boolean; ms:number})=>void){ ipcRenderer.on("carga:done", (_e,d)=>cb(d)); },
+  onError(cb:(p:{message:string})=>void){ ipcRenderer.on("carga:error", (_e,d)=>cb(d)); },
+});
+
+HTML de la ventana
+
+public/carga.html
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>MP – Carga de archivos</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .ok-overlay{
+      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
+      font-size:4rem; font-weight:800; color:#16a34a; background:rgba(255,255,255,0.85);
+    }
+    .dropzone {
+      border:2px dashed #94a3b8; border-radius:12px; padding:24px; text-align:center;
+    }
+    .dropzone.dragover { background:#f1f5f9; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+  </style>
+</head>
+<body class="bg-white text-slate-800">
+  <main class="max-w-4xl mx-auto p-6 space-y-6">
+    <header class="space-y-2">
+      <h1 class="text-2xl font-semibold">Carga de archivos</h1>
+      <p class="text-sm text-slate-500">Arrastrá uno o varios archivos; la extensión debe coincidir con lo solicitado.</p>
+    </header>
+
+    <section id="meta" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div class="p-4 rounded-lg bg-slate-50">
+        <div><span class="font-semibold">NOMBRE:</span> <span id="nombre" class="mono"></span></div>
+        <div><span class="font-semibold">EXTENSIÓN:</span> <span id="ext" class="mono"></span></div>
+      </div>
+      <div class="p-4 rounded-lg bg-slate-50">
+        <div class="font-semibold mb-1">URIs destino:</div>
+        <ul id="uris" class="list-disc pl-5 mono"></ul>
+        <div class="text-xs text-slate-500 mt-1">Se guardará siempre en la primera URI; si hay más, también se copiará allí.</div>
+      </div>
+    </section>
+
+    <section>
+      <div id="dropzone" class="dropzone">
+        <div class="text-lg">Arrastrá tus archivos aquí</div>
+        <div class="text-xs text-slate-500 mt-1">o hacé clic para seleccionar</div>
+        <input id="fileInput" type="file" class="hidden" multiple />
+      </div>
+    </section>
+
+    <section>
+      <table class="w-full text-sm">
+        <thead class="text-left text-slate-500 border-b">
+          <tr>
+            <th class="py-2">Nombre real</th>
+            <th class="py-2">Nombre a guardar</th>
+            <th class="py-2 w-20">Borrar</th>
+          </tr>
+        </thead>
+        <tbody id="filesBody"></tbody>
+      </table>
+      <p id="tableEmpty" class="text-sm text-slate-400 mt-2">No hay archivos agregados.</p>
+    </section>
+
+    <section class="flex gap-3 justify-end">
+      <button id="btnCancel" class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700">Anular</button>
+      <button id="btnProcess" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50" disabled>Procesar</button>
+    </section>
+  </main>
+
+  <div id="okOverlay" class="ok-overlay">OK</div>
+
+  <script src="../dist/src/renderer/carga.js"></script>
+</body>
+</html>
+
+Lado renderer
+
+src/renderer/carga.ts
+
+declare global {
+  interface Window {
+    CargaAPI: {
+      requestInit(): void;
+      onInit(cb:(d:any)=>void): void;
+      cancel(): void;
+      process(files:{realPath:string; targetName:string}[]): void;
+      onDone(cb:(p:{ok:boolean; ms:number})=>void): void;
+      onError(cb:(p:{message:string})=>void): void;
+    }
+  }
+}
+
+type AddedFile = { realPath: string; realName: string; targetName: string; valid: boolean; error?: string };
+
+let meta: { nombre:string; extension:string; uris:string[] } = { nombre:"", extension:"", uris:[] };
+let files: AddedFile[] = [];
+
+const nombreEl = document.getElementById("nombre")!;
+const extEl = document.getElementById("ext")!;
+const urisEl = document.getElementById("uris")!;
+const dropzone = document.getElementById("dropzone")!;
+const fileInput = document.getElementById("fileInput") as HTMLInputElement;
+const filesBody = document.getElementById("filesBody")!;
+const tableEmpty = document.getElementById("tableEmpty")!;
+const btnCancel = document.getElementById("btnCancel")!;
+const btnProcess = document.getElementById("btnProcess")!;
+const okOverlay = document.getElementById("okOverlay")! as HTMLDivElement;
+
+function refreshTable() {
+  filesBody.innerHTML = "";
+  if (files.length === 0) {
+    tableEmpty.style.display = "block";
+    btnProcess.setAttribute("disabled","true");
+    return;
+  }
+  tableEmpty.style.display = "none";
+  btnProcess.toggleAttribute("disabled", !files.every(f => f.valid));
+
+  files.forEach((f, idx) => {
+    const tr = document.createElement("tr");
+    tr.className = "border-b";
+    const tdReal = document.createElement("td");
+    tdReal.className = "py-2 mono";
+    tdReal.textContent = f.realName + (f.error ? `  [${f.error}]` : "");
+    if (f.error) tdReal.classList.add("text-red-600");
+
+    const tdTarget = document.createElement("td");
+    tdTarget.className = "py-2 mono";
+    tdTarget.textContent = `${f.targetName}`;
+
+    const tdDel = document.createElement("td");
+    tdDel.className = "py-2";
+    const btn = document.createElement("button");
+    btn.className = "px-2 py-1 rounded bg-slate-200 hover:bg-slate-300";
+    btn.textContent = "borrar";
+    btn.onclick = () => {
+      files.splice(idx,1);
+      recomputeTargets();
+      refreshTable();
+    };
+    tdDel.appendChild(btn);
+
+    tr.appendChild(tdReal);
+    tr.appendChild(tdTarget);
+    tr.appendChild(tdDel);
+    filesBody.appendChild(tr);
+  });
+}
+
+function recomputeTargets() {
+  files.forEach((f, i) => {
+    const suffix = i === 0 ? "" : `-${i}`;
+    f.targetName = `${meta.nombre}${suffix}.${meta.extension}`;
+  });
+}
+
+function addDropped(file: File & { path?: string }) {
+  const p = (file as any).path as string | undefined;
+  const realPath = p || file.name; // si no expone .path, igual mostramos
+  const realName = file.name;
+  const ext = realName.split(".").pop()?.toLowerCase() || "";
+  const valid = ext === meta.extension.toLowerCase();
+  const error = valid ? undefined : `Extensión ${ext} ≠ ${meta.extension}`;
+  files.push({ realPath, realName, targetName: "", valid, error });
+  recomputeTargets();
+}
+
+function handleFilesList(list: FileList) {
+  for (let i=0;i<list.length;i++) addDropped(list[i] as any);
+  refreshTable();
+}
+
+dropzone.addEventListener("click", ()=> fileInput.click());
+fileInput.addEventListener("change", ()=> {
+  if (fileInput.files) handleFilesList(fileInput.files);
+});
+
+["dragenter","dragover"].forEach(ev => {
+  dropzone.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.add("dragover");
+  });
+});
+["dragleave","drop"].forEach(ev => {
+  dropzone.addEventListener(ev, (e) => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.remove("dragover");
+  });
+});
+dropzone.addEventListener("drop", (e) => {
+  const dt = e.dataTransfer;
+  if (!dt) return;
+  const items = dt.files;
+  if (items) handleFilesList(items);
+});
+
+btnCancel.addEventListener("click", ()=> window.CargaAPI.cancel());
+
+btnProcess.addEventListener("click", ()=> {
+  const payload = files.filter(f => f.valid && f.realPath).map(f => ({
+    realPath: f.realPath!,
+    targetName: f.targetName
+  }));
+  window.CargaAPI.process(payload);
+});
+
+window.CargaAPI.onDone(({ok, ms})=>{
+  if (!ok) return;
+  okOverlay.style.display = "flex";
+  setTimeout(()=> window.close(), ms);
+});
+window.CargaAPI.onError(({message})=>{
+  alert("Error al procesar: " + message);
+});
+
+window.CargaAPI.onInit((data)=>{
+  meta = data;
+  nombreEl.textContent = meta.nombre;
+  extEl.textContent = meta.extension;
+  urisEl.innerHTML = "";
+  meta.uris.forEach((u, i) => {
+    const li = document.createElement("li");
+    li.textContent = (i===0? "[OBLIGATORIA] ":"") + u;
+    urisEl.appendChild(li);
+  });
+});
+
+window.addEventListener("DOMContentLoaded", ()=> {
+  window.CargaAPI.requestInit();
+});
+
+Bootstrap y registro en main.ts
+
+src/main/bootstrap/carga.ts
+
+import { app } from "electron";
+import { startCargaWatcher } from "../../services/carga/CargaWatcher";
+
+export function bootstrapCarga() {
+  startCargaWatcher();
+}
+
+// En main.ts, después del app.whenReady():
+// import { bootstrapCarga } from "./bootstrap/carga";
+// bootstrapCarga();
+
+Criterios de aceptación
+
+ Al droppear archivos con extensión correcta, el botón Procesar se habilita.
+
+ Si una extensión no coincide, mostrar error en esa fila y no habilitar “Procesar” hasta corregir.
+
+ En “Procesar”, copiar todos los archivos con sus nombres de destino a todas las URIs; crear directorios si no existen.
+
+ Borrar el .txt al Anular o al finalizar Procesar exitosamente.
+
+ Mostrar “OK” 2s y cerrar.
+
+ Soporta múltiples carga*.txt: procesa uno por vez (cola).
+
+ No afecta ni rompe public/imagen.html ni los modos previos.

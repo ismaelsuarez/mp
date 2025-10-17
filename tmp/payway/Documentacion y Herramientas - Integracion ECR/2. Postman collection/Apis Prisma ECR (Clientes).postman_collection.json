@@ -1,0 +1,1879 @@
+{
+	"info": {
+		"_postman_id": "ba14cc85-b855-421e-9e14-f90949e4a47e",
+		"name": "Apis Prisma ECR (Clientes)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "23914204"
+	},
+	"item": [
+		{
+			"name": "Payments",
+			"item": [
+				{
+					"name": "/payments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"\r",
+									"pm.globals.set(\"g_pid\", jsonData.payment_data.payment_id);\r",
+									"pm.globals.set(\"g_cuitid\", jsonData.payment_request_data.terminals_list[0].cuit_cuil);\r",
+									"pm.globals.set(\"g_subid\", jsonData.payment_request_data.subnet_acquirer_id);\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text",
+								"disabled": true
+							},
+							{
+								"key": "cuit_cuil",
+								"value": "{{cuit_cuil}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"payment_request_data\": {\r\n    \"subnet_acquirer_id\": \"9\",\r\n    \"payment_amount\": \"100000\",\r\n    \"terminal_menu_text\": \"Pago x\",\r\n    \"ecr_provider\": \"ECR\",\r\n    \"ecr_name\": \"Software x\",\r\n    \"ecr_version\": \"3.5\",    \r\n    \"change_amount\": \"0\",\r\n    \"ecr_transaction_id\": null,  \r\n    \"installments_number\": \"1\",\r\n    \"bank_account_type\": null,\r\n    \"payment_plan_id\": null,\r\n    \"print_method\": \"MOBITEF_NON_FISCAL\",\r\n    \"print_copies\": \"BOTH\",\r\n    \"terminals_list\": [\r\n      {\r\n        \"terminal_id\": \"38011002\"\r\n      }\r\n    ],\r\n    \"card_brand_product\": null,\r\n    \"terminal_operation_method\": \"CARD\",\r\n    \"qr_benefit_code\": true,\r\n    \"trx_receipt_notes\": \"nota impresa en el ticket\",    \r\n    \"card_holder_id\": null\r\n  }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments?cuit_cuil=20-90907140-2",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907140-2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments Comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"\r",
+									"pm.globals.set(\"g_pid\", jsonData.payment_data.payment_id);\r",
+									"pm.globals.set(\"g_cuitid\", jsonData.payment_request_data.terminals_list[0].cuit_cuil);\r",
+									"pm.globals.set(\"g_subid\", jsonData.payment_request_data.subnet_acquirer_id);\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text",
+								"disabled": true
+							},
+							{
+								"key": "cuit_cuil",
+								"value": "{{cuit_cuil}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n  \"payment_request_data\": {\r\n    \"subnet_acquirer_id\": \"9\",       \"__comment\":\"1-Sandbox,2-Produccion,9-Homologacion\",\r\n    \"payment_amount\": \"100000\",      \"__comment\":\"Los 2 ultimos digitos son decimales\",\r\n    \"terminal_menu_text\": \"Pago x\",  \"__comment\":\"Texto que se va a ver reflejado en la terminal\",\r\n    \"ecr_provider\": \"ECR\",          \"__comment\":\"nombre del proveedor de la  integracion, a cambiar por el integrador\",\r\n    \"ecr_name\": \"Software x\",       \"__comment\":\"Nombre de la integracion, a cambiar por el integrador\",\r\n    \"ecr_version\": \"3.5\",           \"__comment\":\"version de la integracion, a cambiar por el integrador\",\r\n    \"change_amount\": \"0\",            \"__comment\":\"Para retirar efectivo de pagos con debito\",\r\n    \"ecr_transaction_id\": null,       \"__comment\":\"campo opcional, puede hacer referencia a un identificador externo, como numero de factura, pedido, etc\",    \r\n    \"installments_number\": \"1\",      \"__comment\":\"numero de cuotas, si se envia null te lo pregunta manualmente la terminal\",\r\n    \"bank_account_type\": null,       \"__comment\":\"tipo de cuenta,si se envia null, en caso de requerirlo, te lo pregunta la terminal\", \r\n    \"payment_plan_id\": null,       \"__comment\":\"identificacion de plan, si se envia null, en caso de requerirlo, te lo pregunta la terminal\", \r\n    \"print_method\": \"MOBITEF_NON_FISCAL\",  \"__comment\":\"Para argentina se utiliza siempre No Fiscal\",\r\n    \"print_copies\": \"BOTH\",          \"__comment\":\"[ MERCHANT_ONLY (solo copia comercio), CUSTOMER_ONLY (solo copia cliente), BOTH (ambas), NONE (ninguna) ]\",\r\n    \"terminals_list\": [\r\n      {\r\n        \"terminal_id\": \"38011002\"   \"__comment\":\"numero de terminal\"\r\n      }\r\n    ],\r\n    \"card_brand_product\": null,           \"__comment\":\"Se puede restringir la marca de la tarjeta (EJ: Visa-VI)\",  \r\n    \"terminal_operation_method\": \"CARD\",  \"__comment\":\"CARD: TARJETA - QR_CODE: QR\",\r\n    \"qr_benefit_code\": true,     \"__comment\":\"define si acepta tarjeta de beneficio (no activo en modo)\",\r\n    \"trx_receipt_notes\": \"nota impresa en el ticket\",    \r\n    \"card_holder_id\": null   \"__comment\":\"campo opcional para insertar el DNI del cliente\"\r\n  }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments?cuit_cuil=CUIT de la terminal",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "CUIT de la terminal"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments/searches",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n   \"filters\": [\r\n    {\r\n      \"operation\": \"btw\",\r\n      \"field\": \"payment_date\",\r\n      \"values\": [\r\n        \"2023-03-13T03:00:00.000Z\",\r\n        \"2023-03-14T23:59:59.999Z\"\r\n      ]\r\n        },\r\n        {\r\n            \"operation\": \"eq\",\r\n            \"field\": \"req_terminal_id\",\r\n            \"values\": [\r\n                \"38011002\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": {\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"payment_id\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments/searches?cuit_cuil=20-90907140-2",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments",
+								"searches"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907140-2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments/searches Comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{ \"__comment\":\"con esta funcion es posible buscar transacciones filtrandolas por distintos parametros\",\r\n   \"filters\": [\r\n    {  \"__comment\":\"abajo se realiza un filtro inicial por fecha el operador btw significa entre\",\r\n      \"operation\": \"btw\",\r\n      \"field\": \"payment_date\",\r\n      \"values\": [\r\n        \"2023-03-13T03:00:00.000Z\",\r\n        \"2023-03-14T23:59:59.999Z\"\r\n      ]\r\n        },\r\n        {  \"__comment\":\"en el ejemplo de abajo se muestra como filtrar por numero de terminal\",\r\n            \"operation\": \"eq\",\r\n            \"field\": \"req_terminal_id\",\r\n            \"values\": [\r\n                \"38011002\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": { \r\n        \"__comment\":\"a continuacion se muestra como configurar el numero de transacciones por pagina (Page size) y el numero de pagina que se mostrara (page number) \",\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"__comment\":\"con sorting se configuraran los parametros de ordenamiento de la busqueda. Por ejemplo el elemento por el cual se ordenara ls busqueda (sort by) y el tipos de orde, ascendente o descendente (ASC o DES) (sort order) \",\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"payment_id\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments/searches?cuit_cuil=CUIT de la terminal",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments",
+								"searches"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "CUIT de la terminal",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tar no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\""
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments/{payment_id}",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments/:payment_id?subnet_acquirer_id=9&cuit_cuil=20-90907140-2&Nota : ",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments",
+								":payment_id"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907140-2"
+								},
+								{
+									"key": "Nota : ",
+									"value": null,
+									"description": "Sirve para saber el estado del pago actual"
+								}
+							],
+							"variable": [
+								{
+									"key": "payment_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381",
+									"description": "id de pago devuelto en el response del primer request."
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments/{payment_id} Comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": ""
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments/:payment_id?subnet_acquirer_id=9&cuit_cuil=CUIT de la terminal",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments",
+								":payment_id"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "1-Sandbox,2-Produccion,9-Homologacion"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "CUIT de la terminal",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tar no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\""
+								}
+							],
+							"variable": [
+								{
+									"key": "payment_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381",
+									"description": "Payment ID asociado a la compra"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/payments/{payment_id}/cancellations -- Cancela intenciones de pago",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/payments/:payment_id/cancellations?subnet_acquirer_id=9&cuit_cuil=20-90907140-2",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"payments",
+								":payment_id",
+								"cancellations"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "1-Sandbox,2-Produccion,9-Homologacion"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907140-2",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tal no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\"\n"
+								}
+							],
+							"variable": [
+								{
+									"key": "payment_id",
+									"value": "0b0149d3-4dd6-46a5-88fb-7741ecd75012",
+									"description": "Payment_ID asociado a la venta original."
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/echo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/echo/:message",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"echo",
+								":message"
+							],
+							"variable": [
+								{
+									"key": "message",
+									"value": "hello"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/echo_comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/echo/:message",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"echo",
+								":message"
+							],
+							"variable": [
+								{
+									"key": "message",
+									"value": "hello"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api-docs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/api-docs",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"api-docs"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api-docs comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_payments/api-docs",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_payments",
+								"api-docs"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Reversals",
+			"item": [
+				{
+					"name": "/reversals",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"reversal_request_data\": {\r\n        \"subnet_acquirer_id\": \"9\", \r\n        \"payment_id\": \"ca3d6acf-d933-4cb7-aed4-48128b7b7381\",\r\n        \"ecr_transaction_id\": \"123456ABCDEF\",\r\n        \"terminal_menu_text\": \"Pedido 001 R$15,00\",\r\n        \"print_copies\": 2,\r\n        \"terminals_list\": [\r\n            {\r\n               \"terminal_id\": \"38011002\" \r\n            }\r\n        ]\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/reversals_comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"reversal_request_data\": {\r\n        \"subnet_acquirer_id\": \"9\",   \"__comment\":\"1-Sandbox,2-Produccion,9-Homologacion\",\r\n        \"payment_id\": \"ca3d6acf-d933-4cb7-aed4-48128b7b7381\", \"__comment\":\" ID de Pago a devolver generado en el response original de la venta\",\r\n        \"terminal_menu_text\": \"Pedido 001 R$15,00\", \"__comment\":\"texto que figurara en la intencion de devolucion en la terminal\",\r\n        \"print_copies\": 2,\r\n        \"terminals_list\": [\r\n            {\r\n               \"terminal_id\": \"38011002\" \r\n            }\r\n        ]\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0",
+									"description": "El cuit_cuil que se invoca debe ser el configurado en la terminal a la que se quiere llegar."
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/reversals/searches",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"filters\": [\r\n        {\r\n            \"operation\": \"btw\",\r\n            \"field\": \"reversal_request_date\",\r\n            \"values\": [\r\n                \"2021-09-13T18:00:00.000Z\",\r\n                \"2021-09-13T23:59:59.999Z\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": {\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"reversal_request_date\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals/searches?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals",
+								"searches"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/reversals/searches Comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"__comment\":\"con esta funcion es posible buscar reversos filtrandolss por distintos parametros\",\r\n    \"filters\": [\r\n        {\"__comment\":\"abajo se realiza un filtro inicial por fecha el operador btw significa entre\",\r\n            \"operation\": \"btw\",\r\n            \"field\": \"reversal_request_date\",\r\n            \"values\": [\r\n                \"2021-09-13T18:00:00.000Z\",\r\n                \"2021-09-13T23:59:59.999Z\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": {\"__comment\":\"a continuacion se muestra como configurar el numero de transacciones por pagina (Page size) y el numero de pagina que se mostrara (page number) \",\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"__comment\":\"con sorting se configuraran los parametros de ordenamiento de la busqueda. Por ejemplo el elemento por el cual se ordenara ls busqueda (sort by) y el tipos de orde, ascendente o descendente (ASC o DES) (sort order) \",\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"reversal_request_date\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals/searches?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals",
+								"searches"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/reversals/{payment_id}",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals/:payment_id?cuit_cuil=20-90907144-0&subnet_acquirer_id=9",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals",
+								":payment_id"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tar no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\""
+								},
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "1-Sandbox,2-Produccion,9-Homologacion"
+								}
+							],
+							"variable": [
+								{
+									"key": "payment_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381",
+									"description": "Payment ID asociado a la compra"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/reversals/{payment_id}/cancellations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/reversals/:payment_id/cancellations?cuit_cuil=20-90907144-0&subnet_acquirer_id=9&Nota",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"reversals",
+								":payment_id",
+								"cancellations"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tar no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\""
+								},
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "Homologacion"
+								},
+								{
+									"key": "Nota",
+									"value": null,
+									"description": "Cancela la intencion de reversal asociada al payment id"
+								}
+							],
+							"variable": [
+								{
+									"key": "payment_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381",
+									"description": "payment id devuelto en el primer request de payments.\n"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/echo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/echo/:message",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"echo",
+								":message"
+							],
+							"variable": [
+								{
+									"key": "message",
+									"value": "hola"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api-docs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_reversals/api-docs",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_reversals",
+								"api-docs"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Refunds - Funcionamiento similar a reversal pero permire devoluciones libres.- Ver comments en reversals.",
+			"item": [
+				{
+					"name": "/refunds",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"\r",
+									"pm.globals.set(\"g_rid\", jsonData.refund_data.refund_id);\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"subnet_acquirer_id\": \"9\",\r\n    \"refund_amount\": \"1102\",\r\n    \"terminal_menu_text\": \"Devolución NR $11,00\",\r\n    \"ecr_provider\": \"Software Company\",\r\n    \"ecr_name\": \"Software Name\",\r\n    \"ecr_version\": \"1.0\",\r\n    \"ecr_transaction_id\": null,\r\n    \"print_copies\": \"BOTH\",\r\n    \"terminals_list\": [\r\n        {\r\n            \"terminal_id\": \"38011002\"\r\n        }\r\n    ],\r\n    \"card_brand_product\": null\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/refunds?cuit_cuil=20-90907140-2",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"refunds"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907140-2"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/refunds  Comentado",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"\r",
+									"pm.globals.set(\"g_rid\", jsonData.refund_data.refund_id);\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"subnet_acquirer_id\": \"9\",      \"__comment\":\"1-Sandbox,2-Produccion,9-Homologacion\",\r\n    \"refund_amount\": \"1102\",         \"__comment\":\"Monto a devolver - Los 2 ultimos digitos son decimales\",\r\n    \"terminal_menu_text\": \"Devolución NR $11,00\",     \"__comment\":\"Texto que se va a ver reflejado en la terminal\",\r\n    \"ecr_provider\": \"Software Company\",    \"__comment\":\"nombre del proveedor de la  integracion, a cambiar por el integrador\",\r\n    \"ecr_name\": \"Software Name\",       \"__comment\":\"Nombre de la integracion, a cambiar por el integrador\",\r\n    \"ecr_version\": \"1.0\",      \"__comment\":\"version de la integracion, a cambiar por el integrador\",\r\n    \"ecr_transaction_id\": null,     \"__comment\":\"campo opcional, puede hacer referencia a un identificador externo, como numero de factura, pedido, etc\",   \r\n    \"print_copies\": \"BOTH\",   \"__comment\":\"[ MERCHANT_ONLY (solo copia comercio), CUSTOMER_ONLY (solo copia cliente), BOTH (ambas), NONE (ninguna) ]\",\r\n    \"terminals_list\": [\r\n        {\r\n            \"terminal_id\": \"ID de la terminal\"\r\n        }\r\n    ],\r\n    \"card_brand_product\": null     \"__comment\":\"Se puede restringir la marca de la tarjeta (EJ: Visa-VI)\",  \r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/refunds?cuit_cuil=CUIT de la terminal",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"refunds"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "CUIT de la terminal"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/refunds/searches",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"filters\": [\r\n        {\r\n            \"operation\": \"btw\",\r\n            \"field\": \"refund_request_date\",\r\n            \"values\": [\r\n                \"2021-09-16T01:00:00.000Z\",\r\n                \"2021-09-16T23:59:59.999Z\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": {\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"refund_request_date\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/refunds?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"refunds"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/refunds/{refund_id}",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/refunds/:refund_id?subnet_acquirer_id=9&cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"refunds",
+								":refund_id"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "Homologacion"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							],
+							"variable": [
+								{
+									"key": "refund_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/refunds/{refund_id}/cancellations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/refunds/:refund_id/cancellations?cuit_cuil=20-90907144-0&subnet_acquirer_id=9",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"refunds",
+								":refund_id",
+								"cancellations"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								},
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "Homologacion"
+								}
+							],
+							"variable": [
+								{
+									"key": "refund_id",
+									"value": "ca3d6acf-d933-4cb7-aed4-48128b7b7381"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/echo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/echo/:message",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"echo",
+								":message"
+							],
+							"variable": [
+								{
+									"key": "message",
+									"value": "hola"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api-docs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_refunds/api-docs",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_refunds",
+								"api-docs"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Settlements - Api de cierres",
+			"item": [
+				{
+					"name": "/settlements",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = JSON.parse(responseBody);\r",
+									"\r",
+									"pm.globals.set(\"g_sid\", jsonData.settlements_data.settlement_id);\r",
+									"\r",
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text",
+								"disabled": true
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/settlements?subnet_acquirer_id=9&cuit_cuil=20-90907144-0&terminal_id=38011002&print_receipt=true",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"settlements"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9",
+									"description": "1-Sandbox,2-Produccion,9-Homologacion"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0",
+									"description": "el parametro cuit_cuil esta asociado al cuit_cuil identificado en la terminal, en este ejemplo esta variable como tar no se esta usando sino que el valor esta harcodeado en la llamada \"&cuit_cuil=20-90907140-2\""
+								},
+								{
+									"key": "terminal_id",
+									"value": "38011002",
+									"description": "ingresar el numero de terminal a cerrw"
+								},
+								{
+									"key": "print_receipt",
+									"value": "true",
+									"description": "imprimir comprobante? true or false                                                                                                                                                           "
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/settlements/searches -- Idem a searches de payments",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"filters\": [\r\n        {\r\n            \"operation\": \"btw\",\r\n            \"field\": \"settlement_request_date\",\r\n            \"values\": [\r\n                \"2022-11-01T01:00:00.000Z\",\r\n                \"2022-11-30T23:59:59.999Z\"\r\n            ]\r\n        }\r\n    ],\r\n    \"paging\": {\r\n        \"page_size\": \"10\",\r\n        \"page_number\": \"0\"\r\n    },\r\n    \"sorting\": {\r\n        \"sort_order\": \"ASC\",\r\n        \"sort_by\": \"settlement_request_date\"\r\n    }\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/settlements/searches?cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"settlements",
+								"searches"
+							],
+							"query": [
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/settlements/{settlement_id}",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/settlements?subnet_acquirer_id=9&cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"settlements"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/settlements/{settlement_id} Devuelve el estado de un cierre",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "x-api-key",
+								"value": "{{x-api-key}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/settlements?subnet_acquirer_id=9&cuit_cuil=20-90907144-0",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"settlements"
+							],
+							"query": [
+								{
+									"key": "subnet_acquirer_id",
+									"value": "9"
+								},
+								{
+									"key": "cuit_cuil",
+									"value": "20-90907144-0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/echo",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/echo/:message",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"echo",
+								":message"
+							],
+							"variable": [
+								{
+									"key": "message",
+									"value": "hola"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "/api-docs",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "https://api-homo.prismamediosdepago.com/v1/paystore_terminals/terminal_settlements/api-docs",
+							"protocol": "https",
+							"host": [
+								"api-homo",
+								"prismamediosdepago",
+								"com"
+							],
+							"path": [
+								"v1",
+								"paystore_terminals",
+								"terminal_settlements",
+								"api-docs"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Token",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"var jsonData = JSON.parse(responseBody);\r",
+							"pm.environment.set(\"token_qa\", jsonData.access_token);\r",
+							"\r",
+							"pm.test(\"Status code is 200\", function () {\r",
+							"    pm.response.to.have.status(200);\r",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "API key secreta",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "API key pública",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials",
+							"type": "text",
+							"disabled": true
+						}
+					]
+				},
+				"url": {
+					"raw": "https://api-homo.prismamediosdepago.com/v1/oauth/accesstoken?grant_type=client_credentials",
+					"protocol": "https",
+					"host": [
+						"api-homo",
+						"prismamediosdepago",
+						"com"
+					],
+					"path": [
+						"v1",
+						"oauth",
+						"accesstoken"
+					],
+					"query": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "TOKEN",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
