@@ -937,6 +937,24 @@ app.whenReady().then(() => {
 		return { sent, files: (files as any).map((f: any) => (f as any).filename) };
 	});
 
+	// Email: probar configuración SMTP
+	ipcMain.handle('test-email-smtp', async () => {
+		try {
+			const cfg = store.get('config') as any || {};
+			const to = cfg.EMAIL_REPORT;
+			if (!to) return { ok: false, error: 'Email para reportes no configurado' };
+			if (!cfg.SMTP_USER || !cfg.SMTP_PASS) return { ok: false, error: 'Usuario o contraseña SMTP no configurados' };
+			
+			// Enviar email de prueba simple
+			const subject = 'Prueba de configuración SMTP - TODO-COMPUTACIÓN';
+			const text = `Este es un email de prueba para verificar la configuración SMTP.\n\nFecha: ${new Date().toLocaleString('es-AR')}\n\nSi recibiste este mensaje, la configuración es correcta.`;
+			const sent = await sendReportEmail(subject, text, []);
+			return { ok: sent, message: sent ? 'Email de prueba enviado correctamente' : 'Error al enviar email' };
+		} catch (e: any) {
+			return { ok: false, error: String(e?.message || e) };
+		}
+	});
+
 	// FTP: probar conexión
 	ipcMain.handle('test-ftp', async () => {
 		try {

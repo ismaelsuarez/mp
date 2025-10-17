@@ -207,6 +207,40 @@ export class ContingencyController {
       cajaLog.info(`Detectado ${base}`, `${(sz / 1024).toFixed(1)} KB`);
     } catch {}
     
+    // 🛡️ CONTROL DE DUPLICADOS TEMPRANO: Verificar si ya existe .res ANTES de encolar
+    try {
+      const baseName = path.basename(base, path.extname(base)).toLowerCase();
+      const candDirs = [cfg.outDir, cfg.processing, cfg.done, cfg.staging].filter(Boolean);
+      for (const d of candDirs) {
+        try {
+          const entries = fs.readdirSync(d);
+          const foundRes = entries.find((f) => 
+            path.basename(f, path.extname(f)).toLowerCase() === baseName && 
+            f.toLowerCase().endsWith('.res')
+          );
+          if (foundRes) {
+            const resPath = path.join(d, foundRes);
+            console.warn('[fac.duplicate.early-skip]', { filePath, res: resPath, reason: 'Ya procesado (early check)' });
+            
+            // 🔥 BORRAR el archivo .fac duplicado INMEDIATAMENTE (sin mover a staging)
+            try {
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+                console.warn('[fac.duplicate.early-deleted]', { filePath, reason: 'Ya procesado - .res encontrado (early check)' });
+              }
+            } catch (errDel) {
+              console.error('[fac.duplicate.early-delete.fail]', { filePath, error: String(errDel) });
+            }
+            
+            // 📢 Notificar a UI Caja
+            cajaLog.warn(`${base} YA PROCESADO`, `Duplicado ignorado (detección temprana) • .res: ${path.basename(foundRes)}`);
+            
+            return; // ⚠️ NO ENCOLAR - terminar aquí
+          }
+        } catch {}
+      }
+    } catch {}
+    
     // Mover a staging
     let stagingMethod = 'rename';
     try { 

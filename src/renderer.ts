@@ -931,16 +931,15 @@ window.addEventListener('DOMContentLoaded', () => {
 	}
 
 	// Toggle mostrar/ocultar contraseña SMTP
-	// Para SMTP usamos solo icono; no cambiamos textContent a 'Ocultar'
-	(function adjustSmtpToggle(){
-		const btn = document.getElementById('btnToggleSmtpPass') as HTMLButtonElement | null;
-		const inp = document.getElementById('SMTP_PASS') as HTMLInputElement | null;
-		if (!btn || !inp) return;
-		btn.addEventListener('click', () => {
+	const btnToggleSmtpPass = document.getElementById('btnToggleSmtpPass') as HTMLButtonElement | null;
+	if (btnToggleSmtpPass) {
+		btnToggleSmtpPass.addEventListener('click', () => {
+			const inp = document.getElementById('SMTP_PASS') as HTMLInputElement | null;
+			if (!inp) return;
 			inp.type = inp.type === 'password' ? 'text' : 'password';
-			btn.textContent = '👁';
+			btnToggleSmtpPass.textContent = inp.type === 'password' ? '👁' : '🙈';
 		});
-	})();
+	}
 
 	// Toggles de seguridad
 	function attachPwToggle(btnId: string, inputId: string) {

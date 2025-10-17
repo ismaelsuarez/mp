@@ -307,6 +307,13 @@
 								</div>
 							</label>
 						</div>
+
+						<!-- Botones de acción -->
+						<div class="flex items-center gap-2 flex-wrap">
+							<button type="button" id="btnSaveSmtp" class="px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white border-0 hover:bg-emerald-500">💾 Guardar Email/SMTP</button>
+							<button type="button" id="btnTestSmtp" class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white border-0 hover:bg-blue-500">📧 Probar envío</button>
+							<span id="smtpStatus" class="text-xs text-slate-400"></span>
+						</div>
 					</div>
 				</details>
 
@@ -2145,6 +2152,109 @@
         refreshPdfs();         // 3️⃣ Tercero: refrescar PDFs
       })();
     })();
+
+    // ===== Email / SMTP Config (Cargar y Guardar) =====
+    (async function setupEmailSmtpUI(){
+        try {
+            // Cargar configuración al iniciar
+            const res = await window.api.getConfig();
+            const cfg = res || {};
+            
+            // Setear valores en los inputs
+            const get = (id) => document.getElementById(id);
+            const set = (id, val) => { const el = get(id); if (el) el.value = val ?? ''; };
+            
+            set('EMAIL_REPORT', cfg.EMAIL_REPORT);
+            set('SMTP_HOST', cfg.SMTP_HOST);
+            set('SMTP_PORT', cfg.SMTP_PORT);
+            set('SMTP_USER', cfg.SMTP_USER);
+            set('SMTP_PASS', cfg.SMTP_PASS);
+            
+            console.log('[config.html] Email/SMTP config loaded');
+            
+            // Botón Guardar Email/SMTP
+            const btnSave = get('btnSaveSmtp');
+            const statusEl = get('smtpStatus');
+            if (btnSave) {
+                btnSave.addEventListener('click', async () => {
+                    try {
+                        if (statusEl) statusEl.textContent = 'Guardando...';
+                        
+                        const payload = {
+                            EMAIL_REPORT: get('EMAIL_REPORT')?.value || '',
+                            SMTP_HOST: get('SMTP_HOST')?.value || '',
+                            SMTP_PORT: get('SMTP_PORT')?.value || '',
+                            SMTP_USER: get('SMTP_USER')?.value || '',
+                            SMTP_PASS: get('SMTP_PASS')?.value || '',
+                        };
+                        
+                        const base = await window.api.getConfig();
+                        await window.api.saveConfig({ ...(base||{}), ...payload });
+                        
+                        if (statusEl) statusEl.textContent = '✅ Guardado correctamente';
+                        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+                        console.log('[config.html] Email/SMTP config saved');
+                    } catch (e) {
+                        if (statusEl) statusEl.textContent = `❌ Error: ${e?.message || 'Error'}`;
+                        setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+                        console.error('[config.html] Failed to save Email/SMTP config:', e);
+                    }
+                });
+            }
+            
+            // Botón Probar envío de email
+            const btnTest = get('btnTestSmtp');
+            if (btnTest) {
+                btnTest.addEventListener('click', async () => {
+                    try {
+                        if (statusEl) {
+                            statusEl.textContent = 'Enviando email de prueba...';
+                            statusEl.className = 'text-xs text-blue-400';
+                        }
+                        btnTest.disabled = true;
+                        
+                        const result = await window.api.testEmailSmtp();
+                        
+                        if (result?.ok) {
+                            if (statusEl) {
+                                statusEl.textContent = '✅ Email enviado correctamente';
+                                statusEl.className = 'text-xs text-green-400';
+                            }
+                        } else {
+                            if (statusEl) {
+                                statusEl.textContent = `❌ ${result?.error || 'Error al enviar'}`;
+                                statusEl.className = 'text-xs text-red-400';
+                            }
+                        }
+                        
+                        setTimeout(() => {
+                            if (statusEl) {
+                                statusEl.textContent = '';
+                                statusEl.className = 'text-xs text-slate-400';
+                            }
+                        }, 5000);
+                    } catch (e) {
+                        if (statusEl) {
+                            statusEl.textContent = `❌ Error: ${e?.message || 'Error'}`;
+                            statusEl.className = 'text-xs text-red-400';
+                        }
+                        setTimeout(() => {
+                            if (statusEl) {
+                                statusEl.textContent = '';
+                                statusEl.className = 'text-xs text-slate-400';
+                            }
+                        }, 5000);
+                        console.error('[config.html] Failed to test SMTP:', e);
+                    } finally {
+                        btnTest.disabled = false;
+                    }
+                });
+            }
+        } catch (e) {
+            console.error('[config.html] Failed to load Email/SMTP config:', e);
+        }
+    })();
+
     // ===== HANDLERS GALICIA =====
 // ... existing code ...
     </script>

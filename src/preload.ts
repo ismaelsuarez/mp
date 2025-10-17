@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('api', {
 	async sendReportEmail() {
 		return await ipcRenderer.invoke('send-report-email');
 	},
+	async testEmailSmtp() {
+		return await ipcRenderer.invoke('test-email-smtp');
+	},
 	async testFtpConnection() {
 		return await ipcRenderer.invoke('test-ftp');
 	},

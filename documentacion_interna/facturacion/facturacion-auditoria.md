@@ -68,54 +68,75 @@ Respuesta WSFE (CAE, CAEFchVto, Obs/Err)
 - Resumen diario (Caja): handler `caja:get-summary` computa, por fecha, filas `FB, FA, NCB, NCA, REC, REM` con columnas `Tipo|Desde|Hasta|Total` y un footer `Total (FA+FB)`.
 - Salud WS estricta: `WSHealthService` clasifica `up|degraded|down` con reglas más estrictas (HTTP sin respuesta ⇒ `down`; respuesta parcial o lenta ⇒ `degraded`; DNS+HTTP pleno ⇒ `up`).
 
-### 1 quater) Fix crítico: Duplicación de facturas por doble watcher (Oct 16, 2025)
-**Problema identificado:** El sistema tenía **3 watchers simultáneos** observando `C:\tmp`, causando que el mismo archivo `.fac` se procesara múltiples veces, generando **dos llamadas a AFIP** con **dos CAE/números diferentes** para un solo `.fac`.
+### 1 quater) Fix crítico: Duplicación de facturas por doble watcher (Oct 16-17, 2025)
+**Problema identificado:** El sistema generaba **dos facturas con CAE/números diferentes** para un solo archivo `.fac`, reportado por cliente con caso concreto de `25101711351638.fac` → facturas 00026596 y 00026597.
 
-**Arquitectura problemática:**
+**Causa raíz (primera detección - Oct 16):**
+El sistema tenía **3 watchers simultáneos** observando `C:\tmp`:
 1. **ContingencyController** (watcher principal con cola SQLite + idempotencia SHA256)
 2. **legacyWatcher** (wrapper chokidar en bootstrap que llamaba a ContingencyController via adapter)
 3. **facWatcher** (watcher legacy en main.ts con cola en memoria, sin idempotencia)
 
-**Race condition:**
+**Race condition inicial:**
 - Los 3 watchers detectaban el archivo estable al mismo tiempo (~1500ms)
-- ContingencyController movía a staging y encolaba con SHA256
-- legacyWatcher intentaba mover/encolar (posible duplicación)
 - facWatcher procesaba directamente con `processFacturaFacFile` (sin staging, sin SHA256, sin check de .res)
 - Timing window: ambos leían el archivo ANTES de que existiera el `.res`
-- Check de duplicados fallaba porque el `.res` aún no se había generado
 - Resultado: **dos emisiones AFIP → dos CAE diferentes**
 
-**Solución implementada:**
+**Solución 1 (Oct 16):**
 - **Deshabilitar procesamiento de `.fac` en facWatcher** (mantener solo retenciones)
 - Archivos modificados:
   - `src/main.ts` líneas 2106-2155 (`processFacQueue`): solo procesa `retencion*.txt`, ignora `.fac`
   - `src/main.ts` líneas 2183-2200 (`scanFacDirAndEnqueue`): filtra solo `retencion*.txt`
   - `src/main.ts` líneas 2227-2246 (callback watcher): ignora `.fac`, solo encola retenciones
-  - `src/main.ts` línea 2253: log actualizado "solo retenciones"
-- **ContingencyController** es ahora el único punto de entrada para archivos `.fac`
-- Retenciones (`retencion*.txt`) siguen siendo procesadas por facWatcher (sin conflicto)
+- **ContingencyController** ahora único punto de entrada para `.fac`
+- Retenciones (`retencion*.txt`) siguen en facWatcher sin conflicto
+
+**Causa raíz (segunda detección - Oct 17):**
+Tras el fix, el cliente reportó **nueva duplicación del mismo archivo**:
+- **11:35:10** → `25101711351638.fac` encolado (ID: 99) → Factura 00026596 ✅
+- **11:35:52** → **MISMO** `.fac` encolado (ID: 100) → Factura 00026597 ❌
+
+**Problema real:** El archivo `.fac` está siendo **copiado DOS VECES** por el sistema externo al directorio `C:\tmp` (42 segundos de diferencia). La idempotencia por SHA256 en `SqliteQueueStore` falla porque:
+1. El job 99 se procesa exitosamente
+2. Se hace `ack(99)` → **borra el job de la tabla** (`DELETE FROM queue_jobs WHERE id=99`)
+3. 42 segundos después llega el archivo duplicado
+4. El SHA256 no encuentra match (job 99 ya fue borrado)
+5. Se encola como nuevo job (ID: 100)
+
+**Solución 2 (Oct 17 - DEFINITIVA):**
+- **Verificación temprana de `.res` ANTES de encolar** en `ContingencyController.handleIncoming()`
+- Líneas 210-242: busca `.res` con mismo basename en `outDir/processing/done/staging`
+- Si existe `.res` → **borra el `.fac` inmediatamente** (sin mover a staging, sin encolar)
+- Notifica a UI Caja: "YA PROCESADO - Duplicado ignorado (detección temprana)"
+- Log: `[fac.duplicate.early-skip]`, `[fac.duplicate.early-deleted]`
+- Si NO existe `.res` → flujo normal (staging → SHA256 → enqueue)
 
 **Comentarios en código:**
 ```typescript
-// ⚠️ SOLO procesar retenciones en esta cola
-// Los archivos .fac (facturas/notas/recibos/remitos) son manejados por ContingencyController
-// para evitar procesamiento duplicado que causaba emisión doble a AFIP
-// (fix duplicación de facturas reportado por cliente - Oct 2025)
+// 🛡️ CONTROL DE DUPLICADOS TEMPRANO: Verificar si ya existe .res ANTES de encolar
+// Previene que archivos .fac duplicados (copiados 2 veces por sistema externo)
+// se encolen como jobs separados cuando el primero ya fue ACKed y borrado de la tabla
 ```
 
-**Validación:**
+**Validación completa:**
 - ✅ Un solo watcher procesa `.fac` (ContingencyController)
-- ✅ Idempotencia por SHA256 + check de `.res` antes de procesar
-- ✅ Pause/Resume desde UI Caja funciona correctamente (solo ContingencyController)
+- ✅ **Doble capa de idempotencia:**
+  1. Verificación de `.res` ANTES de encolar (líneas 210-242)
+  2. SHA256 en `SqliteQueueStore.enqueue()` para jobs concurrentes
+  3. Verificación de `.res` al procesar job (líneas 266-295, capa legacy)
+- ✅ Archivos duplicados del sistema externo → detectados y eliminados sin procesamiento
+- ✅ Pause/Resume desde UI Caja funciona correctamente
 - ✅ Escaneo de pendientes al resume: `scanPendingFacs()` encola archivos en `C:\tmp`
 - ✅ Retenciones siguen funcionando en facWatcher sin conflicto
-- ✅ legacyWatcher sigue conectando con ContingencyController (sin duplicación porque comparte la misma instancia)
 
 **Impacto:**
-- Elimina duplicación de facturas reportada por cliente
+- Elimina duplicación de facturas reportada por cliente (ambos escenarios)
+- Protege contra archivos duplicados del sistema externo (caso más común)
 - Mantiene toda la funcionalidad existente (retenciones, pause/resume, escaneo)
 - Reduce complejidad: un solo punto de entrada para facturación AFIP
 - Preserva resiliencia del sistema (cola SQLite, circuit breaker, backoff)
+- Ahorra llamadas a AFIP y evita números de comprobante desperdiciados
 
 ### 1 quinquies) Fix crítico: Clasificación incorrecta como EXENTO (Oct 2025)
 **Problema identificado:** Facturas B y Notas de Crédito B se reportaban con montos clasificados como EXENTO cuando no correspondía, causando discrepancias con los reportes AFIP/ARCA. El sistema recalculaba totales desde items en lugar de usar los TOTALES parseados del `.fac`.
