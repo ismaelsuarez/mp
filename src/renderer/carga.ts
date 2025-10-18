@@ -3,13 +3,13 @@
  * NO USAR export {} ni declare global para evitar errores con executeJavaScript
  */
 
-type Meta = { nombre: string; extension: string; uris: string[] };
+type Meta = { nombre: string; extensions: string[]; uris: string[] };
 type AddedFile = { realPath?: string; realName: string; targetName: string; valid: boolean; error?: string };
 
 (function () {
   const API = (window as any).CargaAPI;
 
-  let meta: Meta = { nombre: '', extension: '', uris: [] };
+  let meta: Meta = { nombre: '', extensions: [], uris: [] };
   let files: AddedFile[] = [];
   let conflictPolicy: 'skip' | 'overwrite' | 'next' = 'skip';
 
@@ -35,7 +35,11 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
   function recomputeTargets() {
     files.forEach((f, i) => {
       const suffix = i === 0 ? '' : `-${i}`;
-      f.targetName = `${meta.nombre}${suffix}.${meta.extension}`;
+      // Elegir extensión por archivo según su realName si coincide con permitidas; si no, usar primera
+      const ext = (f.realName.split('.').pop() || '').toLowerCase();
+      const allowed = meta.extensions.map(e => e.toLowerCase());
+      const useExt = allowed.includes(ext) ? ext : (allowed[0] || '');
+      f.targetName = `${meta.nombre}${suffix}.${useExt}`;
     });
   }
 
@@ -84,8 +88,9 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
     const realPath = (file as any).path; // Electron agrega .path
     const realName = file.name;
     const ext = realName.split('.').pop()?.toLowerCase() || '';
-    const valid = !!meta.extension && ext === meta.extension.toLowerCase();
-    const error = valid ? undefined : `Extensión .${ext} ≠ .${meta.extension}`;
+    const allowed = meta.extensions.map(e => e.toLowerCase());
+    const valid = allowed.includes(ext);
+    const error = valid ? undefined : `Extensión .${ext} no permitida (${allowed.join(', ')})`;
     files.push({ realPath, realName, targetName: '', valid, error });
     recomputeTargets();
   }
@@ -115,6 +120,77 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
   const viewModal = document.getElementById('viewModal') as HTMLDivElement | null;
   const viewBody = document.getElementById('viewBody') as HTMLDivElement | null;
   const viewClose = document.getElementById('viewClose') as HTMLButtonElement | null;
+  const previewArea = document.getElementById('previewArea') as HTMLDivElement | null;
+  const previewTitle = document.getElementById('previewTitle') as HTMLDivElement | null;
+  const prevBtn = document.getElementById('prevBtn') as HTMLButtonElement | null;
+  const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement | null;
+
+  let previewList: { name: string; path: string }[] = [];
+  let previewIndex = 0;
+
+  function renderPreview(idx: number) {
+    if (!previewArea) return;
+    previewArea.innerHTML = '';
+    if (previewList.length === 0) {
+      previewArea.innerHTML = '<div class="text-slate-400">Sin archivos para previsualizar</div>';
+      return;
+    }
+    if (idx < 0 || idx >= previewList.length) idx = 0;
+    previewIndex = idx;
+    const item = previewList[idx];
+    if (previewTitle) previewTitle.textContent = `${item.name} (${idx+1}/${previewList.length})`;
+    const lower = item.name.toLowerCase();
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.gif') || lower.endsWith('.webp')) {
+      const img = document.createElement('img');
+      img.src = 'file:///' + item.path.replace(/\\/g, '/');
+      img.style.maxWidth = '100%';
+      img.style.height = '100%';
+      img.style.width = 'auto';
+      img.style.objectFit = 'contain';
+      previewArea.appendChild(img);
+    } else if (lower.endsWith('.pdf')) {
+      const embed = document.createElement('embed');
+      embed.type = 'application/pdf';
+      embed.src = 'file:///' + item.path.replace(/\\/g, '/');
+      embed.style.width = '100%';
+      embed.style.height = '100%';
+      previewArea.appendChild(embed);
+    } else if (lower.endsWith('.mp4') || lower.endsWith('.webm') || lower.endsWith('.ogv') || lower.endsWith('.mov')) {
+      const video = document.createElement('video');
+      video.controls = true;
+      video.src = 'file:///' + item.path.replace(/\\/g, '/');
+      video.style.width = 'auto';
+      video.style.height = '100%';
+      video.style.maxWidth = '100%';
+      video.style.background = '#000';
+      video.style.objectFit = 'contain';
+      previewArea.appendChild(video);
+    } else if (lower.endsWith('.mp3') || lower.endsWith('.wav') || lower.endsWith('.ogg') || lower.endsWith('.m4a') || lower.endsWith('.aac')) {
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = 'file:///' + item.path.replace(/\\/g, '/');
+      audio.style.width = '100%';
+      previewArea.appendChild(audio);
+    } else {
+      const box = document.createElement('div');
+      box.className = 'text-slate-600 text-sm';
+      box.innerHTML = `No hay vista previa para este tipo. <button class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 openExtern">Abrir</button>`;
+      previewArea.appendChild(box);
+      const btn = box.querySelector('button.openExtern') as HTMLButtonElement;
+      btn.onclick = async () => { try { await API.openFile(item.path); } catch {} };
+    }
+  }
+
+  prevBtn?.addEventListener('click', () => {
+    if (previewList.length === 0) return;
+    const idx = (previewIndex - 1 + previewList.length) % previewList.length;
+    renderPreview(idx);
+  });
+  nextBtn?.addEventListener('click', () => {
+    if (previewList.length === 0) return;
+    const idx = (previewIndex + 1) % previewList.length;
+    renderPreview(idx);
+  });
 
   policySel?.addEventListener('change', () => {
     conflictPolicy = (policySel.value as any) || 'skip';
@@ -133,15 +209,19 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
       mode = 'overwrite';
     } else if (conflictPolicy === 'next') {
       try {
-        const { nextIndex } = await API.getNextIndex(meta.uris, meta.nombre, meta.extension);
+        const baseExt = (meta.extensions[0] || '').toLowerCase();
+        const { nextIndex } = await API.getNextIndex(meta.uris, meta.nombre, baseExt);
         const renamed = files
           .filter(f => f.valid && f.realPath)
           .map((f, i) => {
             let name: string;
+            const originalExt = (f.realName.split('.').pop() || '').toLowerCase();
+            const allowed = meta.extensions.map(e => e.toLowerCase());
+            const useExt = allowed.includes(originalExt) ? originalExt : baseExt;
             if (nextIndex === 0) {
-              name = `${meta.nombre}${i === 0 ? '' : `-${i}`}.${meta.extension}`;
+              name = `${meta.nombre}${i === 0 ? '' : `-${i}`}.${useExt}`;
             } else {
-              name = `${meta.nombre}-${nextIndex + i}.${meta.extension}`;
+              name = `${meta.nombre}-${nextIndex + i}.${useExt}`;
             }
             return { realPath: f.realPath!, targetName: name };
           });
@@ -163,7 +243,15 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
       viewModal.classList.remove('hidden');
       viewModal.classList.add('flex');
 
-      const res = await API.listMatching(meta.uris, meta.nombre, meta.extension);
+      const res = await API.listMatching(meta.uris, meta.nombre, meta.extensions);
+      // Construir lista plana de archivos para preview (orden por URI y nombre)
+      previewList = ([] as { name: string; path: string }[]).concat(
+        ...res.map((r: any) => (r.files || []).map((f: any) => ({ name: f.name || f, path: f.path || '' })))
+      ).filter(it => it.path);
+      const indexByPath = new Map<string, number>();
+      previewList.forEach((it, idx) => indexByPath.set(it.path, idx));
+      renderPreview(0);
+
       viewBody.innerHTML = res
         .map((r: any) => {
           const exists = r.exists;
@@ -176,8 +264,13 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
                     </div>`;
           }
           const list = r.files.length
-            ? `<ul class="list-disc pl-5 mt-2 mono">${r.files.map((f: string) => `<li>${f}</li>`).join('')}</ul>`
-            : `<div class="text-slate-500 mt-1">No hay archivos que comiencen con <span class="mono">${meta.nombre}*.${meta.extension}</span></div>`;
+            ? `<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-1 mt-2 mono">${r.files.map((f: any) => {
+                  const n = (f.name || f);
+                  const p = (f.path || '');
+                  const gidx = indexByPath.get(p);
+                  return `<button data-idx="${gidx ?? -1}" class="linkPreview text-blue-700 hover:underline text-left truncate">${n}</button>`;
+                }).join('')}</div>`
+            : `<div class="text-slate-500 mt-1">No hay archivos que comiencen con <span class="mono">${meta.nombre}*.{${meta.extensions.join(',')}}</span></div>`;
           return `<div class="p-3 rounded bg-slate-50 border border-slate-200">
                     ${header}
                     ${list}
@@ -189,6 +282,13 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
       viewBody.querySelectorAll<HTMLButtonElement>('button.openDir').forEach((btn) => {
         btn.onclick = async () => {
           await API.openFolder(btn.dataset.open!);
+        };
+      });
+      // Click en un archivo de la lista -> enfocar preview correspondiente
+      viewBody.querySelectorAll<HTMLButtonElement>('button.linkPreview').forEach((btn) => {
+        btn.onclick = () => {
+          const idx = Number(btn.dataset.idx || '-1');
+          if (idx >= 0 && idx < previewList.length) renderPreview(idx);
         };
       });
     } catch (e: any) {
@@ -214,7 +314,7 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
     meta = data;
     // Pintar meta
     nombreEl.textContent = meta.nombre;
-    extEl.textContent = (meta.extension || '').toUpperCase().trim();
+    extEl.textContent = (meta.extensions && meta.extensions.length ? meta.extensions.join(',') : '').toUpperCase().trim();
     urisEl.innerHTML = '';
     meta.uris.forEach((u, i) => {
       const li = document.createElement('li');

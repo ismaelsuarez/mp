@@ -1,5 +1,5 @@
 NOMBRE:A0002-00000255
-EXTENSION:pdf
-URI=C:\correo\administracion\EMPRESAS\AX\FACTURAS\00059-INYCO S.A
+EXTENSION:pdf,mp4,mp3,png,jpg
+URI=C:\correo\pdf
 URI=
 URI=

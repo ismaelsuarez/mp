@@ -141,12 +141,28 @@
 
     <!-- Modal simple para "Ver" -->
     <div id="viewModal" class="hidden fixed inset-0 bg-black/30 z-50 items-center justify-center">
-      <div class="bg-white rounded-xl shadow-xl w-[min(800px,92vw)] max-h-[80vh] overflow-hidden">
+      <div class="bg-white rounded-xl shadow-xl w-[min(900px,95vw)] max-h-[86vh] overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b flex items-center justify-between">
           <div class="font-semibold">Contenido en destino</div>
           <button id="viewClose" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300">Cerrar</button>
         </div>
-        <div id="viewBody" class="p-4 text-sm space-y-4 overflow-auto"></div>
+        <div class="flex-1 grid grid-cols-1 lg:grid-cols-5 gap-0">
+          <!-- Panel izquierdo: lista de archivos por URI -->
+          <div id="viewBody" class="p-4 text-sm space-y-4 overflow-auto lg:col-span-2 border-r"></div>
+          <!-- Panel derecho: preview/carrusel -->
+          <div class="lg:col-span-3 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div id="previewTitle" class="text-slate-700 text-sm"></div>
+              <div class="flex gap-2">
+                <button id="prevBtn" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300">◀</button>
+                <button id="nextBtn" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300">▶</button>
+              </div>
+            </div>
+            <div id="previewArea" class="w-full h-[420px] bg-slate-50 border rounded flex items-center justify-center overflow-hidden">
+              <div class="text-slate-400">Seleccione un archivo para previsualizar</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </main>

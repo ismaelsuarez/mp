@@ -10,7 +10,7 @@ import Store from 'electron-store';
 
 type OpenOpts = {
   txtPath: string;
-  parsed: { nombre: string; extension: string; uris: string[] };
+  parsed: { nombre: string; extensions: string[]; uris: string[] };
   filename: string;
 };
 
@@ -48,18 +48,26 @@ function registerAuxCargaIpcOnce() {
 
   const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  ipcMain.handle('carga:list-matching', async (_e, payload: { uris: string[]; base: string; ext: string }) => {
-    const { uris, base, ext } = payload || { uris: [], base: '', ext: '' };
-    const rx = new RegExp(`^${escapeRegExp(base)}(?:-(\\d+))?\\.${escapeRegExp(ext)}$`, 'i');
+  ipcMain.handle('carga:list-matching', async (_e, payload: { uris: string[]; base: string; ext: string | string[] }) => {
+    const { uris, base } = payload || { uris: [], base: '' } as any;
+    const exts = Array.isArray((payload as any)?.ext)
+      ? (payload as any).ext as string[]
+      : [(payload as any)?.ext as string].filter(Boolean);
+    const normExts = (exts.length ? exts : ['']).map(e => String(e || '').replace(/^\./, '')).filter(Boolean);
+    const rxList = normExts.map(e => new RegExp(`^${escapeRegExp(base)}(?:-(\\d+))?\\.${escapeRegExp(e)}$`, 'i'));
     const results = await Promise.all((uris || []).map(async (dir) => {
       try {
         const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-        const files = entries.filter(d => d.isFile() && rx.test(d.name)).map(d => d.name);
+        const files = entries
+          .filter(d => d.isFile() && (rxList.length ? rxList.some(rx => rx.test(d.name)) : true))
+          .map(d => ({ name: d.name, path: path.join(dir, d.name) }));
         let max = 0;
-        for (const name of files) {
-          const m = rx.exec(name);
-          const n = m && (m as any)[1] ? parseInt((m as any)[1], 10) : 0;
-          if (n > max) max = n;
+        for (const f of files) {
+          for (const rx of rxList) {
+            const m = rx.exec(f.name);
+            const n = m && (m as any)[1] ? parseInt((m as any)[1], 10) : 0;
+            if (n > max) max = n;
+          }
         }
         return { dir, exists: true, files, maxSuffix: max };
       } catch (err: any) {
@@ -101,6 +109,18 @@ function registerAuxCargaIpcOnce() {
         return { ok: true };
       }
       return { ok: false, message: 'El directorio no existe.' };
+    } catch (e: any) {
+      return { ok: false, message: e?.message || String(e) };
+    }
+  });
+
+  ipcMain.handle('carga:open-file', async (_e, filePath: string) => {
+    try {
+      if (fs.existsSync(filePath)) {
+        const res = await shell.openPath(filePath);
+        return { ok: !res, message: res || undefined };
+      }
+      return { ok: false, message: 'El archivo no existe.' };
     } catch (e: any) {
       return { ok: false, message: e?.message || String(e) };
     }

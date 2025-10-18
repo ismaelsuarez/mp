@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('CargaAPI', {
   },
   openFolder(dir: string) {
     return ipcRenderer.invoke('carga:open-folder', dir);
+  },
+  // Para futuras acciones (abrir archivo con app del sistema)
+  openFile(filePath: string) {
+    return ipcRenderer.invoke('carga:open-file', filePath);
   }
 });
 
