@@ -23,10 +23,10 @@ function getBase() {
 // Estado persistente de ventana (mismo store que usa el resto de ventanas)
 const STATE_KEY = 'imageCargaWindowBounds';
 const DEFAULTS = {
-  width: 860,
-  height: 700,
-  minWidth: 820,
-  minHeight: 600
+  width: 840,
+  height: 620,
+  minWidth: 800,
+  minHeight: 560
 } as const;
 const MARGIN = 24; // margen visual contra workArea
 

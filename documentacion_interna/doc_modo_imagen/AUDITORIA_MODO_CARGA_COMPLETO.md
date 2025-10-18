@@ -1,8 +1,8 @@
 # 📋 Auditoría Completa: Sistema de Modo Carga
 
-**Fecha:** 17 de octubre, 2025  
-**Versión:** 1.0.26  
-**Estado:** Implementado y en validación  
+**Fecha:** 18 de octubre, 2025  
+**Versión:** 1.0.27  
+**Estado:** Implementado y ajustado (política de conflicto + mejoras de ventana)  
 **Empresa:** TODO-COMPUTACIÓN
 
 ---
@@ -39,7 +39,10 @@ Implementar un sistema automatizado para cargar archivos desde `C:\tmp` a múlti
 ✅ Soporte para rutas UNC y locales  
 ✅ Validación de extensiones antes de procesar  
 ✅ Cola secuencial para múltiples archivos  
-✅ Persistencia de posición/tamaño de ventana  
+✅ Persistencia de posición/tamaño de ventana y adaptación multi‑monitor  
+✅ Política de conflicto seleccionable (Omitir / Sobrescribir / Sumar siguiente número) sin diálogos  
+✅ Botón “Ver” para listar contenidos existentes por URI y abrir carpeta  
+✅ Defaults visuales consistentes (ventana 860×700, contenido centrado ~820px)
 
 ---
 
@@ -87,9 +90,9 @@ Implementar un sistema automatizado para cargar archivos desde `C:\tmp` a múlti
 ┌─────────────────────────────────────────────────────────────┐
 │            cargaWindow.ts                                    │
 │       - Crea BrowserWindow                                   │
-│       - Inyecta script del renderer                          │
 │       - Gestiona IPC (request-init, process, cancel)         │
-│       - Restaura/guarda posición de ventana                  │
+│       - IPC auxiliares (list-matching, get-next-index, open-folder)     │
+│       - Restaura/guarda posición de ventana (persistencia + multi‑monitor)│
 └────────────────────────┬────────────────────────────────────┘
                          │
                          ▼
@@ -230,36 +233,35 @@ for (const line of lines) {
 
 ### 3.4 Fase 4: Apertura de Ventana (cargaWindow)
 
-**Creación de BrowserWindow:**
-```typescript
+Desde la versión 1.0.27:
+
+- Se calculan bounds iniciales con persistencia y adaptación a multi‑monitor (clamp al workArea; re‑ubicación si el monitor fue desconectado; escalado si cambió la resolución).  
+- Defaults cuando no hay state previo: `width: 860`, `height: 700`, `minWidth: 820`, `minHeight: 600`.  
+- El contenido en `public/carga.html` se centra con `max-w-[820px]`.  
+
+Fragmento (simplificado):
+```ts
+const init = computeInitialBounds();
 const win = new BrowserWindow({
-  width: 900,
-  height: 620,
+  x: init.bounds.x,
+  y: init.bounds.y,
+  width: init.bounds.width,
+  height: init.bounds.height,
+  minWidth: 820,
+  minHeight: 600,
   show: false,
   frame: true,
-  alwaysOnTop: true,
   webPreferences: {
     preload: path.join(app.getAppPath(), 'dist', 'src', 'preload', 'carga.preload.js'),
     contextIsolation: true,
     nodeIntegration: false,
-    devTools: true,
-  },
+    sandbox: false
+  }
 });
-```
-
-**Restauración de posición:**
-```typescript
-const saved = store.get('bounds');
-if (saved && isVisible(saved)) {
-  win.setBounds(saved);
-}
-```
-
-**Inyección del script:**
-```typescript
-const scriptPath = path.join(app.getAppPath(), 'dist', 'src', 'renderer', 'carga.js');
-const scriptContent = await fs.readFile(scriptPath, 'utf8');
-await win.webContents.executeJavaScript(scriptContent);
+await win.loadFile(path.join(app.getAppPath(), 'public', 'carga.html'));
+if (init.maximized) win.maximize();
+win.show();
+win.focus();
 ```
 
 **IPC Handlers registrados:**
@@ -373,6 +375,14 @@ window.addEventListener('DOMContentLoaded', () => {
 └───────────────────────────────────────────────────────────────┘
 ```
 
+#### IPC auxiliares añadidos (1.0.27)
+
+- `carga:list-matching` (invoke): Dado `uris`, `base` y `ext`, busca archivos que matchean `^base(?:-(\d+))?\.ext$` (case‑insensitive). Devuelve por URI: `files[]`, `exists`, `maxSuffix` y `error` si aplica.
+- `carga:get-next-index` (invoke): Calcula `nextIndex = (maxSuffix global entre todas las URIs) + 1`. Devuelve también `byUri` con el detalle.
+- `carga:open-folder` (invoke): Abre la carpeta en el explorador si existe.
+
+Nota: Estos handlers se registran una sola vez a nivel proceso para evitar errores de doble registro.
+
 **Logs completos:**
 ```
 [carga] 🔷 Enviando datos iniciales al renderer: { nombre: '...', extension: '...', uris: [...] }
@@ -429,6 +439,13 @@ function recomputeTargets() {
 }
 ```
 
+#### Política de conflicto en UI (1.0.27)
+
+- Selector: “Si el archivo ya existe: [Omitir | Sobrescribir | Sumar siguiente número]”.  
+- Botón “👁 Ver”: abre modal que lista por URI los archivos que matchean `NOMBRE(-n).EXT` y un botón “Abrir carpeta” por destino.  
+- Por defecto la política es “Omitir (skip)”.  
+- Para “Sumar siguiente número (next)” se obtiene `nextIndex` global (máx sufijo en todas las URIs + 1). Si `nextIndex === 0`, el primero es `NOMBRE.EXT` y los siguientes `NOMBRE-1.EXT`, `NOMBRE-2.EXT`, …; si `nextIndex ≥ 1`, todos se renombran comenzando en `NOMBRE-nextIndex.EXT`, evitando colisiones.
+
 **Ejemplo de tabla:**
 ```
 Nombre real                    Nombre a guardar           [borrar]
@@ -462,20 +479,28 @@ btnProcess.addEventListener('click', () => {
 });
 ```
 
-**Copiado a URIs:**
-```typescript
+**Política de conflicto sin diálogos (1.0.27):**
+
+El renderer define la política: `"skip" | "overwrite" | "next"` (por defecto: `skip`). Para `next`, el renderer consulta `get-next-index` y renombra localmente antes de enviar, de modo que el processor recibe nombres no colisionantes y usa `overwrite` limpio.
+
+En el processor se respeta estrictamente la política recibida (sin prompts):
+```ts
+export type WriteMode = 'overwrite' | 'skip';
+
 export async function processFilesToUris(
   files: FileToProcess[],
-  uris: string[]
+  uris: string[],
+  mode: WriteMode = 'overwrite'
 ): Promise<void> {
-  for (const file of files) {
-    const buf = await fs.readFile(file.realPath);
-    
+  for (const f of files) {
+    const buf = await fs.readFile(f.realPath);
     for (const uri of uris) {
-      const destDir = uri; // Respeta mayúsculas
-      await ensureDir(destDir);
-      const destPath = path.join(destDir, file.targetName);
-      await fs.writeFile(destPath, buf);
+      await fs.mkdir(uri, { recursive: true });
+      const dest = path.join(uri, f.targetName);
+      if (mode === 'skip' && await fileExists(dest)) {
+        continue; // omitir si existe
+      }
+      await fs.writeFile(dest, buf); // overwrite por defecto
     }
   }
 }
@@ -922,9 +947,16 @@ URI=\\backup\reportes
 - [ ] ✅ Copia a todas las URIs
 - [ ] ✅ Soporta rutas UNC
 - [ ] ✅ Guarda posición/tamaño de ventana
+- [ ] ✅ Adaptación multi‑monitor y clamp en desconexión/cambio de resolución
 - [ ] ✅ Muestra "OK" y cierra
 - [ ] ✅ `.txt` movido a `ok/` o `error/`
 - [ ] ✅ No rompe funcionalidad existente
+- [ ] ✅ Política de conflicto: `skip/overwrite/next`
+- [ ] ✅ “Ver” lista contenidos por URI y abre carpeta
+- [ ] ✅ Defaults visuales: ventana `860×700`, contenido `~820px`
+
+Notas de operación:
+- El watcher (`fs.watch`) detecta creaciones/renombres nuevos; archivos preexistentes antes de arrancar pueden no disparar evento. Para re‑probar, crear un `carga*.txt` nuevo o renombrar después de iniciar la aplicación.
 
 ---
 
