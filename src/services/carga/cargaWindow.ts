@@ -28,8 +28,9 @@ export function openCargaWindow(opts: OpenOpts): Promise<void> {
     console.log('[carga] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath));
 
     const win = new BrowserWindow({
-      width: 900,
-      height: 620,
+      useContentSize: true,
+      width: 960,
+      height: 780,
       show: false,
       frame: true,
       webPreferences: {
