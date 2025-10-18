@@ -132,7 +132,7 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
     meta = data;
     // Pintar meta
     nombreEl.textContent = meta.nombre;
-    extEl.textContent = meta.extension;
+    extEl.textContent = (meta.extension || '').toUpperCase().trim();
     urisEl.innerHTML = '';
     meta.uris.forEach((u, i) => {
       const li = document.createElement('li');
