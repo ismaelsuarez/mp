@@ -17,8 +17,8 @@ contextBridge.exposeInMainWorld('CargaAPI', {
   cancel() {
     ipcRenderer.send('carga:cancel');
   },
-  process(files: { realPath: string; targetName: string }[]) {
-    ipcRenderer.send('carga:process', files);
+  process(payload: { files: { realPath: string; targetName: string }[]; mode: 'overwrite' | 'skip' }) {
+    ipcRenderer.send('carga:process', payload);
   },
   onDone(cb: (p: { ok: boolean; ms: number }) => void) {
     ipcRenderer.on('carga:done', (_e, d) => cb(d));
@@ -26,5 +26,15 @@ contextBridge.exposeInMainWorld('CargaAPI', {
   onError(cb: (p: { message: string }) => void) {
     ipcRenderer.on('carga:error', (_e, d) => cb(d));
   },
+  // Nuevos helpers
+  listMatching(uris: string[], base: string, ext: string) {
+    return ipcRenderer.invoke('carga:list-matching', { uris, base, ext });
+  },
+  getNextIndex(uris: string[], base: string, ext: string) {
+    return ipcRenderer.invoke('carga:get-next-index', { uris, base, ext });
+  },
+  openFolder(dir: string) {
+    return ipcRenderer.invoke('carga:open-folder', dir);
+  }
 });
 

@@ -1,0 +1,336 @@
+Objetivo
+
+Agregar una política de conflicto seleccionable:
+
+Omitir (no sobreescribe)
+
+Sobrescribir (comportamiento actual)
+
+Sumar siguiente número (genera nombres continuando la secuencia existente en destino).
+
+Agregar botón “Ver” (a la izquierda de Anular) que muestre (en un modal simple) los archivos que ya existen en cada URI y abro carpeta.
+
+1) Main (IPC nuevos) – src/main/windows/cargaWindow.ts
+
+Agregar handlers para:
+
+carga:list-matching → devolver archivos que coinciden con NOMBRE(-N).EXT por URI.
+
+carga:get-next-index → devolver máximo sufijo + 1 entre todas las URIs.
+
+carga:open-folder → abrir carpeta en el Explorador.
+
+Extender el IPC carga:process para aceptar { files, mode } donde mode es 'overwrite' | 'skip'.
+
+// imports existentes…
+import { ipcMain, shell } from "electron";
+import fs from "fs/promises";
+import fssync from "fs";
+import path from "path";
+
+// util local
+function escapeRegExp(s:string){ return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+ipcMain.handle("carga:list-matching", async (_e, payload: { uris:string[]; base:string; ext:string })=>{
+  const { uris, base, ext } = payload;
+  const rx = new RegExp(`^${escapeRegExp(base)}(?:-(\\d+))?\\.${escapeRegExp(ext)}$`, "i");
+
+  const results = await Promise.all(uris.map(async (dir) => {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const files = entries.filter(d => d.isFile() && rx.test(d.name)).map(d => d.name);
+      let max = 0;
+      for (const name of files) {
+        const m = rx.exec(name);
+        const n = m && m[1] ? parseInt(m[1], 10) : 0;
+        if (n > max) max = n;
+      }
+      return { dir, exists: true, files, maxSuffix: max };
+    } catch (err:any) {
+      // no existe o no accesible
+      return { dir, exists: false, files: [], maxSuffix: -1, error: err?.message || String(err) };
+    }
+  }));
+
+  return results;
+});
+
+ipcMain.handle("carga:get-next-index", async (_e, payload: { uris:string[]; base:string; ext:string })=>{
+  const res:any[] = await (ipcMain as any).handle("carga:list-matching", _e, payload); // reuse handler
+  // si handle indirecto no funciona, repetir lógica aquí (aceptable).
+  const max = res.reduce((m, r) => Math.max(m, r.maxSuffix ?? -1), -1);
+  // si no hay archivos, nextIndex = 0 (para permitir base sin sufijo)
+  const nextIndex = Math.max(0, max + 1);
+  return { nextIndex, byUri: res };
+});
+
+ipcMain.handle("carga:open-folder", async (_e, dir: string) => {
+  try {
+    if (fssync.existsSync(dir)) {
+      await shell.openPath(dir);
+      return { ok: true };
+    }
+    return { ok: false, message: "El directorio no existe." };
+  } catch (e:any) {
+    return { ok: false, message: e?.message || String(e) };
+  }
+});
+
+// ⚠️ Actualizar el IPC de procesado para recibir 'mode'
+ipcMain.once("carga:process", async (event, payload: { files: { realPath:string; targetName:string }[]; mode: "overwrite"|"skip" }) => {
+  try {
+    const { processFilesToUris } = await import("../../services/carga/CargaProcessor");
+    await processFilesToUris(payload.files, opts.parsed.uris, payload.mode);
+    try { await fs.unlink(opts.txtPath); } catch {}
+    event.reply("carga:done", { ok: true, ms: 2000 });
+  } catch (err: any) {
+    event.reply("carga:error", { message: err?.message || String(err) });
+  }
+});
+
+
+Nota: si preferís no “reusar” el handler dentro de otro, copiá la mini-lógica de get-next-index (idéntico resultado).
+
+2) Processor con mode – src/services/carga/CargaProcessor.ts
+
+Añadir mode 'overwrite' | 'skip' y respetarlo.
+
+import path from "path";
+import fs from "fs/promises";
+
+export type FileToProcess = { realPath: string; targetName: string };
+export type WriteMode = "overwrite" | "skip";
+
+async function ensureDir(dir:string){ await fs.mkdir(dir, { recursive:true }); }
+async function fileExists(p:string){ try { await fs.access(p); return true; } catch { return false; } }
+
+export async function processFilesToUris(files: FileToProcess[], uris: string[], mode: WriteMode = "overwrite") {
+  for (const f of files) {
+    const buf = await fs.readFile(f.realPath);
+    for (const uri of uris) {
+      await ensureDir(uri);
+      const dest = path.join(uri, f.targetName);
+      if (mode === "skip" && await fileExists(dest)) {
+        // omitir si ya existe
+        continue;
+      }
+      await fs.writeFile(dest, buf); // overwrite por defecto
+    }
+  }
+}
+
+3) Preload – src/preload/carga.preload.ts
+
+Exponer métodos nuevos: listMatching, getNextIndex, openFolder.
+
+import { contextBridge, ipcRenderer } from "electron";
+console.log("[carga.preload] iniciado");
+
+contextBridge.exposeInMainWorld("CargaAPI", {
+  requestInit(){ ipcRenderer.send("carga:request-init"); },
+  onInit(cb:(d:any)=>void){ ipcRenderer.on("carga:init", (_e,d)=>cb(d)); },
+  cancel(){ ipcRenderer.send("carga:cancel"); },
+  process(payload:{files:{realPath:string;targetName:string}[]; mode:"overwrite"|"skip"}) {
+    ipcRenderer.send("carga:process", payload);
+  },
+  onDone(cb:(p:{ok:boolean; ms:number})=>void){ ipcRenderer.on("carga:done", (_e,d)=>cb(d)); },
+  onError(cb:(p:{message:string})=>void){ ipcRenderer.on("carga:error", (_e,d)=>cb(d)); },
+
+  // NUEVO
+  listMatching(uris:string[], base:string, ext:string){
+    return ipcRenderer.invoke("carga:list-matching", { uris, base, ext });
+  },
+  getNextIndex(uris:string[], base:string, ext:string){
+    return ipcRenderer.invoke("carga:get-next-index", { uris, base, ext });
+  },
+  openFolder(dir:string){
+    return ipcRenderer.invoke("carga:open-folder", dir);
+  }
+});
+
+4) UI – public/carga.html
+
+Agregar el selector de política y el botón “Ver” (a la izquierda de Anular).
+
+No cambiamos look&feel general para no romper lo acordado.
+
+👉 En la sección de botones, reemplazar el <section class="flex gap-3 justify-end pt-4 border-t">…</section> por:
+
+<section class="flex items-center justify-between pt-4 border-t">
+  <!-- Política de conflicto -->
+  <div class="flex items-center gap-2 text-sm">
+    <span class="text-slate-600">Si el archivo ya existe:</span>
+    <select id="conflictPolicy" class="border rounded-md px-2 py-1 bg-white text-slate-700">
+      <option value="skip">Omitir</option>
+      <option value="overwrite">Sobrescribir</option>
+      <option value="next">Sumar siguiente número</option>
+    </select>
+  </div>
+
+  <!-- Botonera -->
+  <div class="flex gap-3">
+    <button id="btnView" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 shadow-md">
+      👁 Ver
+    </button>
+    <button id="btnCancel" class="px-6 py-2.5 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-md">
+      ❌ Anular
+    </button>
+    <button id="btnProcess" class="px-6 py-2.5 rounded-lg font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 shadow-md disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+      ✅ Procesar
+    </button>
+  </div>
+</section>
+
+<!-- Modal simple para "Ver" -->
+<div id="viewModal" class="hidden fixed inset-0 bg-black/30 z-50 items-center justify-center">
+  <div class="bg-white rounded-xl shadow-xl w-[min(800px,92vw)] max-h-[80vh] overflow-hidden">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+      <div class="font-semibold">Contenido en destino</div>
+      <button id="viewClose" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300">Cerrar</button>
+    </div>
+    <div id="viewBody" class="p-4 text-sm space-y-4 overflow-auto"></div>
+  </div>
+</div>
+
+5) Renderer – src/renderer/carga.ts
+
+Agregar:
+
+Estado conflictPolicy: "skip"|"overwrite"|"next".
+
+Lógica para “next”: antes de procesar, pedir nextIndex al main y recalcular nombres destino (base.ext, base-1.ext, … o base-N.ext desde el índice retornado).
+
+“Ver”: invocar listMatching y mostrar en el modal; botón “Abrir carpeta”.
+
+Asegurate de no usar export/declare global. Mantener la IIFE.
+
+(function(){
+  const API = (window as any).CargaAPI;
+
+  type Meta = { nombre:string; extension:string; uris:string[] };
+  type AddedFile = { realPath?: string; realName: string; targetName: string; valid: boolean; error?: string };
+  let meta: Meta = { nombre:"", extension:"", uris:[] };
+  let files: AddedFile[] = [];
+  let conflictPolicy: "skip"|"overwrite"|"next" = "skip";
+
+  // …(resto de tu código actual: refs, preventDefault global, drop, etc.)
+
+  // NUEVOS refs
+  const policySel = document.getElementById("conflictPolicy") as HTMLSelectElement;
+  const btnView   = document.getElementById("btnView") as HTMLButtonElement;
+  const viewModal = document.getElementById("viewModal") as HTMLDivElement;
+  const viewBody  = document.getElementById("viewBody") as HTMLDivElement;
+  const viewClose = document.getElementById("viewClose") as HTMLButtonElement;
+
+  policySel?.addEventListener("change", ()=> {
+    conflictPolicy = (policySel.value as any) || "skip";
+  });
+
+  // Recalcula nombres con la regla por defecto (0..N-1)
+  function recomputeTargetsDefault() {
+    files.forEach((f, i) => {
+      const suffix = i === 0 ? "" : `-${i}`;
+      f.targetName = `${meta.nombre}${suffix}.${meta.extension}`;
+    });
+  }
+
+  // BOTÓN "VER"
+  btnView?.addEventListener("click", async ()=>{
+    try {
+      viewBody.innerHTML = `<div class="text-slate-500">Analizando destinos…</div>`;
+      viewModal.classList.remove("hidden");
+      viewModal.classList.add("flex");
+
+      const res = await API.listMatching(meta.uris, meta.nombre, meta.extension);
+      // Render
+      viewBody.innerHTML = res.map((r:any) => {
+        const exists = r.exists;
+        const header = `<div class="font-medium">${r.dir}</div>`;
+        if (!exists) {
+          return `<div class="p-3 rounded bg-amber-50 border border-amber-200">
+                    ${header}
+                    <div class="text-amber-700 text-sm mt-1">No existe. Se creará al procesar.</div>
+                    <div class="mt-2"><button data-open="${r.dir}" class="openDir px-3 py-1 rounded bg-slate-200 hover:bg-slate-300">Abrir carpeta</button></div>
+                  </div>`;
+        }
+        const list = r.files.length
+          ? `<ul class="list-disc pl-5 mt-2 mono">${r.files.map((f:string)=>`<li>${f}</li>`).join("")}</ul>`
+          : `<div class="text-slate-500 mt-1">No hay archivos que comiencen con <span class="mono">${meta.nombre}*.${meta.extension}</span></div>`;
+        return `<div class="p-3 rounded bg-slate-50 border border-slate-200">
+                  ${header}
+                  ${list}
+                  <div class="mt-2"><button data-open="${r.dir}" class="openDir px-3 py-1 rounded bg-slate-200 hover:bg-slate-300">Abrir carpeta</button></div>
+                </div>`;
+      }).join("");
+
+      // bind openDir
+      viewBody.querySelectorAll<HTMLButtonElement>("button.openDir").forEach(btn=>{
+        btn.onclick = async ()=> { await API.openFolder(btn.dataset.open!); };
+      });
+    } catch (e:any) {
+      viewBody.innerHTML = `<div class="text-red-600">Error: ${e?.message || e}</div>`;
+    }
+  });
+  viewClose?.addEventListener("click", ()=>{
+    viewModal.classList.add("hidden");
+    viewModal.classList.remove("flex");
+  });
+
+  // PROCESS
+  btnProcess.addEventListener("click", async ()=> {
+    let mode: "overwrite"|"skip" = "overwrite";
+    let payloadFiles = files.filter(f => f.valid && f.realPath).map(f => ({ realPath: f.realPath!, targetName: f.targetName }));
+
+    if (conflictPolicy === "skip") {
+      mode = "skip"; // no sobreescribe; nombres por defecto
+    } else if (conflictPolicy === "overwrite") {
+      mode = "overwrite"; // igual que ahora; nombres por defecto
+    } else if (conflictPolicy === "next") {
+      // Pedir nextIndex y recalcular nombres ANTES de enviar
+      const { nextIndex } = await API.getNextIndex(meta.uris, meta.nombre, meta.extension);
+      // Si nextIndex === 0 -> usamos el naming estándar (primero sin sufijo)
+      // Si nextIndex >= 1 -> todos con sufijo empezando en nextIndex
+      const renamed = files.filter(f => f.valid && f.realPath).map((f, i) => {
+        let name:string;
+        if (nextIndex === 0) {
+          name = `${meta.nombre}${i===0 ? "" : `-${i}`}.${meta.extension}`;
+        } else {
+          name = `${meta.nombre}-${nextIndex + i}.${meta.extension}`;
+        }
+        return { realPath: f.realPath!, targetName: name };
+      });
+      payloadFiles = renamed;
+      mode = "overwrite"; // ya no colisionan
+    }
+
+    API.process({ files: payloadFiles, mode });
+  });
+
+  // Init pinta meta (asegurando mayúsculas sin espacios)
+  API?.onInit((data: Meta)=>{
+    meta = data;
+    document.getElementById("nombre")!.textContent = meta.nombre;
+    document.getElementById("ext")!.textContent = (meta.extension || "").toUpperCase().trim();
+    const urisEl = document.getElementById("uris")!;
+    urisEl.innerHTML = "";
+    meta.uris.forEach((u, i) => {
+      const li = document.createElement("li");
+      li.textContent = (i===0? "[OBLIGATORIA] ":"") + u;
+      urisEl.appendChild(li);
+    });
+  });
+
+  // Al agregar archivos manualmente, conservar recompute por defecto
+  function addDropped(file: File & { path?: string }) {
+    const realPath = (file as any).path;
+    const realName = file.name;
+    const ext = realName.split(".").pop()?.toLowerCase() || "";
+    const valid = !!meta.extension && ext === meta.extension.toLowerCase();
+    const error = valid ? undefined : `Extensión .${ext} ≠ .${meta.extension}`;
+    files.push({ realPath, realName, targetName: "", valid, error });
+    recomputeTargetsDefault();
+    refreshTable();
+  }
+
+  // …(dejá el resto igual: dropzone, refreshTable, borrar fila, onDone/onError, etc.)
+})();

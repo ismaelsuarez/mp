@@ -11,6 +11,7 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
 
   let meta: Meta = { nombre: '', extension: '', uris: [] };
   let files: AddedFile[] = [];
+  let conflictPolicy: 'skip' | 'overwrite' | 'next' = 'skip';
 
   // ***** Desbloquear drag & drop a nivel documento *****
   ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
@@ -109,15 +110,96 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
     if (dt.files) handleFilesList(dt.files);
   });
 
+  const policySel = document.getElementById('conflictPolicy') as HTMLSelectElement | null;
+  const btnView = document.getElementById('btnView') as HTMLButtonElement | null;
+  const viewModal = document.getElementById('viewModal') as HTMLDivElement | null;
+  const viewBody = document.getElementById('viewBody') as HTMLDivElement | null;
+  const viewClose = document.getElementById('viewClose') as HTMLButtonElement | null;
+
+  policySel?.addEventListener('change', () => {
+    conflictPolicy = (policySel.value as any) || 'skip';
+  });
+
   btnCancel.addEventListener('click', () => API?.cancel());
-  btnProcess.addEventListener('click', () => {
-    const payload = files
+  btnProcess.addEventListener('click', async () => {
+    let mode: 'overwrite' | 'skip' = 'overwrite';
+    let payloadFiles = files
       .filter(f => f.valid && f.realPath)
-      .map(f => ({
-        realPath: f.realPath!,
-        targetName: f.targetName
-      }));
-    API?.process(payload);
+      .map(f => ({ realPath: f.realPath!, targetName: f.targetName }));
+
+    if (conflictPolicy === 'skip') {
+      mode = 'skip';
+    } else if (conflictPolicy === 'overwrite') {
+      mode = 'overwrite';
+    } else if (conflictPolicy === 'next') {
+      try {
+        const { nextIndex } = await API.getNextIndex(meta.uris, meta.nombre, meta.extension);
+        const renamed = files
+          .filter(f => f.valid && f.realPath)
+          .map((f, i) => {
+            let name: string;
+            if (nextIndex === 0) {
+              name = `${meta.nombre}${i === 0 ? '' : `-${i}`}.${meta.extension}`;
+            } else {
+              name = `${meta.nombre}-${nextIndex + i}.${meta.extension}`;
+            }
+            return { realPath: f.realPath!, targetName: name };
+          });
+        payloadFiles = renamed;
+        mode = 'overwrite'; // ya no colisionan
+      } catch (e) {
+        alert('No se pudo calcular el siguiente número: ' + (e as any)?.message || String(e));
+        return;
+      }
+    }
+
+    API?.process({ files: payloadFiles, mode });
+  });
+
+  btnView?.addEventListener('click', async () => {
+    try {
+      if (!viewModal || !viewBody) return;
+      viewBody.innerHTML = `<div class="text-slate-500">Analizando destinos…</div>`;
+      viewModal.classList.remove('hidden');
+      viewModal.classList.add('flex');
+
+      const res = await API.listMatching(meta.uris, meta.nombre, meta.extension);
+      viewBody.innerHTML = res
+        .map((r: any) => {
+          const exists = r.exists;
+          const header = `<div class="font-medium">${r.dir}</div>`;
+          if (!exists) {
+            return `<div class="p-3 rounded bg-amber-50 border border-amber-200">
+                      ${header}
+                      <div class="text-amber-700 text-sm mt-1">No existe. Se creará al procesar.</div>
+                      <div class="mt-2"><button data-open="${r.dir}" class="openDir px-3 py-1 rounded bg-slate-200 hover:bg-slate-300">Abrir carpeta</button></div>
+                    </div>`;
+          }
+          const list = r.files.length
+            ? `<ul class="list-disc pl-5 mt-2 mono">${r.files.map((f: string) => `<li>${f}</li>`).join('')}</ul>`
+            : `<div class="text-slate-500 mt-1">No hay archivos que comiencen con <span class="mono">${meta.nombre}*.${meta.extension}</span></div>`;
+          return `<div class="p-3 rounded bg-slate-50 border border-slate-200">
+                    ${header}
+                    ${list}
+                    <div class="mt-2"><button data-open="${r.dir}" class="openDir px-3 py-1 rounded bg-slate-200 hover:bg-slate-300">Abrir carpeta</button></div>
+                  </div>`;
+        })
+        .join('');
+
+      viewBody.querySelectorAll<HTMLButtonElement>('button.openDir').forEach((btn) => {
+        btn.onclick = async () => {
+          await API.openFolder(btn.dataset.open!);
+        };
+      });
+    } catch (e: any) {
+      if (viewBody) viewBody.innerHTML = `<div class="text-red-600">Error: ${e?.message || e}</div>`;
+    }
+  });
+
+  viewClose?.addEventListener('click', () => {
+    if (!viewModal) return;
+    viewModal.classList.add('hidden');
+    viewModal.classList.remove('flex');
   });
 
   API?.onDone(({ ok, ms }: { ok: boolean; ms: number }) => {

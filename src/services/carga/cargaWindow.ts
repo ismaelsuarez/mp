@@ -2,7 +2,7 @@
  * Ventana para Modo Carga (VENTANA=carga)
  */
 
-import { BrowserWindow, ipcMain, app, screen } from 'electron';
+import { BrowserWindow, ipcMain, app, screen, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { processFilesToUris } from './CargaProcessor';
@@ -39,6 +39,73 @@ function getEncryptionKey(): string | undefined {
 }
 
 const settings = new Store<{ [k: string]: any }>({ name: 'settings', cwd: (()=>{ try { return app.getPath('userData'); } catch { return undefined; } })(), encryptionKey: getEncryptionKey() });
+
+// Registrar IPC auxiliares una sola vez para no colisionar en aperturas sucesivas
+let auxIpcRegistered = false;
+function registerAuxCargaIpcOnce() {
+  if (auxIpcRegistered) return;
+  auxIpcRegistered = true;
+
+  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  ipcMain.handle('carga:list-matching', async (_e, payload: { uris: string[]; base: string; ext: string }) => {
+    const { uris, base, ext } = payload || { uris: [], base: '', ext: '' };
+    const rx = new RegExp(`^${escapeRegExp(base)}(?:-(\\d+))?\\.${escapeRegExp(ext)}$`, 'i');
+    const results = await Promise.all((uris || []).map(async (dir) => {
+      try {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        const files = entries.filter(d => d.isFile() && rx.test(d.name)).map(d => d.name);
+        let max = 0;
+        for (const name of files) {
+          const m = rx.exec(name);
+          const n = m && (m as any)[1] ? parseInt((m as any)[1], 10) : 0;
+          if (n > max) max = n;
+        }
+        return { dir, exists: true, files, maxSuffix: max };
+      } catch (err: any) {
+        return { dir, exists: false, files: [], maxSuffix: -1, error: err?.message || String(err) };
+      }
+    }));
+    return results;
+  });
+
+  ipcMain.handle('carga:get-next-index', async (_e, payload: { uris: string[]; base: string; ext: string }) => {
+    const { uris, base, ext } = payload || { uris: [], base: '', ext: '' };
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rx = new RegExp(`^${escape(base)}(?:-(\\d+))?\\.${escape(ext)}$`, 'i');
+    let max = -1;
+    const byUri: any[] = [];
+    for (const dir of uris || []) {
+      try {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        const files = entries.filter(d => d.isFile() && rx.test(d.name)).map(d => d.name);
+        let localMax = 0;
+        for (const name of files) {
+          const m = rx.exec(name);
+          const n = m && (m as any)[1] ? parseInt((m as any)[1], 10) : 0;
+          if (n > localMax) localMax = n;
+        }
+        if (localMax > max) max = localMax;
+        byUri.push({ dir, exists: true, files, maxSuffix: localMax });
+      } catch (err: any) {
+        byUri.push({ dir, exists: false, files: [], maxSuffix: -1, error: err?.message || String(err) });
+      }
+    }
+    return { nextIndex: Math.max(0, max + 1), byUri };
+  });
+
+  ipcMain.handle('carga:open-folder', async (_e, dir: string) => {
+    try {
+      if (fs.existsSync(dir)) {
+        await shell.openPath(dir);
+        return { ok: true };
+      }
+      return { ok: false, message: 'El directorio no existe.' };
+    } catch (e: any) {
+      return { ok: false, message: e?.message || String(e) };
+    }
+  });
+}
 
 function clampToWorkArea(b: Electron.Rectangle, d: Electron.Display) {
   const wa = d.workArea;
@@ -137,6 +204,9 @@ export function openCargaWindow(opts: OpenOpts): Promise<void> {
     const preloadPath = path.join(base, 'dist', 'src', 'preload', 'carga.preload.js');
     console.log('[carga] preload:', preloadPath, 'exists:', fs.existsSync(preloadPath));
 
+    // Asegurar IPC auxiliares registrados una sola vez
+    registerAuxCargaIpcOnce();
+
     const init = computeInitialBounds();
 
     const win = new BrowserWindow({
@@ -188,9 +258,10 @@ export function openCargaWindow(opts: OpenOpts): Promise<void> {
       if (!win.isDestroyed()) win.close();
     });
 
-    ipcMain.once('carga:process', async (_event, files: { realPath: string; targetName: string }[]) => {
+    ipcMain.once('carga:process', async (_event, payload: { files: { realPath: string; targetName: string }[]; mode?: 'overwrite' | 'skip' }) => {
       try {
-        await processFilesToUris(files, opts.parsed.uris);
+        const mode = payload?.mode === 'skip' ? 'skip' : 'overwrite';
+        await processFilesToUris(payload.files, opts.parsed.uris, mode);
         try {
           await fs.promises.unlink(opts.txtPath);
         } catch {}
@@ -201,6 +272,8 @@ export function openCargaWindow(opts: OpenOpts): Promise<void> {
         win.webContents.send('carga:error', { message: err?.message || String(err) });
       }
     });
+
+    // IPC auxiliares ya registrados globalmente por registerAuxCargaIpcOnce()
 
     // Guardado de state (debounce para evitar escribir en cada pixel)
     let t: NodeJS.Timeout | null = null;

@@ -5,9 +5,11 @@
 import path from 'path';
 import fs from 'fs/promises';
 import fssync from 'fs';
-import { dialog } from 'electron';
+// Sin diálogos: obedecemos la política seleccionada desde el renderer
+// (skip/overwrite/next). Aquí solo respetamos 'skip' y 'overwrite'.
 
 export type FileToProcess = { realPath: string; targetName: string };
+export type WriteMode = 'overwrite' | 'skip';
 
 /**
  * Crea un directorio de forma recursiva con mejor manejo de rutas UNC
@@ -34,33 +36,8 @@ async function ensureDirRecursive(dir: string): Promise<void> {
   }
 }
 
-/**
- * Verifica si se debe sobrescribir un archivo existente
- */
-async function shouldOverwrite(destPath: string, targetName: string): Promise<boolean> {
-  try {
-    // Verificar si existe
-    await fs.access(destPath);
-    
-    // Existe, preguntar al usuario
-    const result = await dialog.showMessageBox({
-      type: 'question',
-      buttons: ['Sobrescribir', 'Omitir'],
-      defaultId: 0,
-      title: 'Archivo existente',
-      message: `El archivo "${targetName}" ya existe`,
-      detail: `¿Desea sobrescribir el archivo en:\n${destPath}?`,
-      cancelId: 1,
-    });
-    
-    return result.response === 0; // Sobrescribir si presionó el primer botón
-  } catch (err: any) {
-    // Si no existe (ENOENT), permitir escritura
-    if (err.code === 'ENOENT') {
-      return true;
-    }
-    throw err;
-  }
+async function fileExists(p: string): Promise<boolean> {
+  try { await fs.access(p); return true; } catch { return false; }
 }
 
 /**
@@ -68,7 +45,7 @@ async function shouldOverwrite(destPath: string, targetName: string): Promise<bo
  * @param files - Array de archivos con sus nombres de destino
  * @param uris - Array de rutas destino (pueden ser locales o UNC)
  */
-export async function processFilesToUris(files: FileToProcess[], uris: string[]): Promise<void> {
+export async function processFilesToUris(files: FileToProcess[], uris: string[], mode: WriteMode = 'overwrite'): Promise<void> {
   const results: { file: string; uri: string; success: boolean; skipped?: boolean }[] = [];
   
   for (const file of files) {
@@ -91,11 +68,9 @@ export async function processFilesToUris(files: FileToProcess[], uris: string[])
         // Ruta completa del archivo destino
         const destPath = path.join(destDir, file.targetName);
         
-        // Verificar si existe y preguntar
-        const canWrite = await shouldOverwrite(destPath, file.targetName);
-        
-        if (!canWrite) {
-          console.log('[carga.processor] Usuario omitió sobrescritura:', destPath);
+        // Política sin diálogos: si es skip y existe, omitir
+        if (mode === 'skip' && await fileExists(destPath)) {
+          console.log('[carga.processor] Omitido por política skip:', destPath);
           results.push({ file: file.targetName, uri: destDir, success: true, skipped: true });
           continue;
         }

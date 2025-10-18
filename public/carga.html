@@ -106,22 +106,49 @@
       </p>
     </section>
 
-    <!-- Botones de acción -->
-    <section class="flex gap-3 justify-end pt-4 border-t">
-      <button
-        id="btnCancel"
-        class="px-6 py-2.5 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-colors shadow-md"
-      >
-        ❌ Anular
-      </button>
-      <button
-        id="btnProcess"
-        class="px-6 py-2.5 rounded-lg font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
-        disabled
-      >
-        ✅ Procesar
-      </button>
+    <!-- Botones de acción con política de conflicto y botón Ver -->
+    <section class="flex items-center justify-between pt-4 border-t">
+      <!-- Política de conflicto -->
+      <div class="flex items-center gap-2 text-sm">
+        <span class="text-slate-600">Si el archivo ya existe:</span>
+        <select id="conflictPolicy" class="border rounded-md px-2 py-1 bg-white text-slate-700">
+          <option value="skip">Omitir</option>
+          <option value="overwrite">Sobrescribir</option>
+          <option value="next">Sumar siguiente número</option>
+        </select>
+      </div>
+
+      <!-- Botonera -->
+      <div class="flex gap-3">
+        <button id="btnView" class="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 hover:bg-slate-300 shadow-md">
+          👁 Ver
+        </button>
+        <button
+          id="btnCancel"
+          class="px-6 py-2.5 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-colors shadow-md"
+        >
+          ❌ Anular
+        </button>
+        <button
+          id="btnProcess"
+          class="px-6 py-2.5 rounded-lg font-semibold bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-md disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled
+        >
+          ✅ Procesar
+        </button>
+      </div>
     </section>
+
+    <!-- Modal simple para "Ver" -->
+    <div id="viewModal" class="hidden fixed inset-0 bg-black/30 z-50 items-center justify-center">
+      <div class="bg-white rounded-xl shadow-xl w-[min(800px,92vw)] max-h-[80vh] overflow-hidden">
+        <div class="px-4 py-3 border-b flex items-center justify-between">
+          <div class="font-semibold">Contenido en destino</div>
+          <button id="viewClose" class="px-2 py-1 rounded bg-slate-200 hover:bg-slate-300">Cerrar</button>
+        </div>
+        <div id="viewBody" class="p-4 text-sm space-y-4 overflow-auto"></div>
+      </div>
+    </div>
   </main>
 
   <!-- Overlay de éxito -->
