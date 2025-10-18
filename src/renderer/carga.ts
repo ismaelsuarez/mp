@@ -124,9 +124,11 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
   const previewTitle = document.getElementById('previewTitle') as HTMLDivElement | null;
   const prevBtn = document.getElementById('prevBtn') as HTMLButtonElement | null;
   const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement | null;
+  const perFileControls = document.getElementById('perFileControls') as HTMLDivElement | null;
 
   let previewList: { name: string; path: string }[] = [];
   let previewIndex = 0;
+  const overwriteSelectionByName = new Map<string, boolean>();
 
   function renderPreview(idx: number) {
     if (!previewArea) return;
@@ -199,9 +201,17 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
   btnCancel.addEventListener('click', () => API?.cancel());
   btnProcess.addEventListener('click', async () => {
     let mode: 'overwrite' | 'skip' = 'overwrite';
+    // Leer selección por archivo (checkboxes de overwrite)
+    const perFileModes = new Map<string, 'overwrite'|'skip'>();
+    document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-overwrite]')
+      .forEach(chk => {
+        const name = chk.getAttribute('data-overwrite') || '';
+        perFileModes.set(name, chk.checked ? 'overwrite' : 'skip');
+      });
+
     let payloadFiles = files
       .filter(f => f.valid && f.realPath)
-      .map(f => ({ realPath: f.realPath!, targetName: f.targetName }));
+      .map(f => ({ realPath: f.realPath!, targetName: f.targetName, mode: perFileModes.get(f.targetName) }));
 
     if (conflictPolicy === 'skip') {
       mode = 'skip';
@@ -223,7 +233,7 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
             } else {
               name = `${meta.nombre}-${nextIndex + i}.${useExt}`;
             }
-            return { realPath: f.realPath!, targetName: name };
+            return { realPath: f.realPath!, targetName: name, mode: perFileModes.get(name) };
           });
         payloadFiles = renamed;
         mode = 'overwrite'; // ya no colisionan
@@ -251,6 +261,21 @@ type AddedFile = { realPath?: string; realName: string; targetName: string; vali
       const indexByPath = new Map<string, number>();
       previewList.forEach((it, idx) => indexByPath.set(it.path, idx));
       renderPreview(0);
+      // Construir controles por archivo (sobrescribir individual)
+      if (perFileControls) {
+        const rows = previewList.map((it) => {
+          const id = `ow_${btoa(it.name).replace(/=/g,'')}`;
+          const isChecked = overwriteSelectionByName.has(it.name) ? !!overwriteSelectionByName.get(it.name) : true;
+          return `<label class=\"inline-flex items-center gap-2 mr-4 mb-2\"><input type=\"checkbox\" data-overwrite=\"${it.name}\" id=\"${id}\" class=\"accent-emerald-600\" ${isChecked ? 'checked' : ''} /> <span class=\"mono\">${it.name}</span></label>`;
+        }).join('');
+        perFileControls.innerHTML = `<div class=\"mb-1 font-semibold\">Sobrescribir estos archivos si ya existen:</div><div class=\"flex flex-wrap\">${rows}</div>`;
+        perFileControls.querySelectorAll<HTMLInputElement>('input[type=\"checkbox\"][data-overwrite]').forEach(chk => {
+          chk.addEventListener('change', () => {
+            const key = chk.getAttribute('data-overwrite') || '';
+            overwriteSelectionByName.set(key, chk.checked);
+          });
+        });
+      }
 
       viewBody.innerHTML = res
         .map((r: any) => {

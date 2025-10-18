@@ -1,0 +1,92 @@
+Buenas tardes.
+
+  Les escribo para informarles que estaré acompañándolos en este proceso. Para facilitar el seguimiento y mantener una comunicación clara y centralizada, les solicito que utilicemos esta cadena como única vía de intercambio. Asimismo, agradezco que incorporen en copia a todas las personas que consideren necesarias, de modo que estemos todos alineados y no se pierda visibilidad sobre los avances.
+
+El correo actual posee información esencial para su Integración, si bien puede ser extenso, POR FAVOR agradezco leerlo en su totalidad para comprender el proceso completo. 
+
+INTEGRACIÓN ECR
+
+	Dado que estarán Integrando Nuestro Producto "ECR", deberán conectarse a las Terminales por API y para ello necesitarán tener acceso a Internet vía Wifi tanto en las Cajas como en el Local para conectar la Terminal.
+	La manera en que funciona la Integración es la siguiente: van a enviar Intenciones (de cobro, devolución, cierre de lote, etc.) y las mismas se visualizarán en una Lista de Intenciones en la Terminal.  Una vez elegida la Intención, deberán consultarla para ver como salió. 
+
+TERMINALES DE PRUEBA
+
+	Solicito detallar la siguiente información para realizar el envío de las Terminales de Prueba:
+
+•	Cantidad de Terminales que necesitan:
+•	Nombre y Apellido:
+•	Dirección:
+•	Localidad:
+•	Provincia:
+•	Código Postal:
+•	Teléfono:
+•	Horario de atención de la/s persona que la va a estar recibiendo:
+•	CUIT que van a registrar en el portal: 
+
+	Las mismas aplican únicamente para Homologación.  Las Terminales Productivas serán gestionadas posteriormente por su Comercial.
+
+DOCUMENTACIÓN
+
+	A modo adjunto, encontrarán los archivos necesarios que les permitirán avanzar con la Integración.
+
+REGISTRO API PORTAL - ECR
+
+	Dentro del Documento Onboarding API Portal – ECR visualizarán el paso a paso del Registro con capturas de pantalla e información útil.
+
+	Puntos importantes a tener en cuenta:
+
+•	Quien se registre será el dueño de las Credenciales a utilizar. 
+•	En caso de que el Cliente mismo este registrado, este será dueño de las Credenciales.
+•	Si se registra al Integrador deberán indicar CUIT Y RAZON SOCIAL DEL MISMO y las Credenciales podrán utilizarse como "preintegradas" evitando Homologar nuevamente con otros Clientes. 
+
+HOMOLOGACIÓN
+
+	Deberán solicitar el pasaje al ambiente de Homologación a través del API Portal, tal como se detalla en el documento "Onboarding API Portal – ECR". Este paso es necesario para avanzar con el proceso de Back Office, donde se valida la información del integrador o cliente registrado.
+	Finalizado el proceso, solicito por favor detallar el Número de Incidente que genera.
+
+	Una vez en Homologación van a poder utilizar las Terminales de Prueba que les enviemos. 
+	En los Documentos de Especificación de API ECR POS y en el Funcional van a encontrar Diagramas de Flujo y Modalidades propuestas para la Integración.  Estos se pisan un poco y puede que tengan info repetida entre ellos.
+	Además dispondrán de una colección de POSTMAN Apis Prisma ECR (Clientes) comentada donde pueden ver todas las APIs y probarlas.
+
+	A continuación, comparto los enlaces a la documentación necesaria para comenzar con el desarrollo de la mensajería utilizada por ECR. Toda esta información está disponible en el API Portal, y varios de los documentos pueden descargarse directamente desde ahí.
+
+•	Payments: https://developers.prismamediosdepago.com/portal/api/doc/Paystore%20terminals%20-%20Terminal%20Paym…
+•	Reversals: https://developers.prismamediosdepago.com/portal/api/doc/PayStore%20Terminals%20-%20Terminal%20Reve…
+•	Settlements: https://developers.prismamediosdepago.com/portal/api/doc/Paystore%20Terminals%20-%20Terminal%20Sett…
+•	Refunds : https://developers.prismamediosdepago.com/portal/api/doc/Paystore%20Terminals%20-%20Terminal%20Refu…
+
+	Puntos importantes a tener en cuenta:
+
+•	El paso a paso que deben seguir para poder configurar su Proyecto y agregar las APIs se encuentra en los Documentos adjuntos.
+•	Tengan en cuenta que las APIs a agregar son las que en su nombre tienen "TERMINALS" en el titulo y pueden buscarlas así.
+•	Allí van a encontrar como consumir las distintas APIs para poder hacer las primeras pruebas, parametrización de cada uno de los mensajes con ejemplos de cómo poder completar los mismos. 
+•	Noten que dentro arriba a la izquierda en cada ejemplo de llamada van a tener el link a el “schema” (esquema de datos) con la explicación del contenido de cada campo de la api. Por ejemplo, dentro de la api payments entre los Schemas, van a encontrar “Payment Request Data” y el mismo contiene todos los campos de payments y el detalle de que información llevan.
+
+TOKENS
+
+	Los Token los pueden solicitar por el método “OAUTH”, descrito en la Documentación en el siguiente link.
+	https://portal.developers.prismamediosdepago.com/documentation/AutenticacinUsodeOauth
+
+BILLETERA
+
+	Una vez que estén en Homologación, deberá utilizar la siguiente "Billetera" para pagar compras y testear QR (disponible en el siguiente link
+	https://drive.google.com/drive/folders/1PYU-gz29cPXld8hPBjYjukH7ktkD-i4s?usp=drive_link
+	Las instrucciones de uso están disponibles en un PDF adjunto con la misma. 
+
+PRUEBAS HOMOLOGACIÓN
+
+	Finalizado su Desarrollo, se realizará la Homologación de mensajería.
+	Deberán detallar el payment_id de las casuísticas que se indican en el archivo “HOMOLOGACION ECR.xlsx” y enviarlo adjunto
+
+PASAJE A PRODUCCIÓN
+
+	Concluida la Homologación y Pasaje a Producción, se realizará un Piloto Productivo en un solo Local con hasta 2 Terminales Productivas
+
+Realizamos un seguimiento semanal del proceso de integración y es importante que respondan a estas instancias. Les recordamos que, si una cuenta no responde durante dos semanas consecutivas, será devuelta al backlog de integraciones. Esto implica que el ejecutivo comercial asignado deberá volver a priorizarla con la mesa, corriendo el riesgo de que esta se encuentre a tope de capacidad y la cuenta no pueda retomarse hasta que haya disponibilidad.
+Dejo en CC  al equipo @integracionesECR y nuestra Project Manager @Melisa Rambla ya que en caso de que tengan alguna consulta y me encontrara ausente, cualquier persona del Equipo les pueda dar la asistencia correspondiente.
+Por favor, agradezco confirmar recepción del correo actual.
+
+Muchas gracias
+Saludos.  
+
+

@@ -8,7 +8,7 @@ import fssync from 'fs';
 // Sin diálogos: obedecemos la política seleccionada desde el renderer
 // (skip/overwrite/next). Aquí solo respetamos 'skip' y 'overwrite'.
 
-export type FileToProcess = { realPath: string; targetName: string };
+export type FileToProcess = { realPath: string; targetName: string; mode?: WriteMode };
 export type WriteMode = 'overwrite' | 'skip';
 
 /**
@@ -69,7 +69,8 @@ export async function processFilesToUris(files: FileToProcess[], uris: string[],
         const destPath = path.join(destDir, file.targetName);
         
         // Política sin diálogos: si es skip y existe, omitir
-        if (mode === 'skip' && await fileExists(destPath)) {
+        const effectiveMode = file.mode ?? mode;
+        if (effectiveMode === 'skip' && await fileExists(destPath)) {
           console.log('[carga.processor] Omitido por política skip:', destPath);
           results.push({ file: file.targetName, uri: destDir, success: true, skipped: true });
           continue;
