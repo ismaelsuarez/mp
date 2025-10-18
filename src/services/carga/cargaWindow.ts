@@ -15,7 +15,9 @@ type OpenOpts = {
 };
 
 function getBase() {
-  return app.isPackaged ? process.resourcesPath : app.getAppPath();
+  // En producción, los assets viven bajo resources/app; app.getAppPath() apunta ahí
+  // En desarrollo, también apunta al root del proyecto
+  return app.getAppPath();
 }
 
 // Estado persistente de ventana (mismo store que usa el resto de ventanas)
